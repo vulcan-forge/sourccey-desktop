@@ -1,0 +1,53 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "productName": "Sourccey",
+    "version": "0.0.3",
+    "identifier": "Sourccey",
+    "build": {
+        "beforeDevCommand": "bun run dev",
+        "beforeBuildCommand": "bun run build",
+        "frontendDist": "../out",
+        "devUrl": "http://localhost:3000"
+    },
+    "app": {
+        "withGlobalTauri": true,
+        "windows": [
+            {
+                "title": "Sourccey",
+                "decorations": true,
+                "fullscreen": false,
+                "resizable": true,
+                "alwaysOnTop": false,
+                "width": 1280,
+                "height": 800,
+                "minWidth": 800,
+                "minHeight": 600
+            }
+        ],
+        "security": {
+            "csp": null
+        }
+    },
+    "bundle": {
+        "active": true,
+        "targets": "all",
+        "createUpdaterArtifacts": true,
+        "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
+        "windows": {
+            "nsis": {
+                "installerIcon": "icons/icon.ico"
+            }
+        }
+    },
+    "plugins": {
+        "fs": {
+            "requireLiteralLeadingDot": false
+        },
+        "updater": {
+            "active": true,
+            "endpoints": ["https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/latest.json"],
+            "dialog": true,
+            "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDkwNDZCMDk1NTk3OTkzNDQKUldSRWszbFpsYkJHa0lxZXI0TjdZZnZhWlB5Ukw4OFVXNk5paDlaODg0NHJkbnF2MnlSODAvU2gK"
+        }
+    }
+}

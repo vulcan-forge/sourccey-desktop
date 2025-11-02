@@ -1,0 +1,4 @@
+[submodule "modules/lerobot-vulcan"]
+	path = modules/lerobot-vulcan
+	url = git@github.com:vulcan-forge/lerobot-vulcan.git
+	branch = main

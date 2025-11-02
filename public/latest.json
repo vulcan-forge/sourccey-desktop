@@ -1,0 +1,12 @@
+{
+    "version": "0.0.3",
+    "date": "2025-10-14T12:00:00Z",
+    "force": true,
+    "platforms": {
+        "windows-x86_64": {
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRWszbFpsYkJHa0R0enhsNFBXcTA3UXhmdXNJL1BDNXh5anNMN1pPNVNJRTRuREtLMk52elVITDFNRmRCVWZOVjFiZUZwYnkvWnJnMnh5a3huQ2hUcVI0TkxRV1ZEWHdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzYwNTA3MDU2CWZpbGU6U291cmNjZXlfMC4wLjNfeDY0LXNldHVwLmV4ZQpBM0NwSkpuYU9mZjVjeWsvb0Nhb2NRVlI1WjNYUWtHaWhndm1zRU1GT2VYelBFNXBleDFsZFdsVmhkbnkzUW5UUzUzdGZncXZXWDJNaUZ5elBzVlFCdz09Cg==",
+            "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/SourcceyInstaller.exe"
+        }
+    },
+    "notes": "Initial nightly release\n- Robot control\n- AI training\n- Kiosk mode"
+}

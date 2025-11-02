@@ -1,0 +1,59 @@
+@import 'tailwindcss';
+@source not "../../modules/";
+@source not "../../src-tauri/";
+
+@theme {
+    --text-2xs: 0.625rem;
+    --text-3xs: 0.5rem;
+
+    --height-128: 32rem;
+
+    /* Slate color palette - ordered from lightest to darkest */
+    --color-slate-625: oklch(37.2% 0.044 257.287);
+    --color-slate-650: oklch(35.5% 0.043 258);
+    --color-slate-675: oklch(33.8% 0.043 258.7);
+
+    --color-slate-700: oklch(32.1% 0.043 259.4);
+    --color-slate-725: oklch(30.4% 0.042 260.1);
+    --color-slate-750: oklch(28.7% 0.042 260.8);
+    --color-slate-775: oklch(27% 0.041 261.5);
+
+    --color-slate-800: oklch(27.9% 0.041 260.031);
+    --color-slate-825: oklch(26.2% 0.041 261.2);
+    --color-slate-850: oklch(24.5% 0.041 261.9);
+    --color-slate-875: oklch(22.8% 0.04 262.6);
+
+    --drop-shadow-logo: 0 0px 4px rgba(251, 146, 60, 0.4);
+}
+
+@layer utilities {
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+        background: oklch(37.2% 0.044 257.287);
+        border-radius: 9999px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+        background: oklch(39% 0.044 257.287);
+    }
+
+    ::-webkit-scrollbar-track {
+        background: oklch(27.9% 0.041 260.031);
+    }
+
+    ::-webkit-scrollbar-button {
+        display: none;
+    }
+
+    .scrollbar-left {
+        direction: rtl;
+    }
+
+    .scrollbar-left > * {
+        direction: ltr;
+    }
+}

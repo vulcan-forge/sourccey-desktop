@@ -1,0 +1,28 @@
+[
+    {
+        "id": "0195f368-73ca-76dd-aa6f-5cfa53fa8394",
+        "name": "SO-100",
+        "long_name": "SO-100 Robot Arms",
+        "description": "Train it in minutes with a few simple moves on your laptop.Then sit back and watch your creation act autonomously! 🤯",
+        "short_description": "A low cost, 3D-printed robot arm!",
+        "image": "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/robot/images/844d5a3f-fd05-48f2-920a-937275481c69.png",
+        "robot_type": "so100_follower",
+        "github_url": "https://github.com/huggingface/lerobot",
+        "created_at": "2025-10-09T00:00:00.000Z",
+        "updated_at": "2025-10-09T00:00:00.000Z",
+        "deleted_at": null
+    },
+    {
+        "id": "01965652-97ed-7b82-bdc4-22865064d073",
+        "name": "Sourccey",
+        "long_name": "Sourccey",
+        "description": "Sourccey is the world's first robot helper! Sourccey can help you do your dishes, do your laundry, take out the garbage along with many other basic chores. Train and guide Sourccey to improve his capability!",
+        "short_description": "An adorable robot helper!",
+        "image": "",
+        "robot_type": "sourccey",
+        "github_url": "https://github.com/huggingface/lerobot",
+        "created_at": "2025-10-09T00:00:00.000Z",
+        "updated_at": "2025-10-09T00:00:00.000Z",
+        "deleted_at": null
+    }
+]
