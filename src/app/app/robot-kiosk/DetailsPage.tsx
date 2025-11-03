@@ -14,8 +14,8 @@ export const KioskRobotDetailsPage: React.FC = () => {
     return (
         <div className="bg-slate-850 flex h-screen flex-col">
             <div className="w-full space-y-4 p-6">
-                <RobotKioskCalibration nickname={nickname} robotType={robotType} calibration={calibration} />
                 {calibration && <RobotControl nickname={nickname} />}
+                <RobotKioskCalibration nickname={nickname} robotType={robotType} calibration={calibration} />
             </div>
         </div>
     );
