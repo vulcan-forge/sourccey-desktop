@@ -13,14 +13,19 @@ import time
 from pathlib import Path
 from typing import Callable, Optional
 
-project_root = Path(__file__).parent.parent.parent
+# Add project root and shared directory to path for imports
+# From setup/kiosk/components/setup_build.py:
+# parent.parent.parent.parent = project root
+# parent.parent.parent / "shared" = setup/shared
+project_root = Path(__file__).parent.parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-shared_dir = Path(__file__).parent.parent / "shared"
+shared_dir = Path(__file__).parent.parent.parent / "shared"
 if str(shared_dir) not in sys.path:
     sys.path.insert(0, str(shared_dir))
 
-from setup.shared.setup_javascript import get_bun_path
+# Import directly from shared (like setup.py does)
+from setup_javascript import get_bun_path # type: ignore
 
 #################################################################
 # Build Manager Class

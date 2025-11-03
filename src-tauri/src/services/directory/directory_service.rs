@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use crate::services::environment::build_service::BuildService;
+use crate::services::directory::path_constants;
 
 pub struct DirectoryService;
 
@@ -25,7 +26,7 @@ impl DirectoryService {
 
     pub fn get_current_dir_production() -> Result<PathBuf, String> {
         // Production build: project is at fixed location where setup script was run
-        let project_root = PathBuf::from("/home/sourccey/Desktop/Projects/sourccey-desktop-nightly");
+        let project_root = path_constants::get_project_root();
 
         // Verify modules exist at expected location
         if project_root.join("modules").join("lerobot-vulcan").exists() {
