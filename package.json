@@ -9,7 +9,7 @@
         "start": "next start",
         "lint": "next lint",
         "tauri": "tauri",
-        "tauri:kiosk": "export DISPLAY=:0.0 && export CARGO_BUILD_JOBS=1 && export CARGO_INCREMENTAL=0 && xhost +local: 2>/dev/null || true && bun tauri dev -- -- --kiosk",
+        "tauri:kiosk": "export DISPLAY=:0.0 && xhost +local: 2>/dev/null || true && bun tauri dev -- -- --kiosk",
         "tauri:kiosk desktop": "bun tauri dev -- -- --kiosk",
         "tauri:env": "dotenv -e .env -- tauri"
     },
