@@ -38,6 +38,7 @@ from setup_python import PythonSetupManager  # type: ignore
 from setup_javascript import JavaScriptSetupManager, get_bun_path  # type: ignore
 from setup_rust import RustSetupManager  # type: ignore
 from setup_git import GitSetupManager  # type: ignore
+from components.setup_swap import setup_swap_for_build  # type: ignore
 
 class Colors:
     """ANSI color codes for terminal output"""
@@ -158,6 +159,16 @@ class DevKioskSetupScript:
         """Install Bun packages"""
         return self.javascript_manager.install_packages()
 
+    def setup_swap_for_memory_intensive_builds(self) -> bool:
+        """Setup swap space for memory-intensive builds like Rust/Tauri compilation"""
+        return setup_swap_for_build(
+            self.print_status,
+            self.print_success,
+            self.print_warning,
+            self.print_error,
+            size_gb=8
+        )
+
     def run_kiosk_dev(self) -> bool:
         """Run bun tauri:kiosk command"""
         self.print_status("Starting development kiosk mode...")
@@ -270,6 +281,13 @@ class DevKioskSetupScript:
             return False
 
         self.print_success("Project setup completed")
+
+        # Setup swap for memory-intensive compilation
+        self.print_header("SETTING UP SWAP SPACE")
+
+        if not self.setup_swap_for_memory_intensive_builds():
+            self.print_warning("Swap setup had issues, but continuing...")
+            self.print_warning("Compilation may fail if system runs out of memory")
 
         # Run kiosk dev mode
         self.print_header("STARTING KIOSK DEV MODE")
