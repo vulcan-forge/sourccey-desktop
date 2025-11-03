@@ -26,6 +26,13 @@ import subprocess
 import argparse
 from pathlib import Path
 
+# Check if running as root/sudo - prevent this
+if os.geteuid() == 0:
+    print("ERROR: This script should not be run as root or with sudo.")
+    print("Please run it as a regular user.")
+    print("The script will request sudo privileges only when needed.")
+    sys.exit(1)
+
 project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root))
 
