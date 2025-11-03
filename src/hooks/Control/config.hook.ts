@@ -7,6 +7,7 @@ export const BASE_CONTROL_CONFIG_KEY = 'control-config';
 export const CONTROL_CONFIG_KEY = (nickname: string) => [BASE_CONTROL_CONFIG_KEY, nickname];
 
 export const BASE_CONTROL_CALIBRATION_KEY = 'control-calibration';
+export const IS_CALIBRATED_KEY = [BASE_CONTROL_CALIBRATION_KEY, 'is-calibrated'];
 export const CONTROL_CALIBRATION_KEY = (nickname: string) => [BASE_CONTROL_CALIBRATION_KEY, nickname];
 
 //---------------------------------------------------------------------------------------------------//
@@ -49,3 +50,16 @@ export const getCalibration = async (nickname: string) => {
 
 export const useGetCalibration = (nickname: string) =>
     useQuery({ queryKey: CONTROL_CALIBRATION_KEY(nickname), queryFn: async () => await getCalibration(nickname) });
+
+//---------------------------------------------------------------------------------------------------//
+// Is Calibrated Config
+//---------------------------------------------------------------------------------------------------//
+export const getIsCalibrated = () => queryClient.getQueryData(IS_CALIBRATED_KEY) ?? false;
+export const setIsCalibrated = (isCalibrated: boolean) => queryClient.setQueryData(IS_CALIBRATED_KEY, isCalibrated);
+export const useGetIsCalibrated = () =>
+    useQuery({
+        queryKey: IS_CALIBRATED_KEY,
+        queryFn: () => getIsCalibrated(),
+        staleTime: Infinity,
+        gcTime: Infinity,
+    });
