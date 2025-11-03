@@ -1,4 +1,5 @@
 use std::path::PathBuf;
+use crate::services::directory::path_constants;
 
 pub struct RemoteDirectoryService;
 
@@ -7,7 +8,7 @@ impl RemoteDirectoryService {
     // Standard Directory Functions
     //------------------------------------------------------------//
     pub fn get_home_dir() -> Result<PathBuf, String> {
-        Ok(PathBuf::from("/home/sourccey"))
+        Ok(path_constants::get_remote_home_dir())
     }
 
     pub fn get_lerobot_vulcan_dir() -> Result<PathBuf, String> {
@@ -15,7 +16,7 @@ impl RemoteDirectoryService {
         Ok(home_directory
             .join("Desktop")
             .join("Projects")
-            .join("lerobot-vulcan-nightly"))
+            .join(path_constants::REMOTE_LEROBOT_VULCAN_DIR_NAME))
     }
 
     // Helper function to convert PathBuf to Linux-compatible string

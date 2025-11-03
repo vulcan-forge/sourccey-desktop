@@ -1,5 +1,8 @@
 # Merge gitmodules with our own
- .gitmodules merge=ours
+.gitmodules merge=ours
+
+# Preserve local path constants during merges
+src-tauri/src/services/directory/path_constants.rs merge=ours
 
 # Set default behavior to automatically normalize line endings
 * text=auto
