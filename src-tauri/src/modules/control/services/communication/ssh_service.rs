@@ -763,9 +763,6 @@ impl SshService {
         let check_command = "pgrep -f 'lerobot.robots.sourccey.sourccey.sourccey.sourccey_host' > /dev/null 2>&1 && echo 'started' || echo 'stopped'";
 
         // Add logging for the command being executed
-        println!("[is_robot_started] Checking robot status for: {}", nickname);
-        println!("[is_robot_started] Executing command: {}", check_command);
-
         let success_event = "robot-is-started-success".to_string();
         let success_log = "Robot is started".to_string();
         let error_event = "robot-is-started-error".to_string();
@@ -778,16 +775,10 @@ impl SshService {
             &remote_config.password,
         ).await {
             Ok(mut session) => {
-                println!("[is_robot_started] SSH session created successfully");
                 match SshService::execute_command_read_output_async(&mut session, &check_command, 10).await {
                     Ok(Some(line)) => {
                         // Log the raw output received
-                        println!("[is_robot_started] Raw output received: '{}'", line);
-                        println!("[is_robot_started] Output length: {}", line.len());
-                        println!("[is_robot_started] Output trimmed: '{}'", line.trim());
-
                         if line.eq_ignore_ascii_case("started") {
-                            println!("[is_robot_started] Matched 'started' - robot is running");
                             let _ = app_handle.emit(
                                 &success_event,
                                 serde_json::json!({
@@ -798,7 +789,6 @@ impl SshService {
                             );
                             Ok(true)
                         } else {
-                            println!("[is_robot_started] Output does not match 'started', got: '{}'", line);
                             let _ = app_handle.emit(
                                 &error_event,
                                 serde_json::json!({
@@ -811,7 +801,6 @@ impl SshService {
                         }
                     }
                     Ok(None) => {
-                        println!("[is_robot_started] No output received from command");
                         let _ = app_handle.emit(
                             &error_event,
                             serde_json::json!({
@@ -823,7 +812,6 @@ impl SshService {
                         Ok(false)
                     }
                     Err(e) => {
-                        println!("[is_robot_started] Error checking robot started status: {}", e);
                         let _ = app_handle.emit(
                             &error_event,
                             serde_json::json!({
@@ -837,7 +825,6 @@ impl SshService {
                 }
             }
             Err(e) => {
-                println!("[is_robot_started] Failed to create SSH session: {}", e);
                 let _ = app_handle.emit(
                     &error_event,
                     serde_json::json!({

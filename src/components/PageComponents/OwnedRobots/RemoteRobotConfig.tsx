@@ -231,7 +231,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
                 }
 
                 // Store in ref so cleanup can access it
-                startedIntervalIdRef.current = setInterval(checkRobotStartedStatus, 10 * 1000);
+                startedIntervalIdRef.current = setInterval(checkRobotStartedStatus, 30 * 1000);
             } catch (error) {
                 console.error('Failed to check initial robot started status:', error);
                 setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, null, ownedRobot);
@@ -259,8 +259,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
                 if (!remoteConfig) {
                     return;
                 }
-                const test = await SshControl.isRobotStarted(remoteConfig, nickname);
-                console.log('test', test);
+                await SshControl.isRobotStarted(remoteConfig, nickname);
             } catch (error) {
                 console.error('Failed to check robot started status:', error);
                 setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
