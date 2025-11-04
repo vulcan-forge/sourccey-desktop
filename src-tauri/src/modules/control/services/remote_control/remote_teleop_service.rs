@@ -33,50 +33,42 @@ impl RemoteTeleopService {
         config: RemoteTeleopConfig,
     ) -> Result<String, String> {
 
-        println!("Starting remote teleop for nickname: {}", config.nickname);
         // Check if a process with this nickname is already running
         {
-            println!("Checking if process already exists");
             let processes = state.0.lock().unwrap();
-            println!("Processes: {:?}", processes);
             if processes.contains_key(&config.nickname) {
                 // Unlock the mutex before calling stop_teleop (which needs to lock it)
                 drop(processes);
                 println!("Process already exists for nickname: {}, stopping it first...", config.nickname);
                 match Self::stop_teleop(db_connection.clone(), state, config.nickname.clone()) {
-                    Ok(msg) => {
-                        println!("Stopped existing process: {}", msg);
+                    Ok(_msg) => {
                         // Give a small delay to ensure the process is fully stopped
                         std::thread::sleep(std::time::Duration::from_millis(500));
                     }
-                    Err(e) => {
-                        println!("Warning: Failed to stop existing process: {}", e);
+                    Err(_e) => {
                         // Continue anyway - might have already stopped
                     }
                 }
             }
         }
-        println!("No process found (or stopped) for nickname: {}", config.nickname);
 
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        println!("LeRobot directory: {:?}", lerobot_dir);
         let python_path = DirectoryService::get_python_path()?;
-        println!("Python path: {:?}", python_path);
 
         // Validate paths exist before trying to spawn
-        if !python_path.exists() {
-            println!("Python executable not found at: {:?}", python_path);
-            return Err(format!(
-                "Python executable not found at: {:?}",
-                python_path
-            ));
-        }
-
         if !lerobot_dir.exists() {
             println!("LeRobot directory not found at: {:?}", lerobot_dir);
             return Err(format!(
                 "LeRobot directory not found at: {:?}",
                 lerobot_dir
+            ));
+        }
+
+        if !python_path.exists() {
+            println!("Python executable not found at: {:?}", python_path);
+            return Err(format!(
+                "Python executable not found at: {:?}",
+                python_path
             ));
         }
 
@@ -96,9 +88,8 @@ impl RemoteTeleopService {
         let script_path_str = script_path.to_string_lossy().to_string();
 
         let robot_type = "sourccey".to_string();
-
         let command_parts = Self::build_command_args(&config);
-        println!("Command parts: {:?}", command_parts);
+
         // Now build the actual Command
         let mut cmd = Command::new(&python_path);  // Use reference here
         for arg in &command_parts[1..] {
@@ -107,10 +98,6 @@ impl RemoteTeleopService {
 
         // Inherit environment from parent process
         EnvService::add_python_env_vars(&mut cmd)?;
-
-        println!("Adding Python environment variables");
-        println!("Working directory will be: {:?}", lerobot_dir);
-        println!("Script path relative to working dir: {:?}", command_parts[1]);
 
         let mut child = cmd
             .current_dir(&lerobot_dir)
@@ -127,11 +114,9 @@ impl RemoteTeleopService {
                 )
             })?;
 
-        println!("Spawning process");
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();
         let shutdown_flag = Arc::new(AtomicBool::new(false));
-        println!("Shutdown flag: {:?}", shutdown_flag);
 
         // Create command log service with the provided connection
         let command_string = command_parts.join(" ");
@@ -150,8 +135,6 @@ impl RemoteTeleopService {
                 return Err(format!("Failed to add command log: {}", e));
             }
         };
-
-        println!("Command log: {:?}", command_log);
 
         // Store the command log ID for later use
         let pid = child.id();
