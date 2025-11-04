@@ -1,14 +1,8 @@
 import { FaGamepad, FaStop, FaPlay, FaWifi } from 'react-icons/fa';
 import { useGetCalibration } from '@/hooks/Control/config.hook';
 import { Tooltip } from 'react-tooltip';
-import {
-    useGetRemoteRobotConnect,
-    useGetRemoteRobotStart,
-    RemoteRobotConnectState,
-    RemoteRobotStartedState,
-} from '@/hooks/Components/OwnedRobots/remote-config.hook';
 import { RobotLogs } from '@/components/PageComponents/OwnedRobots/Training/RobotLogs';
-import { RemoteControlType } from '@/hooks/Control/remote-control.hook';
+import { RemoteControlType, RemoteRobotStatus } from '@/hooks/Control/remote-control.hook';
 
 const ConnectRobotComponent = ({ nickname }: { nickname: string }) => {
     return (
@@ -45,6 +39,7 @@ export const RemoteRobotAction = ({
     resetEpisode,
     isLoading,
     isControlling,
+    robotStatus,
     controlType,
     logs,
 }: {
@@ -54,18 +49,19 @@ export const RemoteRobotAction = ({
     resetEpisode?: (nickname: string) => void;
     isLoading: boolean;
     isControlling: boolean;
-    controlType: string;
+    robotStatus: RemoteRobotStatus;
+    controlType: RemoteControlType;
     logs: boolean;
 }) => {
     const nickname = ownedRobot?.nickname ?? '';
-    const { data: connectState }: any = useGetRemoteRobotConnect(nickname);
-    const { data: startState }: any = useGetRemoteRobotStart(nickname);
     const { data: calibration, isLoading: isLoadingCalibration }: any = useGetCalibration(nickname);
 
-    const isConnected = connectState === RemoteRobotConnectState.CONNECTED;
-    const isRobotStarted = startState === RemoteRobotStartedState.STARTED;
     const isCalibrationLoading = isLoading || isLoadingCalibration;
-    const isControlDisabled = isLoading || isLoadingCalibration || !calibration || !isConnected || !isRobotStarted;
+
+    // State Variables
+    const isConnected = robotStatus == RemoteRobotStatus.CONNECTED || robotStatus == RemoteRobotStatus.STARTED;
+    const isRobotStarted = robotStatus == RemoteRobotStatus.STARTED;
+    const isControlDisabled = isLoading || isLoadingCalibration || !calibration || robotStatus == RemoteRobotStatus.NONE;
 
     // Show connect component if not connected
     if (!isConnected) {

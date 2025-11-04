@@ -16,11 +16,13 @@ impl DirectoryService {
     }
 
     pub fn get_current_dir_dev() -> Result<PathBuf, String> {
+        println!("Getting current directory in dev mode");
         let current_dir = std::env::current_dir()
             .map_err(|e| format!("Failed to get current directory: {}", e))?
             .parent()
             .ok_or("Failed to get parent directory")?
             .to_path_buf();
+        println!("Current directory: {:?}", current_dir);
         Ok(current_dir)
     }
 
@@ -41,8 +43,11 @@ impl DirectoryService {
     }
 
     pub fn get_lerobot_vulcan_dir() -> Result<PathBuf, String> {
+        println!("Getting LeRobot Vulcan directory");
         let current_dir = Self::get_current_dir()?;
+        println!("Current directory: {:?}", current_dir);
         let lerobot_vulcan_dir = current_dir.join("modules").join("lerobot-vulcan");
+        println!("LeRobot Vulcan directory: {:?}", lerobot_vulcan_dir);
         Ok(lerobot_vulcan_dir)
     }
 

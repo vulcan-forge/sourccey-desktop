@@ -18,38 +18,28 @@ import {
 } from '@/utils/logs/ssh-logs/ssh-events';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import type { Config, ConfigConfig } from '@/components/PageComponents/OwnedRobots/RobotConfig';
-import { RemoteControlType, setRemoteControlledRobot } from '@/hooks/Control/remote-control.hook';
+import type { ConfigConfig } from '@/components/PageComponents/OwnedRobots/RobotConfig';
+import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { Spinner } from '@/components/Elements/Spinner';
-import {
-    getRemoteRobotConnect,
-    RemoteRobotConnectState,
-    RemoteRobotStartedState,
-    setRemoteRobotConnect,
-    setRemoteRobotStart,
-    useGetRemoteRobotConnect,
-    useGetRemoteRobotStart,
-} from '@/hooks/Components/OwnedRobots/remote-config.hook';
 import { setRemoteConfig, useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
+import { isConnected, isConnecting, isDisconnecting, isStarted, isStarting, isStopping } from '@/utils/robot/robot-status';
 
 export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; onClose: () => void }) => {
     const nickname = ownedRobot?.nickname ?? '';
     const [showConfig, setShowConfig] = useState(false);
     const [errorMessage, setErrorMessage] = useState<string>('');
     const { data: remoteConfig, isLoading: isLoadingConfig }: any = useGetRemoteConfig(nickname as string);
-
-    const { data: connectState }: any = useGetRemoteRobotConnect(nickname);
-    const { data: startState }: any = useGetRemoteRobotStart(nickname);
+    const { data: remoteRobotState }: any = useGetRemoteRobotState(nickname as string);
     const [isLoadingConnectionState, setIsLoadingConnectionState] = useState(true);
 
-    const isConnected = connectState === RemoteRobotConnectState.CONNECTED;
-    const isConnecting = connectState === RemoteRobotConnectState.CONNECTING;
-    const isDisconnecting = connectState === RemoteRobotConnectState.DISCONNECTING;
-    const isDisconnected = connectState === RemoteRobotConnectState.DISCONNECTED;
-    const isRobotStarted = startState === RemoteRobotStartedState.STARTED;
-    const isStartingRobot = startState === RemoteRobotStartedState.STARTING;
-    const isStoppingRobot = startState === RemoteRobotStartedState.STOPPING;
-    const isStoppedRobot = startState === RemoteRobotStartedState.STOPPED;
+    const robotStatus = remoteRobotState?.status;
+    const controlType = remoteRobotState?.controlType;
+    const isRobotConnected = isConnected(robotStatus);
+    const isRobotConnecting = isConnecting(robotStatus);
+    const isRobotDisconnecting = isDisconnecting(robotStatus);
+    const isRobotStarted = isStarted(robotStatus);
+    const isRobotStarting = isStarting(robotStatus);
+    const isRobotStopping = isStopping(robotStatus);
 
     // Add refs to track interval IDs
     const connectionIntervalIdRef = useRef<NodeJS.Timeout | null>(null);
@@ -81,9 +71,8 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         (event: SshConnectionSuccess) => {
             if (event.nickname === nickname) {
                 console.log(`✅ Robot ${nickname} connected successfully: ${event.message}`);
-                setRemoteRobotConnect(nickname, RemoteRobotConnectState.CONNECTED);
+                setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, null, ownedRobot);
                 setErrorMessage('');
-                setRemoteControlledRobot(nickname, RemoteControlType.CONNECT, ownedRobot);
                 toast.success(event.message, {
                     ...toastSuccessDefaults,
                 });
@@ -96,9 +85,8 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         (event: SshConnectionError) => {
             if (event.nickname === nickname) {
                 console.error(`❌ Robot ${nickname} connection failed: ${event.error}`);
-                setRemoteRobotConnect(nickname, RemoteRobotConnectState.ERROR);
+                setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
                 setErrorMessage(event.error);
-                setRemoteControlledRobot(nickname, RemoteControlType.CONNECT, null);
                 toast.error(`Robot ${nickname} connection failed`, {
                     ...toastErrorDefaults,
                 });
@@ -112,9 +100,8 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             if (event.nickname === nickname) {
                 console.log(`🔄 Robot ${nickname} is connected: ${event.message}`);
                 setIsLoadingConnectionState(false);
-                setRemoteRobotConnect(nickname, RemoteRobotConnectState.CONNECTED);
+                setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, null, ownedRobot);
                 setErrorMessage('');
-                setRemoteControlledRobot(nickname, RemoteControlType.CONNECT, ownedRobot);
             }
         },
         [nickname, ownedRobot]
@@ -124,10 +111,9 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         (event: SshConnectionStatusError) => {
             if (event.nickname === nickname) {
                 console.error(`❌ Robot ${nickname} is not connected: ${event.error}`);
+                setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
                 setIsLoadingConnectionState(false);
-                setRemoteRobotConnect(nickname, RemoteRobotConnectState.ERROR);
                 setErrorMessage(event.error);
-                setRemoteControlledRobot(nickname, RemoteControlType.CONNECT, null);
             }
         },
         [nickname]
@@ -137,8 +123,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         (event: SshRobotStartSuccess) => {
             if (event.nickname === nickname) {
                 console.log(`✅ Robot ${nickname} started successfully: ${event.message}`);
-                setRemoteRobotStart(nickname, RemoteRobotStartedState.STARTED);
-                setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+                setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, null, ownedRobot);
                 toast.success(event.message, {
                     ...toastSuccessDefaults,
                 });
@@ -151,8 +136,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         (event: SshRobotStartError) => {
             if (event.nickname === nickname) {
                 console.error(`❌ Robot ${nickname} start failed: ${event.error}`);
-                setRemoteRobotStart(nickname, RemoteRobotStartedState.ERROR);
-                setRemoteControlledRobot(nickname, RemoteControlType.CONNECT, ownedRobot);
+                setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
                 toast.error(event.error, {
                     ...toastErrorDefaults,
                 });
@@ -165,8 +149,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         (event: SshRobotStopSuccess) => {
             if (event.nickname === nickname) {
                 console.log(`✅ Robot ${nickname} stopped successfully: ${event.message}`);
-                setRemoteRobotStart(nickname, RemoteRobotStartedState.STOPPED);
-                setRemoteControlledRobot(nickname, RemoteControlType.CONNECT, ownedRobot);
+                setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, RemoteControlType.NONE, ownedRobot);
                 toast.success(event.message, {
                     ...toastSuccessDefaults,
                 });
@@ -179,8 +162,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         (event: SshRobotStopError) => {
             if (event.nickname === nickname) {
                 console.error(`❌ Robot ${nickname} stop failed: ${event.error}`);
-                setRemoteRobotStart(nickname, RemoteRobotStartedState.ERROR);
-                setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+                setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, RemoteControlType.NONE, ownedRobot);
                 toast.error(event.error, {
                     ...toastErrorDefaults,
                 });
@@ -195,11 +177,9 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
                 console.log(`✅ Robot ${nickname} is running: ${event.message}`);
                 console.log('event', event);
                 if (event.output === 'started') {
-                    setRemoteRobotStart(nickname, RemoteRobotStartedState.STARTED);
-                    setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+                    setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, null, ownedRobot);
                 } else {
-                    setRemoteRobotStart(nickname, RemoteRobotStartedState.STOPPED);
-                    setRemoteControlledRobot(nickname, RemoteControlType.CONNECT, ownedRobot);
+                    setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
                 }
             }
         },
@@ -210,7 +190,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         (event: SshRobotStartedError) => {
             if (event.nickname === nickname) {
                 console.info(`Robot ${nickname} is not running`);
-                setRemoteRobotStart(nickname, RemoteRobotStartedState.STOPPED);
+                setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, null, ownedRobot);
             }
         },
         [nickname]
@@ -239,7 +219,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             } catch (error) {
                 console.error('Failed to check initial connection status:', error);
                 setIsLoadingConnectionState(false);
-                setRemoteRobotConnect(nickname, RemoteRobotConnectState.ERROR);
+                setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
             }
         };
 
@@ -254,7 +234,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
                 startedIntervalIdRef.current = setInterval(checkRobotStartedStatus, 10 * 1000);
             } catch (error) {
                 console.error('Failed to check initial robot started status:', error);
-                setRemoteRobotStart(nickname, RemoteRobotStartedState.ERROR);
+                setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, null, ownedRobot);
             }
         };
 
@@ -269,7 +249,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             } catch (error) {
                 console.error('Failed to check connection status:', error);
                 setIsLoadingConnectionState(false);
-                setRemoteRobotConnect(nickname, RemoteRobotConnectState.ERROR);
+                setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
             }
         };
 
@@ -283,7 +263,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
                 console.log('test', test);
             } catch (error) {
                 console.error('Failed to check robot started status:', error);
-                setRemoteRobotStart(nickname, RemoteRobotStartedState.ERROR);
+                setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
             }
         };
 
@@ -455,7 +435,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
     };
 
     const toggleConnection = async () => {
-        if (connectState === RemoteRobotConnectState.CONNECTED) {
+        if (robotStatus == RemoteRobotStatus.CONNECTED) {
             await disconnect();
         } else {
             await connect();
@@ -464,20 +444,19 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
 
     const connect = async () => {
         try {
-            setRemoteRobotConnect(nickname, RemoteRobotConnectState.CONNECTING);
+            setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTING, null, ownedRobot);
             setErrorMessage('');
             await SshControl.connect(remoteConfig, nickname);
         } catch (error) {
             console.error('Failed to connect:', error);
-            setRemoteRobotConnect(nickname, RemoteRobotConnectState.ERROR);
+            setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
             setErrorMessage(error instanceof Error ? error.message : 'Connection failed, please checked your Robot IP, Username, and Password');
         }
     };
 
     const disconnect = async () => {
         try {
-            setRemoteRobotConnect(nickname, RemoteRobotConnectState.DISCONNECTING);
-            setRemoteRobotStart(nickname, RemoteRobotStartedState.STOPPING);
+            setRemoteRobotState(nickname, RemoteRobotStatus.DISCONNECTING, null, ownedRobot);
 
             // Clear the intervals when disconnecting
             if (connectionIntervalIdRef.current) {
@@ -494,10 +473,8 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             const result = await SshControl.disconnect(remoteConfig, nickname);
             console.log('disconnect result', result);
             if (result) {
-                setRemoteRobotConnect(nickname, RemoteRobotConnectState.DISCONNECTED);
-                setRemoteRobotStart(nickname, RemoteRobotStartedState.STOPPED);
+                setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
                 setErrorMessage('');
-                setRemoteControlledRobot(nickname, RemoteControlType.CONNECT, null);
                 onClose();
                 toast.success(`Robot ${nickname} disconnected successfully`, {
                     ...toastSuccessDefaults,
@@ -505,7 +482,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             }
         } catch (error) {
             console.error('Failed to disconnect:', error);
-            setRemoteRobotConnect(nickname, RemoteRobotConnectState.ERROR);
+            setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
             setErrorMessage(error instanceof Error ? error.message : 'Disconnection failed');
             toast.error(`Robot ${nickname} disconnection failed`, {
                 ...toastErrorDefaults,
@@ -523,11 +500,11 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
 
     const startRobot = async () => {
         try {
-            setRemoteRobotStart(nickname, RemoteRobotStartedState.STARTING);
+            setRemoteRobotState(nickname, RemoteRobotStatus.STARTING, null, ownedRobot);
             await sshStartRobot(remoteConfig, nickname);
         } catch (error) {
             console.error('Failed to start robot:', error);
-            setRemoteRobotStart(nickname, RemoteRobotStartedState.ERROR);
+            setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, null, ownedRobot);
             toast.error(`Failed to start robot ${nickname}`, {
                 ...toastErrorDefaults,
             });
@@ -536,11 +513,11 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
 
     const stopRobot = async () => {
         try {
-            setRemoteRobotStart(nickname, RemoteRobotStartedState.STOPPING);
+            setRemoteRobotState(nickname, RemoteRobotStatus.STOPPING, null, ownedRobot);
             await sshStopRobot(remoteConfig, nickname);
         } catch (error) {
             console.error('Failed to stop robot:', error);
-            setRemoteRobotStart(nickname, RemoteRobotStartedState.ERROR);
+            setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
             toast.error(`Failed to stop robot ${nickname}`, {
                 ...toastErrorDefaults,
             });
@@ -549,28 +526,24 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
 
     // Get button styling based on connection state
     const getConnectionButtonStyle = () => {
-        if (isConnecting) {
+        if (isRobotConnecting) {
             return 'bg-yellow-500 text-white hover:bg-yellow-400';
-        } else if (isDisconnecting) {
+        } else if (isRobotDisconnecting) {
             return 'bg-yellow-500 text-white hover:bg-yellow-400';
-        } else if (isConnected) {
+        } else if (isRobotConnected) {
             return 'bg-red-500 text-white hover:bg-red-400';
-        } else if (connectState === RemoteRobotConnectState.ERROR || startState === RemoteRobotStartedState.ERROR) {
-            return 'bg-orange-500 text-white hover:bg-orange-400';
         } else {
             return 'bg-green-500 text-white hover:bg-green-400';
         }
     };
 
     const getConnectionButtonText = () => {
-        if (isConnecting) {
+        if (isRobotConnecting) {
             return 'Connecting...';
-        } else if (isDisconnecting) {
+        } else if (isRobotDisconnecting) {
             return 'Disconnecting...';
-        } else if (isConnected) {
+        } else if (isRobotConnected) {
             return 'Disconnect From Robot';
-        } else if (connectState === RemoteRobotConnectState.ERROR || startState === RemoteRobotStartedState.ERROR) {
-            return 'Retry Connection';
         } else {
             return 'Connect To Robot';
         }
@@ -602,26 +575,26 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
                                 </div>
                             )}
 
-                            {isConnected && (
+                            {isRobotConnected && (
                                 <button
                                     onClick={toggleRobot}
-                                    disabled={isStartingRobot || isStoppingRobot}
+                                    disabled={isRobotStarting || isRobotStopping}
                                     className={`inline-flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-100 disabled:cursor-not-allowed disabled:opacity-50 ${
-                                        isRobotStarted || isStoppingRobot
+                                        isRobotStarted || isRobotStopping
                                             ? 'cursor-pointer bg-red-500 text-white hover:bg-red-400'
                                             : 'bg-green-500 text-white hover:bg-green-400'
                                     }`}
                                 >
                                     {isRobotStarted ? (
                                         <FaStop className="h-4 w-4" />
-                                    ) : isStartingRobot || isStoppingRobot ? (
+                                    ) : isRobotStarting || isRobotStopping ? (
                                         <FaSpinner className="h-4 w-4 animate-spin" />
                                     ) : (
-                                        !isRobotStarted && !isStartingRobot && !isStoppingRobot && <FaPlay className="h-4 w-4" />
+                                        !isRobotStarted && !isRobotStarting && !isRobotStopping && <FaPlay className="h-4 w-4" />
                                     )}
-                                    {isStartingRobot
+                                    {isRobotStarting
                                         ? 'Starting Robot...'
-                                        : isStoppingRobot
+                                        : isRobotStopping
                                           ? 'Stopping Robot...'
                                           : isRobotStarted
                                             ? 'Stop Robot'
@@ -631,11 +604,11 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
 
                             <button
                                 onClick={toggleConnection}
-                                disabled={isConnecting || isDisconnecting || isLoadingConnectionState}
+                                disabled={isRobotConnecting || isRobotDisconnecting || isLoadingConnectionState}
                                 className={`inline-flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-100 disabled:cursor-not-allowed disabled:opacity-50 ${getConnectionButtonStyle()}`}
                             >
-                                {(isConnecting || isDisconnecting) && <FaSpinner className="h-4 w-4 animate-spin" />}
-                                {isConnected || (isDisconnected && <FaWifi className="h-4 w-4" />)}
+                                {(isRobotConnecting || isRobotDisconnecting) && <FaSpinner className="h-4 w-4 animate-spin" />}
+                                {isRobotConnected && !isRobotStarted && <FaWifi className="h-4 w-4" />}
                                 {getConnectionButtonText()}
                             </button>
                         </>
@@ -654,7 +627,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             </div>
 
             {/* Error message display */}
-            {(connectState === RemoteRobotConnectState.ERROR || startState === RemoteRobotStartedState.ERROR) && errorMessage && (
+            {robotStatus == RemoteRobotStatus.NONE && errorMessage && (
                 <div className="mt-2 rounded-lg border border-red-500/30 bg-red-500/20 p-3">
                     <p className="text-sm text-red-300">{errorMessage}</p>
                 </div>

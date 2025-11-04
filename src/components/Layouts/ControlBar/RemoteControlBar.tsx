@@ -2,25 +2,25 @@
 
 import { GeneralModal } from '@/components/Elements/Modals/GeneralModal';
 import { RemoteRobotConfig } from '@/components/PageComponents/OwnedRobots/RemoteRobotConfig';
-import { useGetRemoteControlledRobots } from '@/hooks/Control/remote-control.hook';
+import { RemoteRobotStatus, useGetRemoteRobotsState } from '@/hooks/Control/remote-control.hook';
 import { useModalContext } from '@/hooks/Modals/context.hook';
 import { FaGamepad, FaRobot } from 'react-icons/fa';
 
 export const RemoteControlBar = () => {
     const { openModal } = useModalContext();
-    const { data: robots }: any = useGetRemoteControlledRobots();
-    const remoteControlledRobots = Object.values(robots || {})
-        .filter((robot: any) => robot !== null && robot.controlledRobot !== null)
-        .map((robot: any) => robot.controlledRobot);
+    const { data: robots }: any = useGetRemoteRobotsState();
+    const remoteRobots = Object.values(robots || {})
+        .filter((robot: any) => robot !== null && robot.status !== RemoteRobotStatus.NONE)
+        .map((robot: any) => robot);
 
     const handleTabClick = (robot: any) => {
-        const modalId = `robot-remote-control-${robot?.nickname}`;
+        const modalId = `robot-remote-control-${robot?.controlledRobot?.nickname}`;
         openModal(modalId, robot);
     };
 
     return (
         <>
-            {remoteControlledRobots.length > 0 && (
+            {remoteRobots.length > 0 && (
                 <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
                     <div className="flex items-center gap-2 rounded-xl border border-slate-600/50 bg-slate-800/90 px-4 py-3 shadow-2xl backdrop-blur-sm">
                         <div className="flex items-center gap-2 text-slate-300">
@@ -29,7 +29,7 @@ export const RemoteControlBar = () => {
                         </div>
                         <div className="h-4 w-px bg-slate-600/50" />
                         <div className="scrollbar-hide flex max-w-96 items-center gap-2 overflow-x-auto">
-                            {remoteControlledRobots.map((robot: any, index: number) => {
+                            {remoteRobots.map((robot: any, index: number) => {
                                 const key = index;
                                 return (
                                     <button
@@ -47,7 +47,7 @@ export const RemoteControlBar = () => {
                     </div>
                 </div>
             )}
-            {remoteControlledRobots.map((robot: any, index: number) => {
+            {remoteRobots.map((robot: any, index: number) => {
                 return <RemoteControlModal key={index} ownedRobot={robot} />;
             })}
         </>

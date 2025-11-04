@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { useGetRemoteEvaluateConfig } from '@/hooks/Components/OwnedRobots/remote-config.hook';
 import { RemoteRobotAction } from '@/components/PageComponents/OwnedRobots/RemoteRobotAction';
-import { RemoteControlType, setRemoteControlledRobot, useGetRemoteControlledRobot } from '@/hooks/Control/remote-control.hook';
+import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { RemoteEvaluateConfig, type RemoteEvaluateDatasetConfig } from '@/components/PageComponents/OwnedRobots/Evaluate/RemoteEvaluateConfig';
 
 export const RemoteEvaluateAction = ({
@@ -20,10 +20,10 @@ export const RemoteEvaluateAction = ({
     const [isLoading, setIsLoading] = useState(false);
 
     const nickname = ownedRobot?.nickname ?? '';
-    const { data: remoteControlledRobot }: any = useGetRemoteControlledRobot(nickname);
-    const controlType = remoteControlledRobot?.controlType;
-    const isControlling =
-        !!remoteControlledRobot?.controlledRobot && controlType !== RemoteControlType.CONNECT && controlType !== RemoteControlType.STARTED;
+    const { data: remoteRobotState }: any = useGetRemoteRobotState(nickname);
+    const robotStatus = remoteRobotState?.status;
+    const controlType = remoteRobotState?.controlType;
+    const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == RemoteControlType.EVALUATE;
 
     const { data: config }: any = useGetRemoteConfig(nickname);
     const { data: remoteEvaluateConfig }: any = useGetRemoteEvaluateConfig(nickname);
@@ -74,7 +74,7 @@ export const RemoteEvaluateAction = ({
         toast.success(`Evaluate started: ${result}`, {
             ...toastSuccessDefaults,
         });
-        setRemoteControlledRobot(nickname, RemoteControlType.EVALUATE, ownedRobot);
+        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.EVALUATE, ownedRobot);
     };
 
     const stopEvaluate = async (nickname: string, model_name: string) => {
@@ -86,7 +86,7 @@ export const RemoteEvaluateAction = ({
         toast.success(`Evaluate stopped: ${result}`, {
             ...toastSuccessDefaults,
         });
-        setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.NONE, ownedRobot);
         onClose();
     };
 
@@ -103,7 +103,7 @@ export const RemoteEvaluateAction = ({
             toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`, {
                 ...toastErrorDefaults,
             });
-            setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+            setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.NONE, ownedRobot);
         } finally {
             setIsLoading(false);
         }
@@ -131,6 +131,7 @@ export const RemoteEvaluateAction = ({
             resetEpisode={() => resetEpisode(nickname)}
             isLoading={isLoading}
             isControlling={isControlling}
+            robotStatus={robotStatus}
             controlType={controlType}
             logs={logs}
         />

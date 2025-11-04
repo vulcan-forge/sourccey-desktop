@@ -1,18 +1,28 @@
-import type { RemoteConfig } from '@/components/PageComponents/OwnedRobots/RemoteRobotConfig';
 import { queryClient } from '@/hooks/default';
 import { useQuery } from '@tanstack/react-query';
 
-export const BASE_REMOTE_CONTROLLED_ROBOTS_CONFIG_KEY = 'remote-controlled-robots-config';
-export const REMOTE_CONTROLLED_ROBOT_CONFIG_KEY = (nickname: string) => [BASE_REMOTE_CONTROLLED_ROBOTS_CONFIG_KEY, 'control', nickname];
-export const ALL_REMOTE_CONTROLLED_ROBOTS_CONFIG_KEY = [BASE_REMOTE_CONTROLLED_ROBOTS_CONFIG_KEY, 'all-control'];
+export const BASE_REMOTE_ROBOT_STATE_CONFIG_KEY = 'remote-robot-state-config';
+export const REMOTE_ROBOT_STATE_CONFIG_KEY = (nickname: string) => [BASE_REMOTE_ROBOT_STATE_CONFIG_KEY, 'state', nickname];
+export const ALL_REMOTE_ROBOT_STATE_CONFIG_KEY = [BASE_REMOTE_ROBOT_STATE_CONFIG_KEY, 'all-state'];
 
-//---------------------------------------------------------------------------------------------------//
-// Robot Control
-//---------------------------------------------------------------------------------------------------//
+export interface RemoteRobotState {
+    status: RemoteRobotStatus;
+    controlType: RemoteControlType;
+    controlledRobot: any;
+}
+
+export enum RemoteRobotStatus {
+    NONE = 'none',
+    CONNECTING = 'connecting',
+    CONNECTED = 'connected',
+    DISCONNECTING = 'disconnecting',
+    STARTING = 'starting',
+    STARTED = 'started',
+    STOPPING = 'stopping',
+}
 
 export enum RemoteControlType {
-    CONNECT = 'connect',
-    STARTED = 'started',
+    NONE = 'none',
     TELEOP = 'teleop',
     RECORD = 'record',
     REPLAY = 'replay',
@@ -20,23 +30,39 @@ export enum RemoteControlType {
     EVALUATE = 'evaluate',
 }
 
-export const getRemoteControlledRobot = (nickname: string | null) =>
-    queryClient.getQueryData(REMOTE_CONTROLLED_ROBOT_CONFIG_KEY(nickname ?? '')) ?? null;
+export const getRemoteRobotState = (nickname: string | null): RemoteRobotState =>
+    queryClient.getQueryData(REMOTE_ROBOT_STATE_CONFIG_KEY(nickname ?? '')) ?? {
+        status: RemoteRobotStatus.NONE,
+        controlType: RemoteControlType.NONE,
+        controlledRobot: null,
+    };
 
-export const setRemoteControlledRobot = (nickname: string | null, controlType: RemoteControlType, controlledRobot: any) => {
-    queryClient.setQueryData(REMOTE_CONTROLLED_ROBOT_CONFIG_KEY(nickname ?? ''), { controlType, controlledRobot });
-    queryClient.setQueryData(ALL_REMOTE_CONTROLLED_ROBOTS_CONFIG_KEY, {
-        ...getRemoteControlledRobots(),
-        [nickname ?? '']: { controlType, controlledRobot },
+export const setRemoteRobotState = (
+    nickname: string | null,
+    status: RemoteRobotStatus | null,
+    controlType: RemoteControlType | null = null,
+    controlledRobot: any
+) => {
+    const currentRemoteRobotState = getRemoteRobotState(nickname);
+    const remoteRobotState = {
+        ...currentRemoteRobotState,
+        ...(status !== null && { status }),
+        ...(controlType !== null && { controlType }),
+        ...(controlledRobot !== null && { controlledRobot }),
+    };
+
+    queryClient.setQueryData(REMOTE_ROBOT_STATE_CONFIG_KEY(nickname ?? ''), remoteRobotState);
+    queryClient.setQueryData(ALL_REMOTE_ROBOT_STATE_CONFIG_KEY, {
+        ...getRemoteRobotsState(),
+        [nickname ?? '']: remoteRobotState,
     });
 };
 
-export const useGetRemoteControlledRobot = (nickname: string | null) =>
-    useQuery({ queryKey: REMOTE_CONTROLLED_ROBOT_CONFIG_KEY(nickname ?? ''), queryFn: () => getRemoteControlledRobot(nickname) });
+export const useGetRemoteRobotState = (nickname: string | null) =>
+    useQuery({ queryKey: REMOTE_ROBOT_STATE_CONFIG_KEY(nickname ?? ''), queryFn: () => getRemoteRobotState(nickname) });
 
 //---------------------------------------------------------------------------------------------------//
 // All Control Robots
 //---------------------------------------------------------------------------------------------------//
-export const getRemoteControlledRobots = () => queryClient.getQueryData(ALL_REMOTE_CONTROLLED_ROBOTS_CONFIG_KEY) ?? {};
-export const useGetRemoteControlledRobots = () =>
-    useQuery({ queryKey: ALL_REMOTE_CONTROLLED_ROBOTS_CONFIG_KEY, queryFn: () => getRemoteControlledRobots() });
+export const getRemoteRobotsState = () => queryClient.getQueryData(ALL_REMOTE_ROBOT_STATE_CONFIG_KEY) ?? {};
+export const useGetRemoteRobotsState = () => useQuery({ queryKey: ALL_REMOTE_ROBOT_STATE_CONFIG_KEY, queryFn: () => getRemoteRobotsState() });
