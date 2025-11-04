@@ -33,7 +33,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
             }
         };
         poll();
-        interval = setInterval(poll, 2000);
+        interval = setInterval(poll, 3000);
         return () => interval && clearInterval(interval);
     }, [nickname]);
 
@@ -113,6 +113,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
                     if (!isMounted) return;
                     setHostLogs((prev: string[]) => [...prev, '\n[system] External host process detected - waiting for initialization...']);
 
+                    setIsLoading(true);
                     setIsHostReady(false);
                     toast.info('Robot host detected - starting up...', { ...toastInfoDefaults, toastId: 'host-starting' });
                 });

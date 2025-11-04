@@ -4,7 +4,6 @@ import React from 'react';
 import { RobotKioskCalibration } from '@/components/Elements/RobotKiosk/CalibrationSection';
 import { RobotControl } from '@/components/Elements/RobotKiosk/RobotControl';
 import { useGetCalibration, useGetIsCalibrated } from '@/hooks/Control/config.hook';
-import { FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 
 export const KioskRobotDetailsPage: React.FC = () => {
     const nickname = 'sourccey';

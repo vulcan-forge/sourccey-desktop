@@ -251,7 +251,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
                 }
 
                 // Store in ref so cleanup can access it
-                startedIntervalIdRef.current = setInterval(checkRobotStartedStatus, 3 * 60 * 1000);
+                startedIntervalIdRef.current = setInterval(checkRobotStartedStatus, 10 * 1000);
             } catch (error) {
                 console.error('Failed to check initial robot started status:', error);
                 setRemoteRobotStart(nickname, RemoteRobotStartedState.ERROR);
