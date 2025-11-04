@@ -27,9 +27,22 @@
 }
 
 @layer utilities {
+    /* Default scrollbar width - 8px */
     ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
+    }
+
+    /* Scrollbar width utilities */
+    .scrollbar::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+
+    /* Kiosk mode - larger scrollbars (24px) */
+    .kiosk-mode ::-webkit-scrollbar {
+        width: 24px;
+        height: 24px;
     }
 
     ::-webkit-scrollbar-thumb {

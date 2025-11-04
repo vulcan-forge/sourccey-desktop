@@ -314,7 +314,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
 
                     {showLogs && (
                         <>
-                            <div className="scrollbar-thin scrollbar-thumb-slate-600 scrollbar-track-slate-800 h-[420px] overflow-y-auto bg-slate-900/50 font-mono">
+                            <div className="scrollbar scrollbar-thumb-slate-600 scrollbar-track-slate-800 h-[420px] overflow-y-auto bg-slate-900/50 font-mono">
                                 <div className="space-y-0.5 p-4">
                                     {hostLogs.length > 0 ? (
                                         hostLogs.slice(-50).map((log, index) => (

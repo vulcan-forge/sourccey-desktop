@@ -209,8 +209,8 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
     const handleRobotStartedError = useCallback(
         (event: SshRobotStartedError) => {
             if (event.nickname === nickname) {
-                console.error(`❌ Robot ${nickname} is not running: ${event.error}`);
-                setRemoteRobotStart(nickname, RemoteRobotStartedState.ERROR);
+                console.info(`Robot ${nickname} is not running`);
+                setRemoteRobotStart(nickname, RemoteRobotStartedState.STOPPED);
             }
         },
         [nickname]
@@ -249,6 +249,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
                 if (startedIntervalIdRef.current) {
                     clearInterval(startedIntervalIdRef.current);
                 }
+
                 // Store in ref so cleanup can access it
                 startedIntervalIdRef.current = setInterval(checkRobotStartedStatus, 3 * 60 * 1000);
             } catch (error) {

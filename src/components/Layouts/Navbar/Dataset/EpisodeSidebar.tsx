@@ -173,7 +173,7 @@ export const EpisodeSidebar: React.FC<EpisodeSidebarProps> = ({
                 ) : (
                     <div
                         ref={scrollContainerRef}
-                        className="scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800 h-full overflow-y-auto p-3"
+                        className="scrollbar scrollbar-thumb-gray-600 scrollbar-track-gray-800 h-full overflow-y-auto p-3"
                     >
                         <div className="space-y-3">
                             {displayedEpisodes.map((episode) => (
