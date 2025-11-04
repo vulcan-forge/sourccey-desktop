@@ -9,9 +9,10 @@ import { PROFILE_KEY } from '@/hooks/Models/Profile/profile.hook';
 import { SYNC_DEFAULT_ROBOTS_KEY } from '@/hooks/Models/Robot/robot.hook';
 import { RobotStatusProvider } from '@/context/robot-status-context';
 import { VirtualKeyboardProvider } from '@/context/virtual-keyboard-context';
+import { IS_CALIBRATED_KEY } from '@/hooks/Control/config.hook';
 
 // SSH password status is now persisted via file system (not React Query)
-const persistQueries: QueryKey[] = [PROFILE_KEY, SYNC_DEFAULT_ROBOTS_KEY];
+const persistQueries: QueryKey[] = [PROFILE_KEY, SYNC_DEFAULT_ROBOTS_KEY, IS_CALIBRATED_KEY];
 const dehydrateOptions: DehydrateOptions = {
     shouldDehydrateQuery: ({ queryKey }) => {
         for (const key of persistQueries) {
