@@ -49,7 +49,7 @@ impl KioskHostService {
             if processes.contains_key(&nickname) {
                 Self::debug_emit(&app_handle, "Process already exists, aborting start");
 
-                Ok(format!(
+                return Ok(format!(
                     "Kiosk host process for nickname '{}' is already running",
                     nickname
                 ));
