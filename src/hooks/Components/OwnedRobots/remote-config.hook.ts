@@ -1,60 +1,36 @@
 import type { RemoteEvaluateDatasetConfig } from '@/components/PageComponents/OwnedRobots/Evaluate/RemoteEvaluateConfig';
 import type { RemoteRecordDatasetConfig } from '@/components/PageComponents/OwnedRobots/Record/RemoteRecordConfig';
 import type { RemoteReplayDatasetConfig } from '@/components/PageComponents/OwnedRobots/Replay/RemoteReplayConfig';
+import type { RemoteTeleopConfig } from '@/components/PageComponents/OwnedRobots/Teleop/RemoteTeleopAction';
 import { queryClient } from '@/hooks/default';
 import { useQuery } from '@tanstack/react-query';
 
 export const BASE_REMOTE_ROBOTS_CONFIG_KEY = 'remote-robots-config';
-export const REMOTE_ROBOT_CONNECT_KEY = (nickname: string) => [BASE_REMOTE_ROBOTS_CONFIG_KEY, 'connect', nickname];
-export const REMOTE_ROBOT_START_KEY = (nickname: string) => [BASE_REMOTE_ROBOTS_CONFIG_KEY, 'start', nickname];
+export const REMOTE_ROBOT_TELEOP_KEY = (nickname: string) => [BASE_REMOTE_ROBOTS_CONFIG_KEY, 'teleop', nickname];
 export const REMOTE_ROBOT_RECORD_KEY = (nickname: string) => [BASE_REMOTE_ROBOTS_CONFIG_KEY, 'record', nickname];
 export const REMOTE_ROBOT_REPLAY_KEY = (nickname: string) => [BASE_REMOTE_ROBOTS_CONFIG_KEY, 'replay', nickname];
 export const REMOTE_ROBOT_EVALUATE_KEY = (nickname: string) => [BASE_REMOTE_ROBOTS_CONFIG_KEY, 'evaluate', nickname];
 
 //---------------------------------------------------------------------------------------------------//
-// Remote Robot Config Functions
+// Remote Robot Teleop Functions
 //---------------------------------------------------------------------------------------------------//
-export enum RemoteRobotConnectState {
-    CONNECTING = 'connecting',
-    CONNECTED = 'connected',
-    DISCONNECTING = 'disconnecting',
-    DISCONNECTED = 'disconnected',
-    ERROR = 'error',
-}
-
-export const getRemoteRobotConnect = (nickname: string) =>
-    queryClient.getQueryData(REMOTE_ROBOT_CONNECT_KEY(nickname) ?? RemoteRobotConnectState.DISCONNECTED);
-export const setRemoteRobotConnect = (nickname: string, state: RemoteRobotConnectState) =>
-    queryClient.setQueryData(REMOTE_ROBOT_CONNECT_KEY(nickname), state);
-export const useGetRemoteRobotConnect = (nickname: string) =>
+export const getRemoteTeleopConfig = (nickname: string) => queryClient.getQueryData(REMOTE_ROBOT_TELEOP_KEY(nickname));
+export const setRemoteTeleopConfig = (nickname: string, config: RemoteTeleopConfig) =>
+    queryClient.setQueryData(REMOTE_ROBOT_TELEOP_KEY(nickname), config);
+export const useGetRemoteTeleopConfig = (nickname: string) =>
     useQuery({
-        queryKey: REMOTE_ROBOT_CONNECT_KEY(nickname),
-        queryFn: () => getRemoteRobotConnect(nickname) ?? RemoteRobotConnectState.DISCONNECTED,
+        queryKey: REMOTE_ROBOT_TELEOP_KEY(nickname),
+        queryFn: () => getRemoteTeleopConfig(nickname) ?? defaultRemoteTeleopConfig(),
     });
 
-//---------------------------------------------------------------------------------------------------//
-// Remote Robot Started Functions
-//---------------------------------------------------------------------------------------------------//
-export enum RemoteRobotStartedState {
-    STARTING = 'starting',
-    STARTED = 'started',
-    STOPPING = 'stopping',
-    STOPPED = 'stopped',
-    ERROR = 'error',
-}
-
-export const getRemoteRobotStart = (nickname: string) => queryClient.getQueryData(REMOTE_ROBOT_START_KEY(nickname) ?? false);
-export const setRemoteRobotStart = (nickname: string, state: RemoteRobotStartedState) => {
-    console.log('setRemoteRobotStart', nickname, state);
-    queryClient.setQueryData(REMOTE_ROBOT_START_KEY(nickname), state);
-};
-
-export const useGetRemoteRobotStart = (nickname: string) =>
-    useQuery({
-        queryKey: REMOTE_ROBOT_START_KEY(nickname),
-        queryFn: () => getRemoteRobotStart(nickname) ?? RemoteRobotStartedState.STOPPED,
-    });
-
+const defaultRemoteTeleopConfig = (): RemoteTeleopConfig => ({
+    nickname: 'sourccey',
+    remote_ip: '192.168.1.225',
+    left_arm_port: 'COM3',
+    right_arm_port: 'COM8',
+    keyboard: 'keyboard',
+    fps: 30,
+});
 //---------------------------------------------------------------------------------------------------//
 // Remote Robot Record Functions
 //---------------------------------------------------------------------------------------------------//

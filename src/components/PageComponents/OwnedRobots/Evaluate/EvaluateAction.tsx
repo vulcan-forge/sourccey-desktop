@@ -1,5 +1,5 @@
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import { ControlType, setControlledRobot, useGetControlledRobot, useGetControlledRobots } from '@/hooks/Control/control.hook';
+import { ControlType, setControlledRobot, useGetControlledRobot } from '@/hooks/Control/control.hook';
 import { invoke } from '@tauri-apps/api/core';
 import { useEffect, useState } from 'react';
 import { toast } from 'react-toastify';

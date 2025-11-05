@@ -159,6 +159,16 @@ impl SshService {
             .await
             .map_err(|e| format!("Authentication failed: {}", e))?;
 
+        // Sanity check: open/close a channel so callers fail here on bad auth
+        {
+            let ch = session
+                .channel_open_session()
+                .await
+                .map_err(|e| format!("Authentication failed: Failed to create channel: {}", e))?;
+            let _ = ch.eof().await;
+            let _ = ch.close().await;
+        }
+
         println!("[SSH] Authentication successful");
 
         Ok(session)
@@ -372,6 +382,12 @@ impl SshService {
         nickname: &str,
     ) -> Result<bool, String> {
         // Test connection by creating a fresh session
+        println!("[connect] Testing connection to robot: {}", nickname);
+        println!("[connect] Remote IP: {}", config.remote_ip);
+        println!("[connect] Remote Port: {}", config.remote_port);
+        println!("[connect] Username: {}", config.username);
+        println!("[connect] Password: {}", config.password);
+
         match SshService::create_ssh_session_async(&config.remote_ip, &config.remote_port, &config.username, &config.password).await {
             Ok(_) => {
                 // Mark as connected
@@ -476,7 +492,7 @@ impl SshService {
         }
 
         // Use timeout to prevent hanging - wrap the entire connection check
-        match timeout(Duration::from_secs(5), async {
+        match timeout(Duration::from_secs(10), async {
             // Try a fresh session (auth handshake is enough as a liveness probe)
             let mut session_result = SshService::create_ssh_session_async(
                 &config.remote_ip,
@@ -536,7 +552,7 @@ impl SshService {
                     "ssh-is-connected-error",
                     serde_json::json!({
                         "nickname": nickname,
-                        "error": "Connection check timed out after 5 seconds"
+                        "error": "Connection check timed out after 10 seconds"
                     }),
                 );
                 Err("Connection check timed out".to_string())
@@ -571,7 +587,7 @@ impl SshService {
         ).await?;
 
         // Check if process is running
-        match SshService::execute_command_read_output_async(&mut check_session, stop_check_command, 3).await {
+        match SshService::execute_command_read_output_async(&mut check_session, stop_check_command, 10).await {
             Ok(Some(output)) if output.trim().eq_ignore_ascii_case("running") => {
                 println!("Robot process is already running, stopping it first...");
 
@@ -740,12 +756,13 @@ impl SshService {
         nickname: &str,
     ) -> Result<bool, String> {
         if !SshService::is_robot_connected(state_sessions, nickname) {
-            return Err("Robot is not connected".to_string());
+            return Ok(false);
         }
 
         // Check for the process by name instead of PID
         let check_command = "pgrep -f 'lerobot.robots.sourccey.sourccey.sourccey.sourccey_host' > /dev/null 2>&1 && echo 'started' || echo 'stopped'";
 
+        // Add logging for the command being executed
         let success_event = "robot-is-started-success".to_string();
         let success_log = "Robot is started".to_string();
         let error_event = "robot-is-started-error".to_string();
@@ -758,19 +775,32 @@ impl SshService {
             &remote_config.password,
         ).await {
             Ok(mut session) => {
-                match SshService::execute_command_read_output_async(&mut session, &check_command, 3).await {
-                    Ok(Some(line)) if line.eq_ignore_ascii_case("started") => {
-                        let _ = app_handle.emit(
-                            &success_event,
-                            serde_json::json!({
-                                "nickname": nickname,
-                                "message": success_log,
-                                "output": "started"
-                            }),
-                        );
-                        Ok(true)
+                match SshService::execute_command_read_output_async(&mut session, &check_command, 10).await {
+                    Ok(Some(line)) => {
+                        // Log the raw output received
+                        if line.eq_ignore_ascii_case("started") {
+                            let _ = app_handle.emit(
+                                &success_event,
+                                serde_json::json!({
+                                    "nickname": nickname,
+                                    "message": success_log,
+                                    "output": "started"
+                                }),
+                            );
+                            Ok(true)
+                        } else {
+                            let _ = app_handle.emit(
+                                &error_event,
+                                serde_json::json!({
+                                    "nickname": nickname,
+                                    "error": error_log,
+                                    "output": line.trim()
+                                }),
+                            );
+                            Ok(false)
+                        }
                     }
-                    Ok(Some(_)) | Ok(None) => {
+                    Ok(None) => {
                         let _ = app_handle.emit(
                             &error_event,
                             serde_json::json!({
@@ -782,7 +812,6 @@ impl SshService {
                         Ok(false)
                     }
                     Err(e) => {
-                        println!("Error checking robot started status: {}", e);
                         let _ = app_handle.emit(
                             &error_event,
                             serde_json::json!({

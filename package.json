@@ -9,9 +9,9 @@
         "start": "next start",
         "lint": "next lint",
         "tauri": "tauri",
+        "tauri:build": "dotenv -e .env -- tauri build",
         "tauri:kiosk": "export DISPLAY=:0.0 && xhost +local: 2>/dev/null || true && bun tauri dev -- -- --kiosk",
-        "tauri:kiosk desktop": "bun tauri dev -- -- --kiosk",
-        "tauri:env": "dotenv -e .env -- tauri"
+        "tauri:kiosk desktop": "bun tauri dev -- -- --kiosk"
     },
     "dependencies": {
         "@stripe/react-stripe-js": "^4.0.2",

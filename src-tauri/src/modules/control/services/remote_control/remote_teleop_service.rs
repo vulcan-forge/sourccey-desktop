@@ -32,25 +32,55 @@ impl RemoteTeleopService {
         state: &RemoteTeleopProcess,
         config: RemoteTeleopConfig,
     ) -> Result<String, String> {
+
         // Check if a process with this nickname is already running
         {
             let processes = state.0.lock().unwrap();
             if processes.contains_key(&config.nickname) {
-                return Err(format!(
-                    "Teleop process for nickname '{}' is already running",
-                    config.nickname
-                ));
+                // Unlock the mutex before calling stop_teleop (which needs to lock it)
+                drop(processes);
+                println!("Process already exists for nickname: {}, stopping it first...", config.nickname);
+                match Self::stop_teleop(db_connection.clone(), state, config.nickname.clone()) {
+                    Ok(_msg) => {
+                        // Give a small delay to ensure the process is fully stopped
+                        std::thread::sleep(std::time::Duration::from_millis(500));
+                    }
+                    Err(_e) => {
+                        // Continue anyway - might have already stopped
+                    }
+                }
             }
         }
 
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
         let python_path = DirectoryService::get_python_path()?;
-        let robot_type = "sourccey".to_string();
 
+        // Validate paths exist before trying to spawn
+        if !lerobot_dir.exists() {
+            println!("LeRobot directory not found at: {:?}", lerobot_dir);
+            return Err(format!(
+                "LeRobot directory not found at: {:?}",
+                lerobot_dir
+            ));
+        }
+
+        if !python_path.exists() {
+            println!("Python executable not found at: {:?}", python_path);
+            return Err(format!(
+                "Python executable not found at: {:?}",
+                python_path
+            ));
+        }
+
+        // Convert paths to strings for error messages (before moving them)
+        let lerobot_dir_str = lerobot_dir.to_string_lossy().to_string();
+        let python_path_str = python_path.to_string_lossy().to_string();
+
+        let robot_type = "sourccey".to_string();
         let command_parts = Self::build_command_args(&config);
 
         // Now build the actual Command
-        let mut cmd = Command::new(python_path);
+        let mut cmd = Command::new(&python_path);  // Use reference here
         for arg in &command_parts[1..] {
             cmd.arg(arg);
         }
@@ -63,7 +93,14 @@ impl RemoteTeleopService {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Failed to start teleop: {}", e))?;
+            .map_err(|e| {
+                format!(
+                    "Failed to start teleop: {}. Python: {}, Working dir: {}",
+                    e,
+                    python_path_str,
+                    lerobot_dir_str
+                )
+            })?;
 
         let stdout = child.stdout.take();
         let stderr = child.stderr.take();

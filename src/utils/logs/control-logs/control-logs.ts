@@ -1,5 +1,5 @@
 import { ControlType, setControlledRobot } from '@/hooks/Control/control.hook';
-import { getRemoteControlledRobot, RemoteControlType, setRemoteControlledRobot } from '@/hooks/Control/remote-control.hook';
+import { getRemoteRobotState, setRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'react-toastify';
@@ -196,9 +196,9 @@ class ProcessShutdownManager {
                 setControlledRobot(nickname, controlType as ControlType, null);
 
                 // Set remote controlled Robot
-                const remoteControlledRobot = getRemoteControlledRobot(nickname);
-                if (remoteControlledRobot) {
-                    setRemoteControlledRobot(nickname, RemoteControlType.STARTED, remoteControlledRobot);
+                const remoteRobotState = getRemoteRobotState(nickname);
+                if (remoteRobotState) {
+                    setRemoteRobotState(nickname, remoteRobotState.status, null, remoteRobotState.controlledRobot);
                 }
             });
 

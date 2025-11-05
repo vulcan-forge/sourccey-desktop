@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { RemoteRobotAction } from '@/components/PageComponents/OwnedRobots/RemoteRobotAction';
-import { RemoteControlType, setRemoteControlledRobot, useGetRemoteControlledRobot } from '@/hooks/Control/remote-control.hook';
+import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { useGetRemoteRecordConfig } from '@/hooks/Components/OwnedRobots/remote-config.hook';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import type { RemoteRecordConfig, RemoteRecordDatasetConfig } from '@/components/PageComponents/OwnedRobots/Record/RemoteRecordConfig';
@@ -14,10 +14,10 @@ export const RemoteRecordAction = ({ ownedRobot, logs = true }: { ownedRobot: an
     // Control Settings
     const [isLoading, setIsLoading] = useState(false);
 
-    const { data: remoteControlledRobot }: any = useGetRemoteControlledRobot(nickname);
-    const controlType = remoteControlledRobot?.controlType;
-    const isControlling =
-        !!remoteControlledRobot?.controlledRobot && controlType !== RemoteControlType.CONNECT && controlType !== RemoteControlType.STARTED;
+    const { data: remoteRobotState }: any = useGetRemoteRobotState(nickname);
+    const robotStatus = remoteRobotState?.status;
+    const controlType = remoteRobotState?.controlType;
+    const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == RemoteControlType.RECORD;
 
     const { data: remoteConfig }: any = useGetRemoteConfig(nickname);
     const { data: remoteRecordDatasetConfig }: any = useGetRemoteRecordConfig(nickname);
@@ -70,7 +70,7 @@ export const RemoteRecordAction = ({ ownedRobot, logs = true }: { ownedRobot: an
         toast.success(`Record started: ${result}`, {
             ...toastSuccessDefaults,
         });
-        setRemoteControlledRobot(nickname, RemoteControlType.RECORD, ownedRobot);
+        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.RECORD, ownedRobot);
     };
 
     const stopRecord = async (nickname: string) => {
@@ -82,7 +82,7 @@ export const RemoteRecordAction = ({ ownedRobot, logs = true }: { ownedRobot: an
         toast.success(`Record stopped: ${result}`, {
             ...toastSuccessDefaults,
         });
-        setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.NONE, ownedRobot);
     };
 
     const toggleControl = async () => {
@@ -98,7 +98,7 @@ export const RemoteRecordAction = ({ ownedRobot, logs = true }: { ownedRobot: an
             toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`, {
                 ...toastErrorDefaults,
             });
-            setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+            setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.NONE, ownedRobot);
         } finally {
             setIsLoading(false);
         }
@@ -126,6 +126,7 @@ export const RemoteRecordAction = ({ ownedRobot, logs = true }: { ownedRobot: an
             resetEpisode={() => resetEpisode(nickname)}
             isLoading={isLoading}
             isControlling={isControlling}
+            robotStatus={robotStatus}
             controlType={controlType}
             logs={logs}
         />

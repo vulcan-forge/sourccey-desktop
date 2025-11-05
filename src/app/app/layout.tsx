@@ -44,7 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <div className="bg-slate-850 flex h-screen flex-col">
+        <div className={`bg-slate-850 flex h-screen flex-col ${isKioskMode ? 'kiosk-mode' : ''}`}>
             <TopNavbar profile={profile} isLoading={isLoading} />
             <div className="flex flex-1 overflow-hidden">
                 {shouldShowSidebar && <SideNavbar profile={profile} isLoading={isLoading} />}

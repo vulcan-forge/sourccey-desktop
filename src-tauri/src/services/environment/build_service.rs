@@ -7,9 +7,15 @@ impl BuildService {
         if let Ok(exe_path) = std::env::current_exe() {
             if let Some(exe_dir) = exe_path.parent() {
                 let exe_dir_str = exe_dir.to_string_lossy();
-                return exe_dir_str.contains("target/debug") || exe_dir_str.contains("target/release");
+
+                // Check for both forward slashes (Unix/Linux) and backslashes (Windows)
+                let contains_debug = exe_dir_str.contains("target/debug") || exe_dir_str.contains("target\\debug");
+                let contains_release = exe_dir_str.contains("target/release") || exe_dir_str.contains("target\\release");
+                let result = contains_debug || contains_release;
+                return result;
             }
         }
+        println!("Application is not running in dev mode");
         false
     }
 

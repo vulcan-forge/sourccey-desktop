@@ -16,7 +16,7 @@ export const SideNavbar = () => {
             icon: HiHome,
         },
         {
-            href: '/app/robot-kiosk',
+            href: '/app/robot-remote',
             label: 'Robot',
             icon: FaRobot,
         },

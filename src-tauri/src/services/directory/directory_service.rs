@@ -48,7 +48,6 @@ impl DirectoryService {
 
     pub fn get_lerobot_cache_dir() -> Result<PathBuf, String> {
         let home_dir = dirs::home_dir().ok_or("Could not determine home directory")?;
-
         Ok(home_dir.join(".cache").join("huggingface").join("lerobot"))
     }
 

@@ -3,7 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { RemoteRobotAction } from '@/components/PageComponents/OwnedRobots/RemoteRobotAction';
-import { RemoteControlType, setRemoteControlledRobot, useGetRemoteControlledRobot } from '@/hooks/Control/remote-control.hook';
+import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { useGetRemoteReplayConfig } from '@/hooks/Components/OwnedRobots/remote-config.hook';
 import type { RemoteReplayConfig, RemoteReplayDatasetConfig } from '@/components/PageComponents/OwnedRobots/Replay/RemoteReplayConfig';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
@@ -20,10 +20,11 @@ export const RemoteReplayAction = ({
     const [isLoading, setIsLoading] = useState(false);
 
     const nickname = ownedRobot?.nickname ?? '';
-    const { data: remoteControlledRobot }: any = useGetRemoteControlledRobot(nickname);
-    const controlType = remoteControlledRobot?.controlType;
-    const isControlling =
-        !!remoteControlledRobot?.controlledRobot && controlType !== RemoteControlType.CONNECT && controlType !== RemoteControlType.STARTED;
+    const { data: remoteRobotState }: any = useGetRemoteRobotState(nickname);
+
+    const robotStatus = remoteRobotState?.status;
+    const controlType = remoteRobotState?.controlType;
+    const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == RemoteControlType.REPLAY;
 
     const { data: config }: any = useGetRemoteConfig(nickname);
     const { data: remoteReplayConfig }: any = useGetRemoteReplayConfig(nickname);
@@ -48,7 +49,7 @@ export const RemoteReplayAction = ({
         toast.success(`Replay started: ${result}`, {
             ...toastSuccessDefaults,
         });
-        setRemoteControlledRobot(nickname, RemoteControlType.REPLAY, ownedRobot);
+        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.REPLAY, ownedRobot);
     };
 
     const stopReplay = async (nickname: string) => {
@@ -60,7 +61,7 @@ export const RemoteReplayAction = ({
         toast.success(`Replay stopped: ${result}`, {
             ...toastSuccessDefaults,
         });
-        setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.NONE, ownedRobot);
         onClose();
     };
 
@@ -77,7 +78,7 @@ export const RemoteReplayAction = ({
             toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`, {
                 ...toastErrorDefaults,
             });
-            setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+            setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.NONE, ownedRobot);
         } finally {
             setIsLoading(false);
         }
@@ -89,6 +90,7 @@ export const RemoteReplayAction = ({
             toggleControl={toggleReplay}
             isLoading={isLoading}
             isControlling={isControlling}
+            robotStatus={robotStatus}
             controlType={controlType}
             logs={logs}
         />

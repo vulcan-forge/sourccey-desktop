@@ -1,9 +1,9 @@
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { invoke } from '@tauri-apps/api/core';
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { RemoteRobotAction } from '@/components/PageComponents/OwnedRobots/RemoteRobotAction';
-import { RemoteControlType, setRemoteControlledRobot, useGetRemoteControlledRobot } from '@/hooks/Control/remote-control.hook';
+import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 
 export enum RobotControlStatus {
@@ -23,12 +23,12 @@ export const RemoteTeleopAction = ({
     const [isLoading, setIsLoading] = useState(false);
 
     const nickname = ownedRobot?.nickname ?? '';
-    const { data: remoteControlledRobot }: any = useGetRemoteControlledRobot(nickname);
-    const controlType = remoteControlledRobot?.controlType;
-    const isControlling =
-        !!remoteControlledRobot?.controlledRobot && controlType !== RemoteControlType.CONNECT && controlType !== RemoteControlType.STARTED;
-
+    const { data: remoteRobotState }: any = useGetRemoteRobotState(nickname);
     const { data: remoteConfig }: any = useGetRemoteConfig(nickname);
+
+    const robotStatus = remoteRobotState?.status;
+    const controlType = remoteRobotState?.controlType;
+    const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == RemoteControlType.TELEOP;
 
     const startTeleop = async (nickname: string) => {
         if (isControlling) {
@@ -48,7 +48,7 @@ export const RemoteTeleopAction = ({
         toast.success(`Remote Teleop started: ${result}`, {
             ...toastSuccessDefaults,
         });
-        setRemoteControlledRobot(nickname, RemoteControlType.TELEOP, ownedRobot);
+        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.TELEOP, ownedRobot);
     };
 
     const stopTeleop = async (nickname: string) => {
@@ -60,7 +60,7 @@ export const RemoteTeleopAction = ({
         toast.success(`Remote Teleop stopped: ${result}`, {
             ...toastSuccessDefaults,
         });
-        setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.NONE, ownedRobot);
         onClose();
     };
 
@@ -77,7 +77,7 @@ export const RemoteTeleopAction = ({
             toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`, {
                 ...toastErrorDefaults,
             });
-            setRemoteControlledRobot(nickname, RemoteControlType.STARTED, ownedRobot);
+            setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.NONE, ownedRobot);
         } finally {
             setIsLoading(false);
         }
@@ -89,6 +89,7 @@ export const RemoteTeleopAction = ({
             toggleControl={toggleControl}
             isLoading={isLoading}
             isControlling={isControlling}
+            robotStatus={robotStatus}
             controlType={controlType}
             logs={logs}
         />
