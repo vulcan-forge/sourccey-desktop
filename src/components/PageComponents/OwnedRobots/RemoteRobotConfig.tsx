@@ -205,40 +205,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             return;
         }
 
-        let connectionIntervalId: NodeJS.Timeout;
-        let startedIntervalId: NodeJS.Timeout;
-        const checkInitialConnection = async () => {
-            try {
-                setIsLoadingConnectionState(false);
-                if (connectionIntervalIdRef.current) {
-                    clearInterval(connectionIntervalIdRef.current);
-                }
-
-                // Store in ref so cleanup can access it
-                connectionIntervalIdRef.current = setInterval(checkConnectionStatus, 3 * 60 * 1000);
-            } catch (error) {
-                console.error('Failed to check initial connection status:', error);
-                setIsLoadingConnectionState(false);
-                setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
-            }
-        };
-
-        const checkInitialRobotRunning = async () => {
-            try {
-                // Clear any existing interval first
-                if (startedIntervalIdRef.current) {
-                    clearInterval(startedIntervalIdRef.current);
-                }
-
-                // Store in ref so cleanup can access it
-                startedIntervalIdRef.current = setInterval(checkRobotStartedStatus, 30 * 1000);
-            } catch (error) {
-                console.error('Failed to check initial robot started status:', error);
-                setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, null, ownedRobot);
-            }
-        };
-
-        const checkConnectionStatus = async () => {
+        const checkConnection = async () => {
             try {
                 // Guard: Don't check if remoteConfig hasn't loaded yet
                 if (!remoteConfig) {
@@ -253,7 +220,42 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             }
         };
 
-        const checkRobotStartedStatus = async () => {
+        let connectionIntervalId: NodeJS.Timeout;
+        const checkConnectionInterval = async () => {
+            try {
+                setIsLoadingConnectionState(false);
+                if (connectionIntervalIdRef.current) {
+                    clearInterval(connectionIntervalIdRef.current);
+                }
+
+                // Store in ref so cleanup can access it
+                connectionIntervalIdRef.current = setInterval(checkConnection, 3 * 60 * 1000);
+            } catch (error) {
+                console.error('Failed to check initial connection status:', error);
+                setIsLoadingConnectionState(false);
+                setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
+            }
+        };
+
+        checkConnectionInterval();
+
+        // Cleanup interval on unmount
+        return () => {
+            if (connectionIntervalIdRef.current) {
+                clearInterval(connectionIntervalIdRef.current);
+                connectionIntervalIdRef.current = null;
+            }
+        };
+    }, [remoteConfig, nickname, isLoadingConfig]); // Add dependencies
+
+    useEffect(() => {
+        // Don't run if remoteConfig hasn't loaded yet
+        if (!remoteConfig || isLoadingConfig || !isConnected(robotStatus)) {
+            return;
+        }
+
+        let startedIntervalId: NodeJS.Timeout;
+        const checkRobotStarted = async () => {
             try {
                 // Guard: Don't check if remoteConfig hasn't loaded yet
                 if (!remoteConfig) {
@@ -266,21 +268,31 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             }
         };
 
-        checkInitialConnection();
-        checkInitialRobotRunning();
+        const checkRobotStartedInterval = async () => {
+            try {
+                // Clear any existing interval first
+                if (startedIntervalIdRef.current) {
+                    clearInterval(startedIntervalIdRef.current);
+                }
+
+                // Store in ref so cleanup can access it
+                startedIntervalIdRef.current = setInterval(checkRobotStarted, 30 * 1000);
+            } catch (error) {
+                console.error('Failed to check initial robot started status:', error);
+                setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, null, ownedRobot);
+            }
+        };
+
+        checkRobotStartedInterval();
 
         // Cleanup interval on unmount
         return () => {
-            if (connectionIntervalIdRef.current) {
-                clearInterval(connectionIntervalIdRef.current);
-                connectionIntervalIdRef.current = null;
-            }
             if (startedIntervalIdRef.current) {
                 clearInterval(startedIntervalIdRef.current);
                 startedIntervalIdRef.current = null;
             }
         };
-    }, [remoteConfig, nickname, isLoadingConfig]); // Add dependencies
+    }, [remoteConfig, nickname, isLoadingConfig, robotStatus]); // Add dependencies);
 
     // Set up event listeners for this specific robot
     useEffect(() => {

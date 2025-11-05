@@ -756,7 +756,7 @@ impl SshService {
         nickname: &str,
     ) -> Result<bool, String> {
         if !SshService::is_robot_connected(state_sessions, nickname) {
-            return Err("Robot is not connected".to_string());
+            return Ok(false);
         }
 
         // Check for the process by name instead of PID
