@@ -72,20 +72,9 @@ impl RemoteTeleopService {
             ));
         }
 
-        // Verify the script file exists
-        let script_path = lerobot_dir.join("src/lerobot/control/sourccey/sourccey/teleoperate.py");
-        if !script_path.exists() {
-            println!("Teleop script not found at: {:?}", script_path);
-            return Err(format!(
-                "Teleop script not found at: {:?}",
-                script_path
-            ));
-        }
-
         // Convert paths to strings for error messages (before moving them)
-        let python_path_str = python_path.to_string_lossy().to_string();
         let lerobot_dir_str = lerobot_dir.to_string_lossy().to_string();
-        let script_path_str = script_path.to_string_lossy().to_string();
+        let python_path_str = python_path.to_string_lossy().to_string();
 
         let robot_type = "sourccey".to_string();
         let command_parts = Self::build_command_args(&config);
@@ -106,11 +95,10 @@ impl RemoteTeleopService {
             .spawn()
             .map_err(|e| {
                 format!(
-                    "Failed to start teleop: {}. Python: {}, Working dir: {}, Script: {}",
+                    "Failed to start teleop: {}. Python: {}, Working dir: {}",
                     e,
                     python_path_str,
-                    lerobot_dir_str,
-                    script_path_str
+                    lerobot_dir_str
                 )
             })?;
 
