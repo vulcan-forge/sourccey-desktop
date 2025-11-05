@@ -48,10 +48,11 @@ impl KioskHostService {
             let processes = state.0.lock().unwrap();
             if processes.contains_key(&nickname) {
                 Self::debug_emit(&app_handle, "Process already exists, aborting start");
-                return Err(format!(
+
+                Ok(format!(
                     "Kiosk host process for nickname '{}' is already running",
                     nickname
-                ));
+                ))
             }
         }
         Self::debug_emit(&app_handle, "No existing process found. Continuing.");

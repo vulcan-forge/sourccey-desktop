@@ -19,7 +19,13 @@ import {
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import type { ConfigConfig } from '@/components/PageComponents/OwnedRobots/RobotConfig';
-import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
+import {
+    getRemoteRobotState,
+    RemoteControlType,
+    RemoteRobotStatus,
+    setRemoteRobotState,
+    useGetRemoteRobotState,
+} from '@/hooks/Control/remote-control.hook';
 import { Spinner } from '@/components/Elements/Spinner';
 import { setRemoteConfig, useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { isConnected, isConnecting, isDisconnecting, isStarted, isStarting, isStopping } from '@/utils/robot/robot-status';
@@ -100,7 +106,12 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             if (event.nickname === nickname) {
                 console.log(`🔄 Robot ${nickname} is connected: ${event.message}`);
                 setIsLoadingConnectionState(false);
-                setRemoteRobotState(nickname, RemoteRobotStatus.CONNECTED, null, ownedRobot);
+
+                const remoteRobotState = getRemoteRobotState(nickname);
+                const currentStatus = remoteRobotState.status;
+                const newStatus = currentStatus === RemoteRobotStatus.STARTING ? RemoteRobotStatus.STARTED : RemoteRobotStatus.CONNECTED;
+
+                setRemoteRobotState(nickname, newStatus, null, ownedRobot);
                 setErrorMessage('');
             }
         },
