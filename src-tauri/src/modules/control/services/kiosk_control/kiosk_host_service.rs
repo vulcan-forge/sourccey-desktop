@@ -52,7 +52,7 @@ impl KioskHostService {
                 Ok(format!(
                     "Kiosk host process for nickname '{}' is already running",
                     nickname
-                ))
+                ));
             }
         }
         Self::debug_emit(&app_handle, "No existing process found. Continuing.");
