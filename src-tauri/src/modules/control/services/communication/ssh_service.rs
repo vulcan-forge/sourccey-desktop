@@ -132,7 +132,7 @@ impl SshService {
     }
 
     // Create SSH Session Functions
-    async fn create_ssh_session_async(
+    pub async fn create_ssh_session_async(
         ip: &str,
         port: &str,
         username: &str,
@@ -175,7 +175,7 @@ impl SshService {
     }
 
     // Execute Command Functions
-    async fn execute_command_async(session: &mut Handle<SshClientHandler>, command: &str) -> Result<(), String> {
+    pub async fn execute_command_async(session: &mut Handle<SshClientHandler>, command: &str) -> Result<(), String> {
         let channel = session
             .channel_open_session()
             .await
@@ -316,7 +316,7 @@ impl SshService {
         Ok(())
     }
 
-    async fn execute_command_read_output_async(
+    pub async fn execute_command_read_output_async(
         session: &mut Handle<SshClientHandler>,
         command: &str,
         timeout_secs: u64,

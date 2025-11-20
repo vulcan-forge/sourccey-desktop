@@ -1,5 +1,8 @@
 use serde::{Deserialize, Serialize};
 use std::process::Command;
+use crate::modules::settings::services::wifi::wifi_service::WiFiService;
+use crate::modules::control::types::configuration::configuration_types::RemoteConfig;
+use tauri::AppHandle;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WiFiNetwork {
@@ -555,4 +558,11 @@ fn disconnect_wifi_macos() -> Result<String, String> {
         .output();
 
     Ok("Successfully disconnected from WiFi".to_string())
+}
+
+
+// Wifi and Access Point Controller
+#[tauri::command]
+pub async fn set_wifi(app_handle: AppHandle, config: RemoteConfig, ssid: String, password: String) -> Result<String, String> {
+    WiFiService::set_wifi(app_handle, &config, ssid, password).await
 }
