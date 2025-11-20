@@ -99,6 +99,10 @@ use modules::control::controllers::remote_control::remote_teleop_controller::{
 };
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
+    set_wifi,
+};
+use modules::settings::controllers::access_point::access_point_controller::{
+    set_access_point,
 };
 use modules::status::controllers::battery::battery_controller::get_battery_data;
 
@@ -357,6 +361,8 @@ fn main() {
             connect_to_wifi,
             get_current_wifi_connection,
             disconnect_from_wifi,
+            set_wifi,
+            set_access_point,
             // Battery API
             get_battery_data,
             // Store and cart functions removed

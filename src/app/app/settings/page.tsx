@@ -197,35 +197,90 @@ export default function KioskSettingsPage() {
         setNewPassword('');
     };
 
-    {
-        /*
+    const toggleAccessPointMode = () => {
+        if (isAccessPointEnabled) {
+            setWiFiMode();
+        } else {
+            setAccessPointMode();
+        }
+    };
 
+    const setAccessPointMode = async () => {
+        if (!remoteConfig) {
+            toast.error('Robot configuration not loaded');
+            return;
+        }
+
+        if (!accessPointSSID) {
+            toast.error('SSID is required');
+            return;
+        }
+
+        if (!accessPointPassword) {
+            toast.error('Password is required');
+            return;
+        }
+
+        setIsSavingAccessPoint(true);
         try {
-            if (isAccessPointEnabled) {
-                // Set access point mode
-                await invoke<string>('set_access_point', {
-                    config: remoteConfig,
-                    ssid: accessPointSSID,
-                    password: accessPointPassword,
-                });
-                toast.success('Access point configured successfully');
+            const result = await invoke('set_access_point', {
+                config: remoteConfig,
+                ssid: accessPointSSID,
+                password: accessPointPassword,
+            });
+            if (result) {
+                setAccessPointEnabled(true);
+                toast.success('Access Point mode activated successfully', { ...toastSuccessDefaults });
             } else {
-                // Set WiFi mode (connect to network)
-                await invoke<string>('set_wifi', {
-                    config: remoteConfig,
-                    ssid: accessPointSSID,
-                    password: accessPointPassword,
-                });
-                toast.success('WiFi configured successfully');
+                setAccessPointEnabled(false);
+                toast.error('Failed to set Access Point mode');
             }
+            toast.success('Access Point mode activated successfully', { ...toastSuccessDefaults });
         } catch (error) {
-            console.error('Failed to configure access point/WiFi:', error);
-            toast.error(`Failed to configure: ${error}`);
+            console.error('Failed to set access point mode:', error);
+            toast.error(`Failed to set access point mode: ${error}`);
         } finally {
             setIsSavingAccessPoint(false);
         }
-        */
-    }
+    };
+
+    const setWiFiMode = async () => {
+        if (!remoteConfig) {
+            toast.error('Robot configuration not loaded');
+            return;
+        }
+
+        if (!accessPointSSID) {
+            toast.error('SSID is required');
+            return;
+        }
+
+        if (!accessPointPassword) {
+            toast.error('Password is required');
+            return;
+        }
+
+        setIsSavingAccessPoint(true);
+        try {
+            const result = await invoke('set_wifi', {
+                config: remoteConfig,
+                ssid: accessPointSSID,
+                password: accessPointPassword,
+            });
+            if (result) {
+                setAccessPointEnabled(false);
+                toast.success('WiFi mode activated successfully', { ...toastSuccessDefaults });
+            } else {
+                setAccessPointEnabled(true);
+                toast.error('Failed to set WiFi mode');
+            }
+        } catch (error) {
+            console.error('Failed to set WiFi mode:', error);
+            toast.error(`Failed to set WiFi mode: ${error}`);
+        } finally {
+            setIsSavingAccessPoint(false);
+        }
+    };
 
     return (
         <div className="min-h-screen bg-slate-900/30">

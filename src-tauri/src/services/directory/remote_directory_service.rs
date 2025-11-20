@@ -12,7 +12,6 @@ impl RemoteDirectoryService {
     }
 
     pub fn get_sourccey_desktop_root() -> Result<PathBuf, String> {
-        // Use get_project_root() which returns the sourccey-desktop root
         Ok(path_constants::get_project_root())
     }
 
