@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { FaWifi, FaTimes, FaLock, FaLockOpen, FaSpinner, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 import type { BatteryData } from '@/app/app/settings/page';
+import { addSavedWiFiSSID, removeSavedWiFiSSID } from '@/hooks/WIFI/wifi.hook';
 
 interface WiFiNetwork {
     ssid: string;
@@ -103,8 +104,11 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
             const result = await invoke<string>('connect_to_wifi', {
                 ssid: selectedNetwork.ssid,
                 password: password,
+                security: selectedNetwork.security,
             });
             setSuccess(result);
+            addSavedWiFiSSID(selectedNetwork.ssid);
+
             setPassword('');
             setSelectedNetwork(null);
             // Refresh network list and current connection after connection
@@ -135,6 +139,8 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
         try {
             const result = await invoke<string>('disconnect_from_wifi');
             setSuccess(result);
+            removeSavedWiFiSSID(currentConnection?.ssid ?? '');
+
             setCurrentConnection(null);
             // Refresh network list after disconnection
             setTimeout(() => {

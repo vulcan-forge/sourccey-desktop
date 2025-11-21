@@ -18,6 +18,8 @@
         "fs:allow-copy-file",
         "fs:allow-create",
         "fs:allow-remove",
-        "fs:allow-rename"
+        "fs:allow-rename",
+        "process:default",
+        "process:allow-exit"
     ]
 }

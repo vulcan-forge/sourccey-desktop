@@ -99,8 +99,15 @@ use modules::control::controllers::remote_control::remote_teleop_controller::{
 };
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
+    set_wifi,
+};
+use modules::settings::controllers::access_point::access_point_controller::{
+    set_access_point,
+    is_access_point_active,
 };
 use modules::status::controllers::battery::battery_controller::get_battery_data;
+
+use tauri_plugin_process::init;
 
 #[tauri::command]
 async fn debug_check_updates(app: tauri::AppHandle) -> Result<String, String> {
@@ -162,6 +169,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
             // Database initialization
@@ -357,6 +365,9 @@ fn main() {
             connect_to_wifi,
             get_current_wifi_connection,
             disconnect_from_wifi,
+            set_wifi,
+            set_access_point,
+            is_access_point_active,
             // Battery API
             get_battery_data,
             // Store and cart functions removed

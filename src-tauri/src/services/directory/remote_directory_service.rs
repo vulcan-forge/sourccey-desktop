@@ -7,16 +7,18 @@ impl RemoteDirectoryService {
     //------------------------------------------------------------//
     // Standard Directory Functions
     //------------------------------------------------------------//
+    #[allow(dead_code)]
     pub fn get_home_dir() -> Result<PathBuf, String> {
         Ok(path_constants::get_remote_home_dir())
     }
 
+    pub fn get_sourccey_desktop_root() -> Result<PathBuf, String> {
+        Ok(path_constants::get_project_root())
+    }
+
     pub fn get_lerobot_vulcan_dir() -> Result<PathBuf, String> {
-        let home_directory = Self::get_home_dir()?;
-        Ok(home_directory
-            .join("Desktop")
-            .join("Projects")
-            .join(path_constants::REMOTE_LEROBOT_VULCAN_DIR_NAME))
+        let lerobot_vulcan_root = path_constants::get_lerobot_vulcan_root();
+        Ok(lerobot_vulcan_root)
     }
 
     // Helper function to convert PathBuf to Linux-compatible string
