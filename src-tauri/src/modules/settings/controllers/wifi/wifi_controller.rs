@@ -635,6 +635,6 @@ fn disconnect_wifi_macos() -> Result<String, String> {
 
 // Wifi and Access Point Controller
 #[tauri::command]
-pub async fn set_wifi(ssid: String) -> Result<Option<String>, String> {
+pub async fn set_wifi(ssid: String) -> Result<String, String> {
     WiFiService::set_wifi(ssid).await
 }

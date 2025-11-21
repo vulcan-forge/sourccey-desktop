@@ -255,7 +255,7 @@ export default function KioskSettingsPage() {
             const firstSavedSSID = getSavedWiFiSSIDs()?.length > 0 ? getSavedWiFiSSIDs()[0] : null;
             const result = await invoke('set_wifi', { ssid: firstSavedSSID ?? '' });
             toast.info(`Result: ${result}`);
-            if (result) {
+            if (result === 'SUCCESS') {
                 setAccessPointEnabled(false);
                 toast.success('WiFi mode activated successfully', { ...toastSuccessDefaults });
             } else {
