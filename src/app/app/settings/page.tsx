@@ -435,7 +435,7 @@ export default function KioskSettingsPage() {
                                 <input
                                     id="ap-ssid"
                                     type="text"
-                                    value={accessPointSSID as string}
+                                    value={(accessPointSSID as string) ?? 'sourccey'}
                                     onChange={(e) => setAccessPointSSID(e.target.value)}
                                     placeholder={isAccessPointEnabled ? 'Enter access point name' : 'Enter WiFi network name'}
                                     className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
