@@ -40,12 +40,12 @@ pub async fn connect_to_wifi(ssid: String, password: String, security: Option<St
 
     #[cfg(target_os = "windows")]
     {
-        connect_wifi_windows(ssid, password)
+        connect_wifi_windows(ssid, password, security)
     }
 
     #[cfg(target_os = "macos")]
     {
-        connect_wifi_macos(ssid, password)
+        connect_wifi_macos(ssid, password, security)
     }
 }
 
@@ -365,7 +365,7 @@ fn scan_wifi_windows() -> Result<Vec<WiFiNetwork>, String> {
 }
 
 #[cfg(target_os = "windows")]
-fn connect_wifi_windows(ssid: String, password: String) -> Result<String, String> {
+fn connect_wifi_windows(ssid: String, password: String, security: Option<String>) -> Result<String, String> {
     // Create a temporary XML profile for the network
     let profile_xml = format!(
         r#"<?xml version="1.0"?>
@@ -395,6 +395,8 @@ fn connect_wifi_windows(ssid: String, password: String) -> Result<String, String
 </WLANProfile>"#,
         ssid, ssid, password
     );
+
+    println!("Connecting to WiFi: {} with password: {} and security: {:?}", ssid, password, security);
 
     // Write profile to temp file
     let profile_path = format!("C:\\temp_wifi_profile_{}.xml", ssid);
@@ -557,8 +559,9 @@ fn scan_wifi_macos() -> Result<Vec<WiFiNetwork>, String> {
 }
 
 #[cfg(target_os = "macos")]
-fn connect_wifi_macos(ssid: String, password: String) -> Result<String, String> {
+fn connect_wifi_macos(ssid: String, password: String, security: Option<String>) -> Result<String, String> {
     // Use networksetup to connect
+    println!("Connecting to WiFi: {} with password: {} and security: {:?}", ssid, password, security);
     let output = Command::new("networksetup")
         .args(&["-setairportnetwork", "en0", &ssid, &password])
         .output()
