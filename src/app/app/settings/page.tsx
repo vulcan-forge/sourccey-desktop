@@ -235,12 +235,10 @@ export default function KioskSettingsPage() {
 
         setIsTogglingAccessPoint(true);
         try {
-            toast.info(`Setting Access Point mode`);
             const result = await invoke('set_access_point', {
                 ssid: accessPointSSID,
                 password: accessPointPassword,
             });
-            toast.info(`Result: ${result}`);
             if (result) {
                 setAccessPointEnabled(true);
                 toast.success('Access Point mode activated successfully', { ...toastSuccessDefaults });
@@ -260,12 +258,8 @@ export default function KioskSettingsPage() {
     const setWiFiMode = async () => {
         setIsTogglingAccessPoint(true);
         try {
-            toast.info(`Setting WiFi mode`);
-            toast.info(`SSID: ${accessPointSSID}`);
-            toast.info(`Password: ${accessPointPassword}`);
             const firstSavedSSID = getSavedWiFiSSIDs()?.length > 0 ? getSavedWiFiSSIDs()[0] : null;
             const result = await invoke('set_wifi', { ssid: firstSavedSSID ?? '' });
-            toast.info(`Result: ${result}`);
             if (result === 'SUCCESS') {
                 setAccessPointEnabled(false);
                 toast.success('WiFi mode activated successfully', { ...toastSuccessDefaults });
