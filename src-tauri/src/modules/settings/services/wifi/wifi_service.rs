@@ -26,8 +26,9 @@ impl WiFiService {
         }
         println!("[WiFi] Script exists: {:?}", script_path.exists());
 
-        // Execute Python script locally
-        let output = Command::new("python")
+        // Execute Python script locally with sudo
+        let output = Command::new("sudo")
+            .arg("python")
             .arg(script_path.to_string_lossy().as_ref())
             .arg("--ssid")
             .arg(&ssid)

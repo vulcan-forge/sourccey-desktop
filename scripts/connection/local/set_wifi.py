@@ -56,15 +56,15 @@ def set_wifi(ssid, password):
 
     # Disconnect existing connections
     subprocess.run(
-        ["nmcli", "device", "disconnect", wifi_device],
-        capture_output=True,
+        ["sudo", "nmcli", "device", "disconnect", wifi_device],
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
 
     # Remove hotspot if switching from AP mode
     subprocess.run(
-        ["nmcli", "connection", "delete", "Hotspot"],
-        capture_output=True,
+        ["sudo", "nmcli", "connection", "delete", "Hotspot"],
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
 
@@ -72,7 +72,7 @@ def set_wifi(ssid, password):
     for attempt in range(3):
         try:
             result = subprocess.run(
-                ["nmcli", "device", "wifi", "connect", ssid, "password", password],
+                ["sudo", "nmcli", "device", "wifi", "connect", ssid, "password", password],
                 capture_output=True,
                 text=True,
                 check=True
