@@ -103,6 +103,7 @@ use modules::settings::controllers::wifi::wifi_controller::{
 };
 use modules::settings::controllers::access_point::access_point_controller::{
     set_access_point,
+    is_access_point_active,
 };
 use modules::status::controllers::battery::battery_controller::get_battery_data;
 
@@ -363,6 +364,7 @@ fn main() {
             disconnect_from_wifi,
             set_wifi,
             set_access_point,
+            is_access_point_active,
             // Battery API
             get_battery_data,
             // Store and cart functions removed

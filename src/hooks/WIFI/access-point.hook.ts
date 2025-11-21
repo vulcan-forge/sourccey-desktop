@@ -1,5 +1,6 @@
 import { queryClient } from '@/hooks/default';
 import { useQuery } from '@tanstack/react-query';
+import { invoke } from '@tauri-apps/api/core';
 
 // Generate 6 random alphanumeric characters for GUID
 const generateGuidSuffix = (): string => {
@@ -25,10 +26,12 @@ export const DEFAULT_ACCESS_POINT_PASSWORD = `vulcan-${generateGuidSuffix()}`;
 // Access Point SSID Functions
 //---------------------------------------------------------------------------------------------------//
 
-export const isAccessPointEnabled = () => queryClient.getQueryData(ACCESS_POINT_ENABLED_KEY) ?? DEFAULT_ACCESS_POINT_ENABLED;
+export const isAccessPointEnabled = async (): Promise<boolean> => {
+    const isActive = (await invoke('is_access_point_active')) as boolean;
+    return isActive;
+};
 export const setAccessPointEnabled = (content: any) => queryClient.setQueryData(ACCESS_POINT_ENABLED_KEY, content);
-export const useGetAccessPointEnabled = () =>
-    useQuery({ queryKey: ACCESS_POINT_ENABLED_KEY, queryFn: () => isAccessPointEnabled() ?? DEFAULT_ACCESS_POINT_ENABLED });
+export const useGetAccessPointEnabled = () => useQuery({ queryKey: ACCESS_POINT_ENABLED_KEY, queryFn: isAccessPointEnabled });
 
 export const getAccessPointSSID = () => queryClient.getQueryData(ACCESS_POINT_SSID_KEY) ?? DEFAULT_ACCESS_POINT_SSID;
 export const setAccessPointSSID = (content: any) => queryClient.setQueryData(ACCESS_POINT_SSID_KEY, content);
