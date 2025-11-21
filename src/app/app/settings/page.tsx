@@ -16,6 +16,7 @@ import {
 import { useGetAccessPointPassword } from '@/hooks/WIFI/access-point.hook';
 import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getSavedWiFiSSIDs } from '@/hooks/WIFI/wifi.hook';
+import clsx from 'clsx';
 
 interface SystemInfo {
     ipAddress: string;
@@ -57,6 +58,7 @@ export default function KioskSettingsPage() {
     const { data: accessPointSSID }: any = useGetAccessPointSSID();
     const { data: accessPointPassword }: any = useGetAccessPointPassword();
 
+    const [isTogglingAccessPoint, setIsTogglingAccessPoint] = useState(false);
     const [isSavingAccessPoint, setIsSavingAccessPoint] = useState(false);
     const [showAccessPointPassword, setShowAccessPointPassword] = useState(false);
     const [remoteConfig, setRemoteConfig] = useState<RemoteConfig | null>(null);
@@ -173,7 +175,7 @@ export default function KioskSettingsPage() {
         }
     };
 
-    const handleSaveAPValues = () => {
+    const handleSaveAPValues = async () => {
         if (!remoteConfig) {
             toast.error('Robot configuration not loaded');
             return;
@@ -189,9 +191,17 @@ export default function KioskSettingsPage() {
             return;
         }
 
-        setAccessPointSSID(accessPointSSID);
-        setAccessPointPassword(accessPointPassword as string);
-        toast.success('Access point configured successfully', { ...toastSuccessDefaults });
+        setIsSavingAccessPoint(true);
+        try {
+            setAccessPointSSID(accessPointSSID);
+            setAccessPointPassword(accessPointPassword as string);
+            toast.success('Access point configured successfully', { ...toastSuccessDefaults });
+        } catch (error) {
+            console.error('Failed to save access point values:', error);
+            toast.error(`Failed to save access point values: ${error}`);
+        } finally {
+            setIsSavingAccessPoint(false);
+        }
     };
 
     const handleCancelEdit = () => {
@@ -223,7 +233,7 @@ export default function KioskSettingsPage() {
             return;
         }
 
-        setIsSavingAccessPoint(true);
+        setIsTogglingAccessPoint(true);
         try {
             toast.info(`Setting Access Point mode`);
             const result = await invoke('set_access_point', {
@@ -243,12 +253,12 @@ export default function KioskSettingsPage() {
             console.error('Failed to set access point mode:', error);
             toast.error(`Failed to set access point mode: ${error}`);
         } finally {
-            setIsSavingAccessPoint(false);
+            setIsTogglingAccessPoint(false);
         }
     };
 
     const setWiFiMode = async () => {
-        setIsSavingAccessPoint(true);
+        setIsTogglingAccessPoint(true);
         try {
             toast.info(`Setting WiFi mode`);
             toast.info(`SSID: ${accessPointSSID}`);
@@ -267,7 +277,7 @@ export default function KioskSettingsPage() {
             console.error('Failed to set WiFi mode:', error);
             toast.error(`Failed to set WiFi mode: ${error}`);
         } finally {
-            setIsSavingAccessPoint(false);
+            setIsTogglingAccessPoint(false);
         }
     };
 
@@ -394,7 +404,10 @@ export default function KioskSettingsPage() {
                             {/* Toggle for Access Point Mode */}
                             <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                                 <div className="flex flex-col">
-                                    <span className="text-sm font-medium text-slate-300">Access Point Mode</span>
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-sm font-medium text-slate-300">Access Point Mode</span>
+                                        {isTogglingAccessPoint && <FaSpinner className="h-4 w-4 animate-spin text-slate-400" />}
+                                    </div>
                                     <span className="mt-1 text-xs text-slate-400">
                                         {isAccessPointEnabled
                                             ? 'Robot will broadcast its own WiFi network'
@@ -407,7 +420,7 @@ export default function KioskSettingsPage() {
                                         checked={(isAccessPointEnabled as boolean) ?? false}
                                         onChange={toggleAccessPointMode}
                                         className="peer sr-only"
-                                        disabled={isSavingAccessPoint}
+                                        disabled={isTogglingAccessPoint}
                                     />
                                     <div className="peer h-6 w-11 rounded-full bg-slate-600 transition-colors peer-checked:bg-blue-600 peer-focus:ring-4 peer-focus:ring-blue-800/20 peer-focus:outline-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
                                 </label>
@@ -460,8 +473,17 @@ export default function KioskSettingsPage() {
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={handleSaveAPValues}
-                                    disabled={!accessPointSSID || !accessPointPassword || isSavingAccessPoint || !remoteConfig}
-                                    className="flex cursor-pointer items-center gap-2 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                    disabled={
+                                        !accessPointSSID ||
+                                        !accessPointPassword ||
+                                        isTogglingAccessPoint ||
+                                        isSavingAccessPoint ||
+                                        !remoteConfig
+                                    }
+                                    className={clsx(
+                                        'flex cursor-pointer items-center gap-2 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50',
+                                        isTogglingAccessPoint && 'cursor-not-allowed opacity-50'
+                                    )}
                                 >
                                     {isSavingAccessPoint ? (
                                         <>
