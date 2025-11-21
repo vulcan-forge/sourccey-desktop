@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { FaWifi, FaInfoCircle, FaBatteryHalf } from 'react-icons/fa';
+import { FaWifi, FaInfoCircle, FaBatteryHalf, FaWindowClose } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { useVirtualKeyboard } from '@/context/virtual-keyboard-context';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
@@ -91,20 +91,15 @@ export const KioskTopNavbar = () => {
                     <div className="grow" />
 
                     <div className="ml-auto flex items-center gap-4">
-                        {/* Keyboard button - kiosk mode - disabled for now to see if we need it 10-31-2025 */}
-                        {/* Remove ths if nobody complains by 1-1-2026 */}
-                        {/* <button
-                            onClick={handleToggleKeyboard}
-                            className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300 ${
-                                isKeyboardOpen
-                                    ? 'bg-gradient-to-r from-green-500 to-emerald-600 text-white hover:from-green-600 hover:to-emerald-700'
-                                    : 'bg-slate-600/60 text-slate-300 hover:bg-slate-600/80 hover:text-white'
-                            }`}
-                            title="Toggle Keyboard"
+                        {/* Close button to close the application */}
+                        <button
+                            onClick={() => window.close()}
+                            className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-slate-600/60 px-4 py-2 text-sm font-semibold text-slate-300 transition-all duration-300 hover:bg-slate-600/80 hover:text-white"
+                            title="Close Application"
                         >
-                            <FaKeyboard className="h-5 w-5" />
-                            <span className="hidden sm:inline">Keyboard</span>
-                        </button> */}
+                            <FaWindowClose className="h-5 w-5" />
+                            <span className="hidden sm:inline">Close</span>
+                        </button>
 
                         {/* Connect Details button - kiosk mode */}
                         <button
