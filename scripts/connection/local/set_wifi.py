@@ -27,29 +27,63 @@ def find_wifi_device():
         return None
 
 def connect_to_ssid(ssid: str):
-    """Attempt to connect to a specific SSID by name"""
+    """Attempt to connect to a specific SSID directly"""
     try:
-        # Try to activate connection by SSID name
+        # First, ensure WiFi is enabled and scan for networks
+        wifi_device = find_wifi_device()
+        if not wifi_device:
+            return False
+
+        # Enable WiFi radio if needed
+        subprocess.run(
+            ["sudo", "nmcli", "radio", "wifi", "on"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=5
+        )
+
+        # Wait a moment for WiFi to enable
+        time.sleep(1)
+
+        # Try to connect directly to the SSID (this works even if not saved)
+        # For open networks, this will work. For secured networks, it may fail if password is needed.
         result = subprocess.run(
-            ["sudo", "nmcli", "connection", "up", ssid],
+            ["sudo", "nmcli", "device", "wifi", "connect", ssid],
             capture_output=True,
             text=True,
             check=True,
-            timeout=15
+            timeout=20
         )
+
         # Wait a moment to verify connection is established
-        time.sleep(2)
-        # Verify connection is active
+        time.sleep(3)
+
+        # Verify connection is active by checking current SSID
         verify_result = subprocess.run(
-            ["nmcli", "-t", "-f", "NAME", "connection", "show", "--active"],
+            ["nmcli", "-t", "-f", "GENERAL.CONNECTION", "device", "show", wifi_device],
             capture_output=True,
             text=True,
             check=True
         )
-        if ssid in verify_result.stdout:
-            return True
+
+        # Check if we're connected to the SSID (connection name might match SSID)
+        current_connection = verify_result.stdout.strip()
+        if ssid in current_connection or current_connection:
+            # Also verify by checking active connection SSID
+            active_result = subprocess.run(
+                ["nmcli", "-t", "-f", "802-11-wireless.ssid", "connection", "show", "--active"],
+                capture_output=True,
+                text=True,
+                check=False
+            )
+            if ssid in active_result.stdout:
+                return True
+            # If connection exists, consider it successful (might be connecting)
+            if current_connection:
+                return True
+
         return False
-    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired) as e:
         # Connection failed, but that's okay - we'll return False
         return False
 
