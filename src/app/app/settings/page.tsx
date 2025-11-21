@@ -223,11 +223,13 @@ export default function KioskSettingsPage() {
 
         setIsSavingAccessPoint(true);
         try {
+            toast.info(`Setting Access Point mode`);
             const result = await invoke('set_access_point', {
                 config: remoteConfig,
                 ssid: accessPointSSID,
                 password: accessPointPassword,
             });
+            toast.info(`Result: ${result}`);
             if (result) {
                 setAccessPointEnabled(true);
                 toast.success('Access Point mode activated successfully', { ...toastSuccessDefaults });
@@ -416,7 +418,7 @@ export default function KioskSettingsPage() {
                                     <input
                                         type="checkbox"
                                         checked={isAccessPointEnabled as boolean}
-                                        onChange={(e) => setAccessPointEnabled(e.target.checked)}
+                                        onChange={toggleAccessPointMode}
                                         className="peer sr-only"
                                         disabled={isSavingAccessPoint}
                                     />
