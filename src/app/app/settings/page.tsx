@@ -266,10 +266,7 @@ export default function KioskSettingsPage() {
             toast.info(`Setting WiFi mode`);
             toast.info(`SSID: ${accessPointSSID}`);
             toast.info(`Password: ${accessPointPassword}`);
-            const result = await invoke('set_wifi', {
-                ssid: accessPointSSID,
-                password: accessPointPassword,
-            });
+            const result = await invoke('set_wifi');
             toast.info(`Result: ${result}`);
             if (result) {
                 setAccessPointEnabled(false);

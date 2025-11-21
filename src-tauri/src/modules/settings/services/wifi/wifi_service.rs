@@ -4,15 +4,11 @@ use std::process::Command;
 pub struct WiFiService;
 
 impl WiFiService {
-    /// Set the robot to WiFi mode (connect to existing WiFi network)
-    /// This allows the robot to connect to a home/office WiFi network
+    /// Disable access point mode and prepare for manual WiFi connection
+    /// This disables AP mode and allows the user to manually connect to WiFi via the UI
     /// This function runs locally on the robot
-    pub async fn set_wifi(
-        ssid: String,
-        password: String,
-    ) -> Result<Option<String>, String> {
-        println!("[WiFi] Setting WiFi mode for robot");
-        println!("[WiFi] SSID: {}", ssid);
+    pub async fn set_wifi() -> Result<Option<String>, String> {
+        println!("[WiFi] Disabling access point mode for robot");
 
         // Get the working directory on the robot (local path)
         let working_dir = RemoteDirectoryService::get_sourccey_desktop_root()?;
@@ -26,14 +22,10 @@ impl WiFiService {
         }
         println!("[WiFi] Script exists: {:?}", script_path.exists());
 
-        // Execute Python script locally with sudo
+        // Execute Python script locally with sudo (no arguments needed - just disables AP mode)
         let output = Command::new("sudo")
             .arg("python")
             .arg(script_path.to_string_lossy().as_ref())
-            .arg("--ssid")
-            .arg(&ssid)
-            .arg("--password")
-            .arg(&password)
             .current_dir(&working_dir)
             .output()
             .map_err(|e| format!("Failed to execute script: {}", e))?;
@@ -84,20 +76,9 @@ impl WiFiService {
                 .unwrap_or("");
             println!("[WiFi] Status: {:?}", status);
             if status == "SUCCESS" {
-                let ip_address = json_output
-                    .get("ip_address")
-                    .and_then(|v| v.as_str())
-                    .map(|s| s.to_string());
-                println!("[WiFi] IP address: {:?}", ip_address);
-                // Return None if IP is "Not assigned" or empty, otherwise return Some(ip)
-                let result = ip_address
-                    .filter(|ip| !ip.is_empty() && ip != "Not assigned")
-                    .map(|ip| {
-                        println!("[WiFi] WiFi connection established successfully. IP: {}", ip);
-                        ip
-                    });
-                println!("[WiFi] Result: {:?}", result);
-                Ok(result)
+                println!("[WiFi] Access point mode disabled successfully");
+                // Return None since user will manually connect to WiFi
+                Ok(None)
             } else {
                 println!("[WiFi] Returning error");
                 Err(format!("Script returned status: {}", status))
