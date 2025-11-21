@@ -247,21 +247,6 @@ export default function KioskSettingsPage() {
     };
 
     const setWiFiMode = async () => {
-        if (!remoteConfig) {
-            toast.error('Robot configuration not loaded');
-            return;
-        }
-
-        if (!accessPointSSID) {
-            toast.error('SSID is required');
-            return;
-        }
-
-        if (!accessPointPassword) {
-            toast.error('Password is required');
-            return;
-        }
-
         setIsSavingAccessPoint(true);
         try {
             toast.info(`Setting WiFi mode`);
