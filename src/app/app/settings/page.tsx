@@ -225,7 +225,6 @@ export default function KioskSettingsPage() {
         try {
             toast.info(`Setting Access Point mode`);
             const result = await invoke('set_access_point', {
-                config: remoteConfig,
                 ssid: accessPointSSID,
                 password: accessPointPassword,
             });
@@ -264,11 +263,14 @@ export default function KioskSettingsPage() {
 
         setIsSavingAccessPoint(true);
         try {
+            toast.info(`Setting WiFi mode`);
+            toast.info(`SSID: ${accessPointSSID}`);
+            toast.info(`Password: ${accessPointPassword}`);
             const result = await invoke('set_wifi', {
-                config: remoteConfig,
                 ssid: accessPointSSID,
                 password: accessPointPassword,
             });
+            toast.info(`Result: ${result}`);
             if (result) {
                 setAccessPointEnabled(false);
                 toast.success('WiFi mode activated successfully', { ...toastSuccessDefaults });
