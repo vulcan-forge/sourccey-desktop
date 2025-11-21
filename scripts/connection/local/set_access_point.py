@@ -57,14 +57,14 @@ def set_access_point(ssid, password):
     # Disconnect any existing connections
     subprocess.run(
         ["nmcli", "device", "disconnect", wifi_device],
-        capture_output=True,
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
 
     # Remove existing hotspot if it exists
     subprocess.run(
         ["nmcli", "connection", "delete", "Hotspot"],
-        capture_output=True,
+        stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
 
