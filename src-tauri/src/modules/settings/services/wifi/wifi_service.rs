@@ -8,7 +8,7 @@ impl WiFiService {
     /// This disables AP mode and automatically attempts to reconnect to previously saved WiFi networks
     /// If no saved networks are found or connection fails, AP mode is still disabled
     /// This function runs locally on the robot
-    pub async fn set_wifi() -> Result<Option<String>, String> {
+    pub async fn set_wifi(ssid: String) -> Result<Option<String>, String> {
         println!("[WiFi] Disabling access point mode for robot");
 
         // Get the working directory on the robot (local path)
@@ -27,6 +27,8 @@ impl WiFiService {
         let output = Command::new("sudo")
             .arg("python")
             .arg(script_path.to_string_lossy().as_ref())
+            .arg("--ssid")
+            .arg(&ssid)
             .current_dir(&working_dir)
             .output()
             .map_err(|e| format!("Failed to execute script: {}", e))?;

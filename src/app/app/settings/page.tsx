@@ -15,6 +15,7 @@ import {
 } from '@/hooks/WIFI/access-point.hook';
 import { useGetAccessPointPassword } from '@/hooks/WIFI/access-point.hook';
 import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
+import { getSavedWiFiSSIDs } from '@/hooks/WIFI/wifi.hook';
 
 interface SystemInfo {
     ipAddress: string;
@@ -266,7 +267,8 @@ export default function KioskSettingsPage() {
             toast.info(`Setting WiFi mode`);
             toast.info(`SSID: ${accessPointSSID}`);
             toast.info(`Password: ${accessPointPassword}`);
-            const result = await invoke('set_wifi');
+            const firstSavedSSID = getSavedWiFiSSIDs()?.length > 0 ? getSavedWiFiSSIDs()[0] : null;
+            const result = await invoke('set_wifi', { ssid: firstSavedSSID ?? '' });
             toast.info(`Result: ${result}`);
             if (result) {
                 setAccessPointEnabled(false);

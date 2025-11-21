@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 """
-Disable access point mode and attempt to reconnect to saved WiFi networks
-Usage: python set_wifi.py
+Disable access point mode and attempt to reconnect to specified WiFi network
+Usage: python set_wifi.py --ssid SSID
 """
-
+import argparse
 import subprocess
 import sys
 import json
@@ -26,62 +26,35 @@ def find_wifi_device():
     except subprocess.CalledProcessError:
         return None
 
-def reconnect_to_saved_wifi():
-    """Attempt to reconnect to a previously saved WiFi network"""
+def connect_to_ssid(ssid: str):
+    """Attempt to connect to a specific SSID by name"""
     try:
-        # List all saved WiFi connections (excluding Hotspot)
+        # Try to activate connection by SSID name
         result = subprocess.run(
-            ["nmcli", "-t", "-f", "NAME,TYPE", "connection", "show"],
+            ["sudo", "nmcli", "connection", "up", ssid],
+            capture_output=True,
+            text=True,
+            check=True,
+            timeout=15
+        )
+        # Wait a moment to verify connection is established
+        time.sleep(2)
+        # Verify connection is active
+        verify_result = subprocess.run(
+            ["nmcli", "-t", "-f", "NAME", "connection", "show", "--active"],
             capture_output=True,
             text=True,
             check=True
         )
-
-        saved_wifi_connections = []
-        for line in result.stdout.strip().split('\n'):
-            parts = line.split(':')
-            if len(parts) >= 2:
-                name = parts[0]
-                conn_type = parts[1] if len(parts) > 1 else ""
-                # Look for WiFi connections (not Hotspot)
-                if 'wifi' in conn_type.lower() and name != "Hotspot":
-                    saved_wifi_connections.append(name)
-
-        if not saved_wifi_connections:
-            return False
-
-        # Try to activate saved WiFi connections, starting with the first one
-        # NetworkManager will automatically try the most recently used connection
-        for wifi_conn in saved_wifi_connections:
-            try:
-                result = subprocess.run(
-                    ["sudo", "nmcli", "connection", "up", wifi_conn],
-                    capture_output=True,
-                    text=True,
-                    check=True,
-                    timeout=15
-                )
-                # Wait a moment to verify connection is established
-                time.sleep(2)
-                # Verify connection is active
-                verify_result = subprocess.run(
-                    ["nmcli", "-t", "-f", "NAME", "connection", "show", "--active"],
-                    capture_output=True,
-                    text=True,
-                    check=True
-                )
-                if wifi_conn in verify_result.stdout:
-                    return True
-            except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
-                # Try next connection if this one fails
-                continue
-
+        if ssid in verify_result.stdout:
+            return True
         return False
-    except subprocess.CalledProcessError:
+    except (subprocess.CalledProcessError, subprocess.TimeoutExpired):
+        # Connection failed, but that's okay - we'll return False
         return False
 
-def disable_access_point():
-    """Disable access point mode and attempt to reconnect to WiFi"""
+def disable_access_point(ssid: str):
+    """Disable access point mode and attempt to reconnect to specified WiFi"""
     # Find WiFi device
     wifi_device = find_wifi_device()
     if not wifi_device:
@@ -102,26 +75,31 @@ def disable_access_point():
         stderr=subprocess.DEVNULL
     )
 
-    # Attempt to reconnect to saved WiFi
-    wifi_reconnected = reconnect_to_saved_wifi()
+    # Attempt to connect to the specified SSID
+    wifi_reconnected = connect_to_ssid(ssid)
 
     # Output success message as JSON for easy parsing
+    # Always return SUCCESS regardless of connection outcome
     if wifi_reconnected:
         output = {
             "status": "SUCCESS",
-            "message": "Access point disabled and reconnected to WiFi"
+            "message": f"Access point disabled and reconnected to {ssid}"
         }
     else:
         output = {
             "status": "SUCCESS",
-            "message": "Access point disabled. No saved WiFi networks found or connection failed."
+            "message": f"Access point disabled. Attempted to reconnect to {ssid}."
         }
 
     print(json.dumps(output))
     sys.exit(0)
 
 def main():
-    disable_access_point()
+    parser = argparse.ArgumentParser(description='Disable access point mode and attempt to reconnect to WiFi')
+    parser.add_argument('--ssid', type=str, required=True, help='SSID to attempt to connect to')
+    args = parser.parse_args()
+
+    disable_access_point(ssid=args.ssid)
 
 if __name__ == "__main__":
     main()
