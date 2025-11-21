@@ -27,9 +27,9 @@ def find_wifi_device():
         return None
 
 def connect_to_ssid(ssid: str):
-    """Attempt to connect to a specific SSID directly"""
+    """Attempt to connect to a specific SSID using saved connection profile"""
     try:
-        # First, ensure WiFi is enabled and scan for networks
+        # First, ensure WiFi is enabled
         wifi_device = find_wifi_device()
         if not wifi_device:
             return False
@@ -45,15 +45,20 @@ def connect_to_ssid(ssid: str):
         # Wait a moment for WiFi to enable
         time.sleep(1)
 
-        # Try to connect directly to the SSID (this works even if not saved)
-        # For open networks, this will work. For secured networks, it may fail if password is needed.
+        # Try to activate the saved connection profile
+        # This uses the connection created by wifi_controller.rs with con-name=SSID
+        # Single approach - if the profile doesn't exist, we can't reconnect without password
         result = subprocess.run(
-            ["sudo", "nmcli", "device", "wifi", "connect", ssid],
+            ["sudo", "nmcli", "connection", "up", ssid],
             capture_output=True,
             text=True,
-            check=True,
+            check=False,
             timeout=20
         )
+
+        # If connection up failed, return False (can't reconnect without password)
+        if result.returncode != 0:
+            return False
 
         # Wait a moment to verify connection is established
         time.sleep(3)
@@ -66,7 +71,7 @@ def connect_to_ssid(ssid: str):
             check=True
         )
 
-        # Check if we're connected to the SSID (connection name might match SSID)
+        # Check if we're connected to the SSID
         current_connection = verify_result.stdout.strip()
         if ssid in current_connection or current_connection:
             # Also verify by checking active connection SSID

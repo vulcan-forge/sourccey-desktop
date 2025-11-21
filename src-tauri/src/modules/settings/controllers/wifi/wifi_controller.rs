@@ -32,10 +32,10 @@ pub async fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>, String> {
 
 /// Connect to a WiFi network
 #[tauri::command]
-pub async fn connect_to_wifi(ssid: String, password: String) -> Result<String, String> {
+pub async fn connect_to_wifi(ssid: String, password: String, security: Option<String>) -> Result<String, String> {
     #[cfg(target_os = "linux")]
     {
-        connect_wifi_linux(ssid, password)
+        connect_wifi_linux(ssid, password, security)
     }
 
     #[cfg(target_os = "windows")]
@@ -130,10 +130,9 @@ fn scan_wifi_linux() -> Result<Vec<WiFiNetwork>, String> {
 }
 
 #[cfg(target_os = "linux")]
-fn connect_wifi_linux(ssid: String, password: String) -> Result<String, String> {
-    // Use nmcli to connect to the network
+fn connect_open_network(ssid: &str) -> Result<String, String> {
     let output = Command::new("nmcli")
-        .args(&["device", "wifi", "connect", &ssid, "password", &password])
+        .args(&["device", "wifi", "connect", ssid])
         .output()
         .map_err(|e| format!("Failed to connect to WiFi: {}", e))?;
 
@@ -141,6 +140,79 @@ fn connect_wifi_linux(ssid: String, password: String) -> Result<String, String> 
         return Err(format!(
             "Connection failed: {}",
             String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    Ok(format!("Successfully connected to {}", ssid))
+}
+
+#[cfg(target_os = "linux")]
+fn connect_wifi_linux(ssid: String, password: String, security: Option<String>) -> Result<String, String> {
+    // Determine key-mgmt type from security string
+    let security_str = security.as_deref().unwrap_or("");
+
+    // Check if it's an open network
+    if security_str == "Open" || security_str.is_empty() {
+        if !password.is_empty() {
+            return Err("Open network does not require a password".to_string());
+        }
+        return connect_open_network(&ssid);
+    }
+
+    // Always set key-mgmt explicitly from the start
+    // Determine key-mgmt type based on security string
+    let key_mgmt = if security_str.contains("WPA3") {
+        "wpa-psk" // WPA3-SAE, but nmcli may handle it automatically
+    } else if security_str.contains("WPA2") || security_str.contains("WPA") {
+        "wpa-psk"
+    } else if security_str.contains("WEP") {
+        "none" // WEP uses wep-key-type instead
+    } else {
+        // Unknown security type - try wpa-psk as default
+        "wpa-psk"
+    };
+
+    // Delete any existing connection with this name first (ignore errors if it doesn't exist)
+    let _ = Command::new("nmcli")
+        .args(&["connection", "delete", &ssid])
+        .output();
+
+    // Create connection with explicit key-mgmt - single approach, no fallbacks
+    let add_output = Command::new("nmcli")
+        .args(&[
+            "connection",
+            "add",
+            "type",
+            "wifi",
+            "con-name",
+            &ssid,
+            "ssid",
+            &ssid,
+            "wifi-sec.key-mgmt",
+            key_mgmt,
+            "wifi-sec.psk",
+            &password,
+        ])
+        .output()
+        .map_err(|e| format!("Failed to create WiFi connection: {}", e))?;
+
+    if !add_output.status.success() {
+        return Err(format!(
+            "Failed to create connection: {}",
+            String::from_utf8_lossy(&add_output.stderr)
+        ));
+    }
+
+    // Activate the connection
+    let up_output = Command::new("nmcli")
+        .args(&["connection", "up", &ssid])
+        .output()
+        .map_err(|e| format!("Failed to activate WiFi connection: {}", e))?;
+
+    if !up_output.status.success() {
+        return Err(format!(
+            "Connection failed: {}",
+            String::from_utf8_lossy(&up_output.stderr)
         ));
     }
 

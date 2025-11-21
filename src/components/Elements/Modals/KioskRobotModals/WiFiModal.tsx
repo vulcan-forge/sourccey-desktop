@@ -104,6 +104,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
             const result = await invoke<string>('connect_to_wifi', {
                 ssid: selectedNetwork.ssid,
                 password: password,
+                security: selectedNetwork.security,
             });
             setSuccess(result);
             addSavedWiFiSSID(selectedNetwork.ssid);
