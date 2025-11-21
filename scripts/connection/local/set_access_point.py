@@ -56,14 +56,14 @@ def set_access_point(ssid, password):
 
     # Disconnect any existing connections
     subprocess.run(
-        ["nmcli", "device", "disconnect", wifi_device],
+        ["sudo", "nmcli", "device", "disconnect", wifi_device],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
 
     # Remove existing hotspot if it exists
     subprocess.run(
-        ["nmcli", "connection", "delete", "Hotspot"],
+        ["sudo", "nmcli", "connection", "delete", "Hotspot"],
         stdout=subprocess.DEVNULL,
         stderr=subprocess.DEVNULL
     )
@@ -71,22 +71,22 @@ def set_access_point(ssid, password):
     # Create access point connection
     try:
         result = subprocess.run(
-            [
-                "nmcli", "connection", "add",
-                "type", "wifi",
-                "ifname", wifi_device,
-                "con-name", "Hotspot",
-                "autoconnect", "yes",
-                "ssid", ssid,
-                "802-11-wireless.mode", "ap",
-                "802-11-wireless-security.key-mgmt", "wpa-psk",
-                "802-11-wireless-security.psk", password,
-                "ipv4.method", "shared"
-            ],
-            capture_output=True,
-            text=True,
-            check=True
-        )
+        [
+            "sudo", "nmcli", "connection", "add",
+            "type", "wifi",
+            "ifname", wifi_device,
+            "con-name", "Hotspot",
+            "autoconnect", "yes",
+            "ssid", ssid,
+            "802-11-wireless.mode", "ap",
+            "802-11-wireless-security.key-mgmt", "wpa-psk",
+            "802-11-wireless-security.psk", password,
+            "ipv4.method", "shared"
+        ],
+        capture_output=True,
+        text=True,
+        check=True
+    )
     except subprocess.CalledProcessError as e:
         print(f"ERROR: Failed to create access point: {e.stderr}", file=sys.stderr)
         sys.exit(1)
@@ -95,7 +95,7 @@ def set_access_point(ssid, password):
     for attempt in range(3):
         try:
             result = subprocess.run(
-                ["nmcli", "connection", "up", "Hotspot"],
+                ["sudo", "nmcli", "connection", "up", "Hotspot"],
                 capture_output=True,
                 text=True,
                 check=True
