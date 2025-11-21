@@ -120,15 +120,19 @@ impl AccessPointService {
 
     pub async fn is_access_point_active() -> Result<bool, String> {
         println!("[AccessPoint] Checking if access point is active");
-        let output = Command::new("systemctl")
-            .arg("is-active")
-            .arg("hostapd")
+        let output = Command::new("nmcli")
+            .arg("-t")
+            .arg("-f")
+            .arg("NAME")
+            .arg("connection")
+            .arg("show")
+            .arg("--active")
             .output()
             .map_err(|e| format!("Failed to check if access point is active: {}", e))?;
 
-        // systemctl is-active returns exit code 0 if active, non-zero if inactive
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let is_active = stdout.contains("Hotspot");
         println!("[AccessPoint] Output: {:?}", output);
-        let is_active = output.status.success();
         println!("[AccessPoint] Access point active: {}", is_active);
         Ok(is_active)
     }
