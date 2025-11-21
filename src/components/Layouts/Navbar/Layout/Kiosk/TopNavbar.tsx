@@ -9,6 +9,7 @@ import { useRobotStatus } from '@/context/robot-status-context';
 import { CredentialsModal } from '@/components/Elements/Modals/KioskRobotModals/CredentialsModal';
 import { RobotStatusModal } from '@/components/Elements/Modals/KioskRobotModals/RobotStatusModal';
 import type { BatteryData } from '@/app/app/settings/page';
+import { exit } from '@tauri-apps/plugin-process';
 
 export const KioskTopNavbar = () => {
     const { robotStarted, isHostReady } = useRobotStatus();
@@ -93,7 +94,9 @@ export const KioskTopNavbar = () => {
                     <div className="ml-auto flex items-center gap-4">
                         {/* Close button to close the application */}
                         <button
-                            onClick={() => window.close()}
+                            onClick={async () => {
+                                await exit();
+                            }}
                             className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-slate-600/60 px-4 py-2 text-sm font-semibold text-slate-300 transition-all duration-300 hover:bg-slate-600/80 hover:text-white"
                             title="Close Application"
                         >

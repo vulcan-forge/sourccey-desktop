@@ -107,6 +107,8 @@ use modules::settings::controllers::access_point::access_point_controller::{
 };
 use modules::status::controllers::battery::battery_controller::get_battery_data;
 
+use tauri_plugin_process::init;
+
 #[tauri::command]
 async fn debug_check_updates(app: tauri::AppHandle) -> Result<String, String> {
     println!("🔍 Debug: Starting update check...");
@@ -167,6 +169,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
             // Database initialization
