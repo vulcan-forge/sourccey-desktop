@@ -246,7 +246,6 @@ export default function KioskSettingsPage() {
                 setAccessPointEnabled(false);
                 toast.error('Failed to set Access Point mode');
             }
-            toast.success('Access Point mode activated successfully', { ...toastSuccessDefaults });
         } catch (error) {
             console.error('Failed to set access point mode:', error);
             toast.error(`Failed to set access point mode: ${error}`);
