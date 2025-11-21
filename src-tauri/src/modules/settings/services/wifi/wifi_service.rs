@@ -4,8 +4,9 @@ use std::process::Command;
 pub struct WiFiService;
 
 impl WiFiService {
-    /// Disable access point mode and prepare for manual WiFi connection
-    /// This disables AP mode and allows the user to manually connect to WiFi via the UI
+    /// Disable access point mode and attempt to reconnect to saved WiFi networks
+    /// This disables AP mode and automatically attempts to reconnect to previously saved WiFi networks
+    /// If no saved networks are found or connection fails, AP mode is still disabled
     /// This function runs locally on the robot
     pub async fn set_wifi() -> Result<Option<String>, String> {
         println!("[WiFi] Disabling access point mode for robot");
@@ -77,7 +78,7 @@ impl WiFiService {
             println!("[WiFi] Status: {:?}", status);
             if status == "SUCCESS" {
                 println!("[WiFi] Access point mode disabled successfully");
-                // Return None since user will manually connect to WiFi
+                // Script attempts automatic WiFi reconnection, but we don't return connection details
                 Ok(None)
             } else {
                 println!("[WiFi] Returning error");
