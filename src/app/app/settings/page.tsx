@@ -52,7 +52,8 @@ export default function KioskSettingsPage() {
     const [isSavingPassword, setIsSavingPassword] = useState(false);
 
     // Access Point state with defaults
-    const { data: isAccessPointEnabled }: any = useGetAccessPointEnabled();
+    const { data: accessPointEnabledData }: any = useGetAccessPointEnabled();
+    const isAccessPointEnabled = (accessPointEnabledData as boolean) ?? false;
     const { data: accessPointSSID }: any = useGetAccessPointSSID();
     const { data: accessPointPassword }: any = useGetAccessPointPassword();
 
@@ -199,7 +200,7 @@ export default function KioskSettingsPage() {
     };
 
     const toggleAccessPointMode = () => {
-        if (isAccessPointEnabled) {
+        if (isAccessPointEnabled ?? false) {
             setWiFiMode();
         } else {
             setAccessPointMode();
@@ -403,7 +404,7 @@ export default function KioskSettingsPage() {
                                 <label className="relative inline-flex cursor-pointer items-center">
                                     <input
                                         type="checkbox"
-                                        checked={isAccessPointEnabled as boolean}
+                                        checked={(isAccessPointEnabled as boolean) ?? false}
                                         onChange={toggleAccessPointMode}
                                         className="peer sr-only"
                                         disabled={isSavingAccessPoint}

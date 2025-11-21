@@ -27,8 +27,13 @@ export const DEFAULT_ACCESS_POINT_PASSWORD = `vulcan-${generateGuidSuffix()}`;
 //---------------------------------------------------------------------------------------------------//
 
 export const isAccessPointEnabled = async (): Promise<boolean> => {
-    const isActive = (await invoke('is_access_point_active')) as boolean;
-    return isActive;
+    try {
+        const isActive = (await invoke('is_access_point_active')) as boolean;
+        return isActive ?? false;
+    } catch (error) {
+        console.error('Failed to check if access point is active:', error);
+        return false;
+    }
 };
 export const setAccessPointEnabled = (content: any) => queryClient.setQueryData(ACCESS_POINT_ENABLED_KEY, content);
 export const useGetAccessPointEnabled = () => useQuery({ queryKey: ACCESS_POINT_ENABLED_KEY, queryFn: isAccessPointEnabled });
