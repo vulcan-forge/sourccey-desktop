@@ -238,7 +238,7 @@ class KioskSetupScript:
         """Ensure Bun is installed (no Node.js fallback)"""
         return self.javascript_manager.ensure_bun()
 
-    def setup_git_submodules(self, use_https: bool = False) -> bool:
+    def setup_git_submodules(self, use_https: bool = True) -> bool:
         """Setup git submodules using the shared git setup module"""
         return self.git_manager.setup_git_submodules(use_https=use_https)
 
@@ -398,7 +398,7 @@ class KioskSetupScript:
             self.print_status("Your application will launch in fullscreen automatically")
             print()
 
-    def run(self, no_clean: bool = False, use_https: bool = False) -> bool:
+    def run(self, no_clean: bool = False, use_https: bool = True) -> bool:
         """Run the complete kiosk setup process"""
         self.print_header("SOURCCEY KIOSK SETUP")
 
@@ -524,8 +524,8 @@ def main():
     parser = argparse.ArgumentParser(description='Sourccey Kiosk Setup')
     parser.add_argument('--no-clean', action='store_true',
                        help='Preserve build artifacts (skip cleanup)')
-    parser.add_argument('--use-https', action='store_true',
-                       help='Force HTTPS URLs instead of SSH for git operations')
+    parser.add_argument('--use-https', action='store_true', default=True,
+                       help='Use HTTPS URLs for git operations (default: True)')
     args = parser.parse_args()
 
     setup = KioskSetupScript()
