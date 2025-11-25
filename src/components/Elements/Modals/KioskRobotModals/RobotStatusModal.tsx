@@ -55,18 +55,20 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isHostReady }: R
                                 </div>
                                 <span className="text-sm font-medium text-slate-300">Battery Life</span>
                             </div>
-                            <div
-                                className={`text-sm font-semibold ${
-                                    systemInfo.batteryData.percent > 50
-                                        ? 'text-green-400'
-                                        : systemInfo.batteryData.percent > 20
-                                          ? 'text-slate-300'
-                                          : 'text-red-400'
-                                }`}
-                            >
-                                {systemInfo.batteryData.percent >= 0 ? `${systemInfo.batteryData.percent}%` : 'N/A'}
+                            <div className="flex flex-col items-end gap-1">
+                                <div
+                                    className={`text-base font-semibold ${
+                                        systemInfo.batteryData.percent > 50
+                                            ? 'text-green-400'
+                                            : systemInfo.batteryData.percent > 20
+                                              ? 'text-slate-300'
+                                              : 'text-red-400'
+                                    }`}
+                                >
+                                    {systemInfo.batteryData.percent >= 0 ? `${systemInfo.batteryData.percent}%` : 'N/A'}
+                                </div>
+                                <div className="text-xs font-medium text-slate-400">({systemInfo.batteryData.voltage}V)</div>
                             </div>
-                            <div className="text-sm font-semibold text-slate-300">{systemInfo.batteryData.voltage}V</div>
                         </div>
 
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
