@@ -66,6 +66,7 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isHostReady }: R
                             >
                                 {systemInfo.batteryData.percent >= 0 ? `${systemInfo.batteryData.percent}%` : 'N/A'}
                             </div>
+                            <div className="text-sm font-semibold text-slate-300">{systemInfo.batteryData.voltage}V</div>
                         </div>
 
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
