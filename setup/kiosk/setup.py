@@ -128,7 +128,7 @@ class KioskSetupScript:
     #################################################################
 
     def detect_project_root(self) -> bool:
-        """Verify project root and required files"""
+        """Verify project root and required files."""
         self.print_status("Checking project structure...")
 
         if not (self.project_root / "package.json").exists():
@@ -138,6 +138,47 @@ class KioskSetupScript:
 
         self.print_success(f"Project root: {self.project_root}")
         return True
+
+    #################################################################
+    # Permission / ownership helpers
+    #################################################################
+
+    def fix_project_permissions(self) -> bool:
+        """
+        Ensure the project directory is owned by the non-root user, not root.
+
+        This prevents build artifacts (.next, .tauri, node_modules, target, etc.)
+        from ending up owned by root and breaking later `bun` / `tauri` commands.
+        """
+        self.print_status("Ensuring correct ownership of project directory...")
+
+        # Prefer the original user that invoked sudo
+        user = os.environ.get("SUDO_USER") or os.environ.get("USER")
+        if not user:
+            self.print_warning(
+                "Could not determine non-root user for ownership; skipping chown."
+            )
+            return False
+
+        try:
+            subprocess.run(
+                ["chown", "-R", f"{user}:{user}", str(self.project_root)],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.print_success(
+                f"Ownership of {self.project_root} set to {user}:{user}"
+            )
+            return True
+        except subprocess.CalledProcessError as e:
+            self.print_error(
+                f"Failed to fix project permissions: {e.stderr.strip() or e}"
+            )
+            return False
+        except Exception as e:
+            self.print_error(f"Unexpected error while fixing project permissions: {e}")
+            return False
 
     def detect_app_info(self) -> bool:
         """Read app configuration from tauri.conf.json, package.json, and Cargo.toml"""
@@ -411,6 +452,10 @@ class KioskSetupScript:
 
         if not self.detect_project_root():
             return False
+
+        # Ensure project dir isn't owned by root before doing any builds.
+        # This prevents later `bun tauri:kiosk` from failing with permission errors.
+        self.fix_project_permissions()
 
         if not self.detect_app_info():
             return False

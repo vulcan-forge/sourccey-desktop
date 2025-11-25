@@ -26,6 +26,7 @@ if str(shared_dir) not in sys.path:
 
 # Import directly from shared (like setup.py does)
 from setup_javascript import get_bun_path # type: ignore
+from setup_helper import wrap_command # type: ignore
 
 #################################################################
 # Build Manager Class
@@ -182,15 +183,15 @@ class BuildManager:
 
         # Install dependencies
         self.print_status("Installing dependencies...")
-        install_cmd = f"{bun_cmd} install"
+        install_cmd = [bun_cmd, "install"]
+        wrapped_install_cmd, install_cwd = wrap_command(install_cmd, self.project_root)
 
         install_result = subprocess.run(
-            install_cmd,
-            shell=True,
+            wrapped_install_cmd,
+            cwd=install_cwd,
             check=True,
             capture_output=True,
             text=True,
-            cwd=self.project_root
         )
 
         if install_result.returncode != 0:
@@ -209,16 +210,16 @@ class BuildManager:
 
         # Build Tauri - simple approach
         self.print_status("Running Tauri build (this may take a while)...")
-        build_cmd = f"{bun_cmd} tauri build"
-        print(build_cmd)
+        build_cmd = [bun_cmd, "tauri", "build"]
+        wrapped_build_cmd, build_cwd = wrap_command(build_cmd, self.project_root)
+        print(" ".join(build_cmd))
 
         build_result = subprocess.run(
-            build_cmd,
-            shell=True,
+            wrapped_build_cmd,
+            cwd=build_cwd,
             check=True,
             capture_output=False,
-            cwd=self.project_root,
-            env=build_env
+            env=build_env,
         )
 
         if build_result.returncode != 0:
