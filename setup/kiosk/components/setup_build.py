@@ -208,19 +208,61 @@ class BuildManager:
         self.print_status("Disabling bundle signing for kiosk builds...")
         self.disable_bundle_signing()
 
-        # Build Tauri - simple approach
+        # Build Tauri as the real (non-root) user so Cargo crates and toolchains
+        # are owned by the normal user, not root.
         self.print_status("Running Tauri build (this may take a while)...")
-        build_cmd = [bun_cmd, "tauri", "build"]
-        wrapped_build_cmd, build_cwd = wrap_command(build_cmd, self.project_root)
-        print(" ".join(build_cmd))
+        real_user = os.environ.get("SUDO_USER") or os.environ.get("USER") or "pi"
 
-        build_result = subprocess.run(
-            wrapped_build_cmd,
-            cwd=build_cwd,
-            check=True,
-            capture_output=False,
-            env=build_env,
-        )
+        # Prepare env vars to pass through when dropping privileges with sudo -u.
+        # We only forward the variables that matter for the Rust/Tauri build.
+        env_keys_to_forward = [
+            "PATH",
+            "RUSTUP_TOOLCHAIN",
+            "CARGO_BUILD_JOBS",
+            "CARGO_TARGET_DIR",
+            "CARGO_INCREMENTAL",
+            "TAURI_UPDATER_ACTIVE",
+            "TAURI_UPDATER_SIGNING_KEY",
+            "TAURI_SIGNING_PRIVATE_KEY",
+            "TAURI_SIGNING_PUBLIC_KEY",
+        ]
+        env_args = []
+        for key in env_keys_to_forward:
+            if key in build_env:
+                env_args.append(f"{key}={build_env[key]}")
+
+        # When running under sudo, explicitly drop to the real user and keep the
+        # build environment. Otherwise run directly as the current user.
+        if hasattr(os, "geteuid") and os.geteuid() == 0 and real_user != "root":
+            build_cmd = [
+                "sudo",
+                "-u",
+                real_user,
+                "-H",
+                "env",
+                *env_args,
+                bun_cmd,
+                "tauri",
+                "build",
+            ]
+            build_cwd = self.project_root
+            print(" ".join(build_cmd))
+
+            build_result = subprocess.run(
+                build_cmd,
+                cwd=build_cwd,
+                check=True,
+            )
+        else:
+            build_cmd = [bun_cmd, "tauri", "build"]
+            print(" ".join(build_cmd))
+
+            build_result = subprocess.run(
+                build_cmd,
+                cwd=self.project_root,
+                check=True,
+                env=build_env,
+            )
 
         if build_result.returncode != 0:
             self.print_error("Build failed!")
