@@ -24,18 +24,19 @@ export const KioskRobotDetailsPage: React.FC = () => {
     console.log('leftArmCalibration', leftArmCalibration);
     console.log('--------------------------------');
 
-    // const combinedCalibration = {
-    //     ...rightArmCalibration.calibration,
-    //     ...leftArmCalibration.calibration,
-    // };
-
-    // console.log(combinedCalibration);
+    const isCalibrated = rightArmCalibration?.[1] && leftArmCalibration?.[1];
+    const combinedCalibration = {
+        ...rightArmCalibration?.[0],
+        ...leftArmCalibration?.[0],
+    };
+    console.log('isCalibrated', isCalibrated);
+    console.log('combinedCalibration', combinedCalibration);
 
     return (
         <div className="bg-slate-850 flex h-screen flex-col">
             <div className="w-full space-y-4 p-6">
-                {/* <RobotControl nickname={nickname} /> */}
-                {/* <RobotKioskCalibration nickname={nickname} robotType={robotType} calibration={combinedCalibration} /> */}
+                <RobotControl nickname={nickname} />
+                <RobotKioskCalibration nickname={nickname} robotType={robotType} calibration={combinedCalibration} />
             </div>
         </div>
     );
