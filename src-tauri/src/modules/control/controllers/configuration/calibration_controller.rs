@@ -25,13 +25,13 @@ pub struct RemoteCalibrationConfig {
 }
 
 #[tauri::command]
-pub fn read_calibration(nickname: String) -> Result<Calibration, String> {
-    CalibrationService::read_calibration(&nickname)
+pub fn read_calibration(robot_type: String, nickname: String) -> Result<Calibration, String> {
+    CalibrationService::read_calibration(&robot_type, &nickname)
 }
 
 #[tauri::command]
-pub fn write_calibration(nickname: String, calibration: Calibration) -> Result<(), String> {
-    CalibrationService::write_calibration(&nickname, calibration)
+pub fn write_calibration(robot_type: String, nickname: String, calibration: Calibration) -> Result<(), String> {
+    CalibrationService::write_calibration(&robot_type, &nickname, calibration)
 }
 
 #[tauri::command]

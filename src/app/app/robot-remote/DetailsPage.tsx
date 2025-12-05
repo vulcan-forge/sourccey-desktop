@@ -3,27 +3,33 @@
 import React from 'react';
 import { RobotKioskCalibration } from '@/components/Elements/RemoteRobot/CalibrationSection';
 import { RobotControl } from '@/components/Elements/RemoteRobot/RobotControl';
-import { useGetCalibration, useGetIsCalibrated } from '@/hooks/Control/config.hook';
+import { useGetCalibration } from '@/hooks/Control/config.hook';
 
 export const KioskRobotDetailsPage: React.FC = () => {
     const nickname = 'sourccey';
+    const rightArmNickname = 'sourccey_right';
+    const leftArmNickname = 'sourccey_left';
+
     const robotType = 'sourccey';
+    const followerType = 'sourccey_follower';
 
-    const { data: calibration }: any = useGetCalibration(nickname);
-    const { data: isCalibrated }: any = useGetIsCalibrated();
+    const { data: rightArmCalibration }: any = useGetCalibration(followerType, rightArmNickname);
+    const { data: leftArmCalibration }: any = useGetCalibration(followerType, leftArmNickname);
+    console.log(rightArmCalibration);
+    console.log(leftArmCalibration);
 
-    console.log(isCalibrated);
-    console.log(calibration);
+    const combinedCalibration = {
+        ...rightArmCalibration.calibration,
+        ...leftArmCalibration.calibration,
+    };
+
+    console.log(combinedCalibration);
 
     return (
         <div className="bg-slate-850 flex h-screen flex-col">
             <div className="w-full space-y-4 p-6">
-                <div className="flex items-center gap-2">
-                    <h1 className="text-2xl font-bold">Robot Calibration:</h1>
-                    <span className="text-sm text-slate-400">{isCalibrated ? 'Calibrated' : 'Not Calibrated'}</span>
-                </div>
-                {isCalibrated && calibration && <RobotControl nickname={nickname} />}
-                <RobotKioskCalibration nickname={nickname} robotType={robotType} calibration={calibration} />
+                {/* <RobotControl nickname={nickname} /> */}
+                {/* <RobotKioskCalibration nickname={nickname} robotType={robotType} calibration={combinedCalibration} /> */}
             </div>
         </div>
     );

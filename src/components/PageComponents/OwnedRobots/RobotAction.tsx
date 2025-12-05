@@ -25,7 +25,8 @@ export const RobotAction = ({
     logs: boolean;
 }) => {
     const nickname = ownedRobot?.nickname ?? '';
-    const { data: calibration, isLoading: isLoadingCalibration }: any = useGetCalibration(nickname);
+    const robotType = ownedRobot?.robot_type ?? '';
+    const { data: calibration, isLoading: isLoadingCalibration }: any = useGetCalibration(robotType, nickname);
 
     const isCalibrationLoading = isLoading || isLoadingCalibration;
     const isControlDisabled = isLoading || isLoadingCalibration || !calibration;

@@ -83,6 +83,14 @@ impl DirectoryService {
     }
 
     //------------------------------------------------------------//
+    // Calibration Directory Functions
+    //------------------------------------------------------------//
+    pub fn get_robot_calibration_path(robot_type: &str, filename: &str) -> Result<PathBuf, String> {
+        let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
+        Ok(lerobot_cache_dir.join("calibration").join("robots").join(robot_type).join(filename))
+    }
+
+    //------------------------------------------------------------//
     // Configuration Directory Functions
     //------------------------------------------------------------//
     pub fn get_robot_config_path(nickname: &str) -> Result<PathBuf, String> {
@@ -94,12 +102,6 @@ impl DirectoryService {
         let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
         Ok(lerobot_cache_dir.join(nickname).join("remote_config.json"))
     }
-
-    pub fn get_robot_calibration_path(nickname: &str) -> Result<PathBuf, String> {
-        let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
-        Ok(lerobot_cache_dir.join(nickname).join("calibration.json"))
-    }
-
     //------------------------------------------------------------//
     // Dataset Directory Functions
     //------------------------------------------------------------//
