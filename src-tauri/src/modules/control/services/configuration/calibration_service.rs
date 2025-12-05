@@ -21,7 +21,13 @@ impl CalibrationService {
     // Calibration Functions
     //----------------------------------------------------------//
     pub fn read_calibration(robot_type: &str, nickname: &str) -> Result<(Calibration, bool), String> {
+        println!("--------------------------------");
+        println!("service robot_type", robot_type);
+        println!("servicenickname", nickname);
+        println!("--------------------------------");
         let calibration_path = DirectoryService::get_robot_calibration_path(robot_type, &format!("{}.json", nickname))?;
+        println!("calibration_path", calibration_path);
+        println!("--------------------------------");
 
         // Create the calibration directory if it doesn't exist
         if let Some(parent) = calibration_path.parent() {
