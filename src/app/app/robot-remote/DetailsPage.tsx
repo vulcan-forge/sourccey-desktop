@@ -25,9 +25,12 @@ export const KioskRobotDetailsPage: React.FC = () => {
     console.log('--------------------------------');
 
     const isCalibrated = rightArmCalibration?.[1] && leftArmCalibration?.[1];
-    const combinedCalibration = {
-        ...rightArmCalibration?.[0],
-        ...leftArmCalibration?.[0],
+    const prefixKeys = (calibration: any, prefix: 'left' | 'right') =>
+        Object.fromEntries(Object.entries(calibration ?? {}).map(([key, value]) => [`${prefix}_${key}`, value]));
+
+    const combinedCalibration: any = {
+        ...prefixKeys(leftArmCalibration?.[0], 'left'),
+        ...prefixKeys(rightArmCalibration?.[0], 'right'),
     };
     console.log('isCalibrated', isCalibrated);
     console.log('combinedCalibration', combinedCalibration);
