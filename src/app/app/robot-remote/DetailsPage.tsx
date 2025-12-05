@@ -15,15 +15,21 @@ export const KioskRobotDetailsPage: React.FC = () => {
 
     const { data: rightArmCalibration }: any = useGetCalibration(followerType, rightArmNickname);
     const { data: leftArmCalibration }: any = useGetCalibration(followerType, leftArmNickname);
-    console.log(rightArmCalibration);
-    console.log(leftArmCalibration);
 
-    const combinedCalibration = {
-        ...rightArmCalibration.calibration,
-        ...leftArmCalibration.calibration,
-    };
+    console.log('--------------------------------');
+    console.log('followerType', followerType);
+    console.log('rightArmNickname', rightArmNickname);
+    console.log('leftArmNickname', leftArmNickname);
+    console.log('rightArmCalibration', rightArmCalibration);
+    console.log('leftArmCalibration', leftArmCalibration);
+    console.log('--------------------------------');
 
-    console.log(combinedCalibration);
+    // const combinedCalibration = {
+    //     ...rightArmCalibration.calibration,
+    //     ...leftArmCalibration.calibration,
+    // };
+
+    // console.log(combinedCalibration);
 
     return (
         <div className="bg-slate-850 flex h-screen flex-col">
