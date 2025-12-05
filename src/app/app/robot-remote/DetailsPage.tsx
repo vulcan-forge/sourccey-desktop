@@ -4,6 +4,7 @@ import React from 'react';
 import { RobotKioskCalibration } from '@/components/Elements/RemoteRobot/CalibrationSection';
 import { RobotControl } from '@/components/Elements/RemoteRobot/RobotControl';
 import { useGetCalibration } from '@/hooks/Control/config.hook';
+import type { Calibration } from '@/components/PageComponents/OwnedRobots/RobotConfig';
 
 export const KioskRobotDetailsPage: React.FC = () => {
     const nickname = 'sourccey';
@@ -25,13 +26,19 @@ export const KioskRobotDetailsPage: React.FC = () => {
     console.log('--------------------------------');
 
     const isCalibrated = rightArmCalibration?.[1] && leftArmCalibration?.[1];
-    const prefixKeys = (calibration: any, prefix: 'left' | 'right') =>
-        Object.fromEntries(Object.entries(calibration ?? {}).map(([key, value]) => [`${prefix}_${key}`, value]));
 
-    const combinedCalibration: any = {
-        ...prefixKeys(leftArmCalibration?.[0], 'left'),
-        ...prefixKeys(rightArmCalibration?.[0], 'right'),
-    };
+    const combinedCalibration: Calibration = {} as Calibration;
+    if (leftArmCalibration?.[0]) {
+        for (const [key, value] of Object.entries(leftArmCalibration[0] as Calibration)) {
+            combinedCalibration[`left_${key}`] = value;
+        }
+    }
+
+    if (rightArmCalibration?.[0]) {
+        for (const [key, value] of Object.entries(rightArmCalibration[0] as Calibration)) {
+            combinedCalibration[`right_${key}`] = value;
+        }
+    }
     console.log('isCalibrated', isCalibrated);
     console.log('combinedCalibration', combinedCalibration);
 
