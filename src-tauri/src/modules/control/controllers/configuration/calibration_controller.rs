@@ -30,10 +30,10 @@ pub fn read_calibration(nickname: String) -> Result<(Calibration, bool), String>
     // println!("robot_type: {:?}", robot_type);
     println!("nickname: {:?}", nickname);
     println!("--------------------------------");
-    Ok((Calibration { motors: HashMap::new() }, false))
-    println!("--------------------------------");
+
     // let (calibration, is_calibrated) = CalibrationService::read_calibration(&robot_type, &nickname)?;
     // Ok((calibration, is_calibrated))
+    Ok((Calibration { motors: HashMap::new() }, false));
 }
 
 #[tauri::command]
