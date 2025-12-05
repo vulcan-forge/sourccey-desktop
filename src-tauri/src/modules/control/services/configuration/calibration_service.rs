@@ -20,8 +20,14 @@ impl CalibrationService {
     //----------------------------------------------------------//
     // Calibration Functions
     //----------------------------------------------------------//
-    pub fn read_calibration(nickname: &str) -> Result<Calibration, String> {
-        let calibration_path = DirectoryService::get_robot_calibration_path(nickname)?;
+    pub fn read_calibration(robot_type: &str, nickname: &str) -> Result<(Calibration, bool), String> {
+        println!("--------------------------------");
+        println!("service robot_type: {:?}", robot_type);
+        println!("service nickname: {:?}", nickname);
+        println!("--------------------------------");
+        let calibration_path = DirectoryService::get_robot_calibration_path(robot_type, &format!("{}.json", nickname))?;
+        println!("calibration_path: {:?}", calibration_path);
+        println!("--------------------------------");
 
         // Create the calibration directory if it doesn't exist
         if let Some(parent) = calibration_path.parent() {
@@ -30,9 +36,9 @@ impl CalibrationService {
 
         // If calibration file doesn't exist, create it with default values
         if !calibration_path.exists() {
-            let default_calibration = Self::create_default_calibration();
-            Self::write_calibration(&nickname, default_calibration.clone())?;
-            return Ok(default_calibration);
+            let default_calibration = Self::create_default_calibration(robot_type, nickname);
+            Self::write_calibration(robot_type, nickname, default_calibration.clone())?;
+            return Ok((default_calibration, false));
         }
 
         // Read and parse the existing calibration file
@@ -40,11 +46,11 @@ impl CalibrationService {
         let calibration: Calibration = serde_json::from_str(&calibration_str)
             .map_err(|e| format!("Failed to parse calibration file: {}", e))?;
 
-        Ok(calibration)
+        Ok((calibration, true))
     }
 
-    pub fn write_calibration(nickname: &str, calibration: Calibration) -> Result<(), String> {
-        let calibration_path = DirectoryService::get_robot_calibration_path(nickname)?;
+    pub fn write_calibration(robot_type: &str, nickname: &str, calibration: Calibration) -> Result<(), String> {
+        let calibration_path = DirectoryService::get_robot_calibration_path(robot_type, &format!("{}.json", nickname))?;
 
         // Create the calibration directory if it doesn't exist
         if let Some(parent) = calibration_path.parent() {
@@ -54,79 +60,6 @@ impl CalibrationService {
         let calibration_str =
             serde_json::to_string_pretty(&calibration).map_err(|e| e.to_string())?;
         fs::write(calibration_path, calibration_str).map_err(|e| e.to_string())
-    }
-
-    pub fn create_default_calibration() -> Calibration {
-        let mut motors = HashMap::new();
-
-        // Add the default calibration values for SO100 follower
-        motors.insert(
-            "shoulder_pan".to_string(),
-            MotorCalibration {
-                id: 1,
-                drive_mode: 0,
-                homing_offset: 0,
-                range_min: 1000,
-                range_max: 3095,
-            },
-        );
-
-        motors.insert(
-            "shoulder_lift".to_string(),
-            MotorCalibration {
-                id: 2,
-                drive_mode: 0,
-                homing_offset: 0,
-                range_min: 800,
-                range_max: 3295,
-            },
-        );
-
-        motors.insert(
-            "elbow_flex".to_string(),
-            MotorCalibration {
-                id: 3,
-                drive_mode: 0,
-                homing_offset: 0,
-                range_min: 850,
-                range_max: 3245,
-            },
-        );
-
-        motors.insert(
-            "wrist_flex".to_string(),
-            MotorCalibration {
-                id: 4,
-                drive_mode: 0,
-                homing_offset: 0,
-                range_min: 750,
-                range_max: 3245,
-            },
-        );
-
-        motors.insert(
-            "wrist_roll".to_string(),
-            MotorCalibration {
-                id: 5,
-                drive_mode: 0,
-                homing_offset: 0,
-                range_min: 0,
-                range_max: 4095,
-            },
-        );
-
-        motors.insert(
-            "gripper".to_string(),
-            MotorCalibration {
-                id: 6,
-                drive_mode: 0,
-                homing_offset: 0,
-                range_min: 2023,
-                range_max: 3529,
-            },
-        );
-
-        Calibration { motors }
     }
 
     pub async fn auto_calibrate(
@@ -352,5 +285,106 @@ impl CalibrationService {
             ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
         }
         Ok(())
+    }
+
+    // Default Calibration Functions
+    //------------------------------------------------------------//
+    // Default SO100 Calibration Functions
+    //------------------------------------------------------------//
+    pub fn create_default_calibration(robot_type: &str, nickname: &str) -> Calibration {
+        if robot_type == "so100_follower" {
+            return Self::create_default_so100_calibration();
+        }
+        else if robot_type == "sourccey_follower" {
+
+            let arm_side = if nickname == "sourccey_left" {
+                "left"
+            } else if nickname == "sourccey_right" {
+                "right"
+            } else {
+                return Calibration { motors: HashMap::new() };
+            };
+            return Self::create_default_sourccey_calibration(arm_side);
+        }
+        return Calibration { motors: HashMap::new() };
+    }
+
+
+    pub fn create_default_so100_calibration() -> Calibration {
+        // First try to load the default calibration from the lerobot-vulcan repo
+        if let Ok(lerobot_dir) = DirectoryService::get_lerobot_vulcan_dir() {
+            let default_path = lerobot_dir
+                .join("src")
+                .join("lerobot")
+                .join("robots")
+                .join("so100_follower")
+                .join("default_calibration.json");
+
+            if let Ok(default_str) = fs::read_to_string(&default_path) {
+                match serde_json::from_str::<Calibration>(&default_str) {
+                    Ok(calibration) => {
+                        return calibration;
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Failed to parse default calibration file at {:?}: {}. Falling back to built-in defaults.",
+                            default_path, e
+                        );
+                    }
+                }
+            } else {
+                eprintln!(
+                    "Default calibration file not found or unreadable at {:?}. Falling back to built-in defaults.",
+                    default_path
+                );
+            }
+        } else {
+            eprintln!(
+                "Could not resolve lerobot-vulcan directory. Falling back to built-in defaults."
+            );
+        }
+
+        let motors = HashMap::new();
+        Calibration { motors }
+    }
+
+    pub fn create_default_sourccey_calibration(arm_side: &str) -> Calibration {
+        // First try to load the default calibration from the lerobot-vulcan repo
+        if let Ok(lerobot_dir) = DirectoryService::get_lerobot_vulcan_dir() {
+            let default_path = lerobot_dir
+                .join("src")
+                .join("lerobot")
+                .join("robots")
+                .join("sourccey")
+                .join("sourccey")
+                .join("sourccey_follower")
+                .join(format!("sourccey_{}.json", arm_side));
+
+            if let Ok(default_str) = fs::read_to_string(&default_path) {
+                match serde_json::from_str::<Calibration>(&default_str) {
+                    Ok(calibration) => {
+                        return calibration;
+                    }
+                    Err(e) => {
+                        eprintln!(
+                            "Failed to parse default calibration file at {:?}: {}. Falling back to built-in defaults.",
+                            default_path, e
+                        );
+                    }
+                }
+            } else {
+                eprintln!(
+                    "Default calibration file not found or unreadable at {:?}. Falling back to built-in defaults.",
+                    default_path
+                );
+            }
+        } else {
+            eprintln!(
+                "Could not resolve lerobot-vulcan directory. Falling back to built-in defaults."
+            );
+        }
+
+        let motors = HashMap::new();
+        Calibration { motors }
     }
 }

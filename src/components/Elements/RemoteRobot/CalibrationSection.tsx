@@ -6,7 +6,6 @@ import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import type { Calibration } from '@/components/PageComponents/OwnedRobots/RobotConfig';
-import { setIsCalibrated } from '@/hooks/Control/config.hook';
 
 interface CalibrationSectionProps {
     nickname: string;
@@ -32,7 +31,6 @@ export const RobotKioskCalibration: React.FC<CalibrationSectionProps> = ({ nickn
 
             await invoke('remote_auto_calibrate', { config: remoteCalibrationConfig });
 
-            setIsCalibrated(true);
             toast.success(`${fullReset ? 'Full' : 'Standard'} calibration completed successfully!`, {
                 ...toastSuccessDefaults,
             });

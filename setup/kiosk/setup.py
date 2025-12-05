@@ -149,35 +149,63 @@ class KioskSetupScript:
 
         This prevents build artifacts (.next, .tauri, node_modules, target, etc.)
         from ending up owned by root and breaking later `bun` / `tauri` commands.
+        Additionally, it fixes ownership of common tooling directories in the
+        user's home (bun, cargo, rustup, tauri, cache, local).
         """
-        self.print_status("Ensuring correct ownership of project directory...")
+        self.print_status("Ensuring correct ownership of project and tooling directories...")
 
         # Prefer the original user that invoked sudo
         user = os.environ.get("SUDO_USER") or os.environ.get("USER")
-        if not user:
+        if not user or user == "root":
             self.print_warning(
                 "Could not determine non-root user for ownership; skipping chown."
             )
             return False
 
+        # Resolve the user's home directory
+        user_home = Path(f"/home/{user}")
+        if not user_home.exists():
+            user_home = Path.home()
+
+        # Paths we want to ensure are owned by the real user
+        paths_to_fix = [self.project_root]
+
+        # Tooling directories under the user's home
+        tooling_dirs = [
+            user_home / ".bun",
+            user_home / ".cargo",
+            user_home / ".rustup",
+            user_home / ".cache",
+            user_home / ".local",
+        ]
+
+        # Include any .tauri* directories (e.g. .tauri, .tauri-target, etc.)
+        tooling_dirs.extend(user_home.glob(".tauri*"))
+
+        for path in tooling_dirs:
+            if path.exists():
+                paths_to_fix.append(path)
+
         try:
-            subprocess.run(
-                ["chown", "-R", f"{user}:{user}", str(self.project_root)],
-                check=True,
-                capture_output=True,
-                text=True,
-            )
+            for path in paths_to_fix:
+                subprocess.run(
+                    ["chown", "-R", f"{user}:{user}", str(path)],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
             self.print_success(
-                f"Ownership of {self.project_root} set to {user}:{user}"
+                "Ownership set to "
+                f"{user}:{user} for: {', '.join(str(p) for p in paths_to_fix)}"
             )
             return True
         except subprocess.CalledProcessError as e:
             self.print_error(
-                f"Failed to fix project permissions: {e.stderr.strip() or e}"
+                f"Failed to fix permissions: {e.stderr.strip() or e}"
             )
             return False
         except Exception as e:
-            self.print_error(f"Unexpected error while fixing project permissions: {e}")
+            self.print_error(f"Unexpected error while fixing permissions: {e}")
             return False
 
     def detect_app_info(self) -> bool:

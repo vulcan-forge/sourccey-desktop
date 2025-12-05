@@ -9,7 +9,6 @@ import { PROFILE_KEY } from '@/hooks/Models/Profile/profile.hook';
 import { SYNC_DEFAULT_ROBOTS_KEY } from '@/hooks/Models/Robot/robot.hook';
 import { RobotStatusProvider } from '@/context/robot-status-context';
 import { VirtualKeyboardProvider } from '@/context/virtual-keyboard-context';
-import { IS_CALIBRATED_KEY } from '@/hooks/Control/config.hook';
 import { ACCESS_POINT_ENABLED_KEY, ACCESS_POINT_SSID_KEY, ACCESS_POINT_PASSWORD_KEY } from '@/hooks/WIFI/access-point.hook';
 import { SAVED_WIFI_SSIDS_KEY } from '@/hooks/WIFI/wifi.hook';
 
@@ -17,7 +16,6 @@ import { SAVED_WIFI_SSIDS_KEY } from '@/hooks/WIFI/wifi.hook';
 const persistQueries: QueryKey[] = [
     PROFILE_KEY,
     SYNC_DEFAULT_ROBOTS_KEY,
-    IS_CALIBRATED_KEY,
     SAVED_WIFI_SSIDS_KEY,
     ACCESS_POINT_ENABLED_KEY,
     ACCESS_POINT_SSID_KEY,

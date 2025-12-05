@@ -4,6 +4,7 @@ use crate::modules::control::types::configuration::calibration_types::{
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
+use std::collections::HashMap;
 
 //----------------------------------------------------------//
 // Calibration Functions
@@ -25,13 +26,19 @@ pub struct RemoteCalibrationConfig {
 }
 
 #[tauri::command]
-pub fn read_calibration(nickname: String) -> Result<Calibration, String> {
-    CalibrationService::read_calibration(&nickname)
+pub fn read_calibration(robot_type: String, nickname: String) -> Result<(Calibration, bool), String> {
+    println!("--------------------------------");
+    println!("robot_type: {:?}", robot_type);
+    println!("nickname: {:?}", nickname);
+    println!("--------------------------------");
+
+    let (calibration, is_calibrated) = CalibrationService::read_calibration(&robot_type, &nickname)?;
+    Ok((calibration, is_calibrated))
 }
 
 #[tauri::command]
-pub fn write_calibration(nickname: String, calibration: Calibration) -> Result<(), String> {
-    CalibrationService::write_calibration(&nickname, calibration)
+pub fn write_calibration(robot_type: String, nickname: String, calibration: Calibration) -> Result<(), String> {
+    CalibrationService::write_calibration(&robot_type, &nickname, calibration)
 }
 
 #[tauri::command]
