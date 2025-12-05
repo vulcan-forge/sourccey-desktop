@@ -44,7 +44,7 @@ impl CalibrationService {
     }
 
     pub fn write_calibration(robot_type: &str, nickname: &str, calibration: Calibration) -> Result<(), String> {
-        let calibration_path = DirectoryService::get_robot_calibration_path(nickname)?;
+        let calibration_path = DirectoryService::get_robot_calibration_path(robot_type, &format!("{}.json", nickname))?;
 
         // Create the calibration directory if it doesn't exist
         if let Some(parent) = calibration_path.parent() {
@@ -338,7 +338,7 @@ impl CalibrationService {
             );
         }
 
-        let mut motors = HashMap::new();
+        let motors = HashMap::new();
         Calibration { motors }
     }
 
@@ -378,7 +378,7 @@ impl CalibrationService {
             );
         }
 
-        let mut motors = HashMap::new();
+        let motors = HashMap::new();
         Calibration { motors }
     }
 }
