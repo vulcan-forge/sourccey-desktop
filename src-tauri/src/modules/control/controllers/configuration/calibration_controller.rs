@@ -4,6 +4,7 @@ use crate::modules::control::types::configuration::calibration_types::{
 };
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
+use std::collections::HashMap;
 
 //----------------------------------------------------------//
 // Calibration Functions
@@ -33,7 +34,7 @@ pub fn read_calibration(nickname: String) -> Result<(Calibration, bool), String>
 
     // let (calibration, is_calibrated) = CalibrationService::read_calibration(&robot_type, &nickname)?;
     // Ok((calibration, is_calibrated))
-    Ok((Calibration { motors: HashMap::new() }, false));
+    Ok((Calibration { motors: HashMap::new() }, false))
 }
 
 #[tauri::command]
