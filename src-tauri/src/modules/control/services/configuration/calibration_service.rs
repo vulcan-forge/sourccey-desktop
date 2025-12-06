@@ -308,6 +308,9 @@ impl CalibrationService {
             return Self::create_default_so100_calibration();
         }
         else if robot_type == "sourccey_follower" {
+            println!("creating default sourccey calibration");
+            println!("--------------------------------");
+            println!("create default sourccey calibration for nickname: {:?}", nickname);
             let arm_side = match nickname {
                 "sourccey_left" => "left",
                 "sourccey_right" => "right",
