@@ -21,13 +21,7 @@ impl CalibrationService {
     // Calibration Functions
     //----------------------------------------------------------//
     pub fn read_calibration(robot_type: &str, nickname: &str) -> Result<(Calibration, bool), String> {
-        println!("--------------------------------");
-        println!("service robot_type: {:?}", robot_type);
-        println!("service nickname: {:?}", nickname);
-        println!("--------------------------------");
         let calibration_path = DirectoryService::get_robot_calibration_path(robot_type, &format!("{}.json", nickname))?;
-        println!("calibration_path: {:?}", calibration_path);
-        println!("--------------------------------");
 
         // Create the calibration directory if it doesn't exist
         if let Some(parent) = calibration_path.parent() {
@@ -38,14 +32,13 @@ impl CalibrationService {
         if !calibration_path.exists() {
             let default_calibration = Self::create_default_calibration(robot_type, nickname);
             Self::write_calibration(robot_type, nickname, default_calibration.clone())?;
-            return Ok((default_calibration, false));
+            return Ok((default_calibration, true));
         }
 
         // Read and parse the existing calibration file
         let calibration_str = fs::read_to_string(calibration_path).map_err(|e| e.to_string())?;
         let calibration: Calibration = serde_json::from_str(&calibration_str)
             .map_err(|e| format!("Failed to parse calibration file: {}", e))?;
-
         Ok((calibration, true))
     }
 
@@ -287,24 +280,20 @@ impl CalibrationService {
         Ok(())
     }
 
-    // Default Calibration Functions
     //------------------------------------------------------------//
-    // Default SO100 Calibration Functions
+    // Default Calibration Functions
     //------------------------------------------------------------//
     pub fn create_default_calibration(robot_type: &str, nickname: &str) -> Calibration {
         if robot_type == "so100_follower" {
             return Self::create_default_so100_calibration();
         }
         else if robot_type == "sourccey_follower" {
-
-            let arm_side = if nickname == "sourccey_left" {
-                "left"
-            } else if nickname == "sourccey_right" {
-                "right"
-            } else {
-                return Calibration { motors: HashMap::new() };
+            let arm_side = match nickname {
+                "sourccey_left" => "left",
+                "sourccey_right" => "right",
+                _ => return Calibration { motors: HashMap::new() },
             };
-            return Self::create_default_sourccey_calibration(arm_side);
+            return Self::create_default_sourccey_calibration(&arm_side);
         }
         return Calibration { motors: HashMap::new() };
     }
@@ -357,8 +346,8 @@ impl CalibrationService {
                 .join("robots")
                 .join("sourccey")
                 .join("sourccey")
-                .join("sourccey_follower")
-                .join(format!("sourccey_{}.json", arm_side));
+                .join("sourccey")
+                .join(format!("{}_arm_default_calibration.json", arm_side));
 
             if let Ok(default_str) = fs::read_to_string(&default_path) {
                 match serde_json::from_str::<Calibration>(&default_str) {
