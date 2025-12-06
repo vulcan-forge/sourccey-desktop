@@ -36,9 +36,14 @@ impl CalibrationService {
 
         // If calibration file doesn't exist, create it with default values
         if !calibration_path.exists() {
+            println!("calibration file not found, creating default calibration");
             let default_calibration = Self::create_default_calibration(robot_type, nickname);
+            println!("default_calibration: {:?}", default_calibration);
+            println!("--------------------------------");
             Self::write_calibration(robot_type, nickname, default_calibration.clone())?;
-            return Ok((default_calibration, false));
+            println!("default calibration written to file");
+            println!("--------------------------------");
+            return Ok((default_calibration, true));
         }
 
         // Read and parse the existing calibration file
@@ -287,24 +292,20 @@ impl CalibrationService {
         Ok(())
     }
 
-    // Default Calibration Functions
     //------------------------------------------------------------//
-    // Default SO100 Calibration Functions
+    // Default Calibration Functions
     //------------------------------------------------------------//
     pub fn create_default_calibration(robot_type: &str, nickname: &str) -> Calibration {
         if robot_type == "so100_follower" {
             return Self::create_default_so100_calibration();
         }
         else if robot_type == "sourccey_follower" {
-
-            let arm_side = if nickname == "sourccey_left" {
-                "left"
-            } else if nickname == "sourccey_right" {
-                "right"
-            } else {
-                return Calibration { motors: HashMap::new() };
+            let arm_side = match nickname {
+                "sourccey_left" => "left",
+                "sourccey_right" => "right",
+                _ => return Calibration { motors: HashMap::new() },
             };
-            return Self::create_default_sourccey_calibration(arm_side);
+            return Self::create_default_sourccey_calibration(&arm_side);
         }
         return Calibration { motors: HashMap::new() };
     }
