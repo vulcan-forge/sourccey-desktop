@@ -371,8 +371,8 @@ impl CalibrationService {
                 .join("robots")
                 .join("sourccey")
                 .join("sourccey")
-                .join("sourccey_follower")
-                .join(format!("sourccey_{}.json", arm_side));
+                .join("sourccey")
+                .join(format!("{}_arm_default_calibration.json", arm_side));
 
             println!("default_path: {:?}", default_path);
             println!("--------------------------------");
