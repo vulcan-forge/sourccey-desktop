@@ -316,6 +316,8 @@ impl CalibrationService {
                 "sourccey_right" => "right",
                 _ => return Calibration { motors: HashMap::new() },
             };
+            println!("arm_side: {:?}", arm_side);
+            println!("--------------------------------");
             return Self::create_default_sourccey_calibration(&arm_side);
         }
         return Calibration { motors: HashMap::new() };
@@ -371,6 +373,9 @@ impl CalibrationService {
                 .join("sourccey")
                 .join("sourccey_follower")
                 .join(format!("sourccey_{}.json", arm_side));
+
+            println!("default_path: {:?}", default_path);
+            println!("--------------------------------");
 
             if let Ok(default_str) = fs::read_to_string(&default_path) {
                 match serde_json::from_str::<Calibration>(&default_str) {
