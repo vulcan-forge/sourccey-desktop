@@ -35,6 +35,8 @@ impl CalibrationService {
         }
 
         // If calibration file doesn't exist, create it with default values
+        println!("calibration file exists: {:?}", calibration_path.exists());
+        println!("--------------------------------");
         if !calibration_path.exists() {
             println!("calibration file not found, creating default calibration");
             let default_calibration = Self::create_default_calibration(robot_type, nickname);
@@ -45,12 +47,18 @@ impl CalibrationService {
             println!("--------------------------------");
             return Ok((default_calibration, true));
         }
+        println!("calibration file exists: {:?}", calibration_path.exists());
+        println!("--------------------------------");
 
         // Read and parse the existing calibration file
         let calibration_str = fs::read_to_string(calibration_path).map_err(|e| e.to_string())?;
+        println!("calibration_str: {:?}", calibration_str);
+        println!("--------------------------------");
         let calibration: Calibration = serde_json::from_str(&calibration_str)
             .map_err(|e| format!("Failed to parse calibration file: {}", e))?;
 
+        println!("calibration: {:?}", calibration);
+        println!("--------------------------------");
         Ok((calibration, true))
     }
 
