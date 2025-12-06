@@ -32,14 +32,6 @@ export const KioskRobotDetailsPage: React.FC = () => {
     const { data: rightArmCalibration }: any = useGetCalibration(followerType, rightArmNickname);
     const { data: leftArmCalibration }: any = useGetCalibration(followerType, leftArmNickname);
 
-    console.log('--------------------------------');
-    console.log('followerType', followerType);
-    console.log('rightArmNickname', rightArmNickname);
-    console.log('leftArmNickname', leftArmNickname);
-    console.log('rightArmCalibration', rightArmCalibration);
-    console.log('leftArmCalibration', leftArmCalibration);
-    console.log('--------------------------------');
-
     const combinedCalibration: Calibration = {} as Calibration;
     if (leftArmCalibration?.[0]) {
         for (const [key, value] of Object.entries(leftArmCalibration[0] as Calibration)) {
@@ -52,24 +44,16 @@ export const KioskRobotDetailsPage: React.FC = () => {
             combinedCalibration[`right_${key}`] = value;
         }
     }
-    console.log('combinedCalibration', combinedCalibration);
 
     // Does the combined calibration have all the keys?
     const combinedKeys = Object.keys(combinedCalibration);
     const hasAllKeys = expectedKeys.every((key) => combinedKeys.includes(key));
-
     const isCalibrated = rightArmCalibration?.[1] && leftArmCalibration?.[1] && hasAllKeys;
-    console.log('isCalibrated', isCalibrated);
-    console.log('--------------------------------');
-    console.log('combinedKeys', combinedKeys);
-    console.log('--------------------------------');
-    console.log('hasAllKeys', hasAllKeys);
-    console.log('--------------------------------');
 
     return (
         <div className="bg-slate-850 flex h-screen flex-col">
             <div className="w-full space-y-4 p-6">
-                <RobotControl nickname={nickname} />
+                {isCalibrated && <RobotControl nickname={nickname} />}
                 <RobotKioskCalibration nickname={nickname} robotType={robotType} calibration={combinedCalibration} />
             </div>
         </div>
