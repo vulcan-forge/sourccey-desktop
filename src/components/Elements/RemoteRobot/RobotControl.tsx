@@ -15,12 +15,12 @@ interface RobotControlProps {
 
 export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
     const { isRobotStarted, setIsRobotStarted } = useRobotStatus();
-    const [isLoading, setIsLoading] = useState(false);
+    const [isStarting, setIsStarting] = useState(false);
+    const [isStopping, setIsStopping] = useState(false);
+
     const [hostLogs, setHostLogs] = useState<string[]>([]);
     const [showLogs, setShowLogs] = useState(false);
     const hostLogEndRef = useRef<HTMLDivElement | null>(null);
-    const unlistenFnsRef = useRef<UnlistenFn[]>([]);
-    const hasDetectedErrorRef = useRef(false);
 
     useEffect(() => {
         if (!nickname) return;
@@ -30,8 +30,11 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
     
           setHostLogs((prev) => [...prev, `[system] ${payload.message ?? 'Host process spawned'} (pid: ${payload.pid ?? 'unknown'})`]);
     
-          // Process exists now; still wait for "ready" log line to flip isHostReady / stop spinner
+          setIsStarting(false);
+          setIsStopping(false);
           setIsRobotStarted(true);
+
+          toast.success('Robot started successfully', { ...toastSuccessDefaults });
         });
     
         const unlistenStopRobot = kioskEventManager.listenStopRobot((payload) => {
@@ -42,8 +45,11 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
               `[system] Host process shutdown${payload.exit_code !== null ? ` (exit ${payload.exit_code})` : ''}: ${payload.message}`,
             ]);
       
+            setIsStarting(false);
+            setIsStopping(false);
             setIsRobotStarted(false);
-            setIsLoading(false);
+
+            toast.success('Robot stopped successfully', { ...toastSuccessDefaults });
           });
     
         const unlistenHostLog = kioskEventManager.listenHostLog((line) => {
@@ -53,7 +59,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
     
           if (line.includes('Waiting for commands...')) {
             setIsRobotStarted(true);
-            setIsLoading(false);
+            setIsStarting(false);
           }
         });
     
@@ -242,40 +248,40 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
     }, []);
 
     const handleStartRobot = async () => {
-        if (isLoading) return;
+        if (isStarting || isStopping) return;
 
-        setIsLoading(true);
+        setIsStarting(true);
         setIsRobotStarted(false);
-        hasDetectedErrorRef.current = false; // Reset error detection flag
 
         try {
             await invoke<string>('start_kiosk_host', { nickname });
-            toast.info('Robot Starting...', { ...toastInfoDefaults });
+            toast.info('Robot starting...', { ...toastInfoDefaults });
         } catch (error: any) {
+            setIsRobotStarted(false);
+            setIsStarting(false);
+
             console.error('Failed to start robot:', error);
             toast.error('Failed to start robot. Check connection and try again.', { ...toastErrorDefaults });
-            setIsRobotStarted(false);
-            setIsLoading(false);
         }
     };
 
     const handleStopRobot = async () => {
-        if (isLoading) return;
+        if (isStopping || isStarting) return;
 
-        setIsLoading(true);
+        setIsStopping(true);
         try {
-            // Stop the kiosk host which also disconnects the robot
-            const res = await invoke<string>('stop_kiosk_host', { nickname });
-            toast.success('Robot stopped successfully', { ...toastSuccessDefaults });
+            // Stop the robot
+            await invoke<string>('stop_kiosk_host', { nickname });
+            toast.info('Robot stopping...', { ...toastInfoDefaults });
             setIsRobotStarted(false);
 
             // Clear the terminal logs when stopping
             setHostLogs([]);
         } catch (error: any) {
+            setIsStopping(false);
+
             console.error('Failed to stop robot:', error);
             toast.error('Failed to stop robot.', { ...toastErrorDefaults });
-        } finally {
-            setIsLoading(false);
         }
     };
 
@@ -292,16 +298,16 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
                 {/* Start/Stop Robot Button */}
                 <button
                     onClick={isRobotStarted ? handleStopRobot : handleStartRobot}
-                    disabled={isLoading}
+                    disabled={isStarting}
                     className={`inline-flex w-36 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-all ${
-                        isLoading
+                        isStarting
                             ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                             : isRobotStarted
                               ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600'
                               : 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
                     }`}
                 >
-                    {isLoading ? (
+                    {isStarting ? (
                         <>
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                             {isRobotStarted ? 'Stopping...' : 'Starting...'}
@@ -334,7 +340,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
                             {!isRobotStarted && (
                                 <div className="flex items-center gap-2">
                                     <div className="h-2 w-2 rounded-full bg-red-400" />
-                                    <span className="text-xs text-slate-400">{isLoading ? 'Starting...' : 'Inactive'}</span>
+                                    <span className="text-xs text-slate-400">{isStarting ? 'Starting...' : 'Inactive'}</span>
                                 </div>
                             )}
                         </div>
@@ -368,7 +374,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
                                         ))
                                     ) : (
                                         <div className="text-sm text-slate-400">
-                                            {isLoading
+                                            {isStarting
                                                 ? 'Waiting for host to start...'
                                                 : isRobotStarted
                                                   ? 'Waiting for robot output...'
