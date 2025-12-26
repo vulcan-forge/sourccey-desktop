@@ -298,9 +298,9 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
                 {/* Start/Stop Robot Button */}
                 <button
                     onClick={isRobotStarted ? handleStopRobot : handleStartRobot}
-                    disabled={isStarting}
+                    disabled={isStarting || isStopping}
                     className={`inline-flex w-36 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-all ${
-                        isStarting
+                        isStarting || isStopping
                             ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                             : isRobotStarted
                               ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600'
