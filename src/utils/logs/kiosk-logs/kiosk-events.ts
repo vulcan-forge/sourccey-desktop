@@ -10,8 +10,14 @@ export type KioskStartRobotSuccessPayload = {
 
 export type KioskStopRobotSuccessPayload = {
   nickname: string;
+  pid?: number;
   exit_code: number | null;
   message: string;
+};
+
+export type KioskStopRobotErrorPayload = {
+  nickname: string;
+  error: string;
 };
 
 type Unlisten = () => void;
@@ -22,6 +28,7 @@ class KioskEventManager {
 
   private listenStartRobotHandlers = new Set<(p: KioskStartRobotSuccessPayload) => void>();
   private listenStopRobotHandlers = new Set<(p: KioskStopRobotSuccessPayload) => void>();
+  private listenStopRobotErrorHandlers = new Set<(p: KioskStopRobotErrorPayload) => void>();
   private hostLogHandlers = new Set<(line: string) => void>();
 
   constructor() {
@@ -40,8 +47,12 @@ class KioskEventManager {
         for (const h of this.listenStartRobotHandlers) h(event.payload);
       });
 
-      const unlistenStopRobot = await listen<KioskStopRobotSuccessPayload>('kiosk-host-process-shutdown', (event) => {
+      const unlistenStopRobot = await listen<KioskStopRobotSuccessPayload>('kiosk-host-stop-success', (event) => {
         for (const h of this.listenStopRobotHandlers) h(event.payload);
+      });
+
+      const unlistenStopRobotError = await listen<KioskStopRobotErrorPayload>('kiosk-host-stop-error', (event) => {
+        for (const h of this.listenStopRobotErrorHandlers) h(event.payload);
       });
 
       const unlistenLog = await listen<string>('kiosk-host-log', (event) => {
@@ -49,7 +60,7 @@ class KioskEventManager {
         for (const h of this.hostLogHandlers) h(line);
       });
 
-      this.unlistenFns.push(unlistenStartRobot, unlistenStopRobot, unlistenLog);
+      this.unlistenFns.push(unlistenStartRobot, unlistenStopRobot, unlistenStopRobotError, unlistenLog);
     } catch (e) {
       // If listeners fail, allow retry by reloading; keep simple for now
       console.error('Failed to setup kiosk event listeners:', e);
@@ -76,6 +87,11 @@ class KioskEventManager {
   listenStopRobot(handler: (p: KioskStopRobotSuccessPayload) => void): Unlisten {
     this.listenStopRobotHandlers.add(handler);
     return () => this.listenStopRobotHandlers.delete(handler);
+  }
+
+  listenStopRobotError(handler: (p: KioskStopRobotErrorPayload) => void): Unlisten {
+    this.listenStopRobotErrorHandlers.add(handler);
+    return () => this.listenStopRobotErrorHandlers.delete(handler);
   }
 
   listenHostLog(handler: (line: string) => void): Unlisten {

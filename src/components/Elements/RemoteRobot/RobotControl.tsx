@@ -42,7 +42,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
       
             setHostLogs((prev) => [
               ...prev,
-              `[system] Host process shutdown${payload.exit_code !== null ? ` (exit ${payload.exit_code})` : ''}: ${payload.message}`,
+              `[system] Host process stopped${payload.exit_code !== null ? ` (exit ${payload.exit_code})` : ''}: ${payload.message}`,
             ]);
       
             setIsStarting(false);
@@ -51,6 +51,16 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
 
             toast.success('Robot stopped successfully', { ...toastSuccessDefaults });
           });
+
+        const unlistenStopRobotError = kioskEventManager.listenStopRobotError((payload) => {
+            if (payload.nickname !== nickname) return;
+
+            setHostLogs((prev) => [...prev, `[system] Failed to stop host: ${payload.error}`]);
+            setIsStarting(false);
+            setIsStopping(false);
+
+            toast.error(payload.error || 'Failed to stop robot.', { ...toastErrorDefaults });
+        });
     
         const unlistenHostLog = kioskEventManager.listenHostLog((line) => {
           // Optional: if you only ever run one host at a time, this is fine.
@@ -66,6 +76,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
         return () => {
           unlistenStartRobot();
           unlistenStopRobot();
+          unlistenStopRobotError();
           unlistenHostLog();
         };
       }, [nickname, setIsRobotStarted]);

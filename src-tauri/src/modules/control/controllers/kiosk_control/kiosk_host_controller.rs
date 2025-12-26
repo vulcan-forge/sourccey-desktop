@@ -40,7 +40,7 @@ pub fn stop_kiosk_host(
 ) -> Result<String, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    KioskHostService::stop_kiosk_host(db_connection, &state, nickname)
+    KioskHostService::stop_kiosk_host(app_handle, db_connection, &state, nickname)
 }
 
 #[command]

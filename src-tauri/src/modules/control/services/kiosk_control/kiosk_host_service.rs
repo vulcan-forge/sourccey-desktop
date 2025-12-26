@@ -175,6 +175,7 @@ impl KioskHostService {
     }
 
     pub fn stop_kiosk_host(
+        app_handle: AppHandle,
         db_connection: DatabaseConnection,
         state: &KioskHostProcess,
         nickname: String,
@@ -228,11 +229,31 @@ impl KioskHostService {
                     .output();
             }
 
+            // Emit stop success event
+            let _ = app_handle.emit(
+                "kiosk-host-stop-success",
+                serde_json::json!({
+                    "nickname": nickname,
+                    "pid": pid,
+                    "exit_code": None::<i32>,
+                    "message": "Kiosk host stopped successfully"
+                }),
+            );
+
             Ok(format!(
                 "Kiosk host stopped successfully for nickname: {}",
                 nickname
             ))
         } else {
+            // Emit stop error event
+            let _ = app_handle.emit(
+                "kiosk-host-stop-error",
+                serde_json::json!({
+                    "nickname": nickname,
+                    "error": format!("No kiosk host process found for nickname: {}", nickname),
+                }),
+            );
+
             Err(format!(
                 "No kiosk host process found for nickname: {}",
                 nickname
