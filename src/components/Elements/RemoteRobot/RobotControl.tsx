@@ -307,10 +307,11 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
                               : 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
                     }`}
                 >
-                    {isStarting ? (
+                    {isStarting || isStopping ? (
                         <>
                             <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                            {isRobotStarted ? 'Stopping...' : 'Starting...'}
+                            {isStarting && 'Starting...'}
+                            {isStopping && 'Stopping...'}
                         </>
                     ) : isRobotStarted ? (
                         <>
