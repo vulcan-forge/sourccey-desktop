@@ -3,20 +3,17 @@
 import React, { createContext, useContext, useState, type ReactNode } from 'react';
 
 interface RobotStatusContextType {
-    robotStarted: boolean;
-    isHostReady: boolean;
-    setRobotStarted: (started: boolean) => void;
-    setIsHostReady: (ready: boolean) => void;
+    isRobotStarted: boolean;
+    setIsRobotStarted: (started: boolean) => void;    
 }
 
 const RobotStatusContext = createContext<RobotStatusContextType | undefined>(undefined);
 
 export const RobotStatusProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-    const [robotStarted, setRobotStarted] = useState(false);
-    const [isHostReady, setIsHostReady] = useState(false);
+    const [isRobotStarted, setIsRobotStarted] = useState(false);
 
     return (
-        <RobotStatusContext.Provider value={{ robotStarted, isHostReady, setRobotStarted, setIsHostReady }}>
+        <RobotStatusContext.Provider value={{ isRobotStarted, setIsRobotStarted }}>
             {children}
         </RobotStatusContext.Provider>
     );

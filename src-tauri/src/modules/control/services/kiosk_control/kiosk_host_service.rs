@@ -37,13 +37,8 @@ impl KioskHostService {
         state: &KioskHostProcess,
         nickname: String,
     ) -> Result<String, String> {
-        Self::debug_emit(
-            &app_handle,
-            &format!("Starting kiosk host for nickname: {}", nickname),
-        );
 
         // Check if a process with this nickname is already running
-        Self::debug_emit(&app_handle, "Checking if process already exists...");
         {
             let processes = state.0.lock().unwrap();
             if processes.contains_key(&nickname) {
@@ -55,37 +50,19 @@ impl KioskHostService {
                 ));
             }
         }
-        Self::debug_emit(&app_handle, "No existing process found. Continuing.");
-
-        Self::debug_emit(&app_handle, "Resolving LeRobot directory...");
+        
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        Self::debug_emit(
-            &app_handle,
-            &format!("LeRobot directory: {:?}", lerobot_dir),
-        );
-
-        Self::debug_emit(&app_handle, "Resolving Python path...");
         let python_path = DirectoryService::get_python_path()?;
-        Self::debug_emit(&app_handle, &format!("Python path: {:?}", python_path));
 
         // Prepare a debug-friendly string before moving/borrowing the path
         let python_path_str = python_path.to_string_lossy().to_string();
 
         // Use the real host command - use the virtual environment's python directly
-        Self::debug_emit(&app_handle, "Preparing host command...");
         let mut command_parts = vec![python_path.to_string_lossy().to_string()];
         command_parts.push("-u".to_string());
         command_parts.push("-m".to_string());
         command_parts.push("lerobot.robots.sourccey.sourccey.sourccey.sourccey_host".to_string());
-        Self::debug_emit(&app_handle, &format!("Command: {:?}", command_parts));
 
-        // Log the command for debugging
-        println!("Starting kiosk host with command: {:?}", command_parts);
-        println!("Working directory: {:?}", lerobot_dir);
-        println!("Python path: {}", python_path_str);
-
-        // Create command log entry
-        Self::debug_emit(&app_handle, "Creating command log entry...");
         let command_log_service = CommandLogService::new(db_connection.clone());
         let command_log = command_log_service
             .add_robot_command_log(
@@ -99,22 +76,15 @@ impl KioskHostService {
                 format!("Failed to create command log: {}", e)
             })?;
         let command_log_id = command_log.id;
-        Self::debug_emit(
-            &app_handle,
-            &format!("Command log created with ID: {}", command_log_id),
-        );
 
         // Create the command
-        Self::debug_emit(&app_handle, "Creating host process...");
         let mut cmd = Command::new(&command_parts[0]);
         cmd.args(&command_parts[1..])
             .current_dir(&lerobot_dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        Self::debug_emit(&app_handle, "Host process configured successfully");
 
         // Start the process
-        Self::debug_emit(&app_handle, "Spawning host process...");
         let mut child = cmd.spawn()
             .map_err(|e| {
                 let error_msg = format!(
@@ -126,24 +96,15 @@ impl KioskHostService {
             })?;
 
         let pid = child.id();
-        Self::debug_emit(
-            &app_handle,
-            &format!("Host process started with PID: {}", pid),
-        );
-        println!("Kiosk host process started with PID: {}", pid);
 
         // Get stdout and stderr handles
-        Self::debug_emit(&app_handle, "Attaching log streams...");
         let stdout = child.stdout.take().ok_or("Failed to get stdout")?;
         let stderr = child.stderr.take().ok_or("Failed to get stderr")?;
-        Self::debug_emit(&app_handle, "Log streams attached");
 
         // Create shutdown flag
-        Self::debug_emit(&app_handle, "Creating shutdown flag...");
         let shutdown_flag = Arc::new(AtomicBool::new(false));
 
         // Emit success event
-        Self::debug_emit(&app_handle, "Emitting start success event...");
         app_handle
             .emit(
                 "kiosk-host-start-success",
@@ -157,7 +118,6 @@ impl KioskHostService {
                 Self::debug_emit(&app_handle, &format!("Failed to emit success event: {}", e));
                 format!("Failed to emit success event: {}", e)
             })?;
-        Self::debug_emit(&app_handle, "Start success event emitted");
 
         // Store the process information
         {
@@ -169,7 +129,6 @@ impl KioskHostService {
         }
 
         // Setup log streaming
-        Self::debug_emit(&app_handle, "Starting stdout logger...");
         LogService::start_logger(
             Some(stdout),
             &app_handle,
@@ -180,9 +139,7 @@ impl KioskHostService {
             true,
             false,
         );
-        Self::debug_emit(&app_handle, "Stdout logger started");
 
-        Self::debug_emit(&app_handle, "Starting stderr logger...");
         LogService::start_logger(
             Some(stderr),
             &app_handle,
@@ -193,10 +150,8 @@ impl KioskHostService {
             true,
             true,
         );
-        Self::debug_emit(&app_handle, "Stderr logger started");
 
         // Setup process monitoring
-        Self::debug_emit(&app_handle, "Starting process monitor...");
         ProcessService::start_process_monitor_with_defaults(
             pid,
             app_handle.clone(),
@@ -211,11 +166,6 @@ impl KioskHostService {
             }),
             Some(command_log_id),
             Some(db_connection),
-        );
-        Self::debug_emit(&app_handle, "Process monitor started");
-        Self::debug_emit(
-            &app_handle,
-            "Kiosk host start sequence completed successfully",
         );
 
         Ok(format!(

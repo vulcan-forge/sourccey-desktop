@@ -12,7 +12,7 @@ import type { BatteryData } from '@/app/app/settings/page';
 import { exit } from '@tauri-apps/plugin-process';
 
 export const KioskTopNavbar = () => {
-    const { robotStarted, isHostReady } = useRobotStatus();
+    const { isRobotStarted } = useRobotStatus();
     const { toggle: toggleVirtualKeyboard } = useVirtualKeyboard();
 
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
@@ -154,7 +154,7 @@ export const KioskTopNavbar = () => {
                 isOpen={isStatusModalOpen}
                 onClose={() => setIsStatusModalOpen(false)}
                 systemInfo={systemInfo}
-                isHostReady={isHostReady}
+                isRobotStarted={isRobotStarted}
             />
             <WiFiModal isOpen={isWiFiModalOpen} onClose={() => setIsWiFiModalOpen(false)} systemInfo={systemInfo} />
             <CredentialsModal
