@@ -164,7 +164,6 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
 
         try {
             await invoke<string>('start_kiosk_host', { nickname });
-            toast.info('Robot starting...', { ...toastInfoDefaults });
         } catch (error: any) {
             setIsRobotStarted(false);
             setIsStarting(false);
@@ -182,7 +181,6 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
         try {
             // Stop the robot
             await invoke<string>('stop_kiosk_host', { nickname });
-            toast.info('Robot stopping...', { ...toastInfoDefaults });
             setIsRobotStarted(false);
 
             // Clear the terminal logs when stopping
