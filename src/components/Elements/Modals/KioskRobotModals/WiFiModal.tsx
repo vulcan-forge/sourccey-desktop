@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { FaWifi, FaTimes, FaLock, FaLockOpen, FaSpinner, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
-import type { BatteryData } from '@/app/app/settings/page';
+import type { SystemInfo } from '@/hooks/System/system-info.hook';
 import { addSavedWiFiSSID, removeSavedWiFiSSID } from '@/hooks/WIFI/wifi.hook';
 
 interface WiFiNetwork {
@@ -16,11 +16,7 @@ interface WiFiNetwork {
 interface WiFiModalProps {
     isOpen: boolean;
     onClose: () => void;
-    systemInfo: {
-        ipAddress: string;
-        temperature: string;
-        batteryData: BatteryData;
-    };
+    systemInfo: SystemInfo;
 }
 
 export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInfo }) => {
@@ -194,7 +190,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                     <div className="flex items-center gap-3">
                         <FaWifi className="h-5 w-5 text-blue-400" />
                         <h2 className="text-xl font-bold text-white">WiFi Networks </h2>
-                        <span className="text-sm text-slate-400">{systemInfo.ipAddress}</span>
+                        <span className="text-sm text-slate-400">{systemInfo.ipAddress ?? 'Disconnected'}</span>
                     </div>
                     <button
                         onClick={onClose}
