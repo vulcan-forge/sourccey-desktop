@@ -158,18 +158,18 @@ impl KioskHostService {
             state.0.clone(),
             shutdown_flag.clone(),
             nickname.clone(),
-            "kiosk-host-process-shutdown".to_string(),
+            "kiosk-host-stop-success".to_string(),
             serde_json::json!({
                 "nickname": nickname.clone(),
                 "exit_code": None::<i32>,
-                "message": "Kiosk host process died unexpectedly"
+                "message": "Robot process died unexpectedly"
             }),
             Some(command_log_id),
             Some(db_connection),
         );
 
         Ok(format!(
-            "Kiosk host started successfully for nickname: {}",
+            "Robot starting for nickname: {}",
             nickname
         ))
     }
@@ -236,12 +236,12 @@ impl KioskHostService {
                     "nickname": nickname,
                     "pid": pid,
                     "exit_code": None::<i32>,
-                    "message": "Kiosk host stopped successfully"
+                    "message": "Robot stopped successfully"
                 }),
             );
 
             Ok(format!(
-                "Kiosk host stopped successfully for nickname: {}",
+                "Robot stopping for nickname: {}",
                 nickname
             ))
         } else {
@@ -262,12 +262,18 @@ impl KioskHostService {
     }
 
     pub fn is_kiosk_host_active(state: &KioskHostProcess, nickname: String) -> bool {
-        let processes = state.0.lock().unwrap();
-        processes.contains_key(&nickname)
-    }
-
-    pub fn get_active_kiosk_host_sessions(state: &KioskHostProcess) -> Vec<String> {
-        let processes = state.0.lock().unwrap();
-        processes.keys().cloned().collect()
+        // 1) Managed by this app
+        if state.0.lock().unwrap().contains_key(&nickname) {
+            return true;
+        }
+    
+        // 2) Externally started (Linux): check for the module name in cmdline
+        // Use a specific match to avoid false positives.
+        // Example: the module you spawn contains "sourccey_host"
+        let status = Command::new("pgrep")
+            .args(&["-f", "sourccey_host"])
+            .status();
+    
+        status.map(|s| s.success()).unwrap_or(false)
     }
 }

@@ -56,6 +56,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
             if (payload.nickname !== nickname) return;
 
             setHostLogs((prev) => [...prev, `[system] Failed to stop host: ${payload.error}`]);
+            
             setIsStarting(false);
             setIsStopping(false);
 
@@ -83,170 +84,21 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
     
 
     // Poll kiosk host status when a robot is selected
-    // useEffect(() => {
-    //     let interval: any;
-    //     const poll = async () => {
-    //         if (!nickname) return;
-    //         try {
-    //             const active = await invoke<boolean>('is_kiosk_host_active', { nickname });
-    //         } catch (e) {
-    //             // If command not available or error, mark as inactive
-    //         }
-    //     };
-    //     poll();
-    //     interval = setInterval(poll, 3000);
-    //     return () => interval && clearInterval(interval);
-    // }, [nickname]);
-
-    // Subscribe to kiosk host log events and process shutdown events
-    // useEffect(() => {
-    //     let isMounted = true;
-
-    //     const setupListeners = async () => {
-    //         try {
-    //             const logUnlisten = await listen<string>('kiosk-host-log', (event: any) => {
-    //                 if (!isMounted) return;
-    //                 const line = typeof event.payload === 'string' ? event.payload : String(event.payload);
-    //                 setHostLogs((prev: string[]) => [...prev, line]);
-
-    //                 // Check if host is ready
-    //                 if (line.includes('Waiting for commands...')) {
-    //                     console.log('[Kiosk] Host is ready and waiting for commands');
-
-    //                     setRobotStarted(true);
-    //                     setIsLoading(false);
-    //                     setIsHostReady(true);
-    //                 }
-
-    //                 // Check for errors that indicate startup failure (only if no error detected yet)
-    //                 if (!hasDetectedErrorRef.current && robotStarted) {
-    //                     const errorPatterns = [
-    //                         'Failed to',
-    //                         'Error:',
-    //                         'Exception:',
-    //                         'Traceback',
-    //                         'cannot',
-    //                         'Unable to',
-    //                         'ConnectionRefusedError',
-    //                         'PermissionError',
-    //                         'FileNotFoundError',
-    //                     ];
-
-    //                     const hasError = errorPatterns.some((pattern) => line.toLowerCase().includes(pattern.toLowerCase()));
-
-    //                     if (hasError) {
-    //                         hasDetectedErrorRef.current = true;
-    //                         console.error('[Kiosk] Error detected in host logs:', line);
-    //                         toast.error('Host startup failed. Check logs for details.', {
-    //                             ...toastErrorDefaults,
-    //                             toastId: 'host-failed-to-start',
-    //                         });
-    //                         // Auto-stop the robot on error
-    //                         setTimeout(async () => {
-    //                             try {
-    //                                 await invoke<string>('stop_kiosk_host', { nickname });
-    //                                 setRobotStarted(false);
-    //                                 setIsHostReady(false);
-    //                                 setIsLoading(false);
-    //                             } catch (e) {
-    //                                 console.error('Failed to stop host after error:', e);
-    //                             }
-    //                         }, 500);
-    //                     }
-    //                 }
-    //             });
-
-    //             const shutdownUnlisten = await listen<any>('kiosk-host-process-shutdown', (event: any) => {
-    //                 if (!isMounted) return;
-    //                 setHostLogs((prev: string[]) => [
-    //                     ...prev,
-    //                     `\n[system] Host process shutdown${event?.payload?.exit_code !== undefined ? ` (exit ${event.payload.exit_code})` : ''}`,
-    //                 ]);
-
-    //                 // Reset host state when process shuts down unexpectedly
-    //                 setRobotStarted(false);
-    //                 setIsLoading(false);
-    //                 setIsHostReady(false);
-    //             });
-
-    //             // Listen for external host process starting (process detected but not ready yet)
-    //             const externalStartingUnlisten = await listen<void>('kiosk-host-external-starting', () => {
-    //                 if (!isMounted) return;
-    //                 setHostLogs((prev: string[]) => [...prev, '\n[system] External host process detected - waiting for initialization...']);
-
-    //                 setIsLoading(true);
-    //                 setIsHostReady(false);
-    //                 toast.info('Robot host detected - starting up...', { ...toastInfoDefaults, toastId: 'host-starting' });
-    //             });
-
-    //             // Listen for external host process ready (port 5555 is open)
-    //             const externalStartUnlisten = await listen<void>('kiosk-host-external-started', () => {
-    //                 if (!isMounted) return;
-    //                 setHostLogs((prev: string[]) => [...prev, '\n[system] External host is ready and listening for commands']);
-    //                 setRobotStarted(true);
-    //                 setIsHostReady(true);
-    //                 setIsLoading(false);
-    //                 toast.dismiss('host-starting');
-    //                 toast.success('✅ Robot host is ready!', { ...toastSuccessDefaults });
-    //             });
-
-    //             // Listen for external host process stopping
-    //             const externalStopUnlisten = await listen<void>('kiosk-host-external-stopped', () => {
-    //                 if (!isMounted) return;
-    //                 setHostLogs((prev: string[]) => [...prev, '\n[system] External host process stopped']);
-    //                 // Dismiss the "starting" toast if it's still showing
-    //                 toast.dismiss('host-starting');
-    //                 // Show an error toast if the host stopped during startup
-    //                 if (isLoading) {
-    //                     toast.error('Robot host failed to start', { ...toastErrorDefaults, toastId: 'host-failed-to-start' });
-    //                 }
-    //                 setRobotStarted(false);
-    //                 setIsHostReady(false);
-    //                 setIsLoading(false);
-    //             });
-
-    //             // Store cleanup functions only if component is still mounted
-    //             if (isMounted) {
-    //                 unlistenFnsRef.current = [
-    //                     logUnlisten,
-    //                     shutdownUnlisten,
-    //                     externalStartingUnlisten,
-    //                     externalStartUnlisten,
-    //                     externalStopUnlisten,
-    //                 ];
-    //             }
-    //         } catch (err) {
-    //             console.error('Failed to setup kiosk event listeners:', err);
-    //         }
-    //     };
-
-    //     setupListeners();
-
-    //     return () => {
-    //         isMounted = false;
-
-    //         // Clean up listeners
-    //         const cleanupFns = unlistenFnsRef.current;
-    //         unlistenFnsRef.current = [];
-
-    //         // Use queueMicrotask to ensure cleanup happens after current call stack
-    //         queueMicrotask(() => {
-    //             cleanupFns.forEach((fn) => {
-    //                 // Extra defensive checks to prevent any errors from bubbling up
-    //                 if (fn && typeof fn === 'function') {
-    //                     try {
-    //                         // Wrap in Promise.resolve to catch any synchronous or asynchronous errors
-    //                         Promise.resolve(fn()).catch(() => {
-    //                             // Silently ignore - listener already cleaned up
-    //                         });
-    //                     } catch {
-    //                         // Silently ignore - listener may have been cleaned up by Tauri already
-    //                     }
-    //                 }
-    //             });
-    //         });
-    //     };
-    // }, [nickname, robotStarted, isLoading, setIsHostReady, setRobotStarted]);
+    useEffect(() => {
+        let interval: any;
+        const poll = async () => {
+            if (!nickname) return;
+            try {
+                const active = await invoke<boolean>('is_kiosk_host_active', { nickname });
+                console.log('is_kiosk_host_active', active);
+            } catch (e) {
+                // If command not available or error, mark as inactive
+            }
+        };
+        poll();
+        interval = setInterval(poll, 3000);
+        return () => interval && clearInterval(interval);
+    }, [nickname]);
 
     // Auto-scroll host logs terminal
     useEffect(() => {

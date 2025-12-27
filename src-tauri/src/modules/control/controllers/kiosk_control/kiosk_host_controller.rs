@@ -49,11 +49,6 @@ pub fn is_kiosk_host_active(state: State<KioskHostProcess>, nickname: String) ->
 }
 
 #[command]
-pub fn get_active_kiosk_host_sessions(state: State<KioskHostProcess>) -> Vec<String> {
-    KioskHostService::get_active_kiosk_host_sessions(&state)
-}
-
-#[command]
 pub fn get_system_info() -> SystemInfo {
     let ip_address = get_ip_address();
     let temperature = get_temperature();
