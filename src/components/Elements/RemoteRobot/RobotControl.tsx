@@ -26,15 +26,15 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
         if (!nickname) return;
     
         const unlistenStartRobot = kioskEventManager.listenStartRobot((payload) => {
-          if (payload.nickname !== nickname) return;
-    
-          setHostLogs((prev) => [...prev, `[system] ${payload.message ?? 'Host process spawned'} (pid: ${payload.pid ?? 'unknown'})`]);
-    
-          setIsStarting(false);
-          setIsStopping(false);
-          setIsRobotStarted(true);
+            if (payload.nickname !== nickname) return;
+        
+            setHostLogs((prev) => [...prev, `[system] ${payload.message ?? 'Host process spawned'} (pid: ${payload.pid ?? 'unknown'})`]);
+        
+            setIsStarting(false);
+            setIsStopping(false);
+            setIsRobotStarted(true);
 
-          toast.success('Robot started successfully', { ...toastSuccessDefaults });
+            toast.success('Robot started successfully', { ...toastSuccessDefaults });
         });
     
         const unlistenStopRobot = kioskEventManager.listenStopRobot((payload) => {
@@ -262,6 +262,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
         if (isStarting || isStopping) return;
 
         setIsStarting(true);
+        setIsStopping(false);
         setIsRobotStarted(false);
 
         try {
@@ -280,6 +281,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
         if (isStopping || isStarting) return;
 
         setIsStopping(true);
+        setIsStarting(false);
         try {
             // Stop the robot
             await invoke<string>('stop_kiosk_host', { nickname });
