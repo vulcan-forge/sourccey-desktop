@@ -85,19 +85,60 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
 
     // Poll kiosk host status when a robot is selected
     useEffect(() => {
+        if (!nickname) return;
+
+        let cancelled = false;
         let interval: any;
+        const lastActiveRef = { current: false };
+        
         const poll = async () => {
-            if (!nickname) return;
             try {
                 const active = await invoke<boolean>('is_kiosk_host_active', { nickname });
-                console.log('is_kiosk_host_active', active);
-            } catch (e) {
-                // If command not available or error, mark as inactive
-            }
+          
+                // Transition: false -> true (detected host running)
+                if (active && !lastActiveRef.current) {
+                  lastActiveRef.current = true;
+          
+                  setIsStopping(false);
+                  setIsStarting(true);
+          
+                  // debounce to allow host to become usable
+                  setTimeout(() => {
+                    if (cancelled) return;
+                    setIsRobotStarted(true);
+                    setIsStarting(false);
+                  }, 1000);
+          
+                  return;
+                }
+          
+                // Transition: true -> false (host no longer running)
+                if (!active && lastActiveRef.current) {
+                  lastActiveRef.current = false;
+          
+                  setIsStarting(false);
+                  setIsStopping(false);
+                  setIsRobotStarted(false);
+                  return;
+                }
+          
+                // No transition: keep state as-is
+              } catch (e) {
+                // If the poll fails, treat as inactive (optional)
+                lastActiveRef.current = false;
+                setIsStarting(false);
+                setIsStopping(false);
+                setIsRobotStarted(false);
+              }
         };
         poll();
+
         interval = setInterval(poll, 3000);
-        return () => interval && clearInterval(interval);
+        return () => {
+            cancelled = true;
+            interval && clearInterval(interval);
+        };
+        
     }, [nickname]);
 
     // Auto-scroll host logs terminal
