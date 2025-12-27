@@ -8,7 +8,7 @@ import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiMod
 import { useRobotStatus } from '@/context/robot-status-context';
 import { CredentialsModal } from '@/components/Elements/Modals/KioskRobotModals/CredentialsModal';
 import { RobotStatusModal } from '@/components/Elements/Modals/KioskRobotModals/RobotStatusModal';
-import { type SystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import { type BatteryData } from '@/hooks/System/system-info.hook';
 import { exit } from '@tauri-apps/plugin-process';
 import { setSystemInfo, useGetSystemInfo } from '@/hooks/System/system-info.hook';
 
@@ -57,7 +57,7 @@ export const KioskTopNavbar = () => {
         };
 
         fetchSystemInfo();
-        const interval = setInterval(fetchSystemInfo, 5000); // Update every 5 seconds
+        const interval = setInterval(fetchSystemInfo, 10000); // Update every 10 seconds
         return () => clearInterval(interval);
     }, []);
 
