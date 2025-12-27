@@ -1,14 +1,10 @@
 import { createPortal } from 'react-dom';
 import { FaTimes, FaCircle, FaBatteryHalf, FaWifi, FaBatteryFull, FaBatteryQuarter, FaBolt, FaBatteryEmpty, FaBatteryThreeQuarters } from 'react-icons/fa';
-import type { BatteryData } from '@/app/app/settings/page';
+import type { SystemInfo } from '@/hooks/System/system-info.hook';
 interface RobotStatusModalProps {
     isOpen: boolean;
     onClose: () => void;
-    systemInfo: {
-        ipAddress: string;
-        temperature: string;
-        batteryData: BatteryData;
-    };
+    systemInfo: SystemInfo;
     isRobotStarted: boolean;
 }
 
