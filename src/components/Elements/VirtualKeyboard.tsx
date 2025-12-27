@@ -276,18 +276,26 @@ export const VirtualKeyboard: React.FC = () => {
     if (!isOpen) return null;
 
     return (
-        <div className="pointer-events-none fixed inset-0 z-3000">
-            {/* Keyboard panel - only this captures events */}
+        <div className="fixed inset-0 z-3000 flex items-center justify-center p-6">
+            {/* Backdrop */}
+            <button
+                type="button"
+                aria-label="Close keyboard backdrop"
+                className="absolute inset-0 cursor-default bg-black/40"
+                onClick={() => close()}
+            />
+
+            {/* Keyboard modal */}
             <div
-                className="pointer-events-auto fixed right-0 bottom-0 left-0 mx-auto mb-0 w-full max-w-3xl rounded-t-xl p-3 shadow-2xl"
-                // Prevent accidental text-selection / focus changes when clicking the panel background,
+                className="relative w-full max-w-3xl rounded-xl p-4 shadow-2xl"
+                // Prevent accidental text-selection when clicking the panel background,
                 // but allow interacting with inputs/buttons inside the keyboard.
                 onMouseDown={(e) => {
                     if (e.target === e.currentTarget) e.preventDefault();
                 }}
                 style={{
                     backgroundColor: 'rgb(30, 41, 59)', // slate-800 - solid fill
-                    border: '1px solid rgba(71, 85, 105, 0.1)',
+                    border: '1px solid rgba(71, 85, 105, 0.2)',
                     backdropFilter: 'none',
                     WebkitBackdropFilter: 'none',
                 }}
@@ -305,7 +313,7 @@ export const VirtualKeyboard: React.FC = () => {
                         e.stopPropagation();
                         close();
                     }}
-                    className="absolute top-2 right-2 flex h-8 w-8 items-center justify-center rounded-full border border-slate-600/60 bg-slate-700/60 text-white hover:bg-slate-700/80"
+                    className="absolute -top-4 -right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-slate-600/70 bg-slate-800 text-2xl text-white shadow-xl hover:bg-slate-700"
                     style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
                 >
                     ×
@@ -340,7 +348,7 @@ export const VirtualKeyboard: React.FC = () => {
                                 placeholder="Type…"
                             />
                         ) : (
-                            <div className="flex w-full overflow-hidden rounded-lg border-2 border-slate-500/60 bg-slate-900 focus-within:border-slate-400">
+                            <div className="flex w-full items-stretch overflow-hidden rounded-lg border-2 border-slate-500/60 bg-slate-900 focus-within:border-slate-400">
                                 <input
                                     ref={(el) => {
                                         mirrorRef.current = el;
@@ -388,7 +396,7 @@ export const VirtualKeyboard: React.FC = () => {
                                             // Keep caret visible after toggling.
                                             refocusMirror();
                                         }}
-                                        className="flex h-full w-12 items-center justify-center border-l border-slate-500/60 bg-slate-800/70 text-slate-200 hover:bg-slate-800"
+                                        className="flex w-12 shrink-0 items-center justify-center self-stretch border-l border-slate-500/60 bg-slate-800/70 text-slate-200 hover:bg-slate-800"
                                     >
                                         {isMirrorRevealed ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
                                     </button>
