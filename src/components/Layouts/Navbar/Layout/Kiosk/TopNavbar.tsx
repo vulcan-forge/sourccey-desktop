@@ -66,7 +66,7 @@ export const KioskTopNavbar = () => {
         };
 
         fetchSystemInfo();
-        const interval = setInterval(fetchSystemInfo, 10000); // Update every 10 seconds
+        const interval = setInterval(fetchSystemInfo, 5000); // Update every 5 seconds
         return () => clearInterval(interval);
     }, []);
 
@@ -100,6 +100,9 @@ export const KioskTopNavbar = () => {
         }
     };
 
+    const batteryPercent = systemInfo.batteryData.percent >= 0 ? systemInfo.batteryData.percent : 0;
+    const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
+    
     const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
@@ -151,13 +154,13 @@ export const KioskTopNavbar = () => {
                             className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300 ${
                                 isStatusModalOpen
                                     ? 'bg-gradient-to-r from-orange-500 to-yellow-500 text-white hover:from-orange-600 hover:to-yellow-600'
-                                    : getBatteryStyles(systemInfo.batteryData.percent ?? 0)
+                                    : getBatteryStyles(batteryPercent)
                             }`}
                             title={isStatusModalOpen ? 'Close Robot Status' : 'View Robot Status'}
                         >
-                            {getBatteryIcon(systemInfo.batteryData.percent ?? 0, systemInfo.batteryData.charging)}
+                            {getBatteryIcon(batteryPercent, systemInfo.batteryData.charging)}
                             <span className="font-semibold">
-                                {systemInfo.batteryData.percent >= 0 ? `${systemInfo.batteryData.percent}%` : 'Off'}
+                                {batteryPercentString}
                             </span>
                         </button>
 

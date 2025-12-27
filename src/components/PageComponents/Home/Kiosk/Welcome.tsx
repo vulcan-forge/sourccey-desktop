@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FaBatteryHalf, FaBatteryFull, FaBatteryQuarter, FaBatteryEmpty, FaThermometerHalf, FaNetworkWired } from 'react-icons/fa';
+import { FaBatteryHalf, FaBatteryFull, FaBatteryQuarter, FaBatteryEmpty, FaThermometerHalf, FaNetworkWired, FaBatteryThreeQuarters } from 'react-icons/fa';
 import type { BatteryData } from '@/app/app/settings/page';
 
 export const HomeWelcome = () => {
@@ -16,7 +16,8 @@ export const HomeWelcome = () => {
         batteryData: {
             voltage: -1,
             percent: -1,
-        },
+            charging: false,
+        } as BatteryData,
     });
 
     // Fetch system info periodically
@@ -40,24 +41,26 @@ export const HomeWelcome = () => {
     }, []);
 
     // Get battery icon based on percentage
-    const getBatteryIcon = () => {
-        const percent = systemInfo.batteryData.percent;
-        if (percent < 0) return FaBatteryEmpty;
+    const getBatteryIcon = (percent: number) => {
         if (percent >= 75) return FaBatteryFull;
-        if (percent >= 50) return FaBatteryHalf;
-        if (percent >= 25) return FaBatteryQuarter;
+        if (percent >= 50) return FaBatteryThreeQuarters;
+        if (percent >= 25) return FaBatteryHalf;
+        if (percent >= 5) return FaBatteryQuarter;
         return FaBatteryEmpty;
     };
 
-    const getBatteryColor = () => {
-        const percent = systemInfo.batteryData.percent;
-        if (percent < 0) return 'text-slate-500';
-        if (percent >= 50) return 'text-green-400';
-        if (percent >= 20) return 'text-yellow-400';
+    const getBatteryColor = (percent: number) => {
+        if (percent > 75) return 'text-green-400';
+        if (percent > 25) return 'text-slate-300';
+        if (percent > 10) return 'text-yellow-400';
         return 'text-red-400';
     };
 
-    const BatteryIcon = getBatteryIcon();
+    const BatteryIcon = getBatteryIcon(systemInfo.batteryData.percent);
+    const BatteryColor = getBatteryColor(systemInfo.batteryData.percent);
+    const batteryPercent = systemInfo.batteryData.percent >= 0 ? systemInfo.batteryData.percent : 0;
+    const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
+    
     return (
         <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
             {/* Header */}
@@ -78,16 +81,16 @@ export const HomeWelcome = () => {
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2 text-sm text-slate-400">
-                                <BatteryIcon className={`h-4 w-4 ${getBatteryColor()}`} />
+                                <BatteryIcon className={`h-4 w-4 ${BatteryColor}`} />
                                 Battery Life
                             </div>
-                            <div className={`mt-2 text-3xl font-bold ${getBatteryColor()}`}>
-                                {systemInfo.batteryData.percent >= 0 ? `${systemInfo.batteryData.percent}%` : 'N/A'}
+                            <div className={`mt-2 text-3xl font-bold ${BatteryColor}`}>
+                                {batteryPercentString}
                             </div>
                         </div>
                         <div className="text-right text-xs text-slate-500">
-                            {systemInfo.batteryData.percent >= 0 && (
-                                <>{systemInfo.batteryData.percent > 50 ? 'Good' : systemInfo.batteryData.percent > 20 ? 'Low' : 'Critical'}</>
+                            {batteryPercent >= 0 && (
+                                <>{batteryPercent > 50 ? 'Good' : batteryPercent > 20 ? 'Low' : 'Critical'}</>
                             )}
                         </div>
                     </div>

@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { FaTimes, FaCircle, FaBatteryHalf, FaWifi, FaBatteryFull, FaBatteryQuarter, FaBolt, FaBatteryEmpty } from 'react-icons/fa';
+import { FaTimes, FaCircle, FaBatteryHalf, FaWifi, FaBatteryFull, FaBatteryQuarter, FaBolt, FaBatteryEmpty, FaBatteryThreeQuarters } from 'react-icons/fa';
 import type { BatteryData } from '@/app/app/settings/page';
 interface RobotStatusModalProps {
     isOpen: boolean;
@@ -16,9 +16,9 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
     if (!isOpen) return null;
 
     const getBatteryTextColor = (percent: number) => {
-        if (percent > 60) {
+        if (percent > 75) {
             return 'text-green-400';
-        } else if (percent > 30) {
+        } else if (percent > 25) {
             return 'text-slate-300';
         } else if (percent > 10) {
             return 'text-yellow-400';
@@ -31,17 +31,22 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
         if (charging) {
             return <FaBolt className="h-5 w-5" />;
         }
-        if (percent > 30) {
+        if (percent > 75) {
             return <FaBatteryFull className="h-5 w-5" />;
-        } else if (percent > 10) {
+        } else if (percent > 50) {
+            return <FaBatteryThreeQuarters className="h-5 w-5" />;
+        } else if (percent > 25) {
             return <FaBatteryHalf className="h-5 w-5" />;
-        } else if (percent > 3) {
+        } else if (percent > 5) {
             return <FaBatteryQuarter className="h-5 w-5" />;
         } else {
             return <FaBatteryEmpty className="h-5 w-5" />;
         }
     };
 
+    const batteryPercent = systemInfo.batteryData.percent >= 0 ? systemInfo.batteryData.percent : 0;
+    const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
+    
     return (
         typeof window !== 'undefined' &&
         createPortal(
@@ -88,19 +93,19 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                             <div className="flex items-center gap-3">
                                 <div className="text-slate-400">
-                                    {getBatteryIcon(systemInfo.batteryData.percent ?? 0, systemInfo.batteryData.charging)}
+                                    {getBatteryIcon(batteryPercent, systemInfo.batteryData.charging)}
                                 </div>
                                 <span className="text-sm font-medium text-slate-300">Battery Life</span>
                             </div>
                             <div className="flex flex-col items-end gap-1">
                                 <div
                                         className={`text-base font-semibold ${
-                                            getBatteryTextColor(systemInfo.batteryData.percent ?? 0)
+                                            getBatteryTextColor(batteryPercent)
                                     }`}
                                 >
-                                    {systemInfo.batteryData.percent >= 0 ? `${systemInfo.batteryData.percent}%` : 'Off'}
+                                    {batteryPercentString}
                                 </div>
-                                <div className="text-xs font-medium text-slate-400">({systemInfo.batteryData.voltage}V)</div>
+                                <div className="text-xs font-medium text-slate-400">({systemInfo.batteryData.voltage} V)</div>
                             </div>
                         </div>
 
