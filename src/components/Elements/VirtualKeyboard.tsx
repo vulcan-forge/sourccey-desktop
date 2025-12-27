@@ -18,6 +18,8 @@ export const VirtualKeyboard: React.FC = () => {
     const [mirrorSelection, setMirrorSelection] = React.useState<{ start: number; end: number } | null>(null);
     const [isMirrorRevealed, setIsMirrorRevealed] = React.useState(false);
     const isPushingToTargetRef = React.useRef(false);
+    const initialValueRef = React.useRef<{ value: string; start: number; end: number } | null>(null);
+    const confirmedRef = React.useRef(false);
 
     const setNativeValue = React.useCallback((input: HTMLInputElement | HTMLTextAreaElement, next: string) => {
         const prototype = input instanceof HTMLTextAreaElement ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
@@ -61,9 +63,12 @@ export const VirtualKeyboard: React.FC = () => {
         if (!isOpen) return;
         if (!activeEditable) return;
         const v = activeEditable.value ?? '';
+        const start = activeEditable.selectionStart ?? v.length;
+        const end = activeEditable.selectionEnd ?? v.length;
         setMirrorValue(v);
-        const len = v.length;
-        setMirrorSelection({ start: len, end: len });
+        setMirrorSelection({ start, end });
+        initialValueRef.current = { value: v, start, end };
+        confirmedRef.current = false;
     }, [activeEditable, isOpen]);
 
     // Reset reveal state when switching fields / reopening.
@@ -158,6 +163,19 @@ export const VirtualKeyboard: React.FC = () => {
         refocusMirror();
     }, [pushToTarget, refocusMirror]);
 
+    const revertAndClose = React.useCallback(() => {
+        if (!confirmedRef.current && activeEditable && initialValueRef.current) {
+            const { value, start, end } = initialValueRef.current;
+            setNativeValue(activeEditable, value);
+            try {
+                activeEditable.setSelectionRange(start, end);
+            } catch (_) {
+                // ignore
+            }
+        }
+        close();
+    }, [activeEditable, close, setNativeValue]);
+
     const insertTextInMirror = React.useCallback(
         (text: string) => {
             const current = mirrorValue;
@@ -198,24 +216,13 @@ export const VirtualKeyboard: React.FC = () => {
     }, [mirrorSelection?.end, mirrorSelection?.start, mirrorValue, pushToTarget, refocusMirror]);
 
     const enterInMirror = React.useCallback(() => {
-        if (!activeEditable) return;
-        const tag = activeEditable.tagName.toLowerCase();
-        if (tag === 'textarea') {
-            insertTextInMirror('\n');
-            return;
-        }
-        // Input: treat Enter as "done"
-        try {
-            activeEditable.blur();
-        } catch (_) {
-            // ignore
-        }
+        confirmedRef.current = true;
         close();
-    }, [activeEditable, close, insertTextInMirror]);
+    }, [close]);
 
     const onKey = (label: string) => {
         if (label === '⌫') return backspaceInMirror();
-        if (label === 'Enter') return enterInMirror();
+        if (label === 'Confirm') return enterInMirror();
         if (label === 'Space') return insertTextInMirror(' ');
         if (label === '⇧') return setShift((s) => !s);
         if (label === '123') {
@@ -246,7 +253,7 @@ export const VirtualKeyboard: React.FC = () => {
                 // Row 1: full QWERTY + Backspace (right)
                 ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', '⌫'],
                 // Row 2: Shift (left) + home row + Enter (right)
-                ['⇧', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'Enter'],
+                ['⇧', 'a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', 'Confirm'],
                 // Row 3: Numbers toggle (left) + bottom row + punctuation + Space (centered by flex grow)
                 ['123', 'z', 'x', 'c', 'v', 'b', 'n', 'm', ',', '.', 'Space'],
             ];
@@ -256,7 +263,7 @@ export const VirtualKeyboard: React.FC = () => {
                 // Row 1: digits + Backspace
                 ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', '⌫'],
                 // Row 2: - (left) + common symbols + Enter (right)
-                ['-', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', 'Enter'],
+                ['-', '!', '@', '#', '$', '%', '^', '&', '*', '(', ')', 'Confirm'],
                 // Row 3: ABC (left) + more symbols + toggle to symbols2 (right) + Space
                 ['ABC', '_', '=', '+', '[', ']', '{', '}', '\\', '|', '+=#', 'Space'],
             ];
@@ -266,7 +273,7 @@ export const VirtualKeyboard: React.FC = () => {
             // Row 1: extended symbols + Backspace
             ['~', '<', '>', '€', '£', '¥', '•', '·', '±', '§', '⌫'],
             // Row 2: ¶ (left) + punctuation set + Enter (right)
-            ['¶', ';', ':', "'", '"', '/', '?', '`', '©', '®', '™', 'Enter'],
+            ['¶', ';', ':', "'", '"', '/', '?', '`', '©', '®', '™', 'Confirm'],
             // Row 3: ABC now on the left, 123 near Space
             ['ABC', '°', '¹', '²', '³', '¼', '½', '¾', '÷', '×', '123', 'Space'],
         ];
@@ -282,7 +289,7 @@ export const VirtualKeyboard: React.FC = () => {
                 type="button"
                 aria-label="Close keyboard backdrop"
                 className="absolute inset-0 cursor-default bg-black/40"
-                onClick={() => close()}
+                onClick={() => revertAndClose()}
             />
 
             {/* Keyboard modal */}
@@ -311,7 +318,7 @@ export const VirtualKeyboard: React.FC = () => {
                     onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();
-                        close();
+                        revertAndClose();
                     }}
                     className="absolute -top-4 -right-4 z-10 flex h-10 w-10 items-center justify-center rounded-full border border-slate-600/70 bg-slate-800 text-2xl text-white shadow-xl hover:bg-slate-700"
                     style={{ backdropFilter: 'none', WebkitBackdropFilter: 'none' }}
@@ -411,11 +418,11 @@ export const VirtualKeyboard: React.FC = () => {
                         const isFirstRow = idx === 0;
                         const isLastRow = idx === rows.length - 1;
                         return (
-                            <div key={idx} className="flex w-full gap-0">
+                            <div key={idx} className="flex w-full gap-1">
                                 {row.map((key, keyIdx) => {
                                     const isWideKey = key.length > 1;
                                     const isSpace = key === 'Space';
-                                    const isEnter = key === 'Enter';
+                                    const isConfirm = key === 'Confirm';
                                     const isBackspace = key === '⌫';
                                     const isShift = key === '⇧';
                                     const isFirstKey = keyIdx === 0;
@@ -431,20 +438,24 @@ export const VirtualKeyboard: React.FC = () => {
                                     let flexValue = 'flex-1'; // Default for regular keys
                                     if (isSpace) {
                                         flexValue = 'flex-[4]'; // Space bar takes more space
-                                    } else if (isEnter || isBackspace || isShift) {
+                                    } else if (isConfirm || isBackspace || isShift) {
                                         flexValue = 'flex-[1.5]'; // Modifier keys slightly wider
                                     } else if (isWideKey) {
                                         flexValue = 'flex-[1.2]'; // Other wide keys (like "123", "ABC")
                                     }
                                     
-                                    // Calculate rounded corners for outer buttons
-                                    let roundedClasses = 'rounded-none';
+                                    // Calculate rounded corners - all buttons have curved corners
+                                    let roundedClasses = 'rounded-lg'; // Default: all buttons have rounded corners
                                     if (isFirstRow) {
-                                        if (isFirstKey) roundedClasses = 'rounded-tl-lg';
-                                        else if (isLastKey) roundedClasses = 'rounded-tr-lg';
+                                        if (isFirstKey) roundedClasses = 'rounded-lg rounded-tl-xl';
+                                        else if (isLastKey) roundedClasses = 'rounded-lg rounded-tr-xl';
                                     } else if (isLastRow) {
-                                        if (isFirstKey) roundedClasses = 'rounded-bl-lg';
-                                        else if (isLastKey) roundedClasses = 'rounded-br-lg';
+                                        if (isFirstKey) roundedClasses = 'rounded-lg rounded-bl-xl';
+                                        else if (isLastKey) roundedClasses = 'rounded-lg rounded-br-xl';
+                                    }
+                                    // Make Confirm button extra curvy
+                                    if (isConfirm) {
+                                        roundedClasses = 'rounded-xl';
                                     }
                                     
                                     return (
@@ -453,10 +464,18 @@ export const VirtualKeyboard: React.FC = () => {
                                             type="button"
                                             onMouseDown={(e) => e.preventDefault()}
                                             onClick={() => onKey(key)}
-                                            className={`${flexValue} ${roundedClasses} px-2 py-4 text-base font-semibold text-white`}
+                                            className={`${flexValue} ${roundedClasses} px-2 py-4 text-base font-semibold text-white ${isConfirm ? 'shadow-lg' : ''}`}
                                             style={{
-                                                backgroundColor: 'rgb(51, 65, 85)', // slate-700 - solid fill
-                                                border: '2px solid rgba(71, 85, 105, 0.5)',
+                                                background: isConfirm
+                                                    ? 'linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)'
+                                                    : isShift && shift
+                                                      ? 'rgb(59, 130, 246)' // blue-500 when shift is active
+                                                      : 'rgb(51, 65, 85)', // slate-700 - solid fill
+                                                border: isConfirm
+                                                    ? '2px solid rgba(16, 185, 129, 0.8)'
+                                                    : isShift && shift
+                                                      ? '2px solid rgba(59, 130, 246, 0.8)'
+                                                      : '2px solid rgba(71, 85, 105, 0.5)',
                                                 backdropFilter: 'none',
                                                 WebkitBackdropFilter: 'none',
                                             }}
