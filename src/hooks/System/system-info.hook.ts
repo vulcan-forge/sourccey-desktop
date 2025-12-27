@@ -26,6 +26,7 @@ export const useGetSystemInfo = () =>
     useQuery({ 
         queryKey: SYSTEM_INFO_KEY, 
         queryFn: () => getSystemInfo() ?? DEFAULT_SYSTEM_INFO,
+        initialData: DEFAULT_SYSTEM_INFO,
         staleTime: 5000,
     });
 
