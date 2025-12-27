@@ -211,8 +211,8 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
                         isStarting || isStopping
                             ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                             : isRobotStarted
-                              ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600'
-                              : 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
+                              ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600 active:bg-red-700'
+                              : 'cursor-pointer bg-green-600 text-white hover:bg-green-700 active:bg-green-800'
                     }`}
                 >
                     {isStarting || isStopping ? (
