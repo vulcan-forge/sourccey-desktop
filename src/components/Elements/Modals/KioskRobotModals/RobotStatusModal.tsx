@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { FaTimes, FaCircle, FaBatteryHalf, FaWifi } from 'react-icons/fa';
+import { FaTimes, FaCircle, FaBatteryHalf, FaWifi, FaBatteryFull, FaBatteryQuarter, FaBolt, FaBatteryEmpty } from 'react-icons/fa';
 import type { BatteryData } from '@/app/app/settings/page';
 interface RobotStatusModalProps {
     isOpen: boolean;
@@ -12,8 +12,35 @@ interface RobotStatusModalProps {
     isRobotStarted: boolean;
 }
 
-export const    RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }: RobotStatusModalProps) => {
+export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }: RobotStatusModalProps) => {
     if (!isOpen) return null;
+
+    const getBatteryTextColor = (percent: number) => {
+        if (percent > 60) {
+            return 'text-green-400';
+        } else if (percent > 30) {
+            return 'text-slate-300';
+        } else if (percent > 10) {
+            return 'text-yellow-400';
+        } else {
+            return 'text-red-400';
+        }
+    };
+
+    const getBatteryIcon = (percent: number, charging?: boolean) => {
+        if (charging) {
+            return <FaBolt className="h-5 w-5" />;
+        }
+        if (percent > 30) {
+            return <FaBatteryFull className="h-5 w-5" />;
+        } else if (percent > 10) {
+            return <FaBatteryHalf className="h-5 w-5" />;
+        } else if (percent > 3) {
+            return <FaBatteryQuarter className="h-5 w-5" />;
+        } else {
+            return <FaBatteryEmpty className="h-5 w-5" />;
+        }
+    };
 
     return (
         typeof window !== 'undefined' &&
@@ -46,30 +73,7 @@ export const    RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarte
                             <div className={`text-sm font-semibold ${isRobotStarted ? 'text-green-400' : 'text-slate-500'}`}>
                                 {isRobotStarted ? 'Online' : 'Inactive'}
                             </div>
-                        </div>
-
-                        <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                            <div className="flex items-center gap-3">
-                                <div className="text-slate-400">
-                                    <FaBatteryHalf />
-                                </div>
-                                <span className="text-sm font-medium text-slate-300">Battery Life</span>
-                            </div>
-                            <div className="flex flex-col items-end gap-1">
-                                <div
-                                    className={`text-base font-semibold ${
-                                        systemInfo.batteryData.percent > 50
-                                            ? 'text-green-400'
-                                            : systemInfo.batteryData.percent > 20
-                                              ? 'text-slate-300'
-                                              : 'text-red-400'
-                                    }`}
-                                >
-                                    {systemInfo.batteryData.percent >= 0 ? `${systemInfo.batteryData.percent}%` : 'N/A'}
-                                </div>
-                                <div className="text-xs font-medium text-slate-400">({systemInfo.batteryData.voltage}V)</div>
-                            </div>
-                        </div>
+                        </div>                        
 
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                             <div className="flex items-center gap-3">
@@ -79,6 +83,25 @@ export const    RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarte
                                 <span className="text-sm font-medium text-slate-300">IP Address</span>
                             </div>
                             <div className="text-sm font-semibold text-slate-300">{systemInfo.ipAddress}</div>
+                        </div>
+
+                        <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="text-slate-400">
+                                    {getBatteryIcon(systemInfo.batteryData.percent ?? 0, systemInfo.batteryData.charging)}
+                                </div>
+                                <span className="text-sm font-medium text-slate-300">Battery Life</span>
+                            </div>
+                            <div className="flex flex-col items-end gap-1">
+                                <div
+                                        className={`text-base font-semibold ${
+                                            getBatteryTextColor(systemInfo.batteryData.percent ?? 0)
+                                    }`}
+                                >
+                                    {systemInfo.batteryData.percent >= 0 ? `${systemInfo.batteryData.percent}%` : 'Off'}
+                                </div>
+                                <div className="text-xs font-medium text-slate-400">({systemInfo.batteryData.voltage}V)</div>
+                            </div>
                         </div>
 
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">

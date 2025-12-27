@@ -53,8 +53,9 @@ pub fn get_system_info() -> SystemInfo {
     let ip_address = get_ip_address();
     let temperature = get_temperature();
     let battery_data = BatteryService::get_battery_data().unwrap_or_else(|_| BatteryData {
-        voltage: 0.0,
-        percent: 0,
+        voltage: -1.0,
+        percent: -1,
+        charging: false,
     });
     SystemInfo { ip_address, temperature, battery_data }
 }
