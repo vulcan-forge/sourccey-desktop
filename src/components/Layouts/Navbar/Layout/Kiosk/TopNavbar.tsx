@@ -12,7 +12,7 @@ import type { BatteryData } from '@/app/app/settings/page';
 import { exit } from '@tauri-apps/plugin-process';
 
 export const KioskTopNavbar = () => {
-    const { robotStarted, isHostReady } = useRobotStatus();
+    const { isRobotStarted } = useRobotStatus();
     const { toggle: toggleVirtualKeyboard } = useVirtualKeyboard();
 
     const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
@@ -69,11 +69,7 @@ export const KioskTopNavbar = () => {
         return () => clearInterval(interval);
     }, []);
 
-    const username = piCredentials.username ?? 'unknown';
-    console.log('username', username);
-
-    const isDevMode = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
-
+    const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -158,7 +154,7 @@ export const KioskTopNavbar = () => {
                 isOpen={isStatusModalOpen}
                 onClose={() => setIsStatusModalOpen(false)}
                 systemInfo={systemInfo}
-                isHostReady={isHostReady}
+                isRobotStarted={isRobotStarted}
             />
             <WiFiModal isOpen={isWiFiModalOpen} onClose={() => setIsWiFiModalOpen(false)} systemInfo={systemInfo} />
             <CredentialsModal

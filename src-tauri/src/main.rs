@@ -9,7 +9,6 @@ use tauri::Manager;
 
 // Import modules from the services folder
 mod services;
-use services::process::kiosk_process_service::KioskProcessService;
 
 // Import modules from the utils folder
 mod utils;
@@ -67,7 +66,7 @@ use modules::control::controllers::configuration::calibration_controller::{
     read_calibration, write_calibration, auto_calibrate, remote_auto_calibrate,
 };
 use modules::control::controllers::kiosk_control::kiosk_host_controller::{
-    get_active_kiosk_host_sessions, get_pi_username, get_ssh_password_changed_status,
+    get_pi_username, get_ssh_password_changed_status,
     get_system_info, init_kiosk_host, is_kiosk_host_active, set_pi_password,
     set_ssh_password_changed_status, start_kiosk_host, stop_kiosk_host,
 };
@@ -206,11 +205,7 @@ fn main() {
 
             // Start process monitor in kiosk mode (after app is initialized)
             if kiosk {
-                let app_handle_for_monitor = app_handle.clone();
-                tauri::async_runtime::spawn(async move {
-                    println!("Starting process monitor for external sourccey_host detection...");
-                    KioskProcessService::start_monitoring(app_handle_for_monitor);
-                });
+                // No kiosk process monitors yet
             }
 
             Ok(())
@@ -354,7 +349,6 @@ fn main() {
             start_kiosk_host,
             stop_kiosk_host,
             is_kiosk_host_active,
-            get_active_kiosk_host_sessions,
             get_system_info,
             get_pi_username,
             set_pi_password,

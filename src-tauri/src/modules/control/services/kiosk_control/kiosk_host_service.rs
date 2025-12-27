@@ -37,13 +37,8 @@ impl KioskHostService {
         state: &KioskHostProcess,
         nickname: String,
     ) -> Result<String, String> {
-        Self::debug_emit(
-            &app_handle,
-            &format!("Starting kiosk host for nickname: {}", nickname),
-        );
 
         // Check if a process with this nickname is already running
-        Self::debug_emit(&app_handle, "Checking if process already exists...");
         {
             let processes = state.0.lock().unwrap();
             if processes.contains_key(&nickname) {
@@ -55,37 +50,19 @@ impl KioskHostService {
                 ));
             }
         }
-        Self::debug_emit(&app_handle, "No existing process found. Continuing.");
-
-        Self::debug_emit(&app_handle, "Resolving LeRobot directory...");
+        
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        Self::debug_emit(
-            &app_handle,
-            &format!("LeRobot directory: {:?}", lerobot_dir),
-        );
-
-        Self::debug_emit(&app_handle, "Resolving Python path...");
         let python_path = DirectoryService::get_python_path()?;
-        Self::debug_emit(&app_handle, &format!("Python path: {:?}", python_path));
 
         // Prepare a debug-friendly string before moving/borrowing the path
         let python_path_str = python_path.to_string_lossy().to_string();
 
         // Use the real host command - use the virtual environment's python directly
-        Self::debug_emit(&app_handle, "Preparing host command...");
         let mut command_parts = vec![python_path.to_string_lossy().to_string()];
         command_parts.push("-u".to_string());
         command_parts.push("-m".to_string());
         command_parts.push("lerobot.robots.sourccey.sourccey.sourccey.sourccey_host".to_string());
-        Self::debug_emit(&app_handle, &format!("Command: {:?}", command_parts));
 
-        // Log the command for debugging
-        println!("Starting kiosk host with command: {:?}", command_parts);
-        println!("Working directory: {:?}", lerobot_dir);
-        println!("Python path: {}", python_path_str);
-
-        // Create command log entry
-        Self::debug_emit(&app_handle, "Creating command log entry...");
         let command_log_service = CommandLogService::new(db_connection.clone());
         let command_log = command_log_service
             .add_robot_command_log(
@@ -99,22 +76,15 @@ impl KioskHostService {
                 format!("Failed to create command log: {}", e)
             })?;
         let command_log_id = command_log.id;
-        Self::debug_emit(
-            &app_handle,
-            &format!("Command log created with ID: {}", command_log_id),
-        );
 
         // Create the command
-        Self::debug_emit(&app_handle, "Creating host process...");
         let mut cmd = Command::new(&command_parts[0]);
         cmd.args(&command_parts[1..])
             .current_dir(&lerobot_dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
-        Self::debug_emit(&app_handle, "Host process configured successfully");
 
         // Start the process
-        Self::debug_emit(&app_handle, "Spawning host process...");
         let mut child = cmd.spawn()
             .map_err(|e| {
                 let error_msg = format!(
@@ -126,24 +96,15 @@ impl KioskHostService {
             })?;
 
         let pid = child.id();
-        Self::debug_emit(
-            &app_handle,
-            &format!("Host process started with PID: {}", pid),
-        );
-        println!("Kiosk host process started with PID: {}", pid);
 
         // Get stdout and stderr handles
-        Self::debug_emit(&app_handle, "Attaching log streams...");
         let stdout = child.stdout.take().ok_or("Failed to get stdout")?;
         let stderr = child.stderr.take().ok_or("Failed to get stderr")?;
-        Self::debug_emit(&app_handle, "Log streams attached");
 
         // Create shutdown flag
-        Self::debug_emit(&app_handle, "Creating shutdown flag...");
         let shutdown_flag = Arc::new(AtomicBool::new(false));
 
         // Emit success event
-        Self::debug_emit(&app_handle, "Emitting start success event...");
         app_handle
             .emit(
                 "kiosk-host-start-success",
@@ -157,7 +118,6 @@ impl KioskHostService {
                 Self::debug_emit(&app_handle, &format!("Failed to emit success event: {}", e));
                 format!("Failed to emit success event: {}", e)
             })?;
-        Self::debug_emit(&app_handle, "Start success event emitted");
 
         // Store the process information
         {
@@ -169,7 +129,6 @@ impl KioskHostService {
         }
 
         // Setup log streaming
-        Self::debug_emit(&app_handle, "Starting stdout logger...");
         LogService::start_logger(
             Some(stdout),
             &app_handle,
@@ -180,9 +139,7 @@ impl KioskHostService {
             true,
             false,
         );
-        Self::debug_emit(&app_handle, "Stdout logger started");
 
-        Self::debug_emit(&app_handle, "Starting stderr logger...");
         LogService::start_logger(
             Some(stderr),
             &app_handle,
@@ -193,38 +150,32 @@ impl KioskHostService {
             true,
             true,
         );
-        Self::debug_emit(&app_handle, "Stderr logger started");
 
         // Setup process monitoring
-        Self::debug_emit(&app_handle, "Starting process monitor...");
         ProcessService::start_process_monitor_with_defaults(
             pid,
             app_handle.clone(),
             state.0.clone(),
             shutdown_flag.clone(),
             nickname.clone(),
-            "kiosk-host-process-shutdown".to_string(),
+            "kiosk-host-stop-success".to_string(),
             serde_json::json!({
                 "nickname": nickname.clone(),
                 "exit_code": None::<i32>,
-                "message": "Kiosk host process died unexpectedly"
+                "message": "Robot process died unexpectedly"
             }),
             Some(command_log_id),
             Some(db_connection),
         );
-        Self::debug_emit(&app_handle, "Process monitor started");
-        Self::debug_emit(
-            &app_handle,
-            "Kiosk host start sequence completed successfully",
-        );
 
         Ok(format!(
-            "Kiosk host started successfully for nickname: {}",
+            "Robot starting for nickname: {}",
             nickname
         ))
     }
 
     pub fn stop_kiosk_host(
+        app_handle: AppHandle,
         db_connection: DatabaseConnection,
         state: &KioskHostProcess,
         nickname: String,
@@ -232,6 +183,8 @@ impl KioskHostService {
         if let Some((mut child, shutdown_flag, command_log_id)) =
             state.0.lock().unwrap().remove(&nickname)
         {
+            println!("Stopping kiosk host process for nickname: {}", nickname);
+
             // Get PID before doing anything else
             let pid = child.id();
 
@@ -255,13 +208,6 @@ impl KioskHostService {
                     .output();
             }
 
-            #[cfg(windows)]
-            {
-                let _ = Command::new("taskkill")
-                    .args(&["/T", "/PID", &pid.to_string()])
-                    .output();
-            }
-
             // Wait for a short time for graceful shutdown
             std::thread::sleep(std::time::Duration::from_secs(2));
 
@@ -271,32 +217,96 @@ impl KioskHostService {
                 let _ = child.kill();
             }
 
-            #[cfg(windows)]
-            {
-                let _ = Command::new("taskkill")
-                    .args(&["/F", "/T", "/PID", &pid.to_string()])
-                    .output();
-            }
+            // Emit stop success event
+            let _ = app_handle.emit(
+                "kiosk-host-stop-success",
+                serde_json::json!({
+                    "nickname": nickname,
+                    "pid": pid,
+                    "exit_code": None::<i32>,
+                    "message": "Robot stopped successfully"
+                }),
+            );
 
             Ok(format!(
-                "Kiosk host stopped successfully for nickname: {}",
+                "Robot stopping for nickname: {}",
                 nickname
             ))
         } else {
-            Err(format!(
-                "No kiosk host process found for nickname: {}",
+            println!("Checking for external sourccey_host process for nickname: {}", nickname);
+            // Fallback: not tracked in state, but may be running externally on Linux.
+            // Find all matching PIDs (command line contains "sourccey_host")
+            let output = Command::new("pgrep")
+                .args(&["-f", "sourccey_host"])
+                .output()
+                .map_err(|e| format!("Failed to run pgrep: {}", e))?;
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let pids: Vec<u32> = stdout
+                .lines()
+                .filter_map(|line| line.trim().parse::<u32>().ok())
+                .collect();
+
+            if pids.is_empty() {
+                // Emit stop error event (nothing to stop)
+                let _ = app_handle.emit(
+                    "kiosk-host-stop-error",
+                    serde_json::json!({
+                        "nickname": nickname,
+                        "error": format!("No kiosk host process found for nickname: {} (and no external sourccey_host found)", nickname),
+                    }),
+                );
+
+                return Err(format!("No kiosk host process found for nickname: {}", nickname));
+            }
+
+            // Try graceful stop first, then force
+            for pid in &pids {
+                let _ = Command::new("kill")
+                    .args(&["-TERM", &pid.to_string()])
+                    .output();
+            }
+
+            std::thread::sleep(std::time::Duration::from_secs(1));
+
+            // Force kill any that remain
+            for pid in &pids {
+                let _ = Command::new("kill")
+                    .args(&["-KILL", &pid.to_string()])
+                    .output();
+            }
+
+            // Emit stop success (we attempted to stop external processes)
+            let _ = app_handle.emit(
+                "kiosk-host-stop-success",
+                serde_json::json!({
+                    "nickname": nickname,
+                    "pid": pids.first().copied(), // one pid for convenience
+                    "exit_code": None::<i32>,
+                    "message": format!("Stopped external sourccey_host process(es): {:?}", pids),
+                }),
+            );
+
+            Ok(format!(
+                "Stopped external sourccey_host process(es) for nickname: {}",
                 nickname
             ))
         }
     }
 
     pub fn is_kiosk_host_active(state: &KioskHostProcess, nickname: String) -> bool {
-        let processes = state.0.lock().unwrap();
-        processes.contains_key(&nickname)
-    }
-
-    pub fn get_active_kiosk_host_sessions(state: &KioskHostProcess) -> Vec<String> {
-        let processes = state.0.lock().unwrap();
-        processes.keys().cloned().collect()
+        // 1) Managed by this app
+        if state.0.lock().unwrap().contains_key(&nickname) {
+            return true;
+        }
+    
+        // 2) Externally started (Linux): check for the module name in cmdline
+        // Use a specific match to avoid false positives.
+        // Example: the module you spawn contains "sourccey_host"
+        let status = Command::new("pgrep")
+            .args(&["-f", "sourccey_host"])
+            .status();
+    
+        status.map(|s| s.success()).unwrap_or(false)
     }
 }

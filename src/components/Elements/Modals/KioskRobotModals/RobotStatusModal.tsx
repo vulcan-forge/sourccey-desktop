@@ -9,10 +9,10 @@ interface RobotStatusModalProps {
         temperature: string;
         batteryData: BatteryData;
     };
-    isHostReady: boolean;
+    isRobotStarted: boolean;
 }
 
-export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isHostReady }: RobotStatusModalProps) => {
+export const    RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }: RobotStatusModalProps) => {
     if (!isOpen) return null;
 
     return (
@@ -38,13 +38,13 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isHostReady }: R
                     <div className="space-y-3">
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                             <div className="flex items-center gap-3">
-                                <div className={`${isHostReady ? 'text-green-400' : 'text-slate-500'}`}>
+                                <div className={`${isRobotStarted ? 'text-green-400' : 'text-slate-500'}`}>
                                     <FaCircle />
                                 </div>
                                 <span className="text-sm font-medium text-slate-300">Robot Status</span>
                             </div>
-                            <div className={`text-sm font-semibold ${isHostReady ? 'text-green-400' : 'text-slate-500'}`}>
-                                {isHostReady ? 'Online' : 'Inactive'}
+                            <div className={`text-sm font-semibold ${isRobotStarted ? 'text-green-400' : 'text-slate-500'}`}>
+                                {isRobotStarted ? 'Online' : 'Inactive'}
                             </div>
                         </div>
 
