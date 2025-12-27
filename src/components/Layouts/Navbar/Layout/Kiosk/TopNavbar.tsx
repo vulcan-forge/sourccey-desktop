@@ -8,33 +8,20 @@ import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiMod
 import { useRobotStatus } from '@/context/robot-status-context';
 import { CredentialsModal } from '@/components/Elements/Modals/KioskRobotModals/CredentialsModal';
 import { RobotStatusModal } from '@/components/Elements/Modals/KioskRobotModals/RobotStatusModal';
-import type { BatteryData } from '@/app/app/settings/page';
+import { type BatteryData } from '@/hooks/System/system-info.hook';
 import { exit } from '@tauri-apps/plugin-process';
+import { setSystemInfo, useGetSystemInfo } from '@/hooks/System/system-info.hook';
 
 export const KioskTopNavbar = () => {
     const { isRobotStarted } = useRobotStatus();
-    const { toggle: toggleVirtualKeyboard } = useVirtualKeyboard();
-
-    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     const [isWiFiModalOpen, setIsWiFiModalOpen] = useState(false);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
     const [isFetchingCreds, setIsFetchingCreds] = useState(false);
     const [piCredentials, setPiCredentials] = useState({ username: '...', password: '...' });
-    const [systemInfo, setSystemInfo] = useState({
-        ipAddress: '...',
-        temperature: '...',
-        batteryData: {
-            voltage: -1,
-            percent: -1,
-            charging: false,
-        },
-    });
 
-    const handleToggleKeyboard = async () => {
-        toggleVirtualKeyboard();
-    };
-
+    const { data: systemInfo }: any = useGetSystemInfo();
+    
     // Fetch Raspberry Pi credentials when opening the modal
     const handleOpenCreds = async () => {
         setIsCredsModalOpen(true);
@@ -55,11 +42,12 @@ export const KioskTopNavbar = () => {
         const fetchSystemInfo = async () => {
             try {
                 const info = await invoke<{ ip_address: string; temperature: string; battery_data: BatteryData }>('get_system_info');
-                setSystemInfo({
+                const systemInfo = {
                     ipAddress: info.ip_address,
                     temperature: info.temperature,
                     batteryData: info.battery_data,
-                });
+                };
+                setSystemInfo(systemInfo);
             } catch (error) {
                 console.error('Failed to get system info:', error);
             }
@@ -100,6 +88,9 @@ export const KioskTopNavbar = () => {
         }
     };
 
+    const batteryPercent = systemInfo.batteryData.percent >= 0 ? systemInfo.batteryData.percent : 0;
+    const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
+    
     const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
@@ -151,13 +142,13 @@ export const KioskTopNavbar = () => {
                             className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300 ${
                                 isStatusModalOpen
                                     ? 'bg-gradient-to-r from-orange-500 to-yellow-500 text-white hover:from-orange-600 hover:to-yellow-600'
-                                    : getBatteryStyles(systemInfo.batteryData.percent ?? 0)
+                                    : getBatteryStyles(batteryPercent)
                             }`}
                             title={isStatusModalOpen ? 'Close Robot Status' : 'View Robot Status'}
                         >
-                            {getBatteryIcon(systemInfo.batteryData.percent ?? 0, systemInfo.batteryData.charging)}
+                            {getBatteryIcon(batteryPercent, systemInfo.batteryData.charging)}
                             <span className="font-semibold">
-                                {systemInfo.batteryData.percent >= 0 ? `${systemInfo.batteryData.percent}%` : 'Off'}
+                                {batteryPercentString}
                             </span>
                         </button>
 
