@@ -11,6 +11,8 @@ use crate::services::environment::env_service::EnvService;
 pub struct BatteryData {
     pub voltage: f64,
     pub percent: i32,
+    #[serde(default)]
+    pub charging: bool,
 }
 
 pub struct BatteryService;

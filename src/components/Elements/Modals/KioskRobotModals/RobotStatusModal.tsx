@@ -1,5 +1,5 @@
 import { createPortal } from 'react-dom';
-import { FaTimes, FaCircle, FaBatteryHalf, FaWifi, FaBatteryFull, FaBatteryQuarter, FaBolt } from 'react-icons/fa';
+import { FaTimes, FaCircle, FaBatteryHalf, FaWifi, FaBatteryFull, FaBatteryQuarter, FaBolt, FaBatteryEmpty } from 'react-icons/fa';
 import type { BatteryData } from '@/app/app/settings/page';
 interface RobotStatusModalProps {
     isOpen: boolean;
@@ -35,8 +35,10 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
             return <FaBatteryFull className="h-5 w-5" />;
         } else if (percent > 10) {
             return <FaBatteryHalf className="h-5 w-5" />;
-        } else {
+        } else if (percent > 3) {
             return <FaBatteryQuarter className="h-5 w-5" />;
+        } else {
+            return <FaBatteryEmpty className="h-5 w-5" />;
         }
     };
 

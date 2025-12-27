@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { FaWifi, FaInfoCircle, FaBatteryFull, FaBatteryHalf, FaBatteryQuarter, FaBolt, FaWindowClose } from 'react-icons/fa';
+import { FaWifi, FaInfoCircle, FaBatteryFull, FaBatteryHalf, FaBatteryQuarter, FaBolt, FaWindowClose, FaBatteryEmpty } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { useVirtualKeyboard } from '@/context/virtual-keyboard-context';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
@@ -90,8 +90,10 @@ export const KioskTopNavbar = () => {
             return <FaBatteryFull className="h-5 w-5" />;
         } else if (percent > 10) {
             return <FaBatteryHalf className="h-5 w-5" />;
-        } else {
+        } else if (percent > 3) {
             return <FaBatteryQuarter className="h-5 w-5" />;
+        } else {
+            return <FaBatteryEmpty className="h-5 w-5" />;
         }
     };
 
