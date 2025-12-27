@@ -169,7 +169,11 @@ export const KioskTopNavbar = () => {
                         >
                             <FaWifi className="h-5 w-5" />
                             <span className="hidden sm:inline">WiFi</span>
-                            <span className="text-xs text-slate-400">{systemInfo.ipAddress}</span>
+                            <span className="text-xs text-slate-400">
+                                {systemInfo.ipAddress && systemInfo.ipAddress.trim() !== '' && systemInfo.ipAddress.toLowerCase() !== 'unknown' && systemInfo.ipAddress !== '...'
+                                    ? systemInfo.ipAddress
+                                    : 'Disconnected'}
+                            </span>
                         </button>
                     </div>
                 </div>

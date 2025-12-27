@@ -116,7 +116,11 @@ export const HomeWelcome = () => {
                                 <FaNetworkWired className="h-4 w-4 text-blue-400" />
                                 IP Address
                             </div>
-                            <div className="mt-2 font-mono text-lg font-bold text-white">{systemInfo.ipAddress}</div>
+                            <div className="mt-2 font-mono text-lg font-bold text-white">
+                                {systemInfo.ipAddress && systemInfo.ipAddress.trim() !== '' && systemInfo.ipAddress.toLowerCase() !== 'unknown' && systemInfo.ipAddress !== '...'
+                                    ? systemInfo.ipAddress
+                                    : 'Disconnected'}
+                            </div>
                         </div>
                     </div>
                 </div>

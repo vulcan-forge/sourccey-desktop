@@ -120,7 +120,7 @@ fn get_ip_address() -> String {
         }
     }
 
-    "Unknown".to_string()
+    "Disconnected".to_string()
 }
 
 fn is_private_ip(ip: &str) -> bool {
