@@ -25,6 +25,7 @@ impl KioskHostService {
 
     // Helper to emit messages to both console and frontend
     fn debug_emit(app_handle: &AppHandle, message: &str) {
+        println!("{}", message);
         if let Err(e) = app_handle.emit("kiosk-host-log", message) {
             println!("Failed to emit kiosk message: {}", e);
         }
@@ -182,6 +183,8 @@ impl KioskHostService {
         if let Some((mut child, shutdown_flag, command_log_id)) =
             state.0.lock().unwrap().remove(&nickname)
         {
+            println!("Stopping kiosk host process for nickname: {}", nickname);
+
             // Get PID before doing anything else
             let pid = child.id();
 
@@ -205,13 +208,6 @@ impl KioskHostService {
                     .output();
             }
 
-            #[cfg(windows)]
-            {
-                let _ = Command::new("taskkill")
-                    .args(&["/T", "/PID", &pid.to_string()])
-                    .output();
-            }
-
             // Wait for a short time for graceful shutdown
             std::thread::sleep(std::time::Duration::from_secs(2));
 
@@ -219,13 +215,6 @@ impl KioskHostService {
             if let Err(_) = child.try_wait() {
                 println!("Force killing kiosk host process PID: {}", pid);
                 let _ = child.kill();
-            }
-
-            #[cfg(windows)]
-            {
-                let _ = Command::new("taskkill")
-                    .args(&["/F", "/T", "/PID", &pid.to_string()])
-                    .output();
             }
 
             // Emit stop success event
@@ -244,17 +233,62 @@ impl KioskHostService {
                 nickname
             ))
         } else {
-            // Emit stop error event
+            println!("Checking for external sourccey_host process for nickname: {}", nickname);
+            // Fallback: not tracked in state, but may be running externally on Linux.
+            // Find all matching PIDs (command line contains "sourccey_host")
+            let output = Command::new("pgrep")
+                .args(&["-f", "sourccey_host"])
+                .output()
+                .map_err(|e| format!("Failed to run pgrep: {}", e))?;
+
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let pids: Vec<u32> = stdout
+                .lines()
+                .filter_map(|line| line.trim().parse::<u32>().ok())
+                .collect();
+
+            if pids.is_empty() {
+                // Emit stop error event (nothing to stop)
+                let _ = app_handle.emit(
+                    "kiosk-host-stop-error",
+                    serde_json::json!({
+                        "nickname": nickname,
+                        "error": format!("No kiosk host process found for nickname: {} (and no external sourccey_host found)", nickname),
+                    }),
+                );
+
+                return Err(format!("No kiosk host process found for nickname: {}", nickname));
+            }
+
+            // Try graceful stop first, then force
+            for pid in &pids {
+                let _ = Command::new("kill")
+                    .args(&["-TERM", &pid.to_string()])
+                    .output();
+            }
+
+            std::thread::sleep(std::time::Duration::from_secs(1));
+
+            // Force kill any that remain
+            for pid in &pids {
+                let _ = Command::new("kill")
+                    .args(&["-KILL", &pid.to_string()])
+                    .output();
+            }
+
+            // Emit stop success (we attempted to stop external processes)
             let _ = app_handle.emit(
-                "kiosk-host-stop-error",
+                "kiosk-host-stop-success",
                 serde_json::json!({
                     "nickname": nickname,
-                    "error": format!("No kiosk host process found for nickname: {}", nickname),
+                    "pid": pids.first().copied(), // one pid for convenience
+                    "exit_code": None::<i32>,
+                    "message": format!("Stopped external sourccey_host process(es): {:?}", pids),
                 }),
             );
 
-            Err(format!(
-                "No kiosk host process found for nickname: {}",
+            Ok(format!(
+                "Stopped external sourccey_host process(es) for nickname: {}",
                 nickname
             ))
         }
