@@ -25,7 +25,6 @@ impl KioskHostService {
 
     // Helper to emit messages to both console and frontend
     fn debug_emit(app_handle: &AppHandle, message: &str) {
-        println!("{}", message);
         if let Err(e) = app_handle.emit("kiosk-host-log", message) {
             println!("Failed to emit kiosk message: {}", e);
         }
