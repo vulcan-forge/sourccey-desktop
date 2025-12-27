@@ -1,15 +1,11 @@
-import type { BatteryData } from '@/app/app/settings/page';
+import type { SystemInfo } from '@/hooks/System/system-info.hook';
 import { createPortal } from 'react-dom';
 import { FaTimes } from 'react-icons/fa';
 
 interface CredentialsModalProps {
     isOpen: boolean;
     onClose: () => void;
-    systemInfo: {
-        ipAddress: string;
-        temperature: string;
-        batteryData: BatteryData;
-    };
+    systemInfo: SystemInfo;
     piCredentials: {
         username: string;
         password: string;

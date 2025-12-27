@@ -3,7 +3,6 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { FaWifi, FaInfoCircle, FaBatteryFull, FaBatteryHalf, FaBatteryQuarter, FaBolt, FaWindowClose, FaBatteryEmpty, FaBatteryThreeQuarters } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
-import { useVirtualKeyboard } from '@/context/virtual-keyboard-context';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
 import { useRobotStatus } from '@/context/robot-status-context';
 import { CredentialsModal } from '@/components/Elements/Modals/KioskRobotModals/CredentialsModal';
