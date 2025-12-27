@@ -9,7 +9,6 @@ use tauri::Manager;
 
 // Import modules from the services folder
 mod services;
-use services::process::kiosk_process_service::KioskProcessService;
 
 // Import modules from the utils folder
 mod utils;
@@ -206,11 +205,7 @@ fn main() {
 
             // Start process monitor in kiosk mode (after app is initialized)
             if kiosk {
-                let app_handle_for_monitor = app_handle.clone();
-                tauri::async_runtime::spawn(async move {
-                    println!("Starting process monitor for external sourccey_host detection...");
-                    KioskProcessService::start_monitoring(app_handle_for_monitor);
-                });
+                // No kiosk process monitors yet
             }
 
             Ok(())
