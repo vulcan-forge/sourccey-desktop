@@ -103,11 +103,15 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
                   setIsStarting(true);
           
                   // debounce to allow host to become usable
+                  // This is to give some time for the robot
+                  // to start and say "Waiting for commands..."
+                  // This should be replaced in the future with exact tracking
+                  // on the internals of the process
                   setTimeout(() => {
                     if (cancelled) return;
                     setIsRobotStarted(true);
                     setIsStarting(false);
-                  }, 1000);
+                  }, 3000);
           
                   return;
                 }
@@ -138,7 +142,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
             cancelled = true;
             interval && clearInterval(interval);
         };
-        
+
     }, [nickname]);
 
     // Auto-scroll host logs terminal
