@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { FaWifi, FaInfoCircle, FaBatteryHalf, FaWindowClose } from 'react-icons/fa';
+import { FaWifi, FaInfoCircle, FaBatteryFull, FaBatteryHalf, FaBatteryQuarter, FaBolt, FaWindowClose } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { useVirtualKeyboard } from '@/context/virtual-keyboard-context';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
@@ -27,6 +27,7 @@ export const KioskTopNavbar = () => {
         batteryData: {
             voltage: -1,
             percent: -1,
+            charging: false,
         },
     });
 
@@ -65,9 +66,34 @@ export const KioskTopNavbar = () => {
         };
 
         fetchSystemInfo();
-        const interval = setInterval(fetchSystemInfo, 60000); // Update every 60 seconds
+        const interval = setInterval(fetchSystemInfo, 10000); // Update every 10 seconds
         return () => clearInterval(interval);
     }, []);
+
+    const getBatteryStyles = (percent: number) => {
+        if (percent > 60) {
+            return 'bg-slate-600/60 text-green-400 hover:bg-slate-600/80 hover:text-green-300';
+        } else if (percent > 30) {
+            return 'bg-slate-600/60 text-slate-300 hover:bg-slate-600/80 hover:text-white';
+        } else if (percent > 10) {
+            return 'bg-slate-600/60 text-yellow-400 hover:bg-slate-600/80 hover:text-yellow-300';
+        } else {
+            return 'bg-slate-600/60 text-red-400 hover:bg-slate-600/80 hover:text-red-300';
+        }
+    };
+
+    const getBatteryIcon = (percent: number, charging?: boolean) => {
+        if (charging) {
+            return <FaBolt className="h-5 w-5" />;
+        }
+        if (percent > 30) {
+            return <FaBatteryFull className="h-5 w-5" />;
+        } else if (percent > 10) {
+            return <FaBatteryHalf className="h-5 w-5" />;
+        } else {
+            return <FaBatteryQuarter className="h-5 w-5" />;
+        }
+    };
 
     const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
     return (
@@ -120,17 +146,11 @@ export const KioskTopNavbar = () => {
                             className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300 ${
                                 isStatusModalOpen
                                     ? 'bg-gradient-to-r from-orange-500 to-yellow-500 text-white hover:from-orange-600 hover:to-yellow-600'
-                                    : systemInfo.batteryData.percent >= 0
-                                      ? systemInfo.batteryData.percent > 50
-                                          ? 'bg-slate-600/60 text-green-400 hover:bg-slate-600/80 hover:text-green-300'
-                                          : systemInfo.batteryData.percent > 20
-                                            ? 'bg-slate-600/60 text-slate-300 hover:bg-slate-600/80 hover:text-white'
-                                            : 'bg-slate-600/60 text-red-400 hover:bg-slate-600/80 hover:text-red-300'
-                                      : 'bg-slate-600/60 text-slate-300 hover:bg-slate-600/80 hover:text-white'
+                                    : getBatteryStyles(systemInfo.batteryData.percent ?? 0)
                             }`}
                             title={isStatusModalOpen ? 'Close Robot Status' : 'View Robot Status'}
                         >
-                            <FaBatteryHalf className="h-5 w-5" />
+                            {getBatteryIcon(systemInfo.batteryData.percent ?? 0, systemInfo.batteryData.charging)}
                             <span className="font-semibold">
                                 {systemInfo.batteryData.percent >= 0 ? `${systemInfo.batteryData.percent}%` : 'Off'}
                             </span>

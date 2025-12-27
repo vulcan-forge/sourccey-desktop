@@ -27,6 +27,7 @@ interface SystemInfo {
 export interface BatteryData {
     voltage: number;
     percent: number;
+    charging: boolean;
 }
 
 interface PiCredentials {
@@ -40,6 +41,7 @@ export default function KioskSettingsPage() {
         batteryData: {
             voltage: -1,
             percent: -1,
+            charging: false,
         },
     });
 
