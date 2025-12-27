@@ -14,9 +14,6 @@ import { setSystemInfo, useGetSystemInfo } from '@/hooks/System/system-info.hook
 
 export const KioskTopNavbar = () => {
     const { isRobotStarted } = useRobotStatus();
-    const { toggle: toggleVirtualKeyboard } = useVirtualKeyboard();
-
-    const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
     const [isWiFiModalOpen, setIsWiFiModalOpen] = useState(false);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
