@@ -96,7 +96,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
                 const active = await invoke<boolean>('is_kiosk_host_active', { nickname });
           
                 // Transition: false -> true (detected host running)
-                if (active && !lastActiveRef.current) {
+                if (!isRobotStarted && active && !lastActiveRef.current) {
                   lastActiveRef.current = true;
           
                   setIsStopping(false);
@@ -117,7 +117,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname }) => {
                 }
           
                 // Transition: true -> false (host no longer running)
-                if (!active && lastActiveRef.current) {
+                if (isRobotStarted && !active && lastActiveRef.current) {
                   lastActiveRef.current = false;
           
                   setIsStarting(false);
