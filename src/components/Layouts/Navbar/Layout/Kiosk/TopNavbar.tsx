@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { FaWifi, FaInfoCircle, FaBatteryFull, FaBatteryHalf, FaBatteryQuarter, FaBolt, FaWindowClose, FaBatteryEmpty } from 'react-icons/fa';
+import { FaWifi, FaInfoCircle, FaBatteryFull, FaBatteryHalf, FaBatteryQuarter, FaBolt, FaWindowClose, FaBatteryEmpty, FaBatteryThreeQuarters } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { useVirtualKeyboard } from '@/context/virtual-keyboard-context';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
@@ -71,9 +71,9 @@ export const KioskTopNavbar = () => {
     }, []);
 
     const getBatteryStyles = (percent: number) => {
-        if (percent > 60) {
+        if (percent > 75) {
             return 'bg-slate-600/60 text-green-400 hover:bg-slate-600/80 hover:text-green-300';
-        } else if (percent > 30) {
+        } else if (percent > 25) {
             return 'bg-slate-600/60 text-slate-300 hover:bg-slate-600/80 hover:text-white';
         } else if (percent > 10) {
             return 'bg-slate-600/60 text-yellow-400 hover:bg-slate-600/80 hover:text-yellow-300';
@@ -86,11 +86,14 @@ export const KioskTopNavbar = () => {
         if (charging) {
             return <FaBolt className="h-5 w-5" />;
         }
-        if (percent > 30) {
+
+        if (percent > 75) {
             return <FaBatteryFull className="h-5 w-5" />;
-        } else if (percent > 10) {
+        } else if (percent > 50) {
+            return <FaBatteryThreeQuarters className="h-5 w-5" />;
+        } else if (percent > 25) {
             return <FaBatteryHalf className="h-5 w-5" />;
-        } else if (percent > 3) {
+        } else if (percent > 5) {
             return <FaBatteryQuarter className="h-5 w-5" />;
         } else {
             return <FaBatteryEmpty className="h-5 w-5" />;
