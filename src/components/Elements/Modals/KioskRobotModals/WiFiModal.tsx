@@ -205,10 +205,25 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto p-4">
+                <div className="flex-1 p-4 flex flex-col gap-4">
+                    {/* Status Messages */}
+                    {error && (
+                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-red-400">
+                            <FaExclamationTriangle className="h-5 w-5" />
+                            <span>{error}</span>
+                        </div>
+                    )}
+
+                    {success && (
+                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-4 text-green-400">
+                            <FaCheck className="h-5 w-5" />
+                            <span>{success}</span>
+                        </div>
+                    )}
+
                     {/* Current Connection Status */}
                     {currentConnection && (
-                        <div className="mb-6 rounded-lg border border-green-500/20 bg-green-500/10 p-4">
+                        <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-3 w-3 items-center justify-center">
@@ -245,21 +260,6 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                         </div>
                     )}
 
-                    {/* Status Messages */}
-                    {error && (
-                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-red-400">
-                            <FaExclamationTriangle className="h-5 w-5" />
-                            <span>{error}</span>
-                        </div>
-                    )}
-
-                    {success && (
-                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-4 text-green-400">
-                            <FaCheck className="h-5 w-5" />
-                            <span>{success}</span>
-                        </div>
-                    )}
-
                     {/* Scan Button */}
                     <div className="mb-4 flex items-center justify-between">
                         <p className="text-sm text-slate-400">
@@ -284,11 +284,77 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                         </button>
                     </div>
 
-                    {/* Network List */}
-                    <div className="mb-6 max-h-64 overflow-y-auto rounded-lg border border-slate-700">
+                    {/* Connection Form (compact, stays at top) - hidden when already connected to any network */}
+                    {selectedNetwork && !currentConnection && (
+                        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
+                            <h3 className="mb-3 text-base font-semibold text-white">
+                                {`Connect to "${selectedNetwork.ssid}"`}
+                            </h3>
+
+                            {isSecure(selectedNetwork.security) ? (
+                                <div className="mb-3">
+                                    <label htmlFor="wifi-password" className="mb-2 block text-sm font-medium text-slate-300">
+                                        Password
+                                    </label>
+                                    <input
+                                        id="wifi-password"
+                                        type="password"
+                                        value={password}
+                                        onChange={(e) => setPassword(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter' && password) {
+                                                handleConnect();
+                                            }
+                                        }}
+                                        placeholder="Enter WiFi password"
+                                        className="w-full rounded-lg border border-slate-600 bg-slate-800 p-3 text-white placeholder-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none"
+                                        disabled={isConnecting}
+                                    />
+                                </div>
+                            ) : (
+                                <p className="mb-3 text-sm text-green-400">This is an open network (no password required)</p>
+                            )}
+
+                            <div className="flex gap-3">
+                                <button
+                                    onClick={handleConnect}
+                                    disabled={
+                                        isConnecting ||
+                                        (isSecure(selectedNetwork.security) && !password)
+                                    }
+                                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {isConnecting ? (
+                                        <>
+                                            <FaSpinner className="h-4 w-4 animate-spin" />
+                                            Connecting...
+                                        </>
+                                    ) : (
+                                        <>
+                                            <FaWifi className="h-4 w-4" />
+                                            Connect
+                                        </>
+                                    )}
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setSelectedNetwork(null);
+                                        setPassword('');
+                                        setError(null);
+                                    }}
+                                    className="rounded-lg bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
+                                >
+                                    Clear
+                                </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Network List (scrollable only) */}
+                    <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-slate-700">
                         {networks.length === 0 && !isScanning ? (
                             <div className="p-8 text-center text-slate-400">
-                                No networks found. Click &ldquo;Scan&rdquo; to search for WiFi networks.
+                                No networks found. Click “Scan” to search for WiFi networks.
                             </div>
                         ) : (
                             networks.map((network) => {
@@ -343,79 +409,6 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                             })
                         )}
                     </div>
-
-                    {/* Connection Form */}
-                    {selectedNetwork && (
-                        <div className="rounded-lg border border-slate-700 bg-slate-900 p-6">
-                            <h3 className="mb-4 text-lg font-semibold text-white">
-                                {currentConnection?.ssid === selectedNetwork.ssid
-                                    ? `Already connected to "${selectedNetwork.ssid}"`
-                                    : `Connect to "${selectedNetwork.ssid}"`}
-                            </h3>
-
-                            {isSecure(selectedNetwork.security) ? (
-                                <div className="mb-4">
-                                    <label htmlFor="wifi-password" className="mb-2 block text-sm font-medium text-slate-300">
-                                        Password
-                                    </label>
-                                    <input
-                                        id="wifi-password"
-                                        type="password"
-                                        value={password}
-                                        onChange={(e) => setPassword(e.target.value)}
-                                        onKeyDown={(e) => {
-                                            if (e.key === 'Enter' && password) {
-                                                handleConnect();
-                                            }
-                                        }}
-                                        placeholder="Enter WiFi password"
-                                        className="w-full rounded-lg border border-slate-600 bg-slate-800 p-3 text-white placeholder-slate-500 focus:border-blue-400 focus:ring-2 focus:ring-blue-400/20 focus:outline-none"
-                                    />
-                                </div>
-                            ) : (
-                                <p className="mb-4 text-sm text-green-400">This is an open network (no password required)</p>
-                            )}
-
-                            <div className="flex gap-3">
-                                <button
-                                    onClick={handleConnect}
-                                    disabled={
-                                        isConnecting ||
-                                        (isSecure(selectedNetwork.security) && !password) ||
-                                        currentConnection?.ssid === selectedNetwork.ssid
-                                    }
-                                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {isConnecting ? (
-                                        <>
-                                            <FaSpinner className="h-4 w-4 animate-spin" />
-                                            Connecting...
-                                        </>
-                                    ) : currentConnection?.ssid === selectedNetwork.ssid ? (
-                                        <>
-                                            <FaCheck className="h-4 w-4" />
-                                            Already Connected
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FaWifi className="h-4 w-4" />
-                                            Connect
-                                        </>
-                                    )}
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setSelectedNetwork(null);
-                                        setPassword('');
-                                        setError(null);
-                                    }}
-                                    className="rounded-lg bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
-                                >
-                                    Cancel
-                                </button>
-                            </div>
-                        </div>
-                    )}
                 </div>
             </div>
         </div>,
