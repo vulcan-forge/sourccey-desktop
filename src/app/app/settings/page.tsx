@@ -17,33 +17,15 @@ import { useGetAccessPointPassword } from '@/hooks/WIFI/access-point.hook';
 import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getSavedWiFiSSIDs } from '@/hooks/WIFI/wifi.hook';
 import clsx from 'clsx';
+import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
 
-interface SystemInfo {
-    ipAddress: string;
-    temperature: string;
-    batteryData: BatteryData;
-}
-
-export interface BatteryData {
-    voltage: number;
-    percent: number;
-    charging: boolean;
-}
 
 interface PiCredentials {
     username: string;
 }
 
 export default function KioskSettingsPage() {
-    const [systemInfo, setSystemInfo] = useState<SystemInfo>({
-        ipAddress: '...',
-        temperature: '...',
-        batteryData: {
-            voltage: -1,
-            percent: -1,
-            charging: false,
-        },
-    });
+    const { data: systemInfo }: any = useGetSystemInfo();
 
     const [piCredentials, setPiCredentials] = useState<PiCredentials>({
         username: '...',
@@ -102,11 +84,12 @@ export default function KioskSettingsPage() {
         const fetchSystemInfo = async () => {
             try {
                 const info = await invoke<{ ip_address: string; temperature: string; battery_data: BatteryData }>('get_system_info');
-                setSystemInfo({
+                const systemInfo = {
                     ipAddress: info.ip_address,
                     temperature: info.temperature,
                     batteryData: info.battery_data,
-                });
+                };
+                setSystemInfo(systemInfo);
             } catch (error) {
                 console.error('Failed to get system info:', error);
             }
