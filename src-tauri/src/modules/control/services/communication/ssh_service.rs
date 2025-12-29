@@ -118,6 +118,7 @@ impl BackgroundCommandConfig {
 // Simple connection status tracking
 pub struct SshSessions(Arc<Mutex<HashMap<String, bool>>>);
 pub struct RobotProcesses(Arc<Mutex<HashMap<String, RobotProcess>>>);
+pub struct VoiceProcesses(Arc<Mutex<HashMap<String, RobotProcess>>>);
 
 pub struct SshService;
 
@@ -129,6 +130,11 @@ impl SshService {
     // Initialize robot processes state
     pub fn init_robot_processes() -> RobotProcesses {
         RobotProcesses(Arc::new(Mutex::new(HashMap::new())))
+    }
+
+    // Initialize voice listener processes state
+    pub fn init_voice_processes() -> VoiceProcesses {
+        VoiceProcesses(Arc::new(Mutex::new(HashMap::new())))
     }
 
     // Create SSH Session Functions
@@ -659,6 +665,256 @@ impl SshService {
 
         // Return immediately - the result will come via the event
         Ok(true)
+    }
+
+    //-----------------------------------------------------------------------------
+    // Voice Listener Control Functions
+    //-----------------------------------------------------------------------------
+    pub async fn start_voice_listener(
+        app_handle: AppHandle,
+        state_sessions: &SshSessions,
+        state_processes: &VoiceProcesses,
+        remote_config: &RemoteConfig,
+        nickname: &str,
+    ) -> Result<bool, String> {
+        // Check if robot is connected
+        if !SshService::is_robot_connected(state_sessions, nickname) {
+            return Err("Robot is not connected".to_string());
+        }
+
+        // Stop any existing voice listener process (by name) before starting
+        let stop_check_command = "pgrep -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener' > /dev/null 2>&1 && echo 'running' || echo 'stopped'";
+
+        let mut check_session = SshService::create_ssh_session_async(
+            &remote_config.remote_ip,
+            &remote_config.remote_port,
+            &remote_config.username,
+            &remote_config.password,
+        )
+        .await?;
+
+        match SshService::execute_command_read_output_async(&mut check_session, stop_check_command, 10).await {
+            Ok(Some(output)) if output.trim().eq_ignore_ascii_case("running") => {
+                println!("Voice listener is already running, stopping it first...");
+                let kill_command = "pkill -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener' || true";
+                let _ = SshService::execute_command_async(&mut check_session, kill_command).await;
+
+                // Also clean up any tracked process in state_processes for this nickname
+                {
+                    let mut processes = state_processes.0.lock().unwrap();
+                    if let Some(proc_) = processes.remove(nickname) {
+                        proc_.shutdown_flag.store(true, Ordering::Relaxed);
+                    }
+                }
+            }
+            _ => {
+                println!("No existing voice listener process found, proceeding with start...");
+            }
+        }
+
+        let _ = check_session
+            .disconnect(russh::Disconnect::ByApplication, "", "")
+            .await;
+
+        // Get the working directory path (same as robot host)
+        let working_dir = RemoteDirectoryService::get_lerobot_vulcan_dir()?;
+        let working_dir_str = RemoteDirectoryService::to_linux_path_string(&working_dir);
+
+        // Write logs to a file so we can debug missing mic/model issues remotely.
+        let command = format!(
+            "bash -l -c 'cd {} && uv run python -u -m lerobot.robots.sourccey.sourccey.sourccey.voice_listener > voice_listener.log 2>&1 & UV_PID=$!; sleep 0.3; PYTHON_PID=$(pgrep -P $UV_PID | head -1); if [ -n \"$PYTHON_PID\" ] && ps -p $PYTHON_PID > /dev/null 2>&1; then echo $PYTHON_PID; else echo \"\"; fi'",
+            working_dir_str
+        );
+
+        let success_event = "voice-start-success".to_string();
+        let success_log = "Voice listener started successfully".to_string();
+        let success_complete_log = "Voice start command closed successfully".to_string();
+        let error_event = "voice-start-error".to_string();
+        let error_log = "Voice start command failed".to_string();
+        let cfg = BackgroundCommandConfig::new(app_handle.clone())
+            .with_success(success_event.clone(), success_log.clone())
+            .with_error(error_event.clone(), error_log.clone())
+            .with_logs(success_complete_log.clone());
+
+        let processes = state_processes.0.clone();
+        let rc = remote_config.clone();
+        let name = nickname.to_string();
+
+        let mut session = SshService::create_ssh_session_async(
+            &rc.remote_ip,
+            &rc.remote_port,
+            &rc.username,
+            &rc.password,
+        )
+        .await?;
+
+        tauri::async_runtime::spawn(async move {
+            if let Err(e) = SshService::execute_background_command_async(processes, &mut session, command, cfg, name).await {
+                eprintln!("[ERROR] Voice background command failed: {}", e);
+            }
+        });
+
+        Ok(true)
+    }
+
+    pub async fn stop_voice_listener(
+        app_handle: AppHandle,
+        state_sessions: &SshSessions,
+        state_processes: &VoiceProcesses,
+        remote_config: &RemoteConfig,
+        nickname: &str,
+    ) -> Result<bool, String> {
+        if !SshService::is_robot_connected(state_sessions, nickname) {
+            return Err("Robot is not connected".to_string());
+        }
+
+        let success_event = "voice-stop-success".to_string();
+        let success_log = "Voice listener stopped successfully".to_string();
+        let error_event = "voice-stop-error".to_string();
+        let error_log = "Voice stop command failed".to_string();
+
+        // Prefer stopping tracked PID if we have one; fall back to pkill by module name.
+        let pid_opt = {
+            let mut processes = state_processes.0.lock().unwrap();
+            processes.remove(nickname).map(|p| {
+                p.shutdown_flag.store(true, Ordering::Relaxed);
+                p.pid
+            })
+        };
+
+        // Create a fresh session
+        match SshService::create_ssh_session_async(
+            &remote_config.remote_ip,
+            &remote_config.remote_port,
+            &remote_config.username,
+            &remote_config.password,
+        )
+        .await {
+            Ok(mut session) => {
+                let cmd = if let Some(pid) = pid_opt {
+                    format!("kill -INT {} 2>/dev/null || true", pid)
+                } else {
+                    "pkill -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener' || true".to_string()
+                };
+
+                match SshService::execute_command_async(&mut session, &cmd).await {
+                    Ok(_) => {
+                        let _ = app_handle.emit(
+                            &success_event,
+                            serde_json::json!({
+                                "nickname": nickname,
+                                "message": success_log
+                            }),
+                        );
+                        Ok(true)
+                    }
+                    Err(e) => {
+                        let _ = app_handle.emit(
+                            &error_event,
+                            serde_json::json!({
+                                "nickname": nickname,
+                                "error": format!("{}: {}", error_log, e)
+                            }),
+                        );
+                        Err(format!("Failed to stop voice listener: {}", e))
+                    }
+                }
+            }
+            Err(e) => {
+                let _ = app_handle.emit(
+                    &error_event,
+                    serde_json::json!({
+                        "nickname": nickname,
+                        "error": format!("Failed to create SSH session: {}", e)
+                    }),
+                );
+                Err(format!("Failed to create SSH session: {}", e))
+            }
+        }
+    }
+
+    pub async fn is_voice_listener_started(
+        app_handle: AppHandle,
+        state_sessions: &SshSessions,
+        remote_config: &RemoteConfig,
+        nickname: &str,
+    ) -> Result<bool, String> {
+        if !SshService::is_robot_connected(state_sessions, nickname) {
+            return Ok(false);
+        }
+
+        let check_command = "pgrep -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener' > /dev/null 2>&1 && echo 'started' || echo 'stopped'";
+
+        let success_event = "voice-is-started-success".to_string();
+        let success_log = "Voice listener is started".to_string();
+        let error_event = "voice-is-started-error".to_string();
+        let error_log = "Voice listener is not started".to_string();
+
+        match SshService::create_ssh_session_async(
+            &remote_config.remote_ip,
+            &remote_config.remote_port,
+            &remote_config.username,
+            &remote_config.password,
+        )
+        .await {
+            Ok(mut session) => match SshService::execute_command_read_output_async(&mut session, &check_command, 10).await {
+                Ok(Some(line)) => {
+                    if line.eq_ignore_ascii_case("started") {
+                        let _ = app_handle.emit(
+                            &success_event,
+                            serde_json::json!({
+                                "nickname": nickname,
+                                "message": success_log,
+                                "output": "started"
+                            }),
+                        );
+                        Ok(true)
+                    } else {
+                        let _ = app_handle.emit(
+                            &error_event,
+                            serde_json::json!({
+                                "nickname": nickname,
+                                "error": error_log,
+                                "output": line.trim()
+                            }),
+                        );
+                        Ok(false)
+                    }
+                }
+                Ok(None) => {
+                    let _ = app_handle.emit(
+                        &error_event,
+                        serde_json::json!({
+                            "nickname": nickname,
+                            "error": error_log,
+                            "output": "stopped"
+                        }),
+                    );
+                    Ok(false)
+                }
+                Err(e) => {
+                    let _ = app_handle.emit(
+                        &error_event,
+                        serde_json::json!({
+                            "nickname": nickname,
+                            "error": format!("{}: {}", error_log, e),
+                            "output": "stopped"
+                        }),
+                    );
+                    Ok(false)
+                }
+            },
+            Err(e) => {
+                let _ = app_handle.emit(
+                    &error_event,
+                    serde_json::json!({
+                        "nickname": nickname,
+                        "error": format!("Failed to create SSH session: {}", e)
+                    }),
+                );
+                Ok(false)
+            }
+        }
     }
 
     pub async fn stop_robot(

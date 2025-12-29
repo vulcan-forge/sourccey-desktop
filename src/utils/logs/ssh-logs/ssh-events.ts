@@ -53,6 +53,39 @@ interface SshRobotStartedError {
     error: string;
 }
 
+interface SshVoiceStartSuccess {
+    nickname: string;
+    message: string;
+    pid?: number;
+}
+
+interface SshVoiceStartError {
+    nickname: string;
+    error: string;
+}
+
+interface SshVoiceStopSuccess {
+    nickname: string;
+    message: string;
+}
+
+interface SshVoiceStopError {
+    nickname: string;
+    error: string;
+}
+
+interface SshVoiceStartedSuccess {
+    nickname: string;
+    message: string;
+    output: string;
+}
+
+interface SshVoiceStartedError {
+    nickname: string;
+    error: string;
+    output?: string;
+}
+
 // SSH connection state management
 class SshEventManager {
     private listeners: (() => void)[] = [];
@@ -127,6 +160,30 @@ class SshEventManager {
                 this.onRobotStartedError(event.payload);
             });
 
+            const unlistenVoiceStartSuccess = await listen<SshVoiceStartSuccess>('voice-start-success', (event) => {
+                this.onVoiceStartSuccess(event.payload);
+            });
+
+            const unlistenVoiceStartError = await listen<SshVoiceStartError>('voice-start-error', (event) => {
+                this.onVoiceStartError(event.payload);
+            });
+
+            const unlistenVoiceStopSuccess = await listen<SshVoiceStopSuccess>('voice-stop-success', (event) => {
+                this.onVoiceStopSuccess(event.payload);
+            });
+
+            const unlistenVoiceStopError = await listen<SshVoiceStopError>('voice-stop-error', (event) => {
+                this.onVoiceStopError(event.payload);
+            });
+
+            const unlistenVoiceStartedSuccess = await listen<SshVoiceStartedSuccess>('voice-is-started-success', (event) => {
+                this.onVoiceStartedSuccess(event.payload);
+            });
+
+            const unlistenVoiceStartedError = await listen<SshVoiceStartedError>('voice-is-started-error', (event) => {
+                this.onVoiceStartedError(event.payload);
+            });
+
             // Store listeners for cleanup
             this.listeners.push(
                 unlistenConnectionSuccess,
@@ -138,7 +195,13 @@ class SshEventManager {
                 unlistenRobotStopSuccess,
                 unlistenRobotStopError as () => void,
                 unlistenRobotStartedSuccess,
-                unlistenRobotStartedError as () => void
+                unlistenRobotStartedError as () => void,
+                unlistenVoiceStartSuccess,
+                unlistenVoiceStartError as () => void,
+                unlistenVoiceStopSuccess,
+                unlistenVoiceStopError as () => void,
+                unlistenVoiceStartedSuccess,
+                unlistenVoiceStartedError as () => void
             );
         } catch (error) {
             console.error('Failed to setup SSH event listeners:', error);
@@ -191,6 +254,30 @@ class SshEventManager {
     public onRobotStartedError: (event: SshRobotStartedError) => void = (event) => {
         console.error(`❌ Robot ${event.nickname} is not running: ${event.error}`);
     };
+
+    public onVoiceStartSuccess: (event: SshVoiceStartSuccess) => void = (event) => {
+        console.log(`✅ Voice listener started for ${event.nickname}: ${event.message}`);
+    };
+
+    public onVoiceStartError: (event: SshVoiceStartError) => void = (event) => {
+        console.error(`❌ Voice listener start failed for ${event.nickname}: ${event.error}`);
+    };
+
+    public onVoiceStopSuccess: (event: SshVoiceStopSuccess) => void = (event) => {
+        console.log(`✅ Voice listener stopped for ${event.nickname}: ${event.message}`);
+    };
+
+    public onVoiceStopError: (event: SshVoiceStopError) => void = (event) => {
+        console.error(`❌ Voice listener stop failed for ${event.nickname}: ${event.error}`);
+    };
+
+    public onVoiceStartedSuccess: (event: SshVoiceStartedSuccess) => void = (event) => {
+        console.log(`✅ Voice listener running for ${event.nickname}: ${event.message}`);
+    };
+
+    public onVoiceStartedError: (event: SshVoiceStartedError) => void = (event) => {
+        console.error(`❌ Voice listener not running for ${event.nickname}: ${event.error}`);
+    };
 }
 
 // Export singleton instance
@@ -207,4 +294,10 @@ export type {
     SshRobotStopError,
     SshRobotStartedSuccess,
     SshRobotStartedError,
+    SshVoiceStartSuccess,
+    SshVoiceStartError,
+    SshVoiceStopSuccess,
+    SshVoiceStopError,
+    SshVoiceStartedSuccess,
+    SshVoiceStartedError,
 };

@@ -52,12 +52,16 @@ use modules::sync::controllers::sync_controller::{get_sync_status, sync_robots};
 use modules::control::controllers::communication::ssh_controller::{
     init_ssh,
     init_robot_processes,
+    init_voice_processes,
     connect,
     disconnect,
     is_connected,
     start_robot,
     stop_robot,
-    is_robot_started
+    is_robot_started,
+    start_voice_listener,
+    stop_voice_listener,
+    is_voice_listener_started
 };
 use modules::control::controllers::configuration::configuration_controller::{
     detect_config, read_config, read_remote_config, write_config, write_remote_config,
@@ -221,6 +225,7 @@ fn main() {
         // Initialize all services
         .manage(init_ssh())
         .manage(init_robot_processes())
+        .manage(init_voice_processes())
         .manage(init_teleop())
         .manage(init_record())
         .manage(init_training())
@@ -297,6 +302,9 @@ fn main() {
             start_robot,
             stop_robot,
             is_robot_started,
+            start_voice_listener,
+            stop_voice_listener,
+            is_voice_listener_started,
             // Configuration
             read_config,
             write_config,

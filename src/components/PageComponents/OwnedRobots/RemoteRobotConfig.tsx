@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { FaCog, FaRobot, FaSpinner, FaPlay, FaStop, FaWifi, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaCog, FaRobot, FaSpinner, FaPlay, FaStop, FaWifi, FaEye, FaEyeSlash, FaMicrophone, FaMicrophoneSlash } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { setConfig, useGetConfig } from '@/hooks/Control/config.hook';
-import { SshControl, sshStartRobot, sshStopRobot } from '@/utils/logs/ssh-logs/ssh-control';
+import { SshControl, sshStartRobot, sshStopRobot, sshStartVoiceListener, sshStopVoiceListener } from '@/utils/logs/ssh-logs/ssh-control';
 import {
     sshLogManager,
     type SshConnectionSuccess,
@@ -15,6 +15,12 @@ import {
     type SshConnectionStatusError,
     type SshRobotStartedSuccess,
     type SshRobotStartedError,
+    type SshVoiceStartSuccess,
+    type SshVoiceStartError,
+    type SshVoiceStopSuccess,
+    type SshVoiceStopError,
+    type SshVoiceStartedSuccess,
+    type SshVoiceStartedError,
 } from '@/utils/logs/ssh-logs/ssh-events';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
@@ -50,6 +56,7 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
     // Add refs to track interval IDs
     const connectionIntervalIdRef = useRef<NodeJS.Timeout | null>(null);
     const startedIntervalIdRef = useRef<NodeJS.Timeout | null>(null);
+    const voiceStartedIntervalIdRef = useRef<NodeJS.Timeout | null>(null);
 
     //---------------------------------------------------
 
@@ -57,6 +64,11 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
     const [isLoadingAutoCalibrate, setIsLoadingAutoCalibrate] = useState(false);
     const [detectedConfig, setDetectedConfig] = useState<any>(null);
     const [isLoadingDetectConfig, setIsLoadingDetectConfig] = useState(false);
+
+    // Voice listener state (separate from robot host)
+    const [isVoiceStarted, setIsVoiceStarted] = useState(false);
+    const [isVoiceStarting, setIsVoiceStarting] = useState(false);
+    const [isVoiceStopping, setIsVoiceStopping] = useState(false);
 
     useEffect(() => {
         const loadConfig = async () => {
@@ -207,6 +219,74 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         [nickname]
     );
 
+    const handleVoiceStartSuccess = useCallback(
+        (event: SshVoiceStartSuccess) => {
+            if (event.nickname === nickname) {
+                setIsVoiceStarting(false);
+                setIsVoiceStopping(false);
+                setIsVoiceStarted(true);
+                toast.success(event.message, {
+                    ...toastSuccessDefaults,
+                });
+            }
+        },
+        [nickname]
+    );
+
+    const handleVoiceStartError = useCallback(
+        (event: SshVoiceStartError) => {
+            if (event.nickname === nickname) {
+                setIsVoiceStarting(false);
+                setIsVoiceStopping(false);
+                setIsVoiceStarted(false);
+                toast.error(event.error, {
+                    ...toastErrorDefaults,
+                });
+            }
+        },
+        [nickname]
+    );
+
+    const handleVoiceStopSuccess = useCallback(
+        (event: SshVoiceStopSuccess) => {
+            if (event.nickname === nickname) {
+                setIsVoiceStarting(false);
+                setIsVoiceStopping(false);
+                setIsVoiceStarted(false);
+                toast.success(event.message, {
+                    ...toastSuccessDefaults,
+                });
+            }
+        },
+        [nickname]
+    );
+
+    const handleVoiceStopError = useCallback(
+        (event: SshVoiceStopError) => {
+            if (event.nickname === nickname) {
+                setIsVoiceStarting(false);
+                setIsVoiceStopping(false);
+                toast.error(event.error, {
+                    ...toastErrorDefaults,
+                });
+            }
+        },
+        [nickname]
+    );
+
+    const handleVoiceStartedSuccess = useCallback(
+        (event: SshVoiceStartedSuccess) => {
+            if (event.nickname === nickname) {
+                setIsVoiceStarted(event.output === 'started');
+            }
+        },
+        [nickname]
+    );
+
+    const handleVoiceStartedError = useCallback((_event: SshVoiceStartedError) => {
+        // Polling can fail transiently; keep quiet.
+    }, []);
+
     //---------------------------------------------------
 
     // Check connection status
@@ -305,6 +385,34 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         };
     }, [remoteConfig, nickname, isLoadingConfig, robotStatus]); // Add dependencies);
 
+    // Poll voice listener status when connected
+    useEffect(() => {
+        if (!remoteConfig || isLoadingConfig || !isConnected(robotStatus)) {
+            return;
+        }
+
+        const checkVoiceStarted = async () => {
+            try {
+                await SshControl.isVoiceListenerStarted(remoteConfig, nickname);
+            } catch (error) {
+                // Ignore transient failures
+            }
+        };
+
+        if (voiceStartedIntervalIdRef.current) {
+            clearInterval(voiceStartedIntervalIdRef.current);
+        }
+        voiceStartedIntervalIdRef.current = setInterval(checkVoiceStarted, 30 * 1000);
+        checkVoiceStarted();
+
+        return () => {
+            if (voiceStartedIntervalIdRef.current) {
+                clearInterval(voiceStartedIntervalIdRef.current);
+                voiceStartedIntervalIdRef.current = null;
+            }
+        };
+    }, [remoteConfig, nickname, isLoadingConfig, robotStatus]);
+
     // Set up event listeners for this specific robot
     useEffect(() => {
         // Override the event manager's handlers for this component
@@ -318,6 +426,12 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         const originalStopErrorHandler = sshLogManager['onRobotStopError'];
         const originalStartedSuccessHandler = sshLogManager['onRobotStartedSuccess'];
         const originalStartedErrorHandler = sshLogManager['onRobotStartedError'];
+        const originalVoiceStartSuccessHandler = sshLogManager['onVoiceStartSuccess'];
+        const originalVoiceStartErrorHandler = sshLogManager['onVoiceStartError'];
+        const originalVoiceStopSuccessHandler = sshLogManager['onVoiceStopSuccess'];
+        const originalVoiceStopErrorHandler = sshLogManager['onVoiceStopError'];
+        const originalVoiceStartedSuccessHandler = sshLogManager['onVoiceStartedSuccess'];
+        const originalVoiceStartedErrorHandler = sshLogManager['onVoiceStartedError'];
 
         // Set up component-specific handlers
         sshLogManager['onConnectionSuccess'] = handleConnectionSuccess;
@@ -330,6 +444,12 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         sshLogManager['onRobotStopError'] = handleRobotStopError;
         sshLogManager['onRobotStartedSuccess'] = handleRobotStartedSuccess;
         sshLogManager['onRobotStartedError'] = handleRobotStartedError;
+        sshLogManager['onVoiceStartSuccess'] = handleVoiceStartSuccess;
+        sshLogManager['onVoiceStartError'] = handleVoiceStartError;
+        sshLogManager['onVoiceStopSuccess'] = handleVoiceStopSuccess;
+        sshLogManager['onVoiceStopError'] = handleVoiceStopError;
+        sshLogManager['onVoiceStartedSuccess'] = handleVoiceStartedSuccess;
+        sshLogManager['onVoiceStartedError'] = handleVoiceStartedError;
 
         // Cleanup: restore original handlers
         return () => {
@@ -343,6 +463,12 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             sshLogManager['onRobotStopError'] = originalStopErrorHandler;
             sshLogManager['onRobotStartedSuccess'] = originalStartedSuccessHandler;
             sshLogManager['onRobotStartedError'] = originalStartedErrorHandler;
+            sshLogManager['onVoiceStartSuccess'] = originalVoiceStartSuccessHandler;
+            sshLogManager['onVoiceStartError'] = originalVoiceStartErrorHandler;
+            sshLogManager['onVoiceStopSuccess'] = originalVoiceStopSuccessHandler;
+            sshLogManager['onVoiceStopError'] = originalVoiceStopErrorHandler;
+            sshLogManager['onVoiceStartedSuccess'] = originalVoiceStartedSuccessHandler;
+            sshLogManager['onVoiceStartedError'] = originalVoiceStartedErrorHandler;
         };
     }, [
         handleConnectionSuccess,
@@ -355,6 +481,12 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
         handleRobotStopError,
         handleRobotStartedSuccess,
         handleRobotStartedError,
+        handleVoiceStartSuccess,
+        handleVoiceStartError,
+        handleVoiceStopSuccess,
+        handleVoiceStopError,
+        handleVoiceStartedSuccess,
+        handleVoiceStartedError,
     ]);
 
     const saveRemoteConfig = async (newConfig: any) => {
@@ -492,11 +624,20 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
                 startedIntervalIdRef.current = null;
             }
 
+            // Clear the voice interval
+            if (voiceStartedIntervalIdRef.current) {
+                clearInterval(voiceStartedIntervalIdRef.current);
+                voiceStartedIntervalIdRef.current = null;
+            }
+
             const result = await SshControl.disconnect(remoteConfig, nickname);
             console.log('disconnect result', result);
             if (result) {
                 setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
                 setErrorMessage('');
+                setIsVoiceStarted(false);
+                setIsVoiceStarting(false);
+                setIsVoiceStopping(false);
                 onClose();
                 toast.success(`Robot ${nickname} disconnected successfully`, {
                     ...toastSuccessDefaults,
@@ -541,6 +682,44 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
             console.error('Failed to stop robot:', error);
             setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
             toast.error(`Failed to stop robot ${nickname}`, {
+                ...toastErrorDefaults,
+            });
+        }
+    };
+
+    const toggleVoiceListener = async () => {
+        if (isVoiceStarted) {
+            await stopVoiceListener();
+        } else {
+            await startVoiceListener();
+        }
+    };
+
+    const startVoiceListener = async () => {
+        try {
+            setIsVoiceStarting(true);
+            setIsVoiceStopping(false);
+            await sshStartVoiceListener(remoteConfig, nickname);
+        } catch (error) {
+            console.error('Failed to start voice listener:', error);
+            setIsVoiceStarting(false);
+            setIsVoiceStopping(false);
+            setIsVoiceStarted(false);
+            toast.error(`Failed to start voice listener for ${nickname}`, {
+                ...toastErrorDefaults,
+            });
+        }
+    };
+
+    const stopVoiceListener = async () => {
+        try {
+            setIsVoiceStopping(true);
+            setIsVoiceStarting(false);
+            await sshStopVoiceListener(remoteConfig, nickname);
+        } catch (error) {
+            console.error('Failed to stop voice listener:', error);
+            setIsVoiceStopping(false);
+            toast.error(`Failed to stop voice listener for ${nickname}`, {
                 ...toastErrorDefaults,
             });
         }
@@ -621,6 +800,31 @@ export const RemoteRobotConfig = ({ ownedRobot, onClose }: { ownedRobot: any; on
                                           : isRobotStarted
                                             ? 'Stop Robot'
                                             : 'Start Robot'}
+                                </button>
+                            )}
+
+                            {isRobotConnected && isRobotStarted && (
+                                <button
+                                    onClick={toggleVoiceListener}
+                                    disabled={isVoiceStarting || isVoiceStopping}
+                                    className={`inline-flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all duration-100 disabled:cursor-not-allowed disabled:opacity-50 ${
+                                        isVoiceStarted || isVoiceStopping ? 'bg-red-500 text-white hover:bg-red-400' : 'bg-slate-700 text-white hover:bg-slate-600'
+                                    }`}
+                                >
+                                    {isVoiceStarted ? (
+                                        <FaMicrophoneSlash className="h-4 w-4" />
+                                    ) : isVoiceStarting || isVoiceStopping ? (
+                                        <FaSpinner className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                        <FaMicrophone className="h-4 w-4" />
+                                    )}
+                                    {isVoiceStarting
+                                        ? 'Starting Voice...'
+                                        : isVoiceStopping
+                                          ? 'Stopping Voice...'
+                                          : isVoiceStarted
+                                            ? 'Stop Voice'
+                                            : 'Start Voice'}
                                 </button>
                             )}
 
