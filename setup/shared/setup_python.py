@@ -207,6 +207,48 @@ class PythonSetupManager:
             self.print_error(f"Failed to run lerobot-vulcan setup: {e}")
             return False
 
+    #################################################################
+    # Vosk English Model (speech-to-text) install
+    #################################################################
+    def install_vosk_model(self) -> bool:
+        """Download and install Vosk English model into user cache"""
+        self.print_status("Checking Vosk English model...")
+
+        model_name = "vosk-model-small-en-us-0.15"
+        model_url = f"https://alphacephei.com/vosk/models/{model_name}.zip"
+        cache_dir = Path.home() / ".cache" / "vosk"
+        model_path = cache_dir / model_name
+        zip_path = cache_dir / f"{model_name}.zip"
+
+        if model_path.exists():
+            self.print_success("Vosk English model already installed")
+            return True
+
+        self.print_status("Downloading Vosk English model (≈50MB)...")
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        try:
+            subprocess.run(
+                ["curl", "-L", model_url, "-o", str(zip_path)],
+                check=True,
+            )
+            self.print_status("Extracting model...")
+            subprocess.run(
+                ["unzip", "-q", str(zip_path), "-d", str(cache_dir)],
+                check=True,
+            )
+            zip_path.unlink(missing_ok=True)
+
+            if not model_path.exists():
+                self.print_error("Model extraction failed")
+                return False
+
+            self.print_success("Vosk English model installed")
+            return True
+        except subprocess.CalledProcessError as e:
+            self.print_error(f"Failed to install Vosk model: {e}")
+            return False
+
 
 #################################################################
 # Convenience Functions

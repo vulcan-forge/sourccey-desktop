@@ -319,6 +319,7 @@ class SetupScript:
         # Continue with other setup steps
         setup_steps = [
             self.setup_python_environment(),
+            self.python_manager.install_vosk_model(),
             self.setup_bun_packages(),
             self.setup_ffmpeg()
         ]
