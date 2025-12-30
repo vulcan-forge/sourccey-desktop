@@ -5,6 +5,7 @@ use russh::ChannelMsg;
 use russh_keys::key;
 use std::collections::HashMap;
 use std::io::{self, Write};
+use tokio::net::UdpSocket as TokioUdpSocket;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
@@ -567,6 +568,27 @@ impl SshService {
     }
 
     //-----------------------------------------------------------------------------
+    // Helper: Get local IP address that can reach remote IP
+    //-----------------------------------------------------------------------------
+    async fn get_local_ip_for_remote(remote_ip: &str) -> Result<String, String> {
+        // Create a UDP socket and connect to the remote IP to determine local IP
+        let socket = TokioUdpSocket::bind("0.0.0.0:0")
+            .await
+            .map_err(|e| format!("Failed to bind socket: {}", e))?;
+        
+        // Try to connect to remote (doesn't actually send data, just determines route)
+        socket.connect(format!("{}:80", remote_ip))
+            .await
+            .map_err(|e| format!("Failed to connect to {}: {}", remote_ip, e))?;
+        
+        // Get the local address
+        let local_addr = socket.local_addr()
+            .map_err(|e| format!("Failed to get local address: {}", e))?;
+        
+        Ok(local_addr.ip().to_string())
+    }
+
+    //-----------------------------------------------------------------------------
     // Robot Control Functions
     //-----------------------------------------------------------------------------
     pub async fn start_robot(
@@ -682,8 +704,18 @@ impl SshService {
             return Err("Robot is not connected".to_string());
         }
 
+        // Get local machine's IP address (client IP for audio streaming)
+        // This is the IP the robot should send audio to
+        let client_ip = match get_local_ip_for_remote(&remote_config.remote_ip).await {
+            Ok(ip) => ip,
+            Err(e) => {
+                println!("Warning: Could not determine local IP: {}. Using 127.0.0.1 as fallback.", e);
+                "127.0.0.1".to_string()
+            }
+        };
+
         // Stop any existing voice listener process (by name) before starting
-        let stop_check_command = "pgrep -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener' > /dev/null 2>&1 && echo 'running' || echo 'stopped'";
+        let stop_check_command = "pgrep -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener_audio_stream' > /dev/null 2>&1 && echo 'running' || echo 'stopped'";
 
         let mut check_session = SshService::create_ssh_session_async(
             &remote_config.remote_ip,
@@ -696,7 +728,7 @@ impl SshService {
         match SshService::execute_command_read_output_async(&mut check_session, stop_check_command, 10).await {
             Ok(Some(output)) if output.trim().eq_ignore_ascii_case("running") => {
                 println!("Voice listener is already running, stopping it first...");
-                let kill_command = "pkill -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener' || true";
+                let kill_command = "pkill -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener_audio_stream' || true";
                 let _ = SshService::execute_command_async(&mut check_session, kill_command).await;
 
                 // Also clean up any tracked process in state_processes for this nickname
@@ -721,9 +753,10 @@ impl SshService {
         let working_dir_str = RemoteDirectoryService::to_linux_path_string(&working_dir);
 
         // Write logs to a file so we can debug missing mic/model issues remotely.
+        // Use audio streaming version that sends audio to client for processing
         let command = format!(
-            "bash -l -c 'cd {} && uv run python -u -m lerobot.robots.sourccey.sourccey.sourccey.voice_listener > voice_listener.log 2>&1 & UV_PID=$!; sleep 0.3; PYTHON_PID=$(pgrep -P $UV_PID | head -1); if [ -n \"$PYTHON_PID\" ] && ps -p $PYTHON_PID > /dev/null 2>&1; then echo $PYTHON_PID; else echo \"\"; fi'",
-            working_dir_str
+            "bash -l -c 'cd {} && uv run python -u -m lerobot.robots.sourccey.sourccey.sourccey.voice_listener_audio_stream --client-ip {} > voice_listener.log 2>&1 & UV_PID=$!; sleep 0.3; PYTHON_PID=$(pgrep -P $UV_PID | head -1); if [ -n \"$PYTHON_PID\" ] && ps -p $PYTHON_PID > /dev/null 2>&1; then echo $PYTHON_PID; else echo \"\"; fi'",
+            working_dir_str, client_ip
         );
 
         let success_event = "voice-start-success".to_string();
@@ -794,7 +827,7 @@ impl SshService {
                 let cmd = if let Some(pid) = pid_opt {
                     format!("kill -INT {} 2>/dev/null || true", pid)
                 } else {
-                    "pkill -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener' || true".to_string()
+                    "pkill -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener_audio_stream' || true".to_string()
                 };
 
                 match SshService::execute_command_async(&mut session, &cmd).await {
@@ -843,7 +876,7 @@ impl SshService {
             return Ok(false);
         }
 
-        let check_command = "pgrep -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener' > /dev/null 2>&1 && echo 'started' || echo 'stopped'";
+        let check_command = "pgrep -f 'lerobot.robots.sourccey.sourccey.sourccey.voice_listener_audio_stream' > /dev/null 2>&1 && echo 'started' || echo 'stopped'";
 
         let success_event = "voice-is-started-success".to_string();
         let success_log = "Voice listener is started".to_string();
