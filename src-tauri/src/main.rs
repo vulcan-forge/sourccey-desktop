@@ -63,12 +63,19 @@ use modules::control::controllers::configuration::configuration_controller::{
     detect_config, read_config, read_remote_config, write_config, write_remote_config,
 };
 use modules::control::controllers::configuration::calibration_controller::{
-    read_calibration, write_calibration, auto_calibrate, remote_auto_calibrate,
+    read_calibration, write_calibration, get_calibration_modified_at, auto_calibrate, remote_auto_calibrate,
 };
 use modules::control::controllers::kiosk_control::kiosk_host_controller::{
     get_pi_username, get_ssh_password_changed_status,
     get_system_info, init_kiosk_host, is_kiosk_host_active, set_pi_password,
     set_ssh_password_changed_status, start_kiosk_host, stop_kiosk_host,
+};
+use modules::control::controllers::kiosk_control::pairing_controller::{
+    discover_pairable_robots, get_kiosk_pairing_info, init_kiosk_pairing, pair_with_kiosk_robot,
+    send_model_to_kiosk_robot,
+};
+use modules::control::services::kiosk_control::pairing_service::{
+    KioskPairingService, KioskPairingState,
 };
 use modules::control::controllers::local_control::evaluate_controller::{
     init_evaluate, reset_evaluate_episode, save_evaluate_episode, start_evaluate, stop_evaluate,
@@ -205,7 +212,10 @@ fn main() {
 
             // Start process monitor in kiosk mode (after app is initialized)
             if kiosk {
-                // No kiosk process monitors yet
+                let pairing_state = app.state::<KioskPairingState>().inner().clone();
+                if let Err(e) = KioskPairingService::start_kiosk_pairing_network(pairing_state) {
+                    eprintln!("Failed to start kiosk pairing network: {}", e);
+                }
             }
 
             Ok(())
@@ -231,6 +241,7 @@ fn main() {
         .manage(init_remote_replay())
         .manage(init_remote_evaluate())
         .manage(init_kiosk_host())
+        .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![
             //----------------------------------------------------------//
             // File System Functionality
@@ -307,6 +318,7 @@ fn main() {
             // Calibration
             read_calibration,
             write_calibration,
+            get_calibration_modified_at,
             auto_calibrate,
             remote_auto_calibrate,
             // Teleoperation Functions
@@ -354,6 +366,11 @@ fn main() {
             set_pi_password,
             get_ssh_password_changed_status,
             set_ssh_password_changed_status,
+            // Pairing + model dispatch
+            get_kiosk_pairing_info,
+            discover_pairable_robots,
+            pair_with_kiosk_robot,
+            send_model_to_kiosk_robot,
             // WiFi API
             scan_wifi_networks,
             connect_to_wifi,

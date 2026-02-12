@@ -1,7 +1,7 @@
 'use client';
 import { usePathname } from 'next/navigation';
-import { HiHome, HiClock } from 'react-icons/hi';
-import { FaRobot, FaCog } from 'react-icons/fa';
+import { HiHome } from 'react-icons/hi';
+import { FaRobot, FaCog, FaBrain } from 'react-icons/fa';
 import Link from 'next/link';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 
@@ -16,14 +16,14 @@ export const SideNavbar = () => {
             icon: HiHome,
         },
         {
-            href: '/app/robot-remote',
-            label: 'Robot',
-            icon: FaRobot,
+            href: '/app/models',
+            label: 'AI Models',
+            icon: FaBrain,
         },
         {
-            href: '/app/history',
-            label: 'History',
-            icon: HiClock,
+            href: '/app/robot-remote',
+            label: 'Calibrate',
+            icon: FaRobot,
         },
     ];
 

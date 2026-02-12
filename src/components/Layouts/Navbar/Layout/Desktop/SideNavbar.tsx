@@ -1,7 +1,7 @@
 'use client';
 import { usePathname } from 'next/navigation';
-import { HiHome, HiClock } from 'react-icons/hi';
-import { FaDatabase, FaBrain, FaRobot, FaMicrochip, FaCog } from 'react-icons/fa';
+import { HiHome } from 'react-icons/hi';
+import { FaBrain, FaRobot, FaCog, FaTools } from 'react-icons/fa';
 import Link from 'next/link';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 
@@ -21,41 +21,26 @@ export const SideNavbar = ({ profile, isLoading }: DesktopSidebarProps) => {
             icon: HiHome,
         },
         {
-            href: '/app/robot',
-            label: 'Robot',
+            href: '/app/robots',
+            label: 'Robots',
             icon: FaRobot,
         },
         {
-            href: '/app/owned-robots',
-            label: 'My Robots',
-            icon: FaRobot,
-        },
-        {
-            href: '/app/data',
-            label: 'Data',
-            icon: FaDatabase,
-        },
-        {
-            href: '/app/ai-models',
+            href: '/app/models',
             label: 'AI Models',
             icon: FaBrain,
         },
         {
-            href: '/app/training',
-            label: 'Training',
-            icon: FaMicrochip,
-        },
-        {
-            href: '/app/history',
-            label: 'History',
-            icon: HiClock,
+            href: '/app/robot-remote',
+            label: 'Calibration',
+            icon: FaTools,
         },
     ];
 
     // Filter nav items based on kiosk mode
     const mainNavItems = isKioskMode
-        ? allNavItems.filter((item) => item.href === '/app' || item.href === '/app/robot' || item.href === '/app/history')
-        : allNavItems.filter((item) => item.href !== '/app/robot');
+        ? allNavItems.filter((item) => item.href === '/app' || item.href === '/app/models' || item.href === '/app/robot-remote')
+        : allNavItems;
 
     const bottomNavItems: any = isKioskMode
         ? [

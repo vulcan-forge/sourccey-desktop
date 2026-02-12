@@ -37,6 +37,11 @@ pub fn write_calibration(robot_type: String, nickname: String, calibration: Cali
 }
 
 #[tauri::command]
+pub fn get_calibration_modified_at(robot_type: String, nickname: String) -> Result<Option<u64>, String> {
+    CalibrationService::get_calibration_modified_at(&robot_type, &nickname)
+}
+
+#[tauri::command]
 pub async fn auto_calibrate(
     app_handle: AppHandle,
     config: CalibrationConfig,

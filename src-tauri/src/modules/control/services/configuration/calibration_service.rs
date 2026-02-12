@@ -55,6 +55,22 @@ impl CalibrationService {
         fs::write(calibration_path, calibration_str).map_err(|e| e.to_string())
     }
 
+    pub fn get_calibration_modified_at(robot_type: &str, nickname: &str) -> Result<Option<u64>, String> {
+        let calibration_path = DirectoryService::get_robot_calibration_path(robot_type, &format!("{}.json", nickname))?;
+
+        if !calibration_path.exists() {
+            return Ok(None);
+        }
+
+        let metadata = fs::metadata(calibration_path).map_err(|e| e.to_string())?;
+        let modified = metadata.modified().map_err(|e| e.to_string())?;
+        let since_epoch = modified
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|e| e.to_string())?;
+
+        Ok(Some(since_epoch.as_millis() as u64))
+    }
+
     pub async fn auto_calibrate(
         db_connection: DatabaseConnection,
         config: CalibrationConfig,
