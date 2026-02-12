@@ -30,17 +30,6 @@ type PairResult = {
     service_port: number;
 };
 
-const DEMO_ROBOTS = [
-    { id: 'demo-1', name: 'Atlas Mini', nickname: '@atlas_mini', image: '/assets/logo/SourcceyLogo.png' },
-    { id: 'demo-2', name: 'Nova Arm', nickname: '@nova_arm', image: '/assets/logo/SourcceyLogo.png' },
-    { id: 'demo-3', name: 'Cargo Rover', nickname: '@cargo_rover', image: '/assets/logo/SourcceyLogo.png' },
-    { id: 'demo-4', name: 'Echo Pilot', nickname: '@echo_pilot', image: '/assets/logo/SourcceyLogo.png' },
-    { id: 'demo-5', name: 'Forge Twin', nickname: '@forge_twin', image: '/assets/logo/SourcceyLogo.png' },
-    { id: 'demo-6', name: 'Lumen Bot', nickname: '@lumen_bot', image: '/assets/logo/SourcceyLogo.png' },
-    { id: 'demo-7', name: 'Delta Reach', nickname: '@delta_reach', image: '/assets/logo/SourcceyLogo.png' },
-    { id: 'demo-8', name: 'Orbit Rig', nickname: '@orbit_rig', image: '/assets/logo/SourcceyLogo.png' },
-];
-
 export const RobotListPage = () => {
     const { data: profile, isLoading: isLoadingProfile }: any = useGetProfile();
     const enabled = !isLoadingProfile && !!profile?.id;
@@ -146,11 +135,9 @@ export const RobotListPage = () => {
             image: ownedRobot?.robot?.image || null,
             robotType: ownedRobot?.robot?.robot_type || 'Unknown',
             source: paired ? 'Paired' : 'Connected',
-            isDemo: false,
         };
     });
-
-    const robotsToRender = [...connectedRobots, ...DEMO_ROBOTS.map((r) => ({ ...r, robotType: 'Demo Unit', source: 'Demo', isDemo: true }))].slice(0, 8);
+    const robotsToRender = connectedRobots;
 
     return (
         <div className="min-h-screen bg-slate-900/30 p-8">
@@ -234,9 +221,13 @@ export const RobotListPage = () => {
                             <div key={i} className="h-[420px] animate-pulse rounded-2xl border border-slate-700 bg-slate-800/60" />
                         ))}
                     </div>
+                ) : robotsToRender.length === 0 ? (
+                    <div className="rounded-2xl border border-slate-700 bg-slate-800/60 p-8 text-center text-slate-300">
+                        No robots yet. Discover and pair a nearby robot to get started.
+                    </div>
                 ) : (
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-                        {robotsToRender.map((robot) => {
+                        {robotsToRender.map((robot: any) => {
                             const robotName = robot.name || 'Robot';
                             const nickname = robot.nickname || '';
                             const image = robot.image;
@@ -278,11 +269,7 @@ export const RobotListPage = () => {
                                     <div className="space-y-2 p-4">
                                         <div className="flex items-center justify-between gap-3">
                                             <div className="text-lg font-semibold text-white">{robotName}</div>
-                                            <span
-                                                className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                                                    robot.isDemo ? 'bg-slate-700 text-slate-200' : 'bg-green-600/20 text-green-300'
-                                                }`}
-                                            >
+                                            <span className="rounded-full bg-green-600/20 px-2 py-1 text-xs font-semibold text-green-300">
                                                 {robot.source}
                                             </span>
                                         </div>
@@ -293,8 +280,7 @@ export const RobotListPage = () => {
                                             <span className="font-semibold text-slate-200">Type:</span> {robot.robotType}
                                         </div>
                                         <div className="text-sm text-slate-300">
-                                            <span className="font-semibold text-slate-200">Status:</span>{' '}
-                                            {robot.isDemo ? 'Preview model' : 'Ready'}
+                                            <span className="font-semibold text-slate-200">Status:</span> Ready
                                         </div>
                                     </div>
                                 </button>

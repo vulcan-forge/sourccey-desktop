@@ -212,6 +212,14 @@ export default function ModelsPage() {
     const { data: selectedRobot } = useSelectedRobot();
     const { data: pairedConnections } = usePairedRobotConnections();
     const [isSendingModel, setIsSendingModel] = useState(false);
+    const getErrorMessage = (error: unknown) => {
+        if (typeof error === 'string') return error;
+        if (error && typeof error === 'object') {
+            const maybeMessage = (error as { message?: string }).message;
+            if (typeof maybeMessage === 'string' && maybeMessage.trim()) return maybeMessage;
+        }
+        return 'Failed to send model to robot.';
+    };
 
     const selectedRobotNickname = selectedRobot?.nickname || '';
     const selectedConnection = selectedRobotNickname ? pairedConnections?.[selectedRobotNickname] : null;
@@ -240,8 +248,8 @@ export default function ModelsPage() {
                 model_name: selectedModel.name,
             });
             toast.success(message || 'Model sent to robot.', { ...toastSuccessDefaults });
-        } catch (error: any) {
-            toast.error(error?.message || 'Failed to send model to robot.', { ...toastErrorDefaults });
+        } catch (error: unknown) {
+            toast.error(getErrorMessage(error), { ...toastErrorDefaults });
         } finally {
             setIsSendingModel(false);
         }

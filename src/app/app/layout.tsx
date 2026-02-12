@@ -2,6 +2,7 @@
 
 import { Spinner } from '@/components/Elements/Spinner';
 import { SideNavbar } from '@/components/Layouts/Navbar/Layout/SideNavbar';
+import { TopNavbar } from '@/components/Layouts/Navbar/Layout/TopNavbar';
 import { ControlBar } from '@/components/Layouts/ControlBar/ControlBar';
 import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
 import { useGetProfile } from '@/hooks/Models/Profile/profile.hook';
@@ -45,7 +46,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     return (
         <div className={`bg-slate-850 flex h-screen overflow-hidden ${isKioskMode ? 'kiosk-mode' : ''}`}>
             {shouldShowSidebar && <SideNavbar profile={profile} isLoading={isLoading} />}
-            <div className={`overflow-auto ${shouldShowSidebar ? 'flex-1' : 'w-full'}`}>{children}</div>
+            <div className={`overflow-auto ${shouldShowSidebar ? 'flex-1' : 'w-full'}`}>
+                {isKioskMode && <TopNavbar profile={profile} isLoading={isLoading} />}
+                {children}
+            </div>
             <ControlBar />
             <RemoteControlBar />
         </div>
