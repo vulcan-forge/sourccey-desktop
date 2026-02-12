@@ -44,11 +44,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     }
 
     return (
-        <div className={`bg-slate-850 flex h-screen overflow-hidden ${isKioskMode ? 'kiosk-mode' : ''}`}>
-            {shouldShowSidebar && <SideNavbar profile={profile} isLoading={isLoading} />}
-            <div className={`overflow-auto ${shouldShowSidebar ? 'flex-1' : 'w-full'}`}>
-                {isKioskMode && <TopNavbar profile={profile} isLoading={isLoading} />}
-                {children}
+        <div className={`bg-slate-850 flex h-screen flex-col overflow-hidden ${isKioskMode ? 'kiosk-mode' : ''}`}>
+            <TopNavbar profile={profile} isLoading={isLoading} />
+            <div className="flex min-h-0 flex-1 overflow-hidden">
+                {shouldShowSidebar && <SideNavbar profile={profile} isLoading={isLoading} />}
+                <div className={`min-h-0 overflow-auto ${shouldShowSidebar ? 'flex-1' : 'w-full'}`}>{children}</div>
             </div>
             <ControlBar />
             <RemoteControlBar />
