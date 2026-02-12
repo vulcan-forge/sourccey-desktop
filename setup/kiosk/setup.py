@@ -467,7 +467,7 @@ class KioskSetupScript:
             self.print_status("Your application will launch in fullscreen automatically")
             print()
 
-    def run(self, no_clean: bool = False, use_https: bool = True) -> bool:
+    def run(self, no_clean: bool = False, use_https: bool = True, skip_system: bool = False) -> bool:
         """Run the complete kiosk setup process"""
         self.print_header("SOURCCEY KIOSK SETUP")
 
@@ -504,11 +504,14 @@ class KioskSetupScript:
             return False
 
         # System preparation
-        self.print_header("PREPARING SYSTEM")
+        if skip_system:
+            self.print_warning("Skipping system package update/install (--skip-system enabled)")
+        else:
+            self.print_header("PREPARING SYSTEM")
 
-        if not self.install_system_packages():
-            self.print_error("System package installation failed")
-            return False
+            if not self.install_system_packages():
+                self.print_error("System package installation failed")
+                return False
 
         if not self.setup_swap_for_memory_intensive_builds():
             self.print_error("Swap setup failed")
@@ -597,12 +600,18 @@ def main():
     parser = argparse.ArgumentParser(description='Sourccey Kiosk Setup')
     parser.add_argument('--no-clean', action='store_true',
                        help='Preserve build artifacts (skip cleanup)')
+    parser.add_argument('--skip-system', action='store_true',
+                       help='Skip apt update/upgrade and system dependency installation')
     parser.add_argument('--use-https', action='store_true', default=True,
                        help='Use HTTPS URLs for git operations (default: True)')
     args = parser.parse_args()
 
     setup = KioskSetupScript()
-    success = setup.run(no_clean=args.no_clean, use_https=args.use_https)
+    success = setup.run(
+        no_clean=args.no_clean,
+        use_https=args.use_https,
+        skip_system=args.skip_system
+    )
 
     if not success:
         sys.exit(1)
