@@ -12,6 +12,8 @@ import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
 export const HomeWelcome = () => {
     const nickname = 'sourccey';
     const robotType = 'Sourccey';
+    const STOP_CONFIRM_TIMEOUT_MS = 20000;
+    const POST_STOP_TAP_GUARD_MS = 800;
     const { isRobotStarted, setIsRobotStarted } = useRobotStatus();
     const [isStarting, setIsStarting] = useState(false);
     const [isStopping, setIsStopping] = useState(false);
@@ -19,6 +21,7 @@ export const HomeWelcome = () => {
     const [pairingCode, setPairingCode] = useState('------');
     const [pairingExpiresAt, setPairingExpiresAt] = useState<number | null>(null);
     const stopActionLockRef = useRef(false);
+    const postStopGuardUntilRef = useRef(0);
 
     // State for system info (battery, temperature, IP)
     const { data: systemInfo }: any = useGetSystemInfo();
@@ -96,25 +99,19 @@ export const HomeWelcome = () => {
 
                 if (isRobotStarted && !active && lastActiveRef.current) {
                     lastActiveRef.current = false;
-                    stopActionLockRef.current = false;
                     setIsStarting(false);
                     setIsStopping(false);
                     setIsRobotStarted(false);
                     return;
                 }
-
-                if (!active && isStopping) {
-                    stopActionLockRef.current = false;
+            } catch {
+                lastActiveRef.current = false;
+                // Do not clear stop lock during stop flow on transient polling errors.
+                if (!stopActionLockRef.current) {
+                    setIsStarting(false);
                     setIsStopping(false);
                     setIsRobotStarted(false);
-                    return;
                 }
-            } catch {
-                stopActionLockRef.current = false;
-                lastActiveRef.current = false;
-                setIsStarting(false);
-                setIsStopping(false);
-                setIsRobotStarted(false);
             }
         };
 
@@ -128,6 +125,7 @@ export const HomeWelcome = () => {
     }, [nickname, isRobotStarted, isStopping, setIsRobotStarted]);
 
     const handleStartRobot = async () => {
+        if (Date.now() < postStopGuardUntilRef.current) return;
         if (isStarting || isStopping || stopActionLockRef.current) return;
 
         setIsStarting(true);
@@ -145,6 +143,20 @@ export const HomeWelcome = () => {
         }
     };
 
+    const waitForHostStopped = async () => {
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < STOP_CONFIRM_TIMEOUT_MS) {
+            try {
+                const active = await invoke<boolean>('is_kiosk_host_active', { nickname });
+                if (!active) return;
+            } catch {
+                // Keep waiting on transient checker errors during shutdown.
+            }
+            await new Promise((resolve) => setTimeout(resolve, 400));
+        }
+        throw new Error('Timed out waiting for robot to stop.');
+    };
+
     const handleStopRobot = async () => {
         if (isStopping || isStarting || stopActionLockRef.current) return;
 
@@ -153,6 +165,11 @@ export const HomeWelcome = () => {
         setIsStarting(false);
         try {
             await invoke<string>('stop_kiosk_host', { nickname });
+            await waitForHostStopped();
+            setIsRobotStarted(false);
+            setIsStopping(false);
+            stopActionLockRef.current = false;
+            postStopGuardUntilRef.current = Date.now() + POST_STOP_TAP_GUARD_MS;
         } catch (error: any) {
             stopActionLockRef.current = false;
             setIsStopping(false);
