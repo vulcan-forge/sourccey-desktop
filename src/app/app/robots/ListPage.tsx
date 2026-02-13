@@ -19,7 +19,7 @@ import { setSelectedRobot, useSelectedRobot } from '@/hooks/Robot/selected-robot
 import { invoke } from '@tauri-apps/api/core';
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
-import { FaEllipsisH, FaRobot, FaSatelliteDish } from 'react-icons/fa';
+import { FaCircle, FaEllipsisH, FaRobot, FaSatelliteDish } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 
@@ -59,6 +59,8 @@ export const RobotListPage = () => {
     const [isPairing, setIsPairing] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
     const [isStartingRobot, setIsStartingRobot] = useState(false);
+    const [isStoppingRobot, setIsStoppingRobot] = useState(false);
+    const [menuActionRobotId, setMenuActionRobotId] = useState<string | null>(null);
     const [deletingRobotId, setDeletingRobotId] = useState<string | null>(null);
     const [discoveredRobots, setDiscoveredRobots] = useState<DiscoveredRobot[]>([]);
     const [pairingCode, setPairingCode] = useState('');
@@ -69,6 +71,7 @@ export const RobotListPage = () => {
     const selectedConnection = selectedRobotNickname ? pairedConnections?.[selectedRobotNickname] : null;
     const selectedConnectionStatus = selectedRobotNickname ? connectionStatuses?.[selectedRobotNickname] : null;
     const isSelectedConnected = !!selectedConnectionStatus?.connected;
+    const isSelectedStarted = !!selectedConnectionStatus?.started;
 
     const normalizeNickname = (nickname: string) => (nickname.startsWith('@') ? nickname.slice(1) : nickname);
 
@@ -85,6 +88,52 @@ export const RobotListPage = () => {
         document.addEventListener('mousedown', handleOutsideClick);
         return () => document.removeEventListener('mousedown', handleOutsideClick);
     }, [openMenuRobotId]);
+
+    useEffect(() => {
+        let cancelled = false;
+        let heartbeatInterval: NodeJS.Timeout | null = null;
+
+        const heartbeat = async () => {
+            const entries = Object.entries(pairedConnections || {});
+            if (entries.length === 0) return;
+
+            await Promise.all(
+                entries.map(async ([nickname, connection]) => {
+                    try {
+                        const statusMessage = await invoke<string>('get_kiosk_robot_status', {
+                            host: connection.host,
+                            port: connection.port,
+                            token: connection.token,
+                        });
+                        if (cancelled) return;
+                        const started = statusMessage.trim().toLowerCase() === 'started';
+                        setRobotConnectionStatus(nickname, {
+                            connected: true,
+                            started,
+                            checkedAt: Date.now(),
+                            message: started ? 'Robot is started' : 'Robot is stopped',
+                        });
+                    } catch {
+                        if (cancelled) return;
+                        setRobotConnectionStatus(nickname, {
+                            connected: false,
+                            started: false,
+                            checkedAt: Date.now(),
+                            message: 'Disconnected',
+                        });
+                    }
+                })
+            );
+        };
+
+        heartbeat();
+        heartbeatInterval = setInterval(heartbeat, 10000);
+
+        return () => {
+            cancelled = true;
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+        };
+    }, [pairedConnections]);
 
     const handleDiscoverRobots = async () => {
         setIsDiscovering(true);
@@ -156,6 +205,7 @@ export const RobotListPage = () => {
             });
             setRobotConnectionStatus(result.nickname, {
                 connected: true,
+                started: false,
                 checkedAt: Date.now(),
                 message: 'Paired and reachable',
             });
@@ -252,15 +302,24 @@ export const RobotListPage = () => {
                 token: selectedConnection.token,
             });
 
+            const statusMessage = await invoke<string>('get_kiosk_robot_status', {
+                host: selectedConnection.host,
+                port: selectedConnection.port,
+                token: selectedConnection.token,
+            });
+            const started = statusMessage.trim().toLowerCase() === 'started';
+
             setRobotConnectionStatus(selectedRobotNickname, {
                 connected: true,
+                started,
                 checkedAt: Date.now(),
-                message: message || 'Connected',
+                message: started ? 'Robot is started' : message || 'Connected',
             });
             toast.success(message || 'Robot connected.', { ...toastSuccessDefaults });
         } catch (error: any) {
             setRobotConnectionStatus(selectedRobotNickname, {
                 connected: false,
+                started: false,
                 checkedAt: Date.now(),
                 message: error?.message || 'Disconnected',
             });
@@ -291,6 +350,12 @@ export const RobotListPage = () => {
                 port: selectedConnection.port,
                 token: selectedConnection.token,
             });
+            setRobotConnectionStatus(selectedRobotNickname, {
+                connected: true,
+                started: true,
+                checkedAt: Date.now(),
+                message: 'Robot is started',
+            });
             toast.success(message || 'Robot start requested.', { ...toastSuccessDefaults });
         } catch (error: any) {
             toast.error(error?.message || 'Failed to start robot remotely.', { ...toastErrorDefaults });
@@ -299,24 +364,140 @@ export const RobotListPage = () => {
         }
     };
 
-    const handleConnectOrStart = async () => {
-        if (isSelectedConnected) {
-            await handleStartSelectedRobot();
+    const handleStopSelectedRobot = async () => {
+        if (!selectedRobotNickname) {
+            toast.error('Select a robot first.', { ...toastErrorDefaults });
             return;
         }
-        await handleConnectSelectedRobot();
+        if (!selectedConnection) {
+            toast.error('Selected robot is not paired yet. Pair it first.', { ...toastErrorDefaults });
+            return;
+        }
+        if (!isSelectedConnected) {
+            toast.error('Connect to the robot before stopping it.', { ...toastErrorDefaults });
+            return;
+        }
+
+        setIsStoppingRobot(true);
+        try {
+            const message = await invoke<string>('stop_kiosk_robot', {
+                host: selectedConnection.host,
+                port: selectedConnection.port,
+                token: selectedConnection.token,
+            });
+            setRobotConnectionStatus(selectedRobotNickname, {
+                connected: true,
+                started: false,
+                checkedAt: Date.now(),
+                message: 'Robot is stopped',
+            });
+            toast.success(message || 'Robot stopped.', { ...toastSuccessDefaults });
+        } catch (error: any) {
+            toast.error(error?.message || 'Failed to stop robot remotely.', { ...toastErrorDefaults });
+        } finally {
+            setIsStoppingRobot(false);
+        }
+    };
+
+    const handleToggleRobotFromCard = async (robot: any) => {
+        const normalizedNickname = normalizeNickname(robot.nickname || '');
+        const connection = pairedConnections?.[normalizedNickname];
+        if (!connection) {
+            toast.error('Robot is not paired yet. Pair it first.', { ...toastErrorDefaults });
+            return;
+        }
+
+        setSelectedRobot({
+            id: robot.id,
+            name: robot.name || 'Robot',
+            nickname: normalizedNickname,
+            robotType: robot.robotType || 'unknown',
+            image: robot.image || null,
+        });
+
+        setOpenMenuRobotId(null);
+        setMenuActionRobotId(robot.id);
+        try {
+            const statusMessage = await invoke<string>('get_kiosk_robot_status', {
+                host: connection.host,
+                port: connection.port,
+                token: connection.token,
+            });
+            const started = statusMessage.trim().toLowerCase() === 'started';
+            setRobotConnectionStatus(normalizedNickname, {
+                connected: true,
+                started,
+                checkedAt: Date.now(),
+                message: started ? 'Robot is started' : 'Robot is stopped',
+            });
+
+            if (started) {
+                const message = await invoke<string>('stop_kiosk_robot', {
+                    host: connection.host,
+                    port: connection.port,
+                    token: connection.token,
+                });
+                setRobotConnectionStatus(normalizedNickname, {
+                    connected: true,
+                    started: false,
+                    checkedAt: Date.now(),
+                    message: 'Robot is stopped',
+                });
+                toast.success(message || 'Robot stopped.', { ...toastSuccessDefaults });
+            } else {
+                const message = await invoke<string>('start_kiosk_robot', {
+                    host: connection.host,
+                    port: connection.port,
+                    token: connection.token,
+                });
+                setRobotConnectionStatus(normalizedNickname, {
+                    connected: true,
+                    started: true,
+                    checkedAt: Date.now(),
+                    message: 'Robot is started',
+                });
+                toast.success(message || 'Robot start requested.', { ...toastSuccessDefaults });
+            }
+        } catch (error: any) {
+            setRobotConnectionStatus(normalizedNickname, {
+                connected: false,
+                started: false,
+                checkedAt: Date.now(),
+                message: error?.message || 'Disconnected',
+            });
+            toast.error(error?.message || 'Failed to update robot state.', { ...toastErrorDefaults });
+        } finally {
+            setMenuActionRobotId(null);
+        }
+    };
+
+    const handleConnectOrStart = async () => {
+        if (!isSelectedConnected) {
+            await handleConnectSelectedRobot();
+            return;
+        }
+        if (isSelectedStarted) {
+            await handleStopSelectedRobot();
+        } else {
+            await handleStartSelectedRobot();
+        }
     };
 
     const connectedRobots = (ownedRobots || []).map((ownedRobot: any) => {
-        const nickname = ownedRobot?.owned_robot?.nickname || ownedRobot?.nickname || '';
-        const paired = !!pairedConnections?.[nickname];
+        const rawNickname = ownedRobot?.owned_robot?.nickname || ownedRobot?.nickname || '';
+        const normalizedNickname = normalizeNickname(rawNickname);
+        const paired = !!pairedConnections?.[normalizedNickname];
+        const runtimeStatus = connectionStatuses?.[normalizedNickname];
         return {
             id: ownedRobot?.owned_robot?.id || ownedRobot.id,
             name: ownedRobot?.robot?.name || 'Robot',
-            nickname: nickname ? `@${nickname}` : '',
+            nickname: normalizedNickname ? `@${normalizedNickname}` : '',
+            normalizedNickname,
             image: ownedRobot?.robot?.image || null,
             robotType: ownedRobot?.robot?.robot_type || 'Unknown',
             source: paired ? 'Paired' : 'Connected',
+            isConnected: !!runtimeStatus?.connected,
+            isStarted: !!runtimeStatus?.started,
         };
     });
     const robotsToRender = connectedRobots;
@@ -383,19 +564,32 @@ export const RobotListPage = () => {
                             <div className="flex flex-wrap items-center gap-3">
                                 <button
                                     onClick={handleConnectOrStart}
-                                    disabled={!selectedConnection || isConnecting || isStartingRobot}
+                                    disabled={!selectedConnection || isConnecting || isStartingRobot || isStoppingRobot}
                                     className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-                                        !selectedConnection || isConnecting || isStartingRobot
+                                        !selectedConnection || isConnecting || isStartingRobot || isStoppingRobot
                                             ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
-                                            : isSelectedConnected
-                                              ? 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
+                                            : isSelectedConnected && isSelectedStarted
+                                              ? 'cursor-pointer bg-red-600 text-white hover:bg-red-700'
+                                              : isSelectedConnected
+                                                ? 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
                                               : 'cursor-pointer bg-cyan-600 text-white hover:bg-cyan-700'
                                     }`}
                                 >
-                                    {isConnecting ? 'Connecting...' : isStartingRobot ? 'Starting...' : isSelectedConnected ? 'Start Robot' : 'Connect'}
+                                    {isConnecting
+                                        ? 'Connecting...'
+                                        : isStartingRobot
+                                          ? 'Starting...'
+                                          : isStoppingRobot
+                                            ? 'Stopping...'
+                                            : isSelectedConnected
+                                              ? isSelectedStarted
+                                                ? 'Stop Robot'
+                                                : 'Start Robot'
+                                              : 'Connect'}
                                 </button>
                                 <span className={`text-sm ${isSelectedConnected ? 'text-green-300' : 'text-slate-300'}`}>
-                                    Selected: {selectedRobot.name} | Status: {isSelectedConnected ? 'Connected' : 'Not connected'}
+                                    Selected: {selectedRobot.name} | Status:{' '}
+                                    {isSelectedConnected ? (isSelectedStarted ? 'Connected and started' : 'Connected and stopped') : 'Not connected'}
                                 </span>
                             </div>
                         </div>
@@ -418,6 +612,7 @@ export const RobotListPage = () => {
                             const robotName = robot.name || 'Robot';
                             const nickname = robot.nickname || '';
                             const image = robot.image;
+                            const cardIsBusy = menuActionRobotId === robot.id;
 
                             return (
                                 <div
@@ -426,6 +621,9 @@ export const RobotListPage = () => {
                                         selectedRobot?.id === robot.id ? 'border-yellow-400/70 shadow-lg shadow-yellow-500/10' : 'border-slate-700'
                                     }`}
                                 >
+                                    <div className="absolute top-3 left-3 z-20">
+                                        <FaCircle className={`h-2.5 w-2.5 ${robot.isStarted ? 'text-green-400' : 'text-slate-500'}`} />
+                                    </div>
                                     <button
                                         type="button"
                                         onClick={() => {
@@ -460,8 +658,14 @@ export const RobotListPage = () => {
                                         <div className="space-y-2 p-4">
                                             <div className="flex items-center justify-between gap-3">
                                                 <div className="text-lg font-semibold text-white">{robotName}</div>
-                                                <span className="rounded-full bg-green-600/20 px-2 py-1 text-xs font-semibold text-green-300">
-                                                    {robot.source}
+                                                <span
+                                                    className={`rounded-full px-2 py-1 text-xs font-semibold ${
+                                                        robot.isStarted
+                                                            ? 'bg-red-600/20 text-red-300'
+                                                            : 'bg-green-600/20 text-green-300'
+                                                    }`}
+                                                >
+                                                    {robot.isStarted ? 'Running' : robot.source}
                                                 </span>
                                             </div>
                                             <div className="text-sm text-slate-300">
@@ -501,6 +705,23 @@ export const RobotListPage = () => {
                                                     className="block w-full cursor-pointer rounded px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-700"
                                                 >
                                                     Pair
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        handleToggleRobotFromCard(robot);
+                                                    }}
+                                                    disabled={cardIsBusy}
+                                                    className={`block w-full rounded px-3 py-2 text-left text-sm ${
+                                                        cardIsBusy
+                                                            ? 'cursor-not-allowed text-slate-400 opacity-60'
+                                                            : robot.isStarted
+                                                              ? 'cursor-pointer text-red-400 hover:bg-red-900/40'
+                                                              : 'cursor-pointer text-emerald-300 hover:bg-emerald-900/30'
+                                                    }`}
+                                                >
+                                                    {cardIsBusy ? 'Working...' : robot.isStarted ? 'Stop Robot' : 'Start Robot'}
                                                 </button>
                                                 <button
                                                     type="button"

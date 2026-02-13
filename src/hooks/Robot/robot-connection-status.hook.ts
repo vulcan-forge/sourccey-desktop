@@ -5,6 +5,7 @@ export const ROBOT_CONNECTION_STATUS_KEY = ['robot-connection-status'];
 
 export type RobotConnectionStatus = {
     connected: boolean;
+    started?: boolean;
     checkedAt: number;
     message?: string;
 };

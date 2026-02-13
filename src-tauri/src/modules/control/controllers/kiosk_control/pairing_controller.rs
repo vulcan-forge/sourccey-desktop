@@ -69,3 +69,29 @@ pub fn start_kiosk_robot(
         &token,
     )
 }
+
+#[command]
+pub fn stop_kiosk_robot(
+    host: String,
+    port: Option<u16>,
+    token: String,
+) -> Result<String, String> {
+    KioskPairingService::stop_kiosk_robot(
+        &host,
+        port.unwrap_or(DEFAULT_SERVICE_PORT),
+        &token,
+    )
+}
+
+#[command]
+pub fn get_kiosk_robot_status(
+    host: String,
+    port: Option<u16>,
+    token: String,
+) -> Result<String, String> {
+    KioskPairingService::get_kiosk_robot_status(
+        &host,
+        port.unwrap_or(DEFAULT_SERVICE_PORT),
+        &token,
+    )
+}

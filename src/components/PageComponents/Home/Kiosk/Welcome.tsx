@@ -100,6 +100,12 @@ export const HomeWelcome = () => {
                     setIsRobotStarted(false);
                     return;
                 }
+
+                if (!active && isStopping) {
+                    setIsStopping(false);
+                    setIsRobotStarted(false);
+                    return;
+                }
             } catch {
                 lastActiveRef.current = false;
                 setIsStarting(false);
@@ -142,7 +148,6 @@ export const HomeWelcome = () => {
         setIsStarting(false);
         try {
             await invoke<string>('stop_kiosk_host', { nickname });
-            setIsRobotStarted(false);
         } catch (error: any) {
             setIsStopping(false);
 
