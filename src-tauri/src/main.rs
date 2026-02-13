@@ -199,10 +199,12 @@ fn main() {
                     let _ = win.set_fullscreen(true);
                     let _ = win.set_decorations(false);
                     let _ = win.set_resizable(false);
+                    let _ = win.set_cursor_visible(false);
                 } else {
                     let _ = win.set_fullscreen(false);
                     let _ = win.set_decorations(true);
                     let _ = win.set_resizable(true);
+                    let _ = win.set_cursor_visible(true);
                     // Optional dev defaults:
                     // use tauri::window::{LogicalSize, Size};
                     // let _ = win.set_size(Size::Logical(LogicalSize{ width:1280.0, height:800.0 }));
