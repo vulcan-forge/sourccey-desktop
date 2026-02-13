@@ -43,3 +43,16 @@ pub fn send_model_to_kiosk_robot(
         &model_name,
     )
 }
+
+#[command]
+pub fn check_kiosk_robot_connection(
+    host: String,
+    port: Option<u16>,
+    token: String,
+) -> Result<String, String> {
+    KioskPairingService::check_kiosk_robot_connection(
+        &host,
+        port.unwrap_or(DEFAULT_SERVICE_PORT),
+        &token,
+    )
+}

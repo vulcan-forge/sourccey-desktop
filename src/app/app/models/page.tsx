@@ -1,6 +1,7 @@
 'use client';
 
 import { usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
+import { useRobotConnectionStatuses } from '@/hooks/Robot/robot-connection-status.hook';
 import { useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { setSelectedModel, useSelectedModel } from '@/hooks/Model/selected-model.hook';
 import { invoke } from '@tauri-apps/api/core';
@@ -211,6 +212,7 @@ export default function ModelsPage() {
     const { data: selectedModel } = useSelectedModel();
     const { data: selectedRobot } = useSelectedRobot();
     const { data: pairedConnections } = usePairedRobotConnections();
+    const { data: connectionStatuses } = useRobotConnectionStatuses();
     const [isSendingModel, setIsSendingModel] = useState(false);
     const getErrorMessage = (error: unknown) => {
         if (typeof error === 'string') return error;
@@ -223,6 +225,7 @@ export default function ModelsPage() {
 
     const selectedRobotNickname = selectedRobot?.nickname || '';
     const selectedConnection = selectedRobotNickname ? pairedConnections?.[selectedRobotNickname] : null;
+    const isRobotConnected = !!(selectedRobotNickname && connectionStatuses?.[selectedRobotNickname]?.connected);
 
     const handleSendToRobot = async () => {
         if (!selectedModel) {
@@ -235,6 +238,10 @@ export default function ModelsPage() {
         }
         if (!selectedConnection) {
             toast.error('Selected robot is not paired yet. Pair it from the Robots page.', { ...toastErrorDefaults });
+            return;
+        }
+        if (!isRobotConnected) {
+            toast.error('Selected robot is not connected. Press Connect from the Robots page first.', { ...toastErrorDefaults });
             return;
         }
 
@@ -284,9 +291,9 @@ export default function ModelsPage() {
                 <div className="flex flex-wrap items-center gap-3">
                     <button
                         onClick={handleSendToRobot}
-                        disabled={!selectedModel || !selectedConnection || isSendingModel}
+                        disabled={!selectedModel || !selectedConnection || !isRobotConnected || isSendingModel}
                         className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-                            !selectedModel || !selectedConnection || isSendingModel
+                            !selectedModel || !selectedConnection || !isRobotConnected || isSendingModel
                                 ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                                 : 'cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700'
                         }`}
@@ -294,7 +301,8 @@ export default function ModelsPage() {
                         {isSendingModel ? 'Sending...' : 'Send Selected Model To Robot'}
                     </button>
                     <span className="text-sm text-slate-400">
-                        Robot: {selectedRobot?.name || 'None'} | Model: {selectedModel?.name || 'None'}
+                        Robot: {selectedRobot?.name || 'None'} | Connection: {isRobotConnected ? 'Connected' : 'Not connected'} | Model:{' '}
+                        {selectedModel?.name || 'None'}
                     </span>
                 </div>
 

@@ -6,6 +6,7 @@ import { queryClient } from '@/hooks/default';
 import { BASE_OWNED_ROBOT_KEY, useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { useGetProfile } from '@/hooks/Models/Profile/profile.hook';
 import { setPairedRobotConnection, usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
+import { setRobotConnectionStatus, useRobotConnectionStatuses } from '@/hooks/Robot/robot-connection-status.hook';
 import { setSelectedRobot, useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { invoke } from '@tauri-apps/api/core';
 import Image from 'next/image';
@@ -36,12 +37,18 @@ export const RobotListPage = () => {
     const { data: ownedRobots, isLoading: isLoadingOwnedRobots }: any = useGetOwnedRobots(profile?.id, enabled);
     const { data: selectedRobot } = useSelectedRobot();
     const { data: pairedConnections } = usePairedRobotConnections();
+    const { data: connectionStatuses } = useRobotConnectionStatuses();
 
     const [isDiscovering, setIsDiscovering] = useState(false);
     const [isPairing, setIsPairing] = useState(false);
+    const [isConnecting, setIsConnecting] = useState(false);
     const [discoveredRobots, setDiscoveredRobots] = useState<DiscoveredRobot[]>([]);
     const [selectedHost, setSelectedHost] = useState('');
     const [pairingCode, setPairingCode] = useState('');
+
+    const selectedRobotNickname = selectedRobot?.nickname || '';
+    const selectedConnection = selectedRobotNickname ? pairedConnections?.[selectedRobotNickname] : null;
+    const selectedConnectionStatus = selectedRobotNickname ? connectionStatuses?.[selectedRobotNickname] : null;
 
     const handleDiscoverRobots = async () => {
         setIsDiscovering(true);
@@ -106,6 +113,11 @@ export const RobotListPage = () => {
                 robotName: result.robot_name,
                 pairedAt: Date.now(),
             });
+            setRobotConnectionStatus(result.nickname, {
+                connected: true,
+                checkedAt: Date.now(),
+                message: 'Paired and reachable',
+            });
 
             setSelectedRobot({
                 id: ownedRobotId || `paired-${result.nickname}`,
@@ -122,6 +134,42 @@ export const RobotListPage = () => {
             toast.error(error?.message || 'Failed to pair robot.', { ...toastErrorDefaults });
         } finally {
             setIsPairing(false);
+        }
+    };
+
+    const handleConnectSelectedRobot = async () => {
+        if (!selectedRobotNickname) {
+            toast.error('Select a robot first.', { ...toastErrorDefaults });
+            return;
+        }
+        if (!selectedConnection) {
+            toast.error('Selected robot is not paired yet. Pair it first.', { ...toastErrorDefaults });
+            return;
+        }
+
+        setIsConnecting(true);
+        try {
+            const message = await invoke<string>('check_kiosk_robot_connection', {
+                host: selectedConnection.host,
+                port: selectedConnection.port,
+                token: selectedConnection.token,
+            });
+
+            setRobotConnectionStatus(selectedRobotNickname, {
+                connected: true,
+                checkedAt: Date.now(),
+                message: message || 'Connected',
+            });
+            toast.success(message || 'Robot connected.', { ...toastSuccessDefaults });
+        } catch (error: any) {
+            setRobotConnectionStatus(selectedRobotNickname, {
+                connected: false,
+                checkedAt: Date.now(),
+                message: error?.message || 'Disconnected',
+            });
+            toast.error(error?.message || 'Failed to connect to robot.', { ...toastErrorDefaults });
+        } finally {
+            setIsConnecting(false);
         }
     };
 
@@ -212,6 +260,26 @@ export const RobotListPage = () => {
                         >
                             {isPairing ? 'Pairing...' : 'Pair And Add Robot'}
                         </button>
+                    </div>
+
+                    <div className="mt-4 rounded-lg border border-slate-600 bg-slate-700/30 p-3">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                onClick={handleConnectSelectedRobot}
+                                disabled={!selectedConnection || isConnecting}
+                                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                                    !selectedConnection || isConnecting
+                                        ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
+                                        : 'cursor-pointer bg-cyan-600 text-white hover:bg-cyan-700'
+                                }`}
+                            >
+                                {isConnecting ? 'Connecting...' : 'Connect'}
+                            </button>
+                            <span className="text-sm text-slate-300">
+                                Selected: {selectedRobot?.name || 'None'} | Status:{' '}
+                                {selectedConnectionStatus?.connected ? 'Connected' : 'Not connected'}
+                            </span>
+                        </div>
                     </div>
                 </div>
 

@@ -71,6 +71,7 @@ use modules::control::controllers::kiosk_control::kiosk_host_controller::{
     set_ssh_password_changed_status, start_kiosk_host, stop_kiosk_host,
 };
 use modules::control::controllers::kiosk_control::pairing_controller::{
+    check_kiosk_robot_connection,
     discover_pairable_robots, get_kiosk_pairing_info, init_kiosk_pairing, pair_with_kiosk_robot,
     send_model_to_kiosk_robot,
 };
@@ -371,6 +372,7 @@ fn main() {
             discover_pairable_robots,
             pair_with_kiosk_robot,
             send_model_to_kiosk_robot,
+            check_kiosk_robot_connection,
             // WiFi API
             scan_wifi_networks,
             connect_to_wifi,

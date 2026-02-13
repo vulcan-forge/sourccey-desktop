@@ -298,6 +298,24 @@ impl KioskPairingService {
         Ok(response.message)
     }
 
+    pub fn check_kiosk_robot_connection(host: &str, port: u16, token: &str) -> Result<String, String> {
+        let request = KioskServiceRequest {
+            action: "ping".to_string(),
+            code: None,
+            token: Some(token.to_string()),
+            client_name: None,
+            repo_id: None,
+            model_name: None,
+        };
+
+        let response = Self::send_service_request(host, port, &request)?;
+        if !response.ok {
+            return Err(response.message);
+        }
+
+        Ok(response.message)
+    }
+
     fn send_service_request(
         host: &str,
         port: u16,
@@ -371,6 +389,7 @@ impl KioskPairingService {
             response = match request.action.as_str() {
                 "pair" => Self::handle_pair_request(state.clone(), request),
                 "download_model" => Self::handle_download_model_request(state.clone(), request),
+                "ping" => Self::handle_ping_request(state.clone(), request),
                 _ => KioskServiceResponse {
                     ok: false,
                     message: "Unsupported action".to_string(),
@@ -571,6 +590,50 @@ impl KioskPairingService {
                     service_port: Some(DEFAULT_SERVICE_PORT),
                 }
             }
+        }
+    }
+
+    fn handle_ping_request(state: KioskPairingState, request: KioskServiceRequest) -> KioskServiceResponse {
+        let token = match request.token {
+            Some(token) => token,
+            None => {
+                return KioskServiceResponse {
+                    ok: false,
+                    message: "Missing authentication token".to_string(),
+                    token: None,
+                    robot_name: None,
+                    nickname: None,
+                    robot_type: None,
+                    service_port: Some(DEFAULT_SERVICE_PORT),
+                }
+            }
+        };
+
+        let is_valid_token = match state.inner.lock() {
+            Ok(runtime) => runtime.valid_tokens.contains(&token),
+            Err(_) => false,
+        };
+
+        if !is_valid_token {
+            return KioskServiceResponse {
+                ok: false,
+                message: "Unauthorized request".to_string(),
+                token: None,
+                robot_name: None,
+                nickname: None,
+                robot_type: None,
+                service_port: Some(DEFAULT_SERVICE_PORT),
+            };
+        }
+
+        KioskServiceResponse {
+            ok: true,
+            message: "Robot reachable".to_string(),
+            token: None,
+            robot_name: None,
+            nickname: None,
+            robot_type: None,
+            service_port: Some(DEFAULT_SERVICE_PORT),
         }
     }
 
