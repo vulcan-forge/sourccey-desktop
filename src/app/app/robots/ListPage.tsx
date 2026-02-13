@@ -1,17 +1,25 @@
 'use client';
 
-import { addOwnedRobot, getOwnedRobotByNickname } from '@/api/Local/Robot/owned_robot';
+import { addOwnedRobot, deleteOwnedRobot, getOwnedRobotByNickname } from '@/api/Local/Robot/owned_robot';
 import { getAllRobots } from '@/api/Local/Robot/robot';
 import { queryClient } from '@/hooks/default';
 import { BASE_OWNED_ROBOT_KEY, useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { useGetProfile } from '@/hooks/Models/Profile/profile.hook';
-import { setPairedRobotConnection, usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
-import { setRobotConnectionStatus, useRobotConnectionStatuses } from '@/hooks/Robot/robot-connection-status.hook';
+import {
+    removePairedRobotConnection,
+    setPairedRobotConnection,
+    usePairedRobotConnections,
+} from '@/hooks/Robot/paired-robot-connection.hook';
+import {
+    removeRobotConnectionStatus,
+    setRobotConnectionStatus,
+    useRobotConnectionStatuses,
+} from '@/hooks/Robot/robot-connection-status.hook';
 import { setSelectedRobot, useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { invoke } from '@tauri-apps/api/core';
 import Image from 'next/image';
-import { useState } from 'react';
-import { FaRobot, FaSatelliteDish } from 'react-icons/fa';
+import { useEffect, useState } from 'react';
+import { FaEllipsisH, FaRobot, FaSatelliteDish } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 
@@ -31,6 +39,14 @@ type PairResult = {
     service_port: number;
 };
 
+type PairModalTarget = {
+    host: string;
+    robotName: string;
+    nickname: string;
+    robotType: string;
+    servicePort?: number;
+};
+
 export const RobotListPage = () => {
     const { data: profile, isLoading: isLoadingProfile }: any = useGetProfile();
     const enabled = !isLoadingProfile && !!profile?.id;
@@ -42,24 +58,43 @@ export const RobotListPage = () => {
     const [isDiscovering, setIsDiscovering] = useState(false);
     const [isPairing, setIsPairing] = useState(false);
     const [isConnecting, setIsConnecting] = useState(false);
+    const [isStartingRobot, setIsStartingRobot] = useState(false);
+    const [deletingRobotId, setDeletingRobotId] = useState<string | null>(null);
     const [discoveredRobots, setDiscoveredRobots] = useState<DiscoveredRobot[]>([]);
-    const [selectedHost, setSelectedHost] = useState('');
     const [pairingCode, setPairingCode] = useState('');
+    const [pairModalTarget, setPairModalTarget] = useState<PairModalTarget | null>(null);
+    const [openMenuRobotId, setOpenMenuRobotId] = useState<string | null>(null);
 
     const selectedRobotNickname = selectedRobot?.nickname || '';
     const selectedConnection = selectedRobotNickname ? pairedConnections?.[selectedRobotNickname] : null;
     const selectedConnectionStatus = selectedRobotNickname ? connectionStatuses?.[selectedRobotNickname] : null;
+    const isSelectedConnected = !!selectedConnectionStatus?.connected;
+
+    const normalizeNickname = (nickname: string) => (nickname.startsWith('@') ? nickname.slice(1) : nickname);
+
+    useEffect(() => {
+        if (!openMenuRobotId) return;
+
+        const handleOutsideClick = (event: MouseEvent) => {
+            const target = event.target as HTMLElement;
+            if (!target.closest('[data-robot-menu-root="true"]')) {
+                setOpenMenuRobotId(null);
+            }
+        };
+
+        document.addEventListener('mousedown', handleOutsideClick);
+        return () => document.removeEventListener('mousedown', handleOutsideClick);
+    }, [openMenuRobotId]);
 
     const handleDiscoverRobots = async () => {
         setIsDiscovering(true);
         try {
-            const discovered = await invoke<DiscoveredRobot[]>('discover_pairable_robots', { timeout_ms: 1400 });
+            const discovered = await invoke<DiscoveredRobot[]>('discover_pairable_robots', { timeoutMs: 1400 });
             setDiscoveredRobots(discovered);
-            if (discovered.length > 0) {
-                setSelectedHost(discovered[0]?.host ?? '');
-            }
             if (discovered.length === 0) {
-                toast.error('No nearby robots discovered. Ensure robot kiosk is online and on the same Wi-Fi.', { ...toastErrorDefaults });
+                toast.error('No nearby robots discovered. Ensure robot kiosk is online and on the same Wi-Fi.', {
+                    ...toastErrorDefaults,
+                });
             }
         } catch (error: any) {
             toast.error(error?.message || 'Failed to discover robots.', { ...toastErrorDefaults });
@@ -68,9 +103,15 @@ export const RobotListPage = () => {
         }
     };
 
-    const handlePairRobot = async () => {
-        if (!selectedHost || !pairingCode.trim()) {
-            toast.error('Select a discovered robot and enter pairing code.', { ...toastErrorDefaults });
+    const openPairModal = (target: PairModalTarget) => {
+        setPairingCode('');
+        setPairModalTarget(target);
+        setOpenMenuRobotId(null);
+    };
+
+    const pairRobotWithTarget = async (target: PairModalTarget, code: string) => {
+        if (!target.host || !code.trim()) {
+            toast.error('Missing robot host or pairing code.', { ...toastErrorDefaults });
             return;
         }
         if (!profile?.id) {
@@ -81,8 +122,8 @@ export const RobotListPage = () => {
         setIsPairing(true);
         try {
             const result = await invoke<PairResult>('pair_with_kiosk_robot', {
-                host: selectedHost,
-                code: pairingCode.trim(),
+                host: target.host,
+                code: code.trim(),
                 client_name: 'Desktop App',
             });
 
@@ -106,7 +147,7 @@ export const RobotListPage = () => {
 
             setPairedRobotConnection(result.nickname, {
                 nickname: result.nickname,
-                host: selectedHost,
+                host: target.host,
                 port: result.service_port,
                 token: result.token,
                 robotType: result.robot_type,
@@ -129,11 +170,67 @@ export const RobotListPage = () => {
 
             await queryClient.invalidateQueries({ queryKey: [BASE_OWNED_ROBOT_KEY] });
             toast.success(`Paired with ${result.robot_name} and added to your robots.`, { ...toastSuccessDefaults });
+            setPairModalTarget(null);
             setPairingCode('');
         } catch (error: any) {
             toast.error(error?.message || 'Failed to pair robot.', { ...toastErrorDefaults });
         } finally {
             setIsPairing(false);
+        }
+    };
+
+    const handlePairFromModal = async () => {
+        if (!pairModalTarget) return;
+        await pairRobotWithTarget(pairModalTarget, pairingCode);
+    };
+
+    const handleOpenPairForOwnedRobot = (robot: any) => {
+        const nickname = normalizeNickname(robot.nickname || '');
+        const knownConnection = pairedConnections?.[nickname];
+        const discoveredMatch =
+            discoveredRobots.find((item) => item.nickname === nickname) ||
+            discoveredRobots.find((item) => item.robot_name === robot.name);
+
+        const host = knownConnection?.host || discoveredMatch?.host;
+        const port = knownConnection?.port || discoveredMatch?.service_port;
+        if (!host) {
+            toast.error('No host known for this robot yet. Discover robots first, then pair.', { ...toastErrorDefaults });
+            return;
+        }
+
+        openPairModal({
+            host,
+            servicePort: port,
+            robotName: robot.name || 'Robot',
+            nickname,
+            robotType: robot.robotType || 'Unknown',
+        });
+    };
+
+    const handleDeleteRobot = async (robot: any) => {
+        if (!robot?.id) {
+            toast.error('Could not delete robot: missing ID.', { ...toastErrorDefaults });
+            return;
+        }
+
+        setDeletingRobotId(robot.id);
+        setOpenMenuRobotId(null);
+        try {
+            await deleteOwnedRobot(robot.id);
+            const nickname = normalizeNickname(robot.nickname || '');
+            removePairedRobotConnection(nickname);
+            removeRobotConnectionStatus(nickname);
+
+            if (selectedRobot?.id === robot.id) {
+                setSelectedRobot(null);
+            }
+
+            await queryClient.invalidateQueries({ queryKey: [BASE_OWNED_ROBOT_KEY] });
+            toast.success('Robot deleted.', { ...toastSuccessDefaults });
+        } catch (error: any) {
+            toast.error(error?.message || 'Failed to delete robot.', { ...toastErrorDefaults });
+        } finally {
+            setDeletingRobotId(null);
         }
     };
 
@@ -171,6 +268,43 @@ export const RobotListPage = () => {
         } finally {
             setIsConnecting(false);
         }
+    };
+
+    const handleStartSelectedRobot = async () => {
+        if (!selectedRobotNickname) {
+            toast.error('Select a robot first.', { ...toastErrorDefaults });
+            return;
+        }
+        if (!selectedConnection) {
+            toast.error('Selected robot is not paired yet. Pair it first.', { ...toastErrorDefaults });
+            return;
+        }
+        if (!isSelectedConnected) {
+            toast.error('Connect to the robot before starting it.', { ...toastErrorDefaults });
+            return;
+        }
+
+        setIsStartingRobot(true);
+        try {
+            const message = await invoke<string>('start_kiosk_robot', {
+                host: selectedConnection.host,
+                port: selectedConnection.port,
+                token: selectedConnection.token,
+            });
+            toast.success(message || 'Robot start requested.', { ...toastSuccessDefaults });
+        } catch (error: any) {
+            toast.error(error?.message || 'Failed to start robot remotely.', { ...toastErrorDefaults });
+        } finally {
+            setIsStartingRobot(false);
+        }
+    };
+
+    const handleConnectOrStart = async () => {
+        if (isSelectedConnected) {
+            await handleStartSelectedRobot();
+            return;
+        }
+        await handleConnectSelectedRobot();
     };
 
     const connectedRobots = (ownedRobots || []).map((ownedRobot: any) => {
@@ -214,9 +348,7 @@ export const RobotListPage = () => {
                             {isDiscovering ? 'Discovering...' : 'Discover Robots'}
                         </button>
                         <span className="text-sm text-slate-400">
-                            {discoveredRobots.length > 0
-                                ? `${discoveredRobots.length} robot(s) found`
-                                : 'No discovery results yet'}
+                            {discoveredRobots.length > 0 ? `${discoveredRobots.length} robot(s) found` : 'No discovery results yet'}
                         </span>
                     </div>
 
@@ -226,14 +358,18 @@ export const RobotListPage = () => {
                                 <button
                                     key={`${robot.host}-${robot.nickname}`}
                                     type="button"
-                                    onClick={() => setSelectedHost(robot.host)}
-                                    className={`rounded-lg border px-3 py-2 text-left text-sm transition-all ${
-                                        selectedHost === robot.host
-                                            ? 'border-blue-400 bg-blue-500/10 text-white'
-                                            : 'border-slate-600 bg-slate-700/40 text-slate-300 hover:bg-slate-700/70'
-                                    }`}
+                                    onClick={() =>
+                                        openPairModal({
+                                            host: robot.host,
+                                            servicePort: robot.service_port,
+                                            robotName: robot.robot_name,
+                                            nickname: robot.nickname,
+                                            robotType: robot.robot_type,
+                                        })
+                                    }
+                                    className="cursor-pointer rounded-lg border border-slate-600 bg-slate-700/40 px-3 py-2 text-left text-sm text-slate-300 transition-all hover:bg-slate-700/70"
                                 >
-                                    <div className="font-semibold">{robot.robot_name}</div>
+                                    <div className="font-semibold text-white">{robot.robot_name}</div>
                                     <div className="text-xs text-slate-400">
                                         {robot.host} | @{robot.nickname} | {robot.robot_type}
                                     </div>
@@ -242,45 +378,28 @@ export const RobotListPage = () => {
                         </div>
                     )}
 
-                    <div className="flex flex-col gap-3 md:flex-row">
-                        <input
-                            value={pairingCode}
-                            onChange={(event) => setPairingCode(event.target.value)}
-                            placeholder="Enter 6-digit pairing code shown on robot"
-                            className="w-full rounded-lg border border-slate-600 bg-slate-700/50 px-3 py-2 text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
-                        />
-                        <button
-                            onClick={handlePairRobot}
-                            disabled={!selectedHost || !pairingCode.trim() || isPairing}
-                            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-                                !selectedHost || !pairingCode.trim() || isPairing
-                                    ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
-                                    : 'cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700'
-                            }`}
-                        >
-                            {isPairing ? 'Pairing...' : 'Pair And Add Robot'}
-                        </button>
-                    </div>
-
-                    <div className="mt-4 rounded-lg border border-slate-600 bg-slate-700/30 p-3">
-                        <div className="flex flex-wrap items-center gap-3">
-                            <button
-                                onClick={handleConnectSelectedRobot}
-                                disabled={!selectedConnection || isConnecting}
-                                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-                                    !selectedConnection || isConnecting
-                                        ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
-                                        : 'cursor-pointer bg-cyan-600 text-white hover:bg-cyan-700'
-                                }`}
-                            >
-                                {isConnecting ? 'Connecting...' : 'Connect'}
-                            </button>
-                            <span className="text-sm text-slate-300">
-                                Selected: {selectedRobot?.name || 'None'} | Status:{' '}
-                                {selectedConnectionStatus?.connected ? 'Connected' : 'Not connected'}
-                            </span>
+                    {selectedRobot && (
+                        <div className="mt-4 rounded-lg border border-slate-600 bg-slate-700/30 p-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                                <button
+                                    onClick={handleConnectOrStart}
+                                    disabled={!selectedConnection || isConnecting || isStartingRobot}
+                                    className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                                        !selectedConnection || isConnecting || isStartingRobot
+                                            ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
+                                            : isSelectedConnected
+                                              ? 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
+                                              : 'cursor-pointer bg-cyan-600 text-white hover:bg-cyan-700'
+                                    }`}
+                                >
+                                    {isConnecting ? 'Connecting...' : isStartingRobot ? 'Starting...' : isSelectedConnected ? 'Start Robot' : 'Connect'}
+                                </button>
+                                <span className={`text-sm ${isSelectedConnected ? 'text-green-300' : 'text-slate-300'}`}>
+                                    Selected: {selectedRobot.name} | Status: {isSelectedConnected ? 'Connected' : 'Not connected'}
+                                </span>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
 
                 {isLoadingOwnedRobots ? (
@@ -301,62 +420,156 @@ export const RobotListPage = () => {
                             const image = robot.image;
 
                             return (
-                                <button
+                                <div
                                     key={robot.id}
-                                    type="button"
-                                    onClick={() =>
-                                        setSelectedRobot({
-                                            id: robot.id,
-                                            name: robotName,
-                                            nickname: nickname.startsWith('@') ? nickname.slice(1) : nickname,
-                                            robotType: robot.robotType || 'unknown',
-                                            image,
-                                        })
-                                    }
-                                    className={`w-full cursor-pointer overflow-hidden rounded-2xl border bg-slate-800 text-left transition-all duration-200 hover:scale-[1.02] ${
+                                    className={`relative w-full overflow-hidden rounded-2xl border bg-slate-800 text-left transition-all duration-200 hover:scale-[1.02] ${
                                         selectedRobot?.id === robot.id ? 'border-yellow-400/70 shadow-lg shadow-yellow-500/10' : 'border-slate-700'
                                     }`}
                                 >
-                                    <div className="p-3">
-                                        <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-slate-600 bg-slate-750">
-                                            {image ? (
-                                                <Image
-                                                    src={image}
-                                                    alt={robotName}
-                                                    fill
-                                                    className="object-cover"
-                                                    sizes="(max-width: 640px) 100vw, 25vw"
-                                                />
-                                            ) : (
-                                                <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-700">
-                                                    <FaRobot className="h-16 w-16 text-slate-500" />
-                                                </div>
-                                            )}
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setSelectedRobot({
+                                                id: robot.id,
+                                                name: robotName,
+                                                nickname: normalizeNickname(nickname),
+                                                robotType: robot.robotType || 'unknown',
+                                                image,
+                                            });
+                                            setOpenMenuRobotId(null);
+                                        }}
+                                        className="w-full cursor-pointer text-left"
+                                    >
+                                        <div className="px-3 pt-10 pb-3">
+                                            <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-slate-600 bg-slate-750">
+                                                {image ? (
+                                                    <Image
+                                                        src={image}
+                                                        alt={robotName}
+                                                        fill
+                                                        className="object-cover"
+                                                        sizes="(max-width: 640px) 100vw, 25vw"
+                                                    />
+                                                ) : (
+                                                    <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-slate-800 to-slate-700">
+                                                        <FaRobot className="h-16 w-16 text-slate-500" />
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
+                                        <div className="space-y-2 p-4">
+                                            <div className="flex items-center justify-between gap-3">
+                                                <div className="text-lg font-semibold text-white">{robotName}</div>
+                                                <span className="rounded-full bg-green-600/20 px-2 py-1 text-xs font-semibold text-green-300">
+                                                    {robot.source}
+                                                </span>
+                                            </div>
+                                            <div className="text-sm text-slate-300">
+                                                <span className="font-semibold text-slate-200">Nickname:</span> {nickname || 'N/A'}
+                                            </div>
+                                            <div className="text-sm text-slate-300">
+                                                <span className="font-semibold text-slate-200">Type:</span> {robot.robotType}
+                                            </div>
+                                            <div className="text-sm text-slate-300">
+                                                <span className="font-semibold text-slate-200">Status:</span> Ready
+                                            </div>
+                                        </div>
+                                    </button>
+
+                                    <div className="absolute -top-px -right-px z-20" data-robot-menu-root="true">
+                                        <button
+                                            type="button"
+                                            onMouseDown={(event) => {
+                                                event.preventDefault();
+                                            }}
+                                            onClick={(event) => {
+                                                event.stopPropagation();
+                                                setOpenMenuRobotId(openMenuRobotId === robot.id ? null : robot.id);
+                                            }}
+                                            className="flex h-9 w-9 cursor-pointer items-center justify-center rounded-tr-[1rem] rounded-bl-lg border border-slate-700/70 bg-slate-900/90 p-0 leading-none text-slate-200 transition-colors hover:bg-slate-700 focus:outline-none focus:ring-0 focus-visible:ring-0 active:translate-y-0"
+                                        >
+                                            <FaEllipsisH className="h-4 w-4" />
+                                        </button>
+                                        {openMenuRobotId === robot.id && (
+                                            <div className="absolute top-full right-0 mt-2 w-36 rounded-lg border border-slate-600 bg-slate-900/95 p-1 shadow-xl">
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        handleOpenPairForOwnedRobot(robot);
+                                                    }}
+                                                    className="block w-full cursor-pointer rounded px-3 py-2 text-left text-sm text-slate-200 hover:bg-slate-700"
+                                                >
+                                                    Pair
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={(event) => {
+                                                        event.stopPropagation();
+                                                        handleDeleteRobot(robot);
+                                                    }}
+                                                    disabled={deletingRobotId === robot.id}
+                                                    className="block w-full cursor-pointer rounded px-3 py-2 text-left text-sm text-red-400 hover:bg-red-900/40 disabled:cursor-not-allowed disabled:opacity-60"
+                                                >
+                                                    {deletingRobotId === robot.id ? 'Deleting...' : 'Delete'}
+                                                </button>
+                                            </div>
+                                        )}
                                     </div>
-                                    <div className="space-y-2 p-4">
-                                        <div className="flex items-center justify-between gap-3">
-                                            <div className="text-lg font-semibold text-white">{robotName}</div>
-                                            <span className="rounded-full bg-green-600/20 px-2 py-1 text-xs font-semibold text-green-300">
-                                                {robot.source}
-                                            </span>
-                                        </div>
-                                        <div className="text-sm text-slate-300">
-                                            <span className="font-semibold text-slate-200">Nickname:</span> {nickname || 'N/A'}
-                                        </div>
-                                        <div className="text-sm text-slate-300">
-                                            <span className="font-semibold text-slate-200">Type:</span> {robot.robotType}
-                                        </div>
-                                        <div className="text-sm text-slate-300">
-                                            <span className="font-semibold text-slate-200">Status:</span> Ready
-                                        </div>
-                                    </div>
-                                </button>
+                                </div>
                             );
                         })}
                     </div>
                 )}
             </div>
+
+            {pairModalTarget && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 p-4">
+                    <form
+                        onSubmit={(event) => {
+                            event.preventDefault();
+                            handlePairFromModal();
+                        }}
+                        className="w-full max-w-md rounded-xl border border-slate-600 bg-slate-800 p-5 shadow-2xl"
+                    >
+                        <h3 className="text-lg font-semibold text-white">Pair Robot</h3>
+                        <p className="mt-1 text-sm text-slate-300">
+                            {pairModalTarget.robotName} | @{pairModalTarget.nickname}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">
+                            Host: {pairModalTarget.host} | Type: {pairModalTarget.robotType}
+                        </p>
+
+                        <input
+                            value={pairingCode}
+                            onChange={(event) => setPairingCode(event.target.value)}
+                            placeholder="Enter 6-digit pairing code"
+                            className="mt-4 w-full rounded-lg border border-slate-600 bg-slate-700/50 px-3 py-2 text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                        />
+
+                        <div className="mt-4 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setPairModalTarget(null)}
+                                className="cursor-pointer rounded-lg border border-slate-600 px-4 py-2 text-sm text-slate-200 hover:bg-slate-700"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="submit"
+                                disabled={!pairingCode.trim() || isPairing}
+                                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                                    !pairingCode.trim() || isPairing
+                                        ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
+                                        : 'cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700'
+                                }`}
+                            >
+                                {isPairing ? 'Pairing...' : 'Pair'}
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            )}
         </div>
     );
 };

@@ -6,9 +6,10 @@ use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Write};
 use std::net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
 use std::process::Command;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+use tauri::{AppHandle, Manager};
 use uuid::Uuid;
 
 const DISCOVERY_MAGIC: &str = "SOURCCEY_DISCOVER_V1";
@@ -16,6 +17,7 @@ pub const DISCOVERY_PORT: u16 = 42111;
 pub const DEFAULT_SERVICE_PORT: u16 = 42112;
 const PAIRING_CODE_TTL_MS: u64 = 10 * 60 * 1000; // 10 minutes
 const PAIRING_STATE_FILE_NAME: &str = "pairing_state.json";
+static KIOSK_APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize, Default)]
 struct PersistedPairingState {
@@ -91,6 +93,12 @@ struct KioskPairingRuntimeState {
 pub struct KioskPairingService;
 
 impl KioskPairingService {
+    pub fn register_kiosk_runtime(app_handle: AppHandle) {
+        if KIOSK_APP_HANDLE.set(app_handle).is_err() {
+            // Already initialized; keep existing runtime handle.
+        }
+    }
+
     pub fn init_kiosk_pairing_state() -> KioskPairingState {
         let persisted_tokens = Self::load_persisted_tokens().unwrap_or_else(|error| {
             eprintln!("Failed to load persisted pairing tokens: {}", error);
@@ -316,6 +324,24 @@ impl KioskPairingService {
         Ok(response.message)
     }
 
+    pub fn start_kiosk_robot(host: &str, port: u16, token: &str) -> Result<String, String> {
+        let request = KioskServiceRequest {
+            action: "start_robot".to_string(),
+            code: None,
+            token: Some(token.to_string()),
+            client_name: None,
+            repo_id: None,
+            model_name: None,
+        };
+
+        let response = Self::send_service_request(host, port, &request)?;
+        if !response.ok {
+            return Err(response.message);
+        }
+
+        Ok(response.message)
+    }
+
     fn send_service_request(
         host: &str,
         port: u16,
@@ -390,6 +416,7 @@ impl KioskPairingService {
                 "pair" => Self::handle_pair_request(state.clone(), request),
                 "download_model" => Self::handle_download_model_request(state.clone(), request),
                 "ping" => Self::handle_ping_request(state.clone(), request),
+                "start_robot" => Self::handle_start_robot_request(state.clone(), request),
                 _ => KioskServiceResponse {
                     ok: false,
                     message: "Unsupported action".to_string(),
@@ -634,6 +661,100 @@ impl KioskPairingService {
             nickname: None,
             robot_type: None,
             service_port: Some(DEFAULT_SERVICE_PORT),
+        }
+    }
+
+    fn handle_start_robot_request(state: KioskPairingState, request: KioskServiceRequest) -> KioskServiceResponse {
+        let token = match request.token {
+            Some(token) => token,
+            None => {
+                return KioskServiceResponse {
+                    ok: false,
+                    message: "Missing authentication token".to_string(),
+                    token: None,
+                    robot_name: None,
+                    nickname: None,
+                    robot_type: None,
+                    service_port: Some(DEFAULT_SERVICE_PORT),
+                }
+            }
+        };
+
+        let nickname = match state.inner.lock() {
+            Ok(runtime) => {
+                if !runtime.valid_tokens.contains(&token) {
+                    return KioskServiceResponse {
+                        ok: false,
+                        message: "Unauthorized request".to_string(),
+                        token: None,
+                        robot_name: None,
+                        nickname: None,
+                        robot_type: None,
+                        service_port: Some(DEFAULT_SERVICE_PORT),
+                    };
+                }
+                runtime.nickname.clone()
+            }
+            Err(_) => {
+                return KioskServiceResponse {
+                    ok: false,
+                    message: "Failed to access pairing state".to_string(),
+                    token: None,
+                    robot_name: None,
+                    nickname: None,
+                    robot_type: None,
+                    service_port: Some(DEFAULT_SERVICE_PORT),
+                };
+            }
+        };
+
+        let app_handle = match KIOSK_APP_HANDLE.get() {
+            Some(handle) => handle.clone(),
+            None => {
+                return KioskServiceResponse {
+                    ok: false,
+                    message: "Kiosk runtime not initialized".to_string(),
+                    token: None,
+                    robot_name: None,
+                    nickname: None,
+                    robot_type: None,
+                    service_port: Some(DEFAULT_SERVICE_PORT),
+                };
+            }
+        };
+
+        let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
+        let db_connection = db_manager.get_connection().clone();
+        let kiosk_host_state = app_handle.state::<
+            crate::modules::control::services::kiosk_control::kiosk_host_service::KioskHostProcess,
+        >();
+
+        match tauri::async_runtime::block_on(
+            crate::modules::control::services::kiosk_control::kiosk_host_service::KioskHostService::start_kiosk_host(
+                app_handle.clone(),
+                db_connection,
+                &kiosk_host_state,
+                nickname,
+            ),
+        ) {
+            Ok(message) => KioskServiceResponse {
+                ok: true,
+                message,
+                token: None,
+                robot_name: None,
+                nickname: None,
+                robot_type: None,
+                service_port: Some(DEFAULT_SERVICE_PORT),
+            },
+            Err(error) => KioskServiceResponse {
+                ok: false,
+                message: error,
+                token: None,
+                robot_name: None,
+                nickname: None,
+                robot_type: None,
+                service_port: Some(DEFAULT_SERVICE_PORT),
+            },
         }
     }
 

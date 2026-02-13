@@ -73,7 +73,7 @@ use modules::control::controllers::kiosk_control::kiosk_host_controller::{
 use modules::control::controllers::kiosk_control::pairing_controller::{
     check_kiosk_robot_connection,
     discover_pairable_robots, get_kiosk_pairing_info, init_kiosk_pairing, pair_with_kiosk_robot,
-    send_model_to_kiosk_robot,
+    send_model_to_kiosk_robot, start_kiosk_robot,
 };
 use modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
@@ -213,6 +213,7 @@ fn main() {
 
             // Start process monitor in kiosk mode (after app is initialized)
             if kiosk {
+                KioskPairingService::register_kiosk_runtime(app.handle().clone());
                 let pairing_state = app.state::<KioskPairingState>().inner().clone();
                 if let Err(e) = KioskPairingService::start_kiosk_pairing_network(pairing_state) {
                     eprintln!("Failed to start kiosk pairing network: {}", e);
@@ -373,6 +374,7 @@ fn main() {
             pair_with_kiosk_robot,
             send_model_to_kiosk_robot,
             check_kiosk_robot_connection,
+            start_kiosk_robot,
             // WiFi API
             scan_wifi_networks,
             connect_to_wifi,

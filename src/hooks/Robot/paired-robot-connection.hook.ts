@@ -26,6 +26,13 @@ export const setPairedRobotConnection = (nickname: string, connection: PairedRob
     });
 };
 
+export const removePairedRobotConnection = (nickname: string) => {
+    const current = getPairedRobotConnections();
+    const next = { ...current };
+    delete next[nickname];
+    queryClient.setQueryData(PAIRED_ROBOT_CONNECTIONS_KEY, next);
+};
+
 export const usePairedRobotConnections = () =>
     useQuery({
         queryKey: PAIRED_ROBOT_CONNECTIONS_KEY,

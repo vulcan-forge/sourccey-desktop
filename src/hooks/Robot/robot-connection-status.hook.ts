@@ -22,6 +22,13 @@ export const setRobotConnectionStatus = (nickname: string, status: RobotConnecti
     });
 };
 
+export const removeRobotConnectionStatus = (nickname: string) => {
+    const current = getRobotConnectionStatuses();
+    const next = { ...current };
+    delete next[nickname];
+    queryClient.setQueryData(ROBOT_CONNECTION_STATUS_KEY, next);
+};
+
 export const useRobotConnectionStatuses = () =>
     useQuery({
         queryKey: ROBOT_CONNECTION_STATUS_KEY,
@@ -29,4 +36,3 @@ export const useRobotConnectionStatuses = () =>
         staleTime: Infinity,
         gcTime: Infinity,
     });
-

@@ -56,3 +56,16 @@ pub fn check_kiosk_robot_connection(
         &token,
     )
 }
+
+#[command]
+pub fn start_kiosk_robot(
+    host: String,
+    port: Option<u16>,
+    token: String,
+) -> Result<String, String> {
+    KioskPairingService::start_kiosk_robot(
+        &host,
+        port.unwrap_or(DEFAULT_SERVICE_PORT),
+        &token,
+    )
+}
