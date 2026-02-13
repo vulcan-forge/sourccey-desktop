@@ -15,6 +15,12 @@ const DISCOVERY_MAGIC: &str = "SOURCCEY_DISCOVER_V1";
 pub const DISCOVERY_PORT: u16 = 42111;
 pub const DEFAULT_SERVICE_PORT: u16 = 42112;
 const PAIRING_CODE_TTL_MS: u64 = 10 * 60 * 1000; // 10 minutes
+const PAIRING_STATE_FILE_NAME: &str = "pairing_state.json";
+
+#[derive(Debug, Serialize, Deserialize, Default)]
+struct PersistedPairingState {
+    valid_tokens: Vec<String>,
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct KioskPairingInfo {
@@ -86,11 +92,16 @@ pub struct KioskPairingService;
 
 impl KioskPairingService {
     pub fn init_kiosk_pairing_state() -> KioskPairingState {
+        let persisted_tokens = Self::load_persisted_tokens().unwrap_or_else(|error| {
+            eprintln!("Failed to load persisted pairing tokens: {}", error);
+            HashSet::new()
+        });
+
         KioskPairingState {
             inner: Arc::new(Mutex::new(KioskPairingRuntimeState {
                 pairing_code: Self::generate_pairing_code(),
                 pairing_code_expires_at_ms: Self::now_ms() + PAIRING_CODE_TTL_MS,
-                valid_tokens: HashSet::new(),
+                valid_tokens: persisted_tokens,
                 active_downloads: HashSet::new(),
                 service_port: DEFAULT_SERVICE_PORT,
                 robot_name: "Sourccey".to_string(),
@@ -423,6 +434,9 @@ impl KioskPairingService {
 
         let token = Uuid::new_v4().to_string();
         runtime.valid_tokens.insert(token.clone());
+        if let Err(error) = Self::save_persisted_tokens(&runtime.valid_tokens) {
+            eprintln!("Failed to persist pairing tokens: {}", error);
+        }
 
         // One-time code: rotate immediately after successful pairing.
         runtime.pairing_code = Self::generate_pairing_code();
@@ -730,5 +744,42 @@ snapshot_download(
         value
             .chars()
             .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.' || ch == ' ')
+    }
+
+    fn load_persisted_tokens() -> Result<HashSet<String>, String> {
+        let state_path = Self::pairing_state_file_path()?;
+        if !state_path.exists() {
+            return Ok(HashSet::new());
+        }
+
+        let content = fs::read_to_string(&state_path)
+            .map_err(|e| format!("Failed to read pairing state file {:?}: {}", state_path, e))?;
+        let persisted = serde_json::from_str::<PersistedPairingState>(&content)
+            .map_err(|e| format!("Failed to parse pairing state file {:?}: {}", state_path, e))?;
+
+        Ok(persisted.valid_tokens.into_iter().filter(|token| !token.trim().is_empty()).collect())
+    }
+
+    fn save_persisted_tokens(valid_tokens: &HashSet<String>) -> Result<(), String> {
+        let state_path = Self::pairing_state_file_path()?;
+        if let Some(parent) = state_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create pairing state directory {:?}: {}", parent, e))?;
+        }
+
+        let payload = PersistedPairingState {
+            valid_tokens: valid_tokens.iter().cloned().collect(),
+        };
+        let serialized = serde_json::to_string_pretty(&payload)
+            .map_err(|e| format!("Failed to encode pairing state: {}", e))?;
+
+        fs::write(&state_path, serialized)
+            .map_err(|e| format!("Failed to write pairing state file {:?}: {}", state_path, e))?;
+        Ok(())
+    }
+
+    fn pairing_state_file_path() -> Result<std::path::PathBuf, String> {
+        let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
+        Ok(cache_dir.join("pairing").join(PAIRING_STATE_FILE_NAME))
     }
 }
