@@ -244,8 +244,8 @@ export default function ModelsPage() {
                 host: selectedConnection.host,
                 port: selectedConnection.port,
                 token: selectedConnection.token,
-                repo_id: selectedModel.repoId,
-                model_name: selectedModel.name,
+                repoId: selectedModel.repoId,
+                modelName: selectedModel.name,
             });
             toast.success(message || 'Model sent to robot.', { ...toastSuccessDefaults });
         } catch (error: unknown) {
