@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { FaBatteryHalf, FaBatteryFull, FaBatteryQuarter, FaBatteryEmpty, FaThermometerHalf, FaNetworkWired, FaBatteryThreeQuarters, FaPlay, FaStop } from 'react-icons/fa';
 import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
@@ -18,6 +18,7 @@ export const HomeWelcome = () => {
     const [hostLogs, setHostLogs] = useState<string[]>([]);
     const [pairingCode, setPairingCode] = useState('------');
     const [pairingExpiresAt, setPairingExpiresAt] = useState<number | null>(null);
+    const stopActionLockRef = useRef(false);
 
     // State for system info (battery, temperature, IP)
     const { data: systemInfo }: any = useGetSystemInfo();
@@ -41,9 +42,8 @@ export const HomeWelcome = () => {
                 ...prev.slice(-99),
                 `[system] Host process stopped${payload.exit_code !== null ? ` (exit ${payload.exit_code})` : ''}: ${payload.message}`,
             ]);
+            // Keep stopping lock until polling confirms host is actually down.
             setIsStarting(false);
-            setIsStopping(false);
-            setIsRobotStarted(false);
 
             toast.success('Robot stopped successfully', { ...toastSuccessDefaults });
         });
@@ -52,6 +52,7 @@ export const HomeWelcome = () => {
             if (payload.nickname !== nickname) return;
 
             setHostLogs((prev) => [...prev.slice(-99), `[system] Failed to stop host: ${payload.error}`]);
+            stopActionLockRef.current = false;
             setIsStarting(false);
             setIsStopping(false);
 
@@ -95,6 +96,7 @@ export const HomeWelcome = () => {
 
                 if (isRobotStarted && !active && lastActiveRef.current) {
                     lastActiveRef.current = false;
+                    stopActionLockRef.current = false;
                     setIsStarting(false);
                     setIsStopping(false);
                     setIsRobotStarted(false);
@@ -102,11 +104,13 @@ export const HomeWelcome = () => {
                 }
 
                 if (!active && isStopping) {
+                    stopActionLockRef.current = false;
                     setIsStopping(false);
                     setIsRobotStarted(false);
                     return;
                 }
             } catch {
+                stopActionLockRef.current = false;
                 lastActiveRef.current = false;
                 setIsStarting(false);
                 setIsStopping(false);
@@ -121,10 +125,10 @@ export const HomeWelcome = () => {
             cancelled = true;
             interval && clearInterval(interval);
         };
-    }, [nickname, isRobotStarted, setIsRobotStarted]);
+    }, [nickname, isRobotStarted, isStopping, setIsRobotStarted]);
 
     const handleStartRobot = async () => {
-        if (isStarting || isStopping) return;
+        if (isStarting || isStopping || stopActionLockRef.current) return;
 
         setIsStarting(true);
         setIsStopping(false);
@@ -142,13 +146,15 @@ export const HomeWelcome = () => {
     };
 
     const handleStopRobot = async () => {
-        if (isStopping || isStarting) return;
+        if (isStopping || isStarting || stopActionLockRef.current) return;
 
+        stopActionLockRef.current = true;
         setIsStopping(true);
         setIsStarting(false);
         try {
             await invoke<string>('stop_kiosk_host', { nickname });
         } catch (error: any) {
+            stopActionLockRef.current = false;
             setIsStopping(false);
 
             console.error('Failed to stop robot:', error);

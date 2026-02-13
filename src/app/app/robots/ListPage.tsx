@@ -18,7 +18,7 @@ import {
 import { setSelectedRobot, useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { invoke } from '@tauri-apps/api/core';
 import Image from 'next/image';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FaCircle, FaEllipsisH, FaRobot, FaSatelliteDish } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
@@ -66,6 +66,7 @@ export const RobotListPage = () => {
     const [pairingCode, setPairingCode] = useState('');
     const [pairModalTarget, setPairModalTarget] = useState<PairModalTarget | null>(null);
     const [openMenuRobotId, setOpenMenuRobotId] = useState<string | null>(null);
+    const selectedActionLockRef = useRef(false);
 
     const selectedRobotNickname = selectedRobot?.nickname || '';
     const selectedConnection = selectedRobotNickname ? pairedConnections?.[selectedRobotNickname] : null;
@@ -499,14 +500,20 @@ export const RobotListPage = () => {
     };
 
     const handleConnectOrStart = async () => {
-        if (!isSelectedConnected) {
-            await handleConnectSelectedRobot();
-            return;
-        }
-        if (isSelectedStarted) {
-            await handleStopSelectedRobot();
-        } else {
-            await handleStartSelectedRobot();
+        if (selectedActionLockRef.current) return;
+        selectedActionLockRef.current = true;
+        try {
+            if (!isSelectedConnected) {
+                await handleConnectSelectedRobot();
+                return;
+            }
+            if (isSelectedStarted) {
+                await handleStopSelectedRobot();
+            } else {
+                await handleStartSelectedRobot();
+            }
+        } finally {
+            selectedActionLockRef.current = false;
         }
     };
 
