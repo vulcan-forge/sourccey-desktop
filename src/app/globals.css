@@ -45,6 +45,12 @@
         height: 24px;
     }
 
+    /* Kiosk mode - hide cursor for touchscreen-only UX */
+    .kiosk-mode,
+    .kiosk-mode * {
+        cursor: none !important;
+    }
+
     ::-webkit-scrollbar-thumb {
         background: oklch(37.2% 0.044 257.287);
         border-radius: 9999px;
