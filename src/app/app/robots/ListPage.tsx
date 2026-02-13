@@ -74,6 +74,29 @@ export const RobotListPage = () => {
     const isSelectedStarted = !!selectedConnectionStatus?.started;
 
     const normalizeNickname = (nickname: string) => (nickname.startsWith('@') ? nickname.slice(1) : nickname);
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+    const waitForRobotStartedState = async (
+        connection: { host: string; port: number; token: string },
+        expectedStarted: boolean,
+        timeoutMs = 18000,
+        pollMs = 700
+    ) => {
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < timeoutMs) {
+            const statusMessage = await invoke<string>('get_kiosk_robot_status', {
+                host: connection.host,
+                port: connection.port,
+                token: connection.token,
+            });
+            const isStarted = statusMessage.trim().toLowerCase() === 'started';
+            if (isStarted === expectedStarted) {
+                return;
+            }
+            await sleep(pollMs);
+        }
+        throw new Error(expectedStarted ? 'Timed out waiting for robot to start.' : 'Timed out waiting for robot to stop.');
+    };
 
     useEffect(() => {
         if (!openMenuRobotId) return;
@@ -350,6 +373,7 @@ export const RobotListPage = () => {
                 port: selectedConnection.port,
                 token: selectedConnection.token,
             });
+            await waitForRobotStartedState(selectedConnection, true);
             setRobotConnectionStatus(selectedRobotNickname, {
                 connected: true,
                 started: true,
@@ -385,6 +409,7 @@ export const RobotListPage = () => {
                 port: selectedConnection.port,
                 token: selectedConnection.token,
             });
+            await waitForRobotStartedState(selectedConnection, false);
             setRobotConnectionStatus(selectedRobotNickname, {
                 connected: true,
                 started: false,
@@ -437,6 +462,7 @@ export const RobotListPage = () => {
                     port: connection.port,
                     token: connection.token,
                 });
+                await waitForRobotStartedState(connection, false);
                 setRobotConnectionStatus(normalizedNickname, {
                     connected: true,
                     started: false,
@@ -450,6 +476,7 @@ export const RobotListPage = () => {
                     port: connection.port,
                     token: connection.token,
                 });
+                await waitForRobotStartedState(connection, true);
                 setRobotConnectionStatus(normalizedNickname, {
                     connected: true,
                     started: true,
