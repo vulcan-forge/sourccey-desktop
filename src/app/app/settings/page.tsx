@@ -24,6 +24,15 @@ interface PiCredentials {
     username: string;
 }
 
+interface KioskPairingInfo {
+    code: string;
+    expires_at_ms: number;
+    service_port: number;
+    robot_name: string;
+    nickname: string;
+    robot_type: string;
+}
+
 export default function KioskSettingsPage() {
     const { data: systemInfo }: any = useGetSystemInfo();
 
@@ -47,6 +56,9 @@ export default function KioskSettingsPage() {
     const [showAccessPointPassword, setShowAccessPointPassword] = useState(false);
     const [remoteConfig, setRemoteConfig] = useState<RemoteConfig | null>(null);
     const [isLoadingConfig, setIsLoadingConfig] = useState(false);
+    const [isPairModalOpen, setIsPairModalOpen] = useState(false);
+    const [pairingInfo, setPairingInfo] = useState<KioskPairingInfo | null>(null);
+    const [isLoadingPairingInfo, setIsLoadingPairingInfo] = useState(false);
 
     const generateSecurePassword = (length = 12): string => {
         const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*_-+=';
@@ -259,6 +271,31 @@ export default function KioskSettingsPage() {
         }
     };
 
+    const fetchPairingInfo = async () => {
+        setIsLoadingPairingInfo(true);
+        try {
+            const info = await invoke<KioskPairingInfo>('get_kiosk_pairing_info');
+            setPairingInfo(info);
+        } catch (error) {
+            console.error('Failed to fetch pairing code:', error);
+            toast.error('Failed to load pairing code');
+            setPairingInfo(null);
+        } finally {
+            setIsLoadingPairingInfo(false);
+        }
+    };
+
+    const openPairRobotModal = async () => {
+        setIsPairModalOpen(true);
+        await fetchPairingInfo();
+    };
+
+    useEffect(() => {
+        if (!isPairModalOpen) return;
+        const interval = setInterval(fetchPairingInfo, 30000);
+        return () => clearInterval(interval);
+    }, [isPairModalOpen]);
+
     return (
         <div className="min-h-screen bg-slate-900/30">
             <div className="container mx-auto flex flex-col gap-8 px-8 py-8">
@@ -362,6 +399,13 @@ export default function KioskSettingsPage() {
                                 </p>
                             )}
                         </div>
+
+                        <button
+                            onClick={openPairRobotModal}
+                            className="w-full cursor-pointer rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                        >
+                            Pair Robot
+                        </button>
                     </div>
                 </div>
 
@@ -480,6 +524,41 @@ export default function KioskSettingsPage() {
                     )}
                 </div>
             </div>
+
+            {isPairModalOpen && (
+                <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+                    <div className="w-full max-w-md rounded-xl border border-slate-600 bg-slate-800 p-6 shadow-2xl">
+                        <div className="mb-4 flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-white">Pair Robot</h3>
+                            <button
+                                onClick={() => setIsPairModalOpen(false)}
+                                className="cursor-pointer rounded p-2 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
+                            >
+                                <FaTimes className="h-4 w-4" />
+                            </button>
+                        </div>
+
+                        {isLoadingPairingInfo ? (
+                            <div className="flex items-center gap-2 text-slate-300">
+                                <FaSpinner className="h-4 w-4 animate-spin" />
+                                <span className="text-sm">Loading pairing code...</span>
+                            </div>
+                        ) : (
+                            <div className="space-y-3">
+                                <div className="text-sm text-slate-400">Enter this code in the desktop app:</div>
+                                <div className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-center font-mono text-4xl font-bold tracking-[0.18em] text-white">
+                                    {pairingInfo?.code || '------'}
+                                </div>
+                                <div className="text-xs text-slate-400">
+                                    {pairingInfo?.expires_at_ms
+                                        ? `Expires: ${new Date(pairingInfo.expires_at_ms).toLocaleTimeString()}`
+                                        : 'Pairing code unavailable'}
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

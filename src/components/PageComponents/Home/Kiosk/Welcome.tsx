@@ -18,8 +18,6 @@ export const HomeWelcome = () => {
     const [isStarting, setIsStarting] = useState(false);
     const [isStopping, setIsStopping] = useState(false);
     const [hostLogs, setHostLogs] = useState<string[]>([]);
-    const [pairingCode, setPairingCode] = useState('------');
-    const [pairingExpiresAt, setPairingExpiresAt] = useState<number | null>(null);
     const stopActionLockRef = useRef(false);
     const postStopGuardUntilRef = useRef(0);
 
@@ -200,30 +198,6 @@ export const HomeWelcome = () => {
         return () => clearInterval(interval);
     }, []);
 
-    useEffect(() => {
-        const fetchPairingInfo = async () => {
-            try {
-                const info = await invoke<{
-                    code: string;
-                    expires_at_ms: number;
-                    service_port: number;
-                    robot_name: string;
-                    nickname: string;
-                    robot_type: string;
-                }>('get_kiosk_pairing_info');
-                setPairingCode(info.code || '------');
-                setPairingExpiresAt(info.expires_at_ms || null);
-            } catch {
-                setPairingCode('------');
-                setPairingExpiresAt(null);
-            }
-        };
-
-        fetchPairingInfo();
-        const interval = setInterval(fetchPairingInfo, 30000);
-        return () => clearInterval(interval);
-    }, []);
-
     // Get battery icon based on percentage
     const getBatteryIcon = (percent: number) => {
         if (percent >= 75) return FaBatteryFull;
@@ -310,14 +284,6 @@ export const HomeWelcome = () => {
                             </div>
                         </div>
                     </div>
-                </div>
-            </div>
-
-            <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                <div className="text-sm text-slate-400">Pairing Code (Desktop App)</div>
-                <div className="mt-2 font-mono text-4xl font-bold tracking-wider text-white">{pairingCode}</div>
-                <div className="mt-1 text-xs text-slate-400">
-                    {pairingExpiresAt ? `Expires: ${new Date(pairingExpiresAt).toLocaleTimeString()}` : 'Pairing code unavailable'}
                 </div>
             </div>
 

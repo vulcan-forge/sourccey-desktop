@@ -4,6 +4,7 @@ import { usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection
 import { useRobotConnectionStatuses } from '@/hooks/Robot/robot-connection-status.hook';
 import { useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { setSelectedModel, useSelectedModel } from '@/hooks/Model/selected-model.hook';
+import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { invoke } from '@tauri-apps/api/core';
 import Image from 'next/image';
 import { useMemo, useState } from 'react';
@@ -209,6 +210,7 @@ const PAID_MODELS: ModelCard[] = [
 export default function ModelsPage() {
     const [activeTab, setActiveTab] = useState<'free' | 'premium'>('free');
     const models = useMemo(() => (activeTab === 'free' ? FREE_MODELS : PAID_MODELS), [activeTab]);
+    const { isKioskMode } = useAppMode();
     const { data: selectedModel } = useSelectedModel();
     const { data: selectedRobot } = useSelectedRobot();
     const { data: pairedConnections } = usePairedRobotConnections();
@@ -288,25 +290,31 @@ export default function ModelsPage() {
                         Premium
                     </button>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
-                    <button
-                        onClick={handleSendToRobot}
-                        disabled={!selectedModel || !selectedConnection || !isRobotConnected || isSendingModel}
-                        className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
-                            !selectedModel || !selectedConnection || !isRobotConnected || isSendingModel
-                                ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
-                                : 'cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700'
-                        }`}
-                    >
-                        {isSendingModel ? 'Sending...' : 'Send Selected Model To Robot'}
-                    </button>
-                    <span className="text-sm text-slate-400">
-                        Robot: {selectedRobot?.name || 'None'} | Connection: {isRobotConnected ? 'Connected' : 'Not connected'} | Model:{' '}
-                        {selectedModel?.name || 'None'}
-                    </span>
-                </div>
+                {!isKioskMode && (
+                    <div className="flex flex-wrap items-center gap-3">
+                        <button
+                            onClick={handleSendToRobot}
+                            disabled={!selectedModel || !selectedConnection || !isRobotConnected || isSendingModel}
+                            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-all ${
+                                !selectedModel || !selectedConnection || !isRobotConnected || isSendingModel
+                                    ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
+                                    : 'cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700'
+                            }`}
+                        >
+                            {isSendingModel ? 'Sending...' : 'Send Selected Model To Robot'}
+                        </button>
+                        <span className="text-sm text-slate-400">
+                            Robot: {selectedRobot?.name || 'None'} | Connection: {isRobotConnected ? 'Connected' : 'Not connected'} | Model:{' '}
+                            {selectedModel?.name || 'None'}
+                        </span>
+                    </div>
+                )}
 
-                <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
+                <div
+                    className={`grid gap-4 ${
+                        isKioskMode ? 'grid-cols-2 sm:grid-cols-3 xl:grid-cols-6' : 'grid-cols-1 sm:grid-cols-2 xl:grid-cols-4'
+                    }`}
+                >
                     {models.map((model) => (
                         <button
                             key={model.id}
@@ -323,14 +331,20 @@ export default function ModelsPage() {
                                     image: model.image,
                                 })
                             }
-                            className={`w-full cursor-pointer overflow-hidden rounded-2xl border bg-slate-800 text-left transition-all duration-200 hover:scale-[1.02] ${
+                            className={`w-full cursor-pointer overflow-hidden border bg-slate-800 text-left transition-all duration-200 hover:scale-[1.02] ${
+                                isKioskMode ? 'rounded-xl' : 'rounded-2xl'
+                            } ${
                                 selectedModel?.id === model.id && selectedModel?.tier === activeTab
                                     ? 'border-yellow-400/70 shadow-lg shadow-yellow-500/10'
                                     : 'border-slate-700'
                             }`}
                         >
-                            <div className="p-3">
-                                <div className="relative aspect-square w-full overflow-hidden rounded-xl border border-slate-600 bg-slate-750">
+                            <div className={isKioskMode ? 'p-2' : 'p-3'}>
+                                <div
+                                    className={`relative w-full overflow-hidden border border-slate-600 bg-slate-750 ${
+                                        isKioskMode ? 'aspect-[3/4] rounded-lg' : 'aspect-square rounded-xl'
+                                    }`}
+                                >
                                     <Image
                                         src={model.image}
                                         alt={model.name}
@@ -340,15 +354,15 @@ export default function ModelsPage() {
                                     />
                                 </div>
                             </div>
-                            <div className="space-y-2 p-4">
-                                <div className="text-lg font-semibold text-white">{model.name}</div>
-                                <div className="text-sm text-slate-300">
+                            <div className={`space-y-1.5 ${isKioskMode ? 'p-3' : 'p-4'}`}>
+                                <div className={`${isKioskMode ? 'text-base' : 'text-lg'} font-semibold text-white`}>{model.name}</div>
+                                <div className={`${isKioskMode ? 'text-xs' : 'text-sm'} text-slate-300`}>
                                     <span className="font-semibold text-slate-200">Rating:</span> {model.rating}
                                 </div>
-                                <div className="text-sm text-slate-300">
+                                <div className={`${isKioskMode ? 'text-xs' : 'text-sm'} text-slate-300`}>
                                     <span className="font-semibold text-slate-200">Strength:</span> {model.strength}
                                 </div>
-                                <div className="text-sm text-slate-300">
+                                <div className={`${isKioskMode ? 'text-xs' : 'text-sm'} text-slate-300`}>
                                     <span className="font-semibold text-slate-200">Clothing Types:</span> {model.clothingTypes}
                                 </div>
                             </div>
