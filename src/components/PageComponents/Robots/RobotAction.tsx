@@ -1,6 +1,5 @@
 import { FaGamepad, FaStop } from 'react-icons/fa';
 import { FaPlay } from 'react-icons/fa';
-import { RobotLogs } from './Training/RobotLogs';
 import { useGetCalibration } from '@/hooks/Control/config.hook';
 import { Tooltip } from 'react-tooltip';
 import { ControlType } from '@/hooks/Control/control.hook';
@@ -94,22 +93,16 @@ export const RobotAction = ({
                     classNameArrow="!shadow-none" // optional: prevents tiny inner seam
                 />
             </div>
-
-            {logs && <RobotLogs isControlling={isControlling ?? false} />}
         </div>
     );
 };
 
 export const startControlText = {
     [ControlType.TELEOP]: 'Start Control',
-    [ControlType.RECORD]: 'Start Record',
-    [ControlType.REPLAY]: 'Start Replay',
-    [ControlType.EVALUATE]: 'Start Evaluation',
+    [ControlType.AIMODEL]: 'Start AI Model',
 };
 
 export const stopControlText = {
     [ControlType.TELEOP]: 'Stop Control',
-    [ControlType.RECORD]: 'Stop Record',
-    [ControlType.REPLAY]: 'Stop Replay',
-    [ControlType.EVALUATE]: 'Stop Evaluation',
+    [ControlType.AIMODEL]: 'Stop AI Model',
 };

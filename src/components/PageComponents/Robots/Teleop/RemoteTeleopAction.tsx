@@ -2,7 +2,7 @@ import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-ut
 import { invoke } from '@tauri-apps/api/core';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
-import { RemoteRobotAction } from '@/components/PageComponents/OwnedRobots/RemoteRobotAction';
+import { RemoteRobotAction } from '@/components/PageComponents/Robots/RemoteRobotAction';
 import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 

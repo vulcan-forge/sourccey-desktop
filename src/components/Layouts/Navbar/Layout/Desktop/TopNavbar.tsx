@@ -69,6 +69,7 @@ export const DesktopTopNavbar = ({ profile, isLoading }: { profile: any; isLoadi
 
     const NavLinks = () => (
         <>
+            {/*
             <Link
                 href="/app/robots"
                 className={`text-md flex h-16 items-center px-4 font-bold transition-colors duration-200 ${
@@ -82,7 +83,7 @@ export const DesktopTopNavbar = ({ profile, isLoading }: { profile: any; isLoadi
                 Robots
             </Link>
 
-            {/* <Link
+            <Link
                 href="/app/store"
                 className={`text-md flex h-16 items-center px-4 font-bold transition-colors duration-200 ${
                     isStorePage

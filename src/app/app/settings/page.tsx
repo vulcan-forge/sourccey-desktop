@@ -5,7 +5,7 @@ import { FaSave, FaTimes, FaWifi, FaSpinner, FaEye, FaEyeSlash } from 'react-ico
 import { invoke } from '@tauri-apps/api/core';
 import { markPasswordAsChanged } from '@/hooks/Components/SSH/ssh.hook';
 import { toast } from 'react-toastify';
-import type { RemoteConfig } from '@/components/PageComponents/OwnedRobots/RemoteRobotConfig';
+import type { RemoteConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
 import {
     setAccessPointEnabled,
     setAccessPointPassword,
@@ -18,7 +18,6 @@ import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getSavedWiFiSSIDs } from '@/hooks/WIFI/wifi.hook';
 import clsx from 'clsx';
 import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
-
 
 interface PiCredentials {
     username: string;

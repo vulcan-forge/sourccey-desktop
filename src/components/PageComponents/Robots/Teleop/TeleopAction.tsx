@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { useGetConfig } from '@/hooks/Control/config.hook';
-import { RobotAction } from '@/components/PageComponents/OwnedRobots/RobotAction';
+import { RobotAction } from '@/components/PageComponents/Robots/RobotAction';
 
 export const TeleopAction = ({ ownedRobot, onClose = () => {}, logs = true }: { ownedRobot: any; onClose: () => void; logs: boolean }) => {
     const [isLoading, setIsLoading] = useState(false);

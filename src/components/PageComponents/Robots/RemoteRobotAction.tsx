@@ -1,7 +1,7 @@
 import { FaGamepad, FaStop, FaPlay, FaWifi } from 'react-icons/fa';
 import { useGetCalibration } from '@/hooks/Control/config.hook';
 import { Tooltip } from 'react-tooltip';
-import { RobotLogs } from '@/components/PageComponents/OwnedRobots/Training/RobotLogs';
+import { RobotLogs } from '@/components/PageComponents/Robots/Training/RobotLogs';
 import { RemoteControlType, RemoteRobotStatus } from '@/hooks/Control/remote-control.hook';
 
 const ConnectRobotComponent = ({ nickname }: { nickname: string }) => {

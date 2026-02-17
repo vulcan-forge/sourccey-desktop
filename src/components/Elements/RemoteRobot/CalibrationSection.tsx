@@ -5,7 +5,7 @@ import { FaTools, FaCheckCircle } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import type { Calibration } from '@/components/PageComponents/OwnedRobots/RobotConfig';
+import type { Calibration } from '@/components/PageComponents/Robots/RobotConfig';
 
 interface CalibrationSectionProps {
     nickname: string;
@@ -64,9 +64,7 @@ export const RobotKioskCalibration: React.FC<CalibrationSectionProps> = ({ nickn
                         <FaCheckCircle className="h-4 w-4 text-blue-400" />
                         <h3 className="text-sm font-semibold text-blue-300">Auto calibrate</h3>
                     </div>
-                    <p className="text-xs text-slate-300">
-                        Quick calibration that does not move the robot arms through full range.
-                    </p>
+                    <p className="text-xs text-slate-300">Quick calibration that does not move the robot arms through full range.</p>
                 </div>
 
                 {/* Full Calibrate Info */}
@@ -75,9 +73,7 @@ export const RobotKioskCalibration: React.FC<CalibrationSectionProps> = ({ nickn
                         <FaTools className="h-4 w-4 text-yellow-400" />
                         <h3 className="text-sm font-semibold text-yellow-300">Full Calibrate</h3>
                     </div>
-                    <p className="text-xs text-slate-300">
-                        Complete calibration reset. Moves arms through full range to detect motion limits.
-                    </p>
+                    <p className="text-xs text-slate-300">Complete calibration reset. Moves arms through full range to detect motion limits.</p>
                 </div>
             </div>
 

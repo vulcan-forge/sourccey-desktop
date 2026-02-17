@@ -5,7 +5,7 @@ import { RobotKioskCalibration } from '@/components/Elements/RemoteRobot/Calibra
 import { useGetCalibration } from '@/hooks/Control/config.hook';
 import { useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
-import type { Calibration } from '@/components/PageComponents/OwnedRobots/RobotConfig';
+import type { Calibration } from '@/components/PageComponents/Robots/RobotConfig';
 
 export const KioskRobotDetailsPage: React.FC = () => {
     const { isKioskMode } = useAppMode();

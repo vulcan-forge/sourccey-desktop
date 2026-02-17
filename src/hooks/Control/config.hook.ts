@@ -1,4 +1,4 @@
-import type { Config } from '@/components/PageComponents/OwnedRobots/RobotConfig';
+import type { Config } from '@/components/PageComponents/Robots/RobotConfig';
 import { queryClient } from '@/hooks/default';
 import { getCalibrationModifiedAt, readCalibration } from '@/utils/config/calibration';
 import { useQuery } from '@tanstack/react-query';
@@ -9,7 +9,11 @@ export const CONTROL_CONFIG_KEY = (nickname: string) => [BASE_CONTROL_CONFIG_KEY
 export const BASE_CONTROL_CALIBRATION_KEY = 'control-calibration';
 export const CONTROL_CALIBRATION_KEY = (robot_type: string, nickname: string) => [BASE_CONTROL_CALIBRATION_KEY, robot_type, nickname];
 export const BASE_CONTROL_CALIBRATION_MODIFIED_AT_KEY = 'control-calibration-modified-at';
-export const CONTROL_CALIBRATION_MODIFIED_AT_KEY = (robot_type: string, nickname: string) => [BASE_CONTROL_CALIBRATION_MODIFIED_AT_KEY, robot_type, nickname];
+export const CONTROL_CALIBRATION_MODIFIED_AT_KEY = (robot_type: string, nickname: string) => [
+    BASE_CONTROL_CALIBRATION_MODIFIED_AT_KEY,
+    robot_type,
+    nickname,
+];
 
 //---------------------------------------------------------------------------------------------------//
 // Config Config

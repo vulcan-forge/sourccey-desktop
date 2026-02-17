@@ -18,7 +18,7 @@ import {
 } from '@/utils/logs/ssh-logs/ssh-events';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import type { ConfigConfig } from '@/components/PageComponents/OwnedRobots/RobotConfig';
+import type { ConfigConfig } from '@/components/PageComponents/Robots/RobotConfig';
 import {
     getRemoteRobotState,
     RemoteControlType,

@@ -1,7 +1,7 @@
-import { TeleopAction } from '@/components/PageComponents/OwnedRobots/Teleop/TeleopAction';
-import { RobotConfig } from '@/components/PageComponents/OwnedRobots/RobotConfig';
-import { RemoteRobotConfig } from '@/components/PageComponents/OwnedRobots/RemoteRobotConfig';
-import { RemoteTeleopAction } from '@/components/PageComponents/OwnedRobots/Teleop/RemoteTeleopAction';
+import { TeleopAction } from '@/components/PageComponents/Robots/Teleop/TeleopAction';
+import { RobotConfig } from '@/components/PageComponents/Robots/RobotConfig';
+import { RemoteRobotConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
+import { RemoteTeleopAction } from '@/components/PageComponents/Robots/Teleop/RemoteTeleopAction';
 
 const REMOTE_ROBOT_TYPES = ['sourccey', 'lekiwi'];
 export const TeleopContainer = ({ ownedRobot }: { ownedRobot: any }) => {
