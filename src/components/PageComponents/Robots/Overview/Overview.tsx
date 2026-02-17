@@ -1,9 +1,7 @@
-import { AIModelsOverview } from '@/components/Elements/OwnedRobots/Overview/AIModels';
 import Image from 'next/image';
 import Link from 'next/link';
 import { FaBolt, FaBrain, FaDatabase, FaRobot, FaTrash, FaTrophy } from 'react-icons/fa';
 import { useState } from 'react';
-import { DatasetsOverview } from '@/components/Elements/OwnedRobots/Overview/Datasets';
 import { useGetAIModelCount } from '@/hooks/Components/AI/AIModels/ai-model.hook';
 import { useGetDatasetCount } from '@/hooks/Components/AI/Dataset/dataset.hook';
 import { Spinner } from '@/components/Elements/Spinner';
@@ -190,12 +188,6 @@ export const Overview = ({ ownedRobot }: { ownedRobot: any }) => {
                             </button>
                         );
                     })}
-                </div>
-
-                {/* Tab Content */}
-                <div className="p-4">
-                    {activeTab === 'ai-models' && <AIModelsOverview nickname={ownedRobot.nickname} />}
-                    {activeTab === 'datasets' && <DatasetsOverview nickname={ownedRobot.nickname} />}
                 </div>
             </div>
 

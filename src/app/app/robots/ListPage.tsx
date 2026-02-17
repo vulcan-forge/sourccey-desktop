@@ -273,50 +273,50 @@ export const RobotListPage = () => {
     return (
         <div className="min-h-screen bg-slate-900/30 p-8">
             <div className="mx-auto max-w-7xl">
-                <div className="mb-4">
-                    <h1 className="text-3xl font-bold text-white">Robots</h1>
-                    <p className="mt-2 text-slate-300">Discover, pair, and manage your nearby robots.</p>
-                </div>
+                    <div className="mb-4">
+                        <h1 className="text-3xl font-bold text-white">Robots</h1>
+                        <p className="mt-2 text-slate-300">Discover, pair, and manage your nearby robots.</p>
+                    </div>
 
-                <div className="mb-6 border-b border-slate-700 pb-4">
-                    <DiscoverabilityPanel
-                        isDiscovering={isDiscovering}
-                        discoveredRobots={discoveredRobots}
-                        hasDiscovered={hasDiscovered}
-                        onDiscover={handleDiscoverRobots}
-                        onSelectDiscovered={handleSelectDiscovered}
-                    />
-                </div>
+                    <div className="mb-6 border-b border-slate-700 pb-4">
+                        <DiscoverabilityPanel
+                            isDiscovering={isDiscovering}
+                            discoveredRobots={discoveredRobots}
+                            hasDiscovered={hasDiscovered}
+                            onDiscover={handleDiscoverRobots}
+                            onSelectDiscovered={handleSelectDiscovered}
+                        />
+                    </div>
 
-                {isLoadingOwnedRobots ? (
+                    {isLoadingOwnedRobots ? (
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
                         {Array.from({ length: 8 }).map((_, i) => (
-                            <div key={i} className="h-[420px] animate-pulse rounded-2xl border border-slate-700 bg-slate-800/60" />
+                            <div key={i} className="h-[420px] animate-pulse rounded-2xl border-2 border-slate-700 bg-slate-900/80 shadow-xl" />
                         ))}
                     </div>
                 ) : robotsToRender.length === 0 ? (
-                    <div className="rounded-2xl border border-slate-700 bg-slate-800/60 p-8 text-center text-slate-300">
+                    <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-8 text-center text-slate-300 shadow-xl">
                         No robots yet. Discover and pair a nearby robot to get started.
                     </div>
-                ) : (
-                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                        {robotsToRender.map((robot: any) => {
-                            const robotName = robot.name || 'Robot';
-                            const nickname = robot.nickname || '';
+                    ) : (
+                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                            {robotsToRender.map((robot: any) => {
+                                const robotName = robot.name || 'Robot';
+                                const nickname = robot.nickname || '';
 
-                            return (
-                                <RobotCard
-                                    key={robot.id}
-                                    robot={robot}
-                                    robotName={robotName}
-                                    nickname={nickname}
-                                    onUnpair={handleUnpairRobot}
-                                    isUnpairing={unpairingId === robot.id || unpairingId === robot.normalizedNickname}
-                                />
-                            );
-                        })}
-                    </div>
-                )}
+                                return (
+                                    <RobotCard
+                                        key={robot.id}
+                                        robot={robot}
+                                        robotName={robotName}
+                                        nickname={nickname}
+                                        onUnpair={handleUnpairRobot}
+                                        isUnpairing={unpairingId === robot.id || unpairingId === robot.normalizedNickname}
+                                    />
+                                );
+                            })}
+                        </div>
+                    )}
             </div>
 
             {pairModalTarget && (
@@ -391,7 +391,7 @@ const DiscoverabilityPanel = ({
     onSelectDiscovered,
 }: DiscoverabilityPanelProps) => {
     return (
-        <div className="flex flex-col gap-4 rounded-xl border border-slate-700 bg-slate-800/70 p-4">
+        <div className="flex flex-col gap-4 rounded-2xl border-2 border-slate-700 bg-slate-900 p-4 shadow-xl">
             <div className="flex w-full">
                 <div className="flex items-center gap-3">
                     <FaSatelliteDish className="h-4 w-4 text-blue-400" />
@@ -493,7 +493,7 @@ const RobotCard = ({ robot, robotName, nickname, onUnpair, isUnpairing }: RobotC
     }, []);
 
     return (
-        <div className={`flex w-full flex-col gap-4 rounded-xl border-2 border-slate-600 bg-slate-800/80 p-4 shadow-lg transition-colors`}>
+        <div className="flex w-full flex-col gap-4 rounded-2xl border-2 border-slate-700 bg-slate-900 p-4 shadow-xl transition-colors">
             <div className="flex w-full gap-2">
                 <div className="flex flex-col items-start">
                     <div className="text-lg font-semibold text-white">{robotName}</div>
