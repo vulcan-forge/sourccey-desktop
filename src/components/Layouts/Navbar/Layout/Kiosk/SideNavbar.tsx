@@ -11,17 +11,17 @@ export const SideNavbar = () => {
 
     const navItems = [
         {
-            href: '/app',
+            href: '/kiosk',
             label: 'Home',
             icon: HiHome,
         },
         {
-            href: '/app/models',
+            href: '/kiosk/models',
             label: 'AI Models',
             icon: FaBrain,
         },
         {
-            href: '/app/robot-remote',
+            href: '/kiosk/robot',
             label: 'Calibrate',
             icon: FaRobot,
         },
