@@ -35,7 +35,7 @@ export const RobotStartSection = ({
                 <button
                     onClick={isRobotStarted ? onStopAction : onStartAction}
                     disabled={isStarting || isStopping}
-                    className={`inline-flex min-h-20 w-full items-center justify-center gap-3 rounded-xl px-12 py-3 text-xl font-semibold transition-all ${
+                    className={`inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl px-12 py-3 text-xl font-semibold transition-all ${
                         isStarting || isStopping
                             ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                             : isRobotStarted
