@@ -78,11 +78,15 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
     const lastToastMessageRef = useRef<string | null>(null);
     const hasCalibration = useMemo(() => !!calibration && Object.keys(calibration).length > 0, [calibration]);
     const [activeView, setActiveView] = useState<'control' | 'calibration'>(hasCalibration ? 'control' : 'calibration');
+    const previousHasCalibrationRef = useRef(hasCalibration);
 
     useEffect(() => {
         if (!hasCalibration) {
             setActiveView('calibration');
+        } else if (!previousHasCalibrationRef.current) {
+            setActiveView('control');
         }
+        previousHasCalibrationRef.current = hasCalibration;
     }, [hasCalibration]);
 
     useEffect(() => {
