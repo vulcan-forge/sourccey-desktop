@@ -46,7 +46,6 @@ use modules::robot::controllers::owned_robot_controller::{
     get_owned_robots_by_profile,
 };
 use modules::robot::controllers::robot_controller::{get_all_robots, get_robot_by_id};
-use modules::sync::controllers::sync_controller::{get_sync_status, sync_robots};
 
 // Import Robotics Control Modules
 use modules::control::controllers::communication::ssh_controller::{
@@ -291,9 +290,6 @@ fn main() {
             get_owned_robots_by_profile,
             add_owned_robot,
             delete_owned_robot,
-            // Sync API
-            sync_robots,
-            get_sync_status,
             // Log API
             get_command_log,
             add_command_log,

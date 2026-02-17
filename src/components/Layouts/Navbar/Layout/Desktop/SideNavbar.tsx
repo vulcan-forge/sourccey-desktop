@@ -5,12 +5,7 @@ import { FaBrain, FaRobot, FaCog, FaTools } from 'react-icons/fa';
 import Link from 'next/link';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 
-interface DesktopSidebarProps {
-    profile?: any;
-    isLoading?: boolean;
-}
-
-export const SideNavbar = ({ profile, isLoading }: DesktopSidebarProps) => {
+export const SideNavbar = () => {
     const pathname = usePathname();
     const { isKioskMode } = useAppMode();
 

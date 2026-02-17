@@ -1,11 +1,1 @@
-'use client';
-
-import { RobotListPage } from '@/app/app/robots/ListPage';
-
-export default function AppPage() {
-    return (
-        <div className="flex h-screen flex-col">
-            <RobotListPage />
-        </div>
-    );
-}
+export { default } from './home/page';

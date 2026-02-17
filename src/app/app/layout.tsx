@@ -5,12 +5,10 @@ import { SideNavbar } from '@/components/Layouts/Navbar/Layout/SideNavbar';
 import { TopNavbar } from '@/components/Layouts/Navbar/Layout/TopNavbar';
 import { ControlBar } from '@/components/Layouts/ControlBar/ControlBar';
 import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
-import { useGetProfile } from '@/hooks/Models/Profile/profile.hook';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { usePathname } from 'next/navigation';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-    const { data: profile, isLoading: isProfileLoading } = useGetProfile();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
     const pathname = usePathname();
 
@@ -32,10 +30,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         return pathname === path;
     });
 
-    // In kiosk mode, don't wait for profile loading
-    const isLoading = isKioskMode ? false : isProfileLoading;
-
-    if (isLoadingAppMode || isLoading) {
+    if (isLoadingAppMode) {
         return (
             <div className="flex h-screen items-center justify-center">
                 <Spinner />
@@ -45,9 +40,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
     return (
         <div className={`bg-slate-850 flex h-screen flex-col overflow-hidden ${isKioskMode ? 'kiosk-mode' : ''}`}>
-            <TopNavbar profile={profile} isLoading={isLoading} />
+            <TopNavbar />
             <div className="flex min-h-0 flex-1 overflow-hidden">
-                {shouldShowSidebar && <SideNavbar profile={profile} isLoading={isLoading} />}
+                {shouldShowSidebar && <SideNavbar />}
                 <div className={`min-h-0 overflow-auto ${shouldShowSidebar ? 'flex-1' : 'w-full'}`}>{children}</div>
             </div>
             <ControlBar />
