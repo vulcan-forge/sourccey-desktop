@@ -1,6 +1,6 @@
 'use client';
 
-import { RobotListPage } from '@/app/app/robots/ListPage';
+import { RobotListPage } from '@/app/desktop/robots/ListPage';
 
 export default function RobotsPage() {
     return (

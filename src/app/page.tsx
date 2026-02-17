@@ -4,13 +4,11 @@ import React, { useEffect, useState, type ReactElement } from 'react';
 import { Spinner } from '@/components/Elements/Spinner';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useGetOrCreateProfile } from '@/hooks/Models/Profile/profile.hook';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { checkForUpdates } from '@/utils/updater/updater';
 
 const HomePage = (): ReactElement => {
     const router = useRouter();
-    const { data: profile, isLoading: isLoadingProfile }: any = useGetOrCreateProfile();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
     const [showLoading, setShowLoading] = useState(false);
     const [updateCheckComplete, setUpdateCheckComplete] = useState(false);
@@ -53,14 +51,10 @@ const HomePage = (): ReactElement => {
             console.log('Kiosk mode: pushing to /kiosk');
             router.push('/kiosk');
         } else {
-            if (!profile || isLoadingProfile) {
-                return;
-            }
-
             console.log('Desktop mode: pushing to /desktop');
             router.push('/desktop');
         }
-    }, [router, profile, isLoadingProfile, isKioskMode, isLoadingAppMode, updateCheckComplete]);
+    }, [router, isKioskMode, isLoadingAppMode, updateCheckComplete]);
 
     // Don't show loading screen until update check is complete and 1 second has passed
     if (!updateCheckComplete || !showLoading) {

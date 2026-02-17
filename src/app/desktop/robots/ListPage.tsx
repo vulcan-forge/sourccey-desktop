@@ -4,7 +4,6 @@ import { addOwnedRobot, deleteOwnedRobot, getOwnedRobotByNickname } from '@/api/
 import { getAllRobots } from '@/api/Local/Robot/robot';
 import { queryClient } from '@/hooks/default';
 import { BASE_OWNED_ROBOT_KEY, useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
-import { useGetProfile } from '@/hooks/Models/Profile/profile.hook';
 import { removePairedRobotConnection, setPairedRobotConnection, usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
 import { removeRobotConnectionStatus, setRobotConnectionStatus, useRobotConnectionStatuses } from '@/hooks/Robot/robot-connection-status.hook';
 import { invoke } from '@tauri-apps/api/core';
@@ -39,9 +38,7 @@ type PairModalTarget = {
 };
 
 export const RobotListPage = () => {
-    const { data: profile, isLoading: isLoadingProfile }: any = useGetProfile();
-    const enabled = !isLoadingProfile && !!profile?.id;
-    const { data: ownedRobots, isLoading: isLoadingOwnedRobots }: any = useGetOwnedRobots(profile?.id, enabled);
+    const { data: ownedRobots, isLoading: isLoadingOwnedRobots }: any = useGetOwnedRobots(true);
     const { data: pairedConnections } = usePairedRobotConnections();
     const { data: connectionStatuses } = useRobotConnectionStatuses();
 
@@ -159,10 +156,6 @@ export const RobotListPage = () => {
             toast.error('Missing robot host or pairing code.', { ...toastErrorDefaults });
             return;
         }
-        if (!profile?.id) {
-            toast.error('Profile not loaded yet. Please wait and retry.', { ...toastErrorDefaults });
-            return;
-        }
 
         setIsPairing(true);
         try {
@@ -186,7 +179,7 @@ export const RobotListPage = () => {
             let ownedRobotId = existingOwnedRobot?.owned_robot?.id || existingOwnedRobot?.id || '';
 
             if (!existingOwnedRobot) {
-                const createdOwnedRobot: any = await addOwnedRobot(profile.id, matchedRobot.id, result.nickname);
+                const createdOwnedRobot: any = await addOwnedRobot(matchedRobot.id, result.nickname);
                 ownedRobotId = createdOwnedRobot?.id || ownedRobotId;
             }
 

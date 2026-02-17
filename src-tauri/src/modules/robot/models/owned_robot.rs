@@ -15,7 +15,6 @@ pub struct Model {
     #[sea_orm(primary_key, auto_increment = false)]
     pub id: String,
 
-    pub profile_id: String,
     pub robot_id: String,
     pub nickname: Option<String>,
     pub registration_date: DateTime<Utc>,
@@ -43,24 +42,11 @@ pub enum Relation {
         to = "super::robot::Column::Id"
     )]
     Robot,
-
-    #[sea_orm(
-        belongs_to = "crate::modules::profile::models::profile::Entity",
-        from = "Column::ProfileId",
-        to = "crate::modules::profile::models::profile::Column::Id"
-    )]
-    Profile,
 }
 
 impl Related<super::robot::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::Robot.def()
-    }
-}
-
-impl Related<crate::modules::profile::models::profile::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Profile.def()
     }
 }
 
@@ -106,11 +92,10 @@ impl BaseEntity for Model {
 
 // Helper methods for ActiveModel (ActiveOwnedRobot)
 impl ActiveModel {
-    pub fn new(profile_id: String, robot_id: String) -> Self {
+    pub fn new(robot_id: String) -> Self {
         let now = Utc::now();
         Self {
             id: Set(Uuid::now_v7().to_string()),
-            profile_id: Set(profile_id),
             robot_id: Set(robot_id),
             nickname: Set(None),
             registration_date: Set(now),

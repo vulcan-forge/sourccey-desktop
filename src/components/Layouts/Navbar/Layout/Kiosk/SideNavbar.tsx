@@ -16,13 +16,8 @@ export const SideNavbar = () => {
             icon: HiHome,
         },
         {
-            href: '/kiosk/models',
-            label: 'AI Models',
-            icon: FaBrain,
-        },
-        {
             href: '/kiosk/robot',
-            label: 'Calibrate',
+            label: 'Robot',
             icon: FaRobot,
         },
     ];
@@ -30,7 +25,7 @@ export const SideNavbar = () => {
     const bottomNavItems: any = isKioskMode
         ? [
               {
-                  href: '/app/settings',
+                  href: '/kiosk/settings',
                   label: 'Settings',
                   icon: FaCog,
               },
@@ -39,8 +34,8 @@ export const SideNavbar = () => {
 
     const isActive = (href: string) => {
         // Special case for home page
-        if (href === '/app') {
-            return pathname === '/app';
+        if (href === '/kiosk') {
+            return pathname === '/kiosk';
         }
 
         // For other pages, check if the current pathname starts with the href

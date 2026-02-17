@@ -4,7 +4,6 @@ import { FaRobot } from 'react-icons/fa';
 import { useModalContext } from '@/hooks/Modals/context.hook';
 import type { Robot } from '@/types/Models/robot';
 import Image from 'next/image';
-import { getProfile } from '@/api/Local/Profile/profile';
 import { addOwnedRobot } from '@/api/Local/Robot/owned_robot';
 import { toast } from 'react-toastify';
 import { useGetOwnedRobotByNickname } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
@@ -38,18 +37,12 @@ export const AddMyRobotModal: React.FC<AddMyRobotModalProps> = () => {
             return;
         }
 
-        const localProfile = await getProfile();
-        if (!localProfile || !localProfile.id) {
-            console.error('No local profile found');
-            return;
-        }
-
         if (!robot || !robot.id) {
             console.error('No robot found');
             return;
         }
 
-        const ownedRobot = await addOwnedRobot(localProfile.id, robot.id, nickname);
+        const ownedRobot = await addOwnedRobot(robot.id, nickname);
         if (ownedRobot) {
             toast.success('Robot added successfully', { ...toastSuccessDefaults });
             closeModal('addMyRobot');

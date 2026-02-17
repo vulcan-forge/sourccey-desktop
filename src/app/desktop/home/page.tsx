@@ -24,7 +24,7 @@ export default function HomePage() {
                             <p className="text-base text-slate-200">Everything you need to manage your Sourccey, in one place.</p>
                             <div className="mt-6 flex flex-wrap items-center gap-3">
                                 <Link
-                                    href="/app/robots"
+                                    href="/desktop/robots"
                                     className="inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-red-400/70 via-orange-400/70 to-yellow-400/70 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:from-red-500/70 hover:via-orange-500/70 hover:to-yellow-500/70"
                                 >
                                     Go to Robots

@@ -25,11 +25,11 @@ export const useGetOwnedRobotByNickname = (nickname: string) => {
     });
 };
 
-export const useGetOwnedRobots = (profile_id: string, enabled: boolean = true) => {
+export const useGetOwnedRobots = (enabled: boolean = true) => {
     return useQuery({
-        queryKey: [BASE_OWNED_ROBOT_KEY, 'profile_id', profile_id],
+        queryKey: [BASE_OWNED_ROBOT_KEY],
         queryFn: async () => {
-            return await getOwnedRobots(profile_id);
+            return await getOwnedRobots();
         },
         enabled,
     });
