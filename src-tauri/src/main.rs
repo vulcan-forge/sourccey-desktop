@@ -74,7 +74,7 @@ use modules::control::controllers::kiosk_control::pairing_controller::{
     check_kiosk_robot_connection,
     get_kiosk_robot_status,
     discover_pairable_robots, get_kiosk_pairing_info, init_kiosk_pairing, pair_with_kiosk_robot,
-    send_model_to_kiosk_robot, start_kiosk_robot, stop_kiosk_robot,
+    request_kiosk_pairing_modal, send_model_to_kiosk_robot, start_kiosk_robot, stop_kiosk_robot,
 };
 use modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
@@ -375,6 +375,7 @@ fn main() {
             get_kiosk_pairing_info,
             discover_pairable_robots,
             pair_with_kiosk_robot,
+            request_kiosk_pairing_modal,
             send_model_to_kiosk_robot,
             check_kiosk_robot_connection,
             start_kiosk_robot,

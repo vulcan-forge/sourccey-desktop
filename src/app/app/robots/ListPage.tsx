@@ -134,6 +134,26 @@ export const RobotListPage = () => {
         setPairModalTarget(target);
     };
 
+    const requestPairingModalOnRobot = async (host: string) => {
+        if (!host) return;
+        try {
+            await invoke('request_kiosk_pairing_modal', { host });
+        } catch (error: any) {
+            toast.error(error?.message || 'Failed to show pairing code on robot.', { ...toastErrorDefaults });
+        }
+    };
+
+    const handleSelectDiscovered = (robot: DiscoveredRobot) => {
+        openPairModal({
+            host: robot.host,
+            servicePort: robot.service_port,
+            robotName: robot.robot_name,
+            nickname: robot.nickname,
+            robotType: robot.robot_type,
+        });
+        void requestPairingModalOnRobot(robot.host);
+    };
+
     const pairRobotWithTarget = async (target: PairModalTarget, code: string) => {
         if (!target.host || !code.trim()) {
             toast.error('Missing robot host or pairing code.', { ...toastErrorDefaults });
@@ -264,15 +284,7 @@ export const RobotListPage = () => {
                         discoveredRobots={discoveredRobots}
                         hasDiscovered={hasDiscovered}
                         onDiscover={handleDiscoverRobots}
-                        onSelectDiscovered={(robot) =>
-                            openPairModal({
-                                host: robot.host,
-                                servicePort: robot.service_port,
-                                robotName: robot.robot_name,
-                                nickname: robot.nickname,
-                                robotType: robot.robot_type,
-                            })
-                        }
+                        onSelectDiscovered={handleSelectDiscovered}
                     />
                 </div>
 
@@ -314,21 +326,26 @@ export const RobotListPage = () => {
                             event.preventDefault();
                             handlePairFromModal();
                         }}
-                        className="w-full max-w-md rounded-xl border border-slate-600 bg-slate-800 p-5 shadow-2xl"
+                        className="w-full max-w-md rounded-xl border-2 border-slate-600 bg-slate-900/90 p-5 shadow-2xl"
                     >
-                        <h3 className="text-lg font-semibold text-white">Pair Robot</h3>
-                        <p className="mt-1 text-sm text-slate-300">
-                            {pairModalTarget.robotName} | @{pairModalTarget.nickname}
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                            Host: {pairModalTarget.host} | Type: {pairModalTarget.robotType}
-                        </p>
+                        <div className="flex items-start justify-between gap-3">
+                            <div>
+                                <h3 className="text-lg font-semibold text-white">Pair Robot</h3>
+                                <p className="mt-1 text-sm text-slate-300">{pairModalTarget.robotName}</p>
+                            </div>
+                            <div className="shrink-0 rounded-full border border-slate-600 bg-slate-800/70 px-2.5 py-1 text-[11px] font-semibold text-slate-200">
+                                @{pairModalTarget.nickname}
+                            </div>
+                        </div>
+                        <div className="mt-3 rounded-lg border border-slate-700 bg-slate-800/60 px-3 py-2 text-xs text-slate-300">
+                            <span className="text-slate-400">Host</span>: {pairModalTarget.host}
+                        </div>
 
                         <input
                             value={pairingCode}
                             onChange={(event) => setPairingCode(event.target.value)}
                             placeholder="Enter 6-digit pairing code"
-                            className="mt-4 w-full rounded-lg border border-slate-600 bg-slate-700/50 px-3 py-2 text-white placeholder-slate-400 focus:border-blue-500 focus:outline-none"
+                            className="mt-4 w-full rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-2 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
                         />
 
                         <div className="mt-4 flex justify-end gap-2">
@@ -403,7 +420,14 @@ const DiscoverabilityPanel = ({
                                 : 'cursor-pointer bg-blue-600/90 text-white hover:bg-blue-600'
                         }`}
                     >
-                        {isDiscovering ? 'Discovering...' : 'Discover'}
+                        {isDiscovering ? (
+                            <span className="inline-flex items-center gap-2">
+                                <span className="h-4 w-4 animate-spin rounded-full border-2 border-slate-200/70 border-t-transparent" />
+                                Discovering
+                            </span>
+                        ) : (
+                            'Discover'
+                        )}
                     </button>
                 </div>
             </div>
@@ -429,11 +453,16 @@ const DiscoveredRobotCard = ({ robot, onSelect }: DiscoveredRobotCardProps) => {
         <button
             type="button"
             onClick={() => onSelect(robot)}
-            className="cursor-pointer rounded-lg border border-slate-600 bg-slate-700/40 px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:bg-slate-700/70"
+            className="cursor-pointer rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-2 text-left text-sm text-slate-300 transition-colors hover:border-slate-500 hover:bg-slate-700/70"
         >
-            <div className="font-semibold text-white">{robot.robot_name}</div>
-            <div className="text-xs text-slate-400">
-                {robot.host} | @{robot.nickname} | {robot.robot_type}
+            <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-white">{robot.robot_name}</div>
+                    <div className="mt-1 text-xs text-slate-400">IP: {robot.host}</div>
+                </div>
+                <div className="shrink-0 rounded-full border border-slate-600 bg-slate-700/70 px-2.5 py-1 text-[11px] font-semibold text-slate-200">
+                    @{robot.nickname}
+                </div>
             </div>
         </button>
     );

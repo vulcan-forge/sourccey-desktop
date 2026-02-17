@@ -28,6 +28,11 @@ pub fn pair_with_kiosk_robot(
 }
 
 #[command]
+pub fn request_kiosk_pairing_modal(host: String, port: Option<u16>) -> Result<String, String> {
+    KioskPairingService::request_kiosk_pairing_modal(&host, port.unwrap_or(DEFAULT_SERVICE_PORT))
+}
+
+#[command]
 pub fn send_model_to_kiosk_robot(
     host: String,
     port: Option<u16>,

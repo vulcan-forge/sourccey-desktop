@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { FaSave, FaTimes, FaWifi, FaSpinner, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { useCallback, useEffect, useState } from 'react';
+import { FaSave, FaTimes, FaSpinner, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { markPasswordAsChanged } from '@/hooks/Components/SSH/ssh.hook';
 import { toast } from 'react-toastify';
@@ -270,7 +271,7 @@ export default function KioskSettingsPage() {
         }
     };
 
-    const fetchPairingInfo = async () => {
+    const fetchPairingInfo = useCallback(async () => {
         setIsLoadingPairingInfo(true);
         try {
             const info = await invoke<KioskPairingInfo>('get_kiosk_pairing_info');
@@ -282,18 +283,28 @@ export default function KioskSettingsPage() {
         } finally {
             setIsLoadingPairingInfo(false);
         }
-    };
+    }, []);
 
-    const openPairRobotModal = async () => {
+    const openPairRobotModal = useCallback(async () => {
         setIsPairModalOpen(true);
         await fetchPairingInfo();
-    };
+    }, [fetchPairingInfo]);
 
     useEffect(() => {
         if (!isPairModalOpen) return;
         const interval = setInterval(fetchPairingInfo, 30000);
         return () => clearInterval(interval);
-    }, [isPairModalOpen]);
+    }, [isPairModalOpen, fetchPairingInfo]);
+
+    useEffect(() => {
+        const unlistenPromise = listen('kiosk-pairing-open', () => {
+            openPairRobotModal();
+        });
+
+        return () => {
+            void unlistenPromise.then((unlisten) => unlisten());
+        };
+    }, [openPairRobotModal]);
 
     return (
         <div className="min-h-screen bg-slate-900/30">
@@ -399,11 +410,25 @@ export default function KioskSettingsPage() {
                             )}
                         </div>
 
+                    </div>
+                </div>
+
+                {/* Pairing Section */}
+                <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
+                    <div className="mb-6">
+                        <h2 className="text-xl font-semibold text-white">Pair Robot</h2>
+                        <p className="mt-1 text-sm text-slate-400">Generate a pairing code for the desktop app</p>
+                    </div>
+
+                    <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="text-sm text-slate-300">
+                            Use this to link the desktop app to this robot. A new code is generated every 10 minutes.
+                        </div>
                         <button
                             onClick={openPairRobotModal}
-                            className="w-full cursor-pointer rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                            className="cursor-pointer rounded-lg bg-blue-600 px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                         >
-                            Pair Robot
+                            Show Pairing Code
                         </button>
                     </div>
                 </div>
