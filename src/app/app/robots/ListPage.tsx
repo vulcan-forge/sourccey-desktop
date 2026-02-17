@@ -12,7 +12,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { FaEllipsisH, FaSatelliteDish } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
+import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 
 type DiscoveredRobot = {
     host: string;
@@ -119,7 +119,7 @@ export const RobotListPage = () => {
 
             setDiscoveredRobots(filtered);
             if (filtered.length === 0) {
-                toast.info('No new robots found.', { ...toastSuccessDefaults });
+                toast.info('No new robots found.', { ...toastInfoDefaults });
             }
         } catch (error: any) {
             toast.error(error?.message || 'Failed to discover robots.', { ...toastErrorDefaults });
@@ -273,22 +273,22 @@ export const RobotListPage = () => {
     return (
         <div className="min-h-screen bg-slate-900/30 p-8">
             <div className="mx-auto max-w-7xl">
-                    <div className="mb-4">
-                        <h1 className="text-3xl font-bold text-white">Robots</h1>
-                        <p className="mt-2 text-slate-300">Discover, pair, and manage your nearby robots.</p>
-                    </div>
+                <div className="mb-4">
+                    <h1 className="text-3xl font-bold text-white">Robots</h1>
+                    <p className="mt-2 text-slate-300">Discover, pair, and manage your nearby robots.</p>
+                </div>
 
-                    <div className="mb-6 border-b border-slate-700 pb-4">
-                        <DiscoverabilityPanel
-                            isDiscovering={isDiscovering}
-                            discoveredRobots={discoveredRobots}
-                            hasDiscovered={hasDiscovered}
-                            onDiscover={handleDiscoverRobots}
-                            onSelectDiscovered={handleSelectDiscovered}
-                        />
-                    </div>
+                <div className="mb-6 border-b border-slate-700 pb-4">
+                    <DiscoverabilityPanel
+                        isDiscovering={isDiscovering}
+                        discoveredRobots={discoveredRobots}
+                        hasDiscovered={hasDiscovered}
+                        onDiscover={handleDiscoverRobots}
+                        onSelectDiscovered={handleSelectDiscovered}
+                    />
+                </div>
 
-                    {isLoadingOwnedRobots ? (
+                {isLoadingOwnedRobots ? (
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
                         {Array.from({ length: 8 }).map((_, i) => (
                             <div key={i} className="h-[420px] animate-pulse rounded-2xl border-2 border-slate-700 bg-slate-900/80 shadow-xl" />
@@ -298,25 +298,25 @@ export const RobotListPage = () => {
                     <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-8 text-center text-slate-300 shadow-xl">
                         No robots yet. Discover and pair a nearby robot to get started.
                     </div>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
-                            {robotsToRender.map((robot: any) => {
-                                const robotName = robot.name || 'Robot';
-                                const nickname = robot.nickname || '';
+                ) : (
+                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
+                        {robotsToRender.map((robot: any) => {
+                            const robotName = robot.name || 'Robot';
+                            const nickname = robot.nickname || '';
 
-                                return (
-                                    <RobotCard
-                                        key={robot.id}
-                                        robot={robot}
-                                        robotName={robotName}
-                                        nickname={nickname}
-                                        onUnpair={handleUnpairRobot}
-                                        isUnpairing={unpairingId === robot.id || unpairingId === robot.normalizedNickname}
-                                    />
-                                );
-                            })}
-                        </div>
-                    )}
+                            return (
+                                <RobotCard
+                                    key={robot.id}
+                                    robot={robot}
+                                    robotName={robotName}
+                                    nickname={nickname}
+                                    onUnpair={handleUnpairRobot}
+                                    isUnpairing={unpairingId === robot.id || unpairingId === robot.normalizedNickname}
+                                />
+                            );
+                        })}
+                    </div>
+                )}
             </div>
 
             {pairModalTarget && (

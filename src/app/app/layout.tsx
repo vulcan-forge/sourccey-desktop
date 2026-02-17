@@ -5,6 +5,7 @@ import { SideNavbar } from '@/components/Layouts/Navbar/Layout/SideNavbar';
 import { TopNavbar } from '@/components/Layouts/Navbar/Layout/TopNavbar';
 import { ControlBar } from '@/components/Layouts/ControlBar/ControlBar';
 import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
+import { PairingCodeModal } from '@/components/Elements/Modals/KioskRobotModals/PairingCodeModal';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { usePathname } from 'next/navigation';
 
@@ -47,6 +48,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </div>
             <ControlBar />
             <RemoteControlBar />
+            <PairingCodeModal />
         </div>
     );
 }
