@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { FaTimes, FaSpinner } from 'react-icons/fa';
@@ -23,6 +23,7 @@ export const PairingCodeModal = () => {
     const { data: modalState }: any = useGetModal(KIOSK_PAIRING_MODAL_ID);
     const [pairingInfo, setPairingInfo] = useState<KioskPairingInfo | null>(null);
     const [isLoadingPairingInfo, setIsLoadingPairingInfo] = useState(false);
+    const [nowMs, setNowMs] = useState(() => Date.now());
 
     const fetchPairingInfo = useCallback(async () => {
         setIsLoadingPairingInfo(true);
@@ -49,11 +50,39 @@ export const PairingCodeModal = () => {
     }, [openModal]);
 
     useEffect(() => {
+        const unlistenPromise = listen('kiosk-pairing-close', () => {
+            closeModal(KIOSK_PAIRING_MODAL_ID);
+        });
+
+        return () => {
+            void unlistenPromise.then((unlisten) => unlisten());
+        };
+    }, [closeModal]);
+
+    useEffect(() => {
         if (!modalState) return;
         fetchPairingInfo();
         const interval = setInterval(fetchPairingInfo, 30000);
         return () => clearInterval(interval);
     }, [modalState, fetchPairingInfo]);
+
+    useEffect(() => {
+        if (!modalState) return;
+        const tick = () => setNowMs(Date.now());
+        tick();
+        const interval = setInterval(tick, 1000);
+        return () => clearInterval(interval);
+    }, [modalState]);
+
+    const expiresLabel = useMemo(() => {
+        if (!pairingInfo?.expires_at_ms) return 'Pairing code unavailable';
+        const remainingMs = pairingInfo.expires_at_ms - nowMs;
+        if (remainingMs <= 0) return 'Expired';
+        const totalSeconds = Math.floor(remainingMs / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `Expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }, [pairingInfo?.expires_at_ms, nowMs]);
 
     if (!modalState) return null;
 
@@ -81,11 +110,7 @@ export const PairingCodeModal = () => {
                         <div className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-3 text-center font-mono text-4xl font-bold tracking-[0.18em] text-white">
                             {pairingInfo?.code || '------'}
                         </div>
-                        <div className="text-xs text-slate-400">
-                            {pairingInfo?.expires_at_ms
-                                ? `Expires: ${new Date(pairingInfo.expires_at_ms).toLocaleTimeString()}`
-                                : 'Pairing code unavailable'}
-                        </div>
+                        <div className="text-xs text-slate-400">{expiresLabel}</div>
                     </div>
                 )}
             </div>

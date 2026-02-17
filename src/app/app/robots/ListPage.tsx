@@ -345,7 +345,7 @@ export const RobotListPage = () => {
                             value={pairingCode}
                             onChange={(event) => setPairingCode(event.target.value)}
                             placeholder="Enter 6-digit pairing code"
-                            className="mt-4 w-full rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-2 text-white placeholder-slate-500 focus:border-blue-500 focus:outline-none"
+                            className="mt-4 w-full rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-2 text-white placeholder-slate-500 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/30 focus:outline-none"
                         />
 
                         <div className="mt-4 flex justify-end gap-2">

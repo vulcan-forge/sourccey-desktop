@@ -545,6 +545,10 @@ impl KioskPairingService {
         runtime.pairing_code = Self::generate_pairing_code();
         runtime.pairing_code_expires_at_ms = Self::now_ms() + PAIRING_CODE_TTL_MS;
 
+        if let Some(handle) = KIOSK_APP_HANDLE.get() {
+            let _ = handle.emit("kiosk-pairing-close", json!({ "source": "desktop_pairing" }));
+        }
+
         KioskServiceResponse {
             ok: true,
             message: "Pairing successful".to_string(),
