@@ -124,20 +124,25 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
         );
     }
 
+    const isToggleDisabled = !hasCalibration && activeView === 'calibration';
+
     return (
         <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between">
                 <div className="text-sm font-semibold text-slate-300">Robot Control</div>
-                {hasCalibration && (
-                    <button
-                        type="button"
-                        onClick={() => setActiveView(activeView === 'control' ? 'calibration' : 'control')}
-                        className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-700"
-                    >
-                        <FaTools className="h-3.5 w-3.5 text-slate-300" />
-                        {activeView === 'control' ? 'Calibration' : 'Back to Control'}
-                    </button>
-                )}
+                <button
+                    type="button"
+                    onClick={() => setActiveView(activeView === 'control' ? 'calibration' : 'control')}
+                    disabled={isToggleDisabled}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        isToggleDisabled
+                            ? 'cursor-not-allowed border-slate-700 bg-slate-800/50 text-slate-500'
+                            : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
+                    }`}
+                >
+                    <FaTools className="h-3.5 w-3.5 text-slate-300" />
+                    {activeView === 'control' ? 'Calibration' : hasCalibration ? 'Back to Control' : 'Control (Calibrate first)'}
+                </button>
             </div>
 
             {activeView === 'calibration' || !hasCalibration ? (

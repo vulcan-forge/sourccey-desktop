@@ -44,18 +44,7 @@ export const KioskRobotDetailsPage: React.FC = () => {
 
     return (
         <div className="bg-slate-850 flex h-screen flex-col">
-            <div className="w-full space-y-4 p-6">
-                {!nickname ? (
-                    <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
-                        <h2 className="text-xl font-semibold text-white">Calibration</h2>
-                        <p className="mt-2 text-slate-400">Select a robot from the Robots page to view calibration.</p>
-                    </div>
-                ) : (
-                    <div className="rounded-xl border border-slate-700 bg-slate-800/60 p-4 text-sm text-slate-300">
-                        Selected robot: <span className="font-semibold text-white">{selectedRobot?.name || nickname}</span>{' '}
-                        <span className="text-slate-400">(@{nickname})</span>
-                    </div>
-                )}
+            <div className="w-full p-6">
                 <RobotControl nickname={nickname} robotType={robotType} calibration={combinedCalibration} />
             </div>
         </div>

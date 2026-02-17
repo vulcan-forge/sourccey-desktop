@@ -12,13 +12,10 @@ import {
     FaBatteryThreeQuarters,
 } from 'react-icons/fa';
 import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
-import { RobotStartSection } from '@/components/Elements/RemoteRobot/RobotStart';
-import { useKioskRobotStartStop } from '@/hooks/Kiosk/robot-start-stop.hook';
 
 export const HomeWelcome = () => {
     const nickname = 'sourccey';
     const robotType = 'Sourccey';
-    const { isRobotStarted, isStarting, isStopping, hostLogs, handleStartRobot, handleStopRobot } = useKioskRobotStartStop(nickname);
 
     // State for system info (battery, temperature, IP)
     const { data: systemInfo }: any = useGetSystemInfo();
@@ -133,14 +130,6 @@ export const HomeWelcome = () => {
                     </div>
                 </div>
             </div>
-            <RobotStartSection
-                isRobotStarted={isRobotStarted}
-                isStarting={isStarting}
-                isStopping={isStopping}
-                hostLogs={hostLogs}
-                onStartAction={handleStartRobot}
-                onStopAction={handleStopRobot}
-            />
         </>
     );
 };
