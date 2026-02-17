@@ -13,7 +13,7 @@ interface CalibrationSectionProps {
     calibration: Calibration | null;
 }
 
-export const RobotKioskCalibration: React.FC<CalibrationSectionProps> = ({ nickname, robotType = 'sourccey', calibration }) => {
+export const RobotCalibration: React.FC<CalibrationSectionProps> = ({ nickname, robotType = 'sourccey', calibration }) => {
     const [isCalibrating, setIsCalibrating] = useState(false);
     const [calibrationType, setCalibrationType] = useState<'auto' | 'full' | null>(null);
     const canCalibrate = !!nickname && !!robotType;

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { RobotKioskCalibration } from '@/components/Elements/RemoteRobot/CalibrationSection';
+import { RobotControl } from '@/components/Elements/RemoteRobot/RobotControl';
 import { useGetCalibration } from '@/hooks/Control/config.hook';
 import { useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
@@ -56,7 +56,7 @@ export const KioskRobotDetailsPage: React.FC = () => {
                         <span className="text-slate-400">(@{nickname})</span>
                     </div>
                 )}
-                <RobotKioskCalibration nickname={nickname} robotType={robotType} calibration={combinedCalibration} />
+                <RobotControl nickname={nickname} robotType={robotType} calibration={combinedCalibration} />
             </div>
         </div>
     );

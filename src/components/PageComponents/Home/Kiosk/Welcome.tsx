@@ -2,9 +2,17 @@
 
 import { useEffect } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FaBatteryHalf, FaBatteryFull, FaBatteryQuarter, FaBatteryEmpty, FaThermometerHalf, FaNetworkWired, FaBatteryThreeQuarters } from 'react-icons/fa';
+import {
+    FaBatteryHalf,
+    FaBatteryFull,
+    FaBatteryQuarter,
+    FaBatteryEmpty,
+    FaThermometerHalf,
+    FaNetworkWired,
+    FaBatteryThreeQuarters,
+} from 'react-icons/fa';
 import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
-import { RobotStartSection } from '@/components/PageComponents/Home/Kiosk/RobotStartSection';
+import { RobotStartSection } from '@/components/Elements/RemoteRobot/RobotStart';
 import { useKioskRobotStartStop } from '@/hooks/Kiosk/robot-start-stop.hook';
 
 export const HomeWelcome = () => {
@@ -56,75 +64,75 @@ export const HomeWelcome = () => {
     const BatteryColor = getBatteryColor(systemInfo.batteryData.percent);
     const batteryPercent = systemInfo.batteryData.percent >= 0 ? systemInfo.batteryData.percent : 0;
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
-    
+
     return (
-        <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
-            {/* Header */}
-            <div className="flex items-center justify-between">
-                <div>
-                    <h2 className="text-3xl font-bold text-white">Welcome back!</h2>
-                    <p className="mt-2 text-slate-300">Here&apos;s what&apos;s happening with {nickname} today.</p>
+        <>
+            <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
+                {/* Header */}
+                <div className="flex items-center justify-between">
+                    <div>
+                        <h2 className="text-3xl font-bold text-white">Welcome back!</h2>
+                        <p className="mt-2 text-slate-300">Here&apos;s what&apos;s happening with {nickname} today.</p>
+                    </div>
+                    <div className="text-right">
+                        <div className="text-sm text-slate-400">Robot Type</div>
+                        <div className="text-xl font-bold text-white">{robotType}</div>
+                    </div>
                 </div>
-                <div className="text-right">
-                    <div className="text-sm text-slate-400">Robot Type</div>
-                    <div className="text-xl font-bold text-white">{robotType}</div>
+
+                {/* Battery Life Card */}
+                <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+                    <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="flex items-center gap-2 text-sm text-slate-400">
+                                    <BatteryIcon className={`h-4 w-4 ${BatteryColor}`} />
+                                    Battery Life
+                                </div>
+                                <div className={`mt-2 text-3xl font-bold ${BatteryColor}`}>{batteryPercentString}</div>
+                            </div>
+                            <div className="text-right text-xs text-slate-500">
+                                {batteryPercent >= 0 && <>{batteryPercent > 50 ? 'Good' : batteryPercent > 20 ? 'Low' : 'Critical'}</>}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* System Temperature */}
+                    <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="flex items-center gap-2 text-sm text-slate-400">
+                                    <FaThermometerHalf className="h-4 w-4 text-orange-400" />
+                                    Temperature
+                                </div>
+                                <div className="mt-2 text-3xl font-bold text-white">
+                                    {systemInfo.temperature !== '...' ? systemInfo.temperature : 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Network Info */}
+                    <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <div className="flex items-center gap-2 text-sm text-slate-400">
+                                    <FaNetworkWired className="h-4 w-4 text-blue-400" />
+                                    IP Address
+                                </div>
+                                <div className="mt-2 font-mono text-lg font-bold text-white">
+                                    {systemInfo.ipAddress &&
+                                    systemInfo.ipAddress.trim() !== '' &&
+                                    systemInfo.ipAddress.toLowerCase() !== 'unknown' &&
+                                    systemInfo.ipAddress !== '...'
+                                        ? systemInfo.ipAddress
+                                        : 'Disconnected'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-            {/* Battery Life Card */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <div className="flex items-center gap-2 text-sm text-slate-400">
-                                <BatteryIcon className={`h-4 w-4 ${BatteryColor}`} />
-                                Battery Life
-                            </div>
-                            <div className={`mt-2 text-3xl font-bold ${BatteryColor}`}>
-                                {batteryPercentString}
-                            </div>
-                        </div>
-                        <div className="text-right text-xs text-slate-500">
-                            {batteryPercent >= 0 && (
-                                <>{batteryPercent > 50 ? 'Good' : batteryPercent > 20 ? 'Low' : 'Critical'}</>
-                            )}
-                        </div>
-                    </div>
-                </div>
-
-                {/* System Temperature */}
-                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <div className="flex items-center gap-2 text-sm text-slate-400">
-                                <FaThermometerHalf className="h-4 w-4 text-orange-400" />
-                                Temperature
-                            </div>
-                            <div className="mt-2 text-3xl font-bold text-white">
-                                {systemInfo.temperature !== '...' ? systemInfo.temperature : 'N/A'}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* Network Info */}
-                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <div className="flex items-center gap-2 text-sm text-slate-400">
-                                <FaNetworkWired className="h-4 w-4 text-blue-400" />
-                                IP Address
-                            </div>
-                            <div className="mt-2 font-mono text-lg font-bold text-white">
-                                {systemInfo.ipAddress && systemInfo.ipAddress.trim() !== '' && systemInfo.ipAddress.toLowerCase() !== 'unknown' && systemInfo.ipAddress !== '...'
-                                    ? systemInfo.ipAddress
-                                    : 'Disconnected'}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <RobotStartSection
                 isRobotStarted={isRobotStarted}
                 isStarting={isStarting}
@@ -133,6 +141,6 @@ export const HomeWelcome = () => {
                 onStartAction={handleStartRobot}
                 onStopAction={handleStopRobot}
             />
-        </div>
+        </>
     );
 };

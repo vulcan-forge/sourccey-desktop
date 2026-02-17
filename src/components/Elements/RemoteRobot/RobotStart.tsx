@@ -24,9 +24,7 @@ export const RobotStartSection = ({
             <div className="flex items-start justify-between gap-4">
                 <div>
                     <h3 className="text-lg font-semibold text-white">Robot Control</h3>
-                    <p className="mt-1 text-sm text-slate-300">
-                        Start or stop the robot host process. Logs will stream below.
-                    </p>
+                    <p className="mt-1 text-sm text-slate-300">Start or stop the robot host process. Logs will stream below.</p>
                 </div>
                 <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
                     {isRobotStarted ? 'Running' : 'Stopped'}
@@ -37,7 +35,7 @@ export const RobotStartSection = ({
                 <button
                     onClick={isRobotStarted ? onStopAction : onStartAction}
                     disabled={isStarting || isStopping}
-                    className={`inline-flex min-h-20 w-full items-center justify-center gap-3 rounded-xl px-12 py-5 text-xl font-semibold transition-all ${
+                    className={`inline-flex min-h-20 w-full items-center justify-center gap-3 rounded-xl px-12 py-3 text-xl font-semibold transition-all ${
                         isStarting || isStopping
                             ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                             : isRobotStarted
