@@ -12,6 +12,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FaEllipsisH, FaSatelliteDish } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
+import { Spinner } from '@/components/Elements/Spinner';
 
 type DiscoveredRobot = {
     host: string;
@@ -282,10 +283,11 @@ export const RobotListPage = () => {
                 </div>
 
                 {isLoadingOwnedRobots ? (
-                    <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-4">
-                        {Array.from({ length: 8 }).map((_, i) => (
-                            <div key={i} className="h-[420px] animate-pulse rounded-2xl border-2 border-slate-700 bg-slate-900/80 shadow-xl" />
-                        ))}
+                    <div className="flex min-h-[420px] items-center justify-center rounded-2xl border-2 border-slate-700 bg-slate-900/80 shadow-xl">
+                        <div className="flex items-center gap-3 text-slate-300">
+                            <Spinner color="orange" width="w-6" height="h-6" />
+                            <span className="text-sm font-semibold">Loading robots...</span>
+                        </div>
                     </div>
                 ) : robotsToRender.length === 0 ? (
                     <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-8 text-center text-slate-300 shadow-xl">

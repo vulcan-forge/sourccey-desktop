@@ -74,14 +74,6 @@ impl DirectoryService {
         Ok(python_path)
     }
 
-    pub fn get_ffmpeg_path() -> Result<PathBuf, String> {
-        let ffmpeg_path = Self::get_current_dir()?
-            .join("tools")
-            .join("ffmpeg")
-            .join("ffmpeg.exe");
-        Ok(ffmpeg_path)
-    }
-
     //------------------------------------------------------------//
     // Calibration Directory Functions
     //------------------------------------------------------------//
@@ -102,24 +94,6 @@ impl DirectoryService {
         let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
         Ok(lerobot_cache_dir.join(nickname).join("remote_config.json"))
     }
-    //------------------------------------------------------------//
-    // Dataset Directory Functions
-    //------------------------------------------------------------//
-    pub fn get_lerobot_repository_path(nickname: &str) -> Result<PathBuf, String> {
-        let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
-        Ok(lerobot_cache_dir.join(nickname))
-    }
-
-    pub fn get_lerobot_dataset_path(nickname: &str, dataset: &str) -> Result<PathBuf, String> {
-        let lerobot_cache_dir = Self::get_lerobot_repository_path(nickname)?;
-        Ok(lerobot_cache_dir.join(dataset))
-    }
-
-    pub fn get_lerobot_dataset_path_from_repo_id(repo_id: &str) -> Result<PathBuf, String> {
-        let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
-        Ok(lerobot_cache_dir.join(repo_id))
-    }
-
     //------------------------------------------------------------//
     // AI Models Directory Functions
     //------------------------------------------------------------//
