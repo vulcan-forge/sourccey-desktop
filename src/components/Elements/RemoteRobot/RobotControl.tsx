@@ -128,7 +128,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
         );
     }
 
-    const isToggleDisabled = !hasCalibration && activeView === 'calibration';
+    const isToggleDisabled = !hasCalibration;
 
     return (
         <div className="flex flex-col gap-4">
@@ -149,7 +149,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
                 </button>
             </div>
 
-            {activeView === 'calibration' || !hasCalibration ? (
+            {!hasCalibration || activeView === 'calibration' ? (
                 <RobotCalibration nickname={nickname} robotType={robotType} calibration={calibration} />
             ) : (
                 <RobotStartSection
