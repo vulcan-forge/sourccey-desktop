@@ -1,6 +1,6 @@
 'use client';
 
-import { KioskRobotDetailsPage } from '@/app/app/robot-remote/DetailsPage';
+import { KioskRobotDetailsPage } from '@/app/kiosk/robot/DetailsPage';
 
 export default function RobotKioskPage() {
     return <KioskRobotDetailsPage />;

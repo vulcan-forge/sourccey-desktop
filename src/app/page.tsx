@@ -50,15 +50,15 @@ const HomePage = (): ReactElement => {
         }
 
         if (isKioskMode) {
-            console.log('Kiosk mode: pushing to /app');
-            router.push('/app');
+            console.log('Kiosk mode: pushing to /kiosk');
+            router.push('/kiosk');
         } else {
             if (!profile || isLoadingProfile) {
                 return;
             }
 
-            console.log('Desktop mode: pushing to /app');
-            router.push('/app');
+            console.log('Desktop mode: pushing to /desktop');
+            router.push('/desktop');
         }
     }, [router, profile, isLoadingProfile, isKioskMode, isLoadingAppMode, updateCheckComplete]);
 
