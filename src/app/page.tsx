@@ -4,17 +4,12 @@ import React, { useEffect, useState, type ReactElement } from 'react';
 import { Spinner } from '@/components/Elements/Spinner';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useSyncDefaultRobots } from '@/hooks/Models/Robot/robot.hook';
-import { useGetOrCreateProfile } from '@/hooks/Models/Profile/profile.hook';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { checkForUpdates } from '@/utils/updater/updater';
 
 const HomePage = (): ReactElement => {
     const router = useRouter();
-    const { mutate: syncDefaultRobots, data: syncTime, isPending: isLoadingSyncDefaultRobots } = useSyncDefaultRobots();
-    const { data: profile, isLoading: isLoadingProfile }: any = useGetOrCreateProfile();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
-    const [syncTriggered, setSyncTriggered] = useState(false);
     const [showLoading, setShowLoading] = useState(false);
     const [updateCheckComplete, setUpdateCheckComplete] = useState(false);
 
@@ -42,14 +37,6 @@ const HomePage = (): ReactElement => {
         return () => clearTimeout(timer);
     }, []);
 
-    // Trigger sync when component mounts
-    useEffect(() => {
-        if (!syncTriggered) {
-            syncDefaultRobots();
-            setSyncTriggered(true);
-        }
-    }, [syncDefaultRobots, syncTriggered]);
-
     // In kiosk mode, skip authentication and go directly to app once sync is done
     useEffect(() => {
         if (!updateCheckComplete) {
@@ -61,26 +48,13 @@ const HomePage = (): ReactElement => {
         }
 
         if (isKioskMode) {
-            // In kiosk mode, only wait for sync to complete
-            if (!syncTime || isLoadingSyncDefaultRobots) {
-                return;
-            }
-            console.log('Kiosk mode: pushing to /app');
-            router.push('/app');
+            console.log('Kiosk mode: pushing to /kiosk');
+            router.push('/kiosk');
         } else {
-            // In desktop mode, wait for both sync and profile
-            if (!syncTime || isLoadingSyncDefaultRobots) {
-                return;
-            }
-
-            if (!profile || isLoadingProfile) {
-                return;
-            }
-
-            console.log('Desktop mode: pushing to /app');
-            router.push('/app');
+            console.log('Desktop mode: pushing to /desktop');
+            router.push('/desktop');
         }
-    }, [router, syncTime, isLoadingSyncDefaultRobots, profile, isLoadingProfile, isKioskMode, isLoadingAppMode, updateCheckComplete]);
+    }, [router, isKioskMode, isLoadingAppMode, updateCheckComplete]);
 
     // Don't show loading screen until update check is complete and 1 second has passed
     if (!updateCheckComplete || !showLoading) {

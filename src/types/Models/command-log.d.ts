@@ -10,7 +10,6 @@ export interface CommandLog {
     error_message?: string;
     robot_id?: string;
     owned_robot_id?: string;
-    profile_id?: string;
     execution_time_ms?: number;
     started_at: string;
     completed_at?: string;
@@ -29,18 +28,12 @@ export interface CommandLog {
         id: string;
         nickname?: string;
     };
-    profile?: {
-        id: string;
-        handle: string;
-        name?: string;
-    };
 }
 
 export interface CommandLogFilters {
     command?: string;
     robot_id?: string;
     owned_robot_id?: string;
-    profile_id?: string;
     status?: string;
     started_after?: string; // ISO date string
     started_before?: string; // ISO date string

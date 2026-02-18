@@ -1,14 +1,11 @@
 import { useGetAIModelCount } from '@/hooks/Components/AI/AIModels/ai-model.hook';
 import { useGetControlledRobot } from '@/hooks/Control/control.hook';
 import { useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
-import { useGetProfile } from '@/hooks/Models/Profile/profile.hook';
 import Link from 'next/link';
 import { FaArrowRight, FaRobot, FaBrain, FaPlus } from 'react-icons/fa';
 
 export const MyRobots = () => {
-    const { data: profile, isLoading: isLoadingProfile }: any = useGetProfile();
-    const enabled = !isLoadingProfile && !!profile?.id;
-    const { data: ownedRobots, isLoading: isLoadingOwnedRobots }: any = useGetOwnedRobots(profile?.id, enabled);
+    const { data: ownedRobots, isLoading: isLoadingOwnedRobots }: any = useGetOwnedRobots(true);
 
     return (
         <div className="flex w-full flex-col rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">

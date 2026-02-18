@@ -1,7 +1,7 @@
-import type { EvaluateConfig, EvaluateDatasetConfig } from '@/components/PageComponents/OwnedRobots/Evaluate/EvaluateConfig';
-import type { RecordDatasetConfig } from '@/components/PageComponents/OwnedRobots/Record/RecordConfig';
-import type { ReplayConfig, ReplayDatasetConfig } from '@/components/PageComponents/OwnedRobots/Replay/ReplayConfig';
-import type { TrainingConfig } from '@/components/PageComponents/OwnedRobots/Training/TrainingConfig';
+import type { EvaluateConfig, EvaluateDatasetConfig } from '@/components/PageComponents/Robots/Evaluate/EvaluateConfig';
+import type { RecordDatasetConfig } from '@/components/PageComponents/Robots/Record/RecordConfig';
+import type { ReplayConfig, ReplayDatasetConfig } from '@/components/PageComponents/Robots/Replay/ReplayConfig';
+import type { TrainingConfig } from '@/components/PageComponents/Robots/Training/TrainingConfig';
 import { queryClient } from '@/hooks/default';
 import { useQuery } from '@tanstack/react-query';
 

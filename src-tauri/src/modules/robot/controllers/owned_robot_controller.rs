@@ -9,7 +9,6 @@ use tauri::{AppHandle, Manager};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AddOwnedRobotRequest {
-    pub profile_id: String,
     pub robot_id: String,
     pub nickname: Option<String>,
 }
@@ -18,10 +17,7 @@ pub struct AddOwnedRobotRequest {
 // GET Robot Functions
 //----------------------------------------------------------//
 #[tauri::command]
-pub async fn get_owned_robots_by_profile(
-    app_handle: AppHandle,
-    profile_id: String,
-) -> Result<Vec<OwnedRobotWithRelations>, String> {
+pub async fn get_owned_robots(app_handle: AppHandle) -> Result<Vec<OwnedRobotWithRelations>, String> {
     let db_manager = match app_handle.try_state::<crate::database::connection::DatabaseManager>() {
         Some(manager) => manager,
         None => return Err("Database not initialized".to_string()),
@@ -30,7 +26,7 @@ pub async fn get_owned_robots_by_profile(
     let owned_robot_service = OwnedRobotService::new(db_manager.get_connection().clone());
 
     owned_robot_service
-        .get_owned_robots_by_profile(profile_id)
+        .get_owned_robots()
         .await
         .map_err(|e| e.to_string())
 }
@@ -85,7 +81,7 @@ pub async fn add_owned_robot(
 
     let owned_robot_service = OwnedRobotService::new(db_manager.get_connection().clone());
 
-    let mut active_owned_robot = ActiveOwnedRobot::new(request.profile_id, request.robot_id);
+    let mut active_owned_robot = ActiveOwnedRobot::new(request.robot_id);
     if let Some(nickname) = request.nickname {
         active_owned_robot = active_owned_robot.with_nickname(nickname);
     }

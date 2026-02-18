@@ -1,14 +1,11 @@
 import { useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
-import { useGetProfile } from '@/hooks/Models/Profile/profile.hook';
 import { useGetCalibrationModifiedAt } from '@/hooks/Control/config.hook';
 import { useSelectedModel } from '@/hooks/Model/selected-model.hook';
 import { useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { FaBrain, FaRobot, FaTools } from 'react-icons/fa';
 
 export const HomeWelcome = () => {
-    const { data: profile, isLoading: isLoadingProfile }: any = useGetProfile();
-    const enabled = !isLoadingProfile && !!profile?.id;
-    const { data: ownedRobots, isLoading: isLoadingOwnedRobots }: any = useGetOwnedRobots(profile?.id, enabled);
+    const { data: ownedRobots, isLoading: isLoadingOwnedRobots }: any = useGetOwnedRobots(true);
 
     return (
         <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
@@ -19,7 +16,9 @@ export const HomeWelcome = () => {
                 </div>
                 <div className="text-right">
                     <div className="text-sm text-slate-400">Total Robots</div>
-                    <div className="text-3xl font-bold text-white">{ownedRobots?.length || 0}</div>
+                    <div className="text-3xl font-bold text-white">
+                        {isLoadingOwnedRobots ? '...' : ownedRobots?.length || 0}
+                    </div>
                 </div>
             </div>
 

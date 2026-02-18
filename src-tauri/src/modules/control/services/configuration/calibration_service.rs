@@ -102,7 +102,7 @@ impl CalibrationService {
         let python_path = DirectoryService::get_python_path()?;
 
         let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/scripts/sourccey/auto_calibrate.py".to_string());
+        command_parts.push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
         command_parts.push(format!("--robot.type={}", robot_type));
         command_parts.push(format!("--robot.id={}", nickname));
         command_parts.push(format!("--robot.port={}", port));
@@ -169,7 +169,7 @@ impl CalibrationService {
         let python_path = DirectoryService::get_python_path()?;
 
         let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/scripts/sourccey/auto_calibrate.py".to_string());
+        command_parts.push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
         command_parts.push(format!("--teleop.type={}", teleop_type));
         command_parts.push(format!("--teleop.id={}", nickname));
         command_parts.push(format!("--teleop.port={}", port));
@@ -237,7 +237,7 @@ impl CalibrationService {
         let python_path = DirectoryService::get_python_path()?;
 
         let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/scripts/sourccey/auto_calibrate.py".to_string());
+        command_parts.push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
         command_parts.push(format!("--robot.type={}", robot_type));
         command_parts.push(format!("--robot.id={}", nickname));
         if full_reset {

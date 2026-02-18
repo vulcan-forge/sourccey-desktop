@@ -1,15 +1,19 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
-import { FaCheckCircle, FaTools } from 'react-icons/fa';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { FaTools } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import { invoke } from '@tauri-apps/api/core';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
+import { RobotCalibration } from '@/components/Elements/RemoteRobot/RobotCalibration';
+import { RobotStartSection } from '@/components/Elements/RemoteRobot/RobotStart';
+import { useKioskRobotStartStop } from '@/hooks/Kiosk/robot-start-stop.hook';
+import type { Calibration } from '@/components/PageComponents/Robots/RobotConfig';
 
 interface RobotControlProps {
     nickname: string;
     robotType?: string;
+    calibration: Calibration | null;
 }
 
 type StartupStatus = {
@@ -27,12 +31,7 @@ const mapHostLogToStartupStatus = (line: string): StartupStatus | null => {
         };
     }
 
-    if (
-        normalized.includes('serial') ||
-        normalized.includes('tty') ||
-        normalized.includes('usb') ||
-        normalized.includes('port not found')
-    ) {
+    if (normalized.includes('serial') || normalized.includes('tty') || normalized.includes('usb') || normalized.includes('port not found')) {
         return {
             type: 'error',
             message: 'Arms not connected. Check USB/data cables and arm power.',
@@ -75,18 +74,23 @@ const mapHostLogToStartupStatus = (line: string): StartupStatus | null => {
     return null;
 };
 
-export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType = 'sourccey' }) => {
-    const [isCalibrating, setIsCalibrating] = useState(false);
-    const [calibrationType, setCalibrationType] = useState<'auto' | 'full' | null>(null);
+export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType = 'sourccey', calibration }) => {
     const lastToastMessageRef = useRef<string | null>(null);
+    const hasCalibration = useMemo(() => !!calibration && Object.keys(calibration).length > 0, [calibration]);
+    const [activeView, setActiveView] = useState<'control' | 'calibration'>(hasCalibration ? 'control' : 'calibration');
+    const previousHasCalibrationRef = useRef(hasCalibration);
+
+    useEffect(() => {
+        if (!hasCalibration) {
+            setActiveView('calibration');
+        } else if (!previousHasCalibrationRef.current) {
+            setActiveView('control');
+        }
+        previousHasCalibrationRef.current = hasCalibration;
+    }, [hasCalibration]);
 
     useEffect(() => {
         if (!nickname) return;
-
-        const unlistenStopRobotError = kioskEventManager.listenStopRobotError((payload) => {
-            if (payload.nickname !== nickname) return;
-            toast.error(payload.error || 'Failed to stop robot.', { ...toastErrorDefaults });
-        });
 
         const unlistenHostLog = kioskEventManager.listenHostLog((line) => {
             const status = mapHostLogToStartupStatus(line);
@@ -107,99 +111,56 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
         });
 
         return () => {
-            unlistenStopRobotError();
             unlistenHostLog();
         };
     }, [nickname]);
 
-    const handleCalibration = async (fullReset: boolean) => {
-        setIsCalibrating(true);
-        setCalibrationType(fullReset ? 'full' : 'auto');
+    const { isRobotStarted, isStarting, isStopping, hostLogs, handleStartRobot, handleStopRobot } = useKioskRobotStartStop(
+        nickname || ''
+    );
 
-        try {
-            const remoteCalibrationConfig = {
-                nickname,
-                robot_type: robotType,
-                full_reset: fullReset,
-            };
+    if (!nickname) {
+        return (
+            <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
+                <h2 className="text-xl font-semibold text-white">Robot Control</h2>
+                <p className="mt-2 text-slate-400">Select a robot to manage calibration and start controls.</p>
+            </div>
+        );
+    }
 
-            await invoke('remote_auto_calibrate', { config: remoteCalibrationConfig });
-            toast.success(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} completed successfully.`, {
-                ...toastSuccessDefaults,
-            });
-        } catch (error: any) {
-            console.error('Calibration failed:', error);
-            toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${error?.message || 'Unknown error'}`, {
-                ...toastErrorDefaults,
-            });
-        } finally {
-            setIsCalibrating(false);
-            setCalibrationType(null);
-        }
-    };
+    const isToggleDisabled = !hasCalibration;
 
     return (
-        <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
-            {/* Control Header */}
-            <div className="flex items-center justify-start gap-4">
-                <h2 className="flex items-center gap-2 text-xl font-semibold text-white">
-                    <FaTools className="h-5 w-5 text-slate-400" />
-                    Calibration
-                </h2>
-            </div>
-
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="flex flex-col gap-4">
+            <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-slate-300">Robot Control</div>
                 <button
-                    onClick={() => handleCalibration(false)}
-                    disabled={isCalibrating}
-                    className={`inline-flex min-h-20 items-center justify-center gap-3 rounded-xl px-6 py-5 text-xl font-semibold transition-all ${
-                        isCalibrating && calibrationType !== 'auto'
-                            ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
-                            : isCalibrating && calibrationType === 'auto'
-                              ? 'cursor-wait bg-blue-600 text-white opacity-80'
-                              : 'cursor-pointer bg-blue-600 text-white hover:bg-blue-700 active:bg-blue-800'
+                    type="button"
+                    onClick={() => setActiveView(activeView === 'control' ? 'calibration' : 'control')}
+                    disabled={isToggleDisabled}
+                    className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                        isToggleDisabled
+                            ? 'cursor-not-allowed border-slate-700 bg-slate-800/50 text-slate-500'
+                            : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
                     }`}
                 >
-                    {isCalibrating && calibrationType === 'auto' ? (
-                        <>
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                            Calibrating...
-                        </>
-                    ) : (
-                        <>
-                            <FaCheckCircle className="h-5 w-5" />
-                            Auto calibrate
-                        </>
-                    )}
-                </button>
-
-                <button
-                    onClick={() => handleCalibration(true)}
-                    disabled={isCalibrating}
-                    className={`inline-flex min-h-20 items-center justify-center gap-3 rounded-xl px-6 py-5 text-xl font-semibold transition-all ${
-                        isCalibrating && calibrationType !== 'full'
-                            ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
-                            : isCalibrating && calibrationType === 'full'
-                              ? 'cursor-wait bg-yellow-500 text-white opacity-80'
-                              : 'cursor-pointer bg-yellow-500 text-white hover:bg-yellow-600 active:bg-yellow-700'
-                    }`}
-                >
-                    {isCalibrating && calibrationType === 'full' ? (
-                        <>
-                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                            Calibrating...
-                        </>
-                    ) : (
-                        <>
-                            <FaTools className="h-5 w-5" />
-                            Full Calibrate
-                        </>
-                    )}
+                    <FaTools className="h-3.5 w-3.5 text-slate-300" />
+                    {activeView === 'control' ? 'Calibration' : hasCalibration ? 'Back to Control' : 'Control (Calibrate first)'}
                 </button>
             </div>
-            <p className="text-sm text-slate-400">
-                Start diagnostics are now shown as toast messages.
-            </p>
+
+            {!hasCalibration || activeView === 'calibration' ? (
+                <RobotCalibration nickname={nickname} robotType={robotType} calibration={calibration} />
+            ) : (
+                <RobotStartSection
+                    isRobotStarted={isRobotStarted}
+                    isStarting={isStarting}
+                    isStopping={isStopping}
+                    hostLogs={hostLogs}
+                    onStartAction={handleStartRobot}
+                    onStopAction={handleStopRobot}
+                />
+            )}
         </div>
     );
 };

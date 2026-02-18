@@ -41,15 +41,11 @@ use modules::log::controllers::command_log_controller::{
     add_command_log, delete_all_command_logs, delete_command_log, get_command_log,
     get_command_logs_paginated, update_command_log,
 };
-use modules::profile::controllers::profile_controller::{
-    create_profile, get_first_profile, get_profile_by_id,
-};
 use modules::robot::controllers::owned_robot_controller::{
     add_owned_robot, delete_owned_robot, get_owned_robot_by_id, get_owned_robot_by_nickname,
-    get_owned_robots_by_profile,
+    get_owned_robots,
 };
 use modules::robot::controllers::robot_controller::{get_all_robots, get_robot_by_id};
-use modules::sync::controllers::sync_controller::{get_sync_status, sync_robots};
 
 // Import Robotics Control Modules
 use modules::control::controllers::communication::ssh_controller::{
@@ -77,33 +73,13 @@ use modules::control::controllers::kiosk_control::pairing_controller::{
     check_kiosk_robot_connection,
     get_kiosk_robot_status,
     discover_pairable_robots, get_kiosk_pairing_info, init_kiosk_pairing, pair_with_kiosk_robot,
-    send_model_to_kiosk_robot, start_kiosk_robot, stop_kiosk_robot,
+    request_kiosk_pairing_modal, send_model_to_kiosk_robot, start_kiosk_robot, stop_kiosk_robot,
 };
 use modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
 };
-use modules::control::controllers::local_control::evaluate_controller::{
-    init_evaluate, reset_evaluate_episode, save_evaluate_episode, start_evaluate, stop_evaluate,
-};
-use modules::control::controllers::local_control::record_controller::{
-    init_record, reset_record_episode, save_record_episode, start_record, stop_record,
-};
-use modules::control::controllers::local_control::replay_controller::{
-    init_replay, start_replay, stop_replay,
-};
 use modules::control::controllers::local_control::teleop_controller::{
     get_active_teleop_sessions, init_teleop, is_teleop_active, start_teleop, stop_teleop,
-};
-use modules::control::controllers::remote_control::remote_evaluate_controller::{
-    init_remote_evaluate, reset_remote_evaluate_episode, save_remote_evaluate_episode,
-    start_remote_evaluate, stop_remote_evaluate,
-};
-use modules::control::controllers::remote_control::remote_record_controller::{
-    init_remote_record, reset_remote_record_episode, save_remote_record_episode,
-    start_remote_record, stop_remote_record,
-};
-use modules::control::controllers::remote_control::remote_replay_controller::{
-    init_remote_replay, start_remote_replay, stop_remote_replay,
 };
 use modules::control::controllers::remote_control::remote_teleop_controller::{
     init_remote_teleop, start_remote_teleop, stop_remote_teleop,
@@ -240,18 +216,12 @@ fn main() {
         .manage(init_ssh())
         .manage(init_robot_processes())
         .manage(init_teleop())
-        .manage(init_record())
-        .manage(init_training())
-        .manage(init_replay())
-        .manage(init_evaluate())
         .manage(init_remote_teleop())
-        .manage(init_remote_record())
-        .manage(init_remote_replay())
-        .manage(init_remote_evaluate())
         .manage(init_kiosk_host())
         .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![
             //----------------------------------------------------------//
+<<<<<<< HEAD
             // File System Functionality
             //----------------------------------------------------------//
 
@@ -303,13 +273,23 @@ fn main() {
             // Sync API
             sync_robots,
             get_sync_status,
+=======
+>>>>>>> d5529157039361910b1784ae7fab5aeb2b89bc55
             // Log API
+            //----------------------------------------------------------//
             get_command_log,
             add_command_log,
             update_command_log,
             delete_command_log,
             delete_all_command_logs,
             get_command_logs_paginated,
+
+            //----------------------------------------------------------//
+            // Robot API
+            //----------------------------------------------------------//
+            get_robot_by_id,
+            get_all_robots,
+
             //----------------------------------------------------------//
             // Control Functionality
             //----------------------------------------------------------//
@@ -342,33 +322,7 @@ fn main() {
             get_active_teleop_sessions,
             start_remote_teleop,
             stop_remote_teleop,
-            // Record Functions
-            start_record,
-            stop_record,
-            save_record_episode,
-            reset_record_episode,
-            start_remote_record,
-            stop_remote_record,
-            save_remote_record_episode,
-            reset_remote_record_episode,
-            // Replay Functions
-            start_replay,
-            stop_replay,
-            start_remote_replay,
-            stop_remote_replay,
-            // Evaluate Functions
-            start_evaluate,
-            stop_evaluate,
-            save_evaluate_episode,
-            reset_evaluate_episode,
-            start_remote_evaluate,
-            stop_remote_evaluate,
-            save_remote_evaluate_episode,
-            reset_remote_evaluate_episode,
-            // Training Functions
-            start_training,
-            stop_training,
-            training_exists,
+
             // App Mode
             get_app_mode,
             // Kiosk Host Functions
@@ -384,6 +338,7 @@ fn main() {
             get_kiosk_pairing_info,
             discover_pairable_robots,
             pair_with_kiosk_robot,
+            request_kiosk_pairing_modal,
             send_model_to_kiosk_robot,
             check_kiosk_robot_connection,
             start_kiosk_robot,
@@ -403,6 +358,9 @@ fn main() {
 
             // Debug API
             debug_check_updates,
+
+            // Owned Robots
+            get_owned_robots,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

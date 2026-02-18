@@ -1,61 +1,36 @@
 'use client';
 import { usePathname } from 'next/navigation';
 import { HiHome } from 'react-icons/hi';
-import { FaBrain, FaRobot, FaCog, FaTools } from 'react-icons/fa';
+import { FaBrain, FaRobot } from 'react-icons/fa';
 import Link from 'next/link';
-import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 
-interface DesktopSidebarProps {
-    profile?: any;
-    isLoading?: boolean;
-}
-
-export const SideNavbar = ({ profile, isLoading }: DesktopSidebarProps) => {
+export const SideNavbar = () => {
     const pathname = usePathname();
-    const { isKioskMode } = useAppMode();
 
-    const allNavItems = [
+    const mainNavItems = [
         {
-            href: '/app',
+            href: '/desktop',
             label: 'Home',
             icon: HiHome,
         },
         {
-            href: '/app/robots',
+            href: '/desktop/robots',
             label: 'Robots',
             icon: FaRobot,
         },
         {
-            href: '/app/models',
+            href: '/desktop/models',
             label: 'AI Models',
             icon: FaBrain,
         },
-        {
-            href: '/app/robot-remote',
-            label: 'Calibration',
-            icon: FaTools,
-        },
     ];
 
-    // Filter nav items based on kiosk mode
-    const mainNavItems = isKioskMode
-        ? allNavItems.filter((item) => item.href === '/app' || item.href === '/app/models' || item.href === '/app/robot-remote')
-        : allNavItems;
-
-    const bottomNavItems: any = isKioskMode
-        ? [
-              {
-                  href: '/app/settings-kiosk',
-                  label: 'Settings',
-                  icon: FaCog,
-              },
-          ]
-        : [];
+    const bottomNavItems: any = [];
 
     const isActive = (href: string) => {
         // Special case for home page
-        if (href === '/app') {
-            return pathname === '/app';
+        if (href === '/desktop') {
+            return pathname === '/desktop';
         }
 
         // For other pages, check if the current pathname starts with the href

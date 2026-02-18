@@ -9,7 +9,7 @@ use std::process::Command;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 use uuid::Uuid;
 
 const DISCOVERY_MAGIC: &str = "SOURCCEY_DISCOVER_V1";
@@ -282,6 +282,24 @@ impl KioskPairingService {
         })
     }
 
+    pub fn request_kiosk_pairing_modal(host: &str, port: u16) -> Result<String, String> {
+        let request = KioskServiceRequest {
+            action: "show_pairing".to_string(),
+            code: None,
+            token: None,
+            client_name: Some("Desktop App".to_string()),
+            repo_id: None,
+            model_name: None,
+        };
+
+        let response = Self::send_service_request(host, port, &request)?;
+        if !response.ok {
+            return Err(response.message);
+        }
+
+        Ok(response.message)
+    }
+
     pub fn send_model_to_kiosk_robot(
         host: &str,
         port: u16,
@@ -450,6 +468,7 @@ impl KioskPairingService {
         if let Ok(request) = serde_json::from_str::<KioskServiceRequest>(request_line.trim()) {
             response = match request.action.as_str() {
                 "pair" => Self::handle_pair_request(state.clone(), request),
+                "show_pairing" => Self::handle_show_pairing_request(state.clone(), request),
                 "download_model" => Self::handle_download_model_request(state.clone(), request),
                 "ping" => Self::handle_ping_request(state.clone(), request),
                 "start_robot" => Self::handle_start_robot_request(state.clone(), request),
@@ -526,6 +545,10 @@ impl KioskPairingService {
         runtime.pairing_code = Self::generate_pairing_code();
         runtime.pairing_code_expires_at_ms = Self::now_ms() + PAIRING_CODE_TTL_MS;
 
+        if let Some(handle) = KIOSK_APP_HANDLE.get() {
+            let _ = handle.emit("kiosk-pairing-close", json!({ "source": "desktop_pairing" }));
+        }
+
         KioskServiceResponse {
             ok: true,
             message: "Pairing successful".to_string(),
@@ -534,6 +557,37 @@ impl KioskPairingService {
             nickname: Some(runtime.nickname.clone()),
             robot_type: Some(runtime.robot_type.clone()),
             service_port: Some(runtime.service_port),
+        }
+    }
+
+    fn handle_show_pairing_request(state: KioskPairingState, _request: KioskServiceRequest) -> KioskServiceResponse {
+        let info = match Self::get_kiosk_pairing_info(state.clone()) {
+            Ok(info) => info,
+            Err(error) => {
+                return KioskServiceResponse {
+                    ok: false,
+                    message: error,
+                    token: None,
+                    robot_name: None,
+                    nickname: None,
+                    robot_type: None,
+                    service_port: Some(DEFAULT_SERVICE_PORT),
+                }
+            }
+        };
+
+        if let Some(handle) = KIOSK_APP_HANDLE.get() {
+            let _ = handle.emit("kiosk-pairing-open", json!({ "source": "desktop_pairing" }));
+        }
+
+        KioskServiceResponse {
+            ok: true,
+            message: "Pairing modal opened".to_string(),
+            token: None,
+            robot_name: Some(info.robot_name),
+            nickname: Some(info.nickname),
+            robot_type: Some(info.robot_type),
+            service_port: Some(info.service_port),
         }
     }
 

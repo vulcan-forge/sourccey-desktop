@@ -1,5 +1,4 @@
 use crate::services::directory::directory_service::DirectoryService;
-use std::path::PathBuf;
 use std::process::Command;
 
 pub struct EnvService;
@@ -39,11 +38,6 @@ impl EnvService {
     pub fn add_display_env_vars(cmd: &mut Command) -> Result<(), String> {
         // Set DISPLAY for X11 forwarding (useful for GUI applications)
         cmd.env("DISPLAY", ":0");
-        Ok(())
-    }
-
-    pub fn add_hide_warnings_env_vars(cmd: &mut Command) -> Result<(), String> {
-        cmd.env("PYTHONWARNINGS", "ignore");
         Ok(())
     }
 }

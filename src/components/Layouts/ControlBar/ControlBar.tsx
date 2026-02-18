@@ -1,7 +1,7 @@
 'use client';
 
 import { GeneralModal } from '@/components/Elements/Modals/GeneralModal';
-import { TeleopAction } from '@/components/PageComponents/OwnedRobots/Teleop/TeleopAction';
+import { TeleopAction } from '@/components/PageComponents/Robots/Teleop/TeleopAction';
 import { useGetControlledRobots } from '@/hooks/Control/control.hook';
 import { useModalContext } from '@/hooks/Modals/context.hook';
 import { FaGamepad, FaRobot } from 'react-icons/fa';
