@@ -15,16 +15,19 @@ export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps)
     const [isExpanded, setIsExpanded] = useState(isControlling);
     const logsRef = useRef<string[]>([]);
 
-    const appendLog = useCallback((log: string) => {
-        if (nickname && !log.includes(`[${nickname}]`)) {
-            return;
-        }
+    const appendLog = useCallback(
+        (log: string) => {
+            if (nickname && !log.includes(`[${nickname}]`)) {
+                return;
+            }
 
-        const filteredLogs = filterLogs([...logsRef.current, log]);
-        const newLogs = filteredLogs.slice(-100);
-        logsRef.current = newLogs;
-        setControlLogs(newLogs);
-    }, [nickname]);
+            const filteredLogs = filterLogs([...logsRef.current, log]);
+            const newLogs = filteredLogs.slice(-100);
+            logsRef.current = newLogs;
+            setControlLogs(newLogs);
+        },
+        [nickname]
+    );
 
     // Update internal state when external prop changes
     useEffect(() => {
@@ -54,7 +57,7 @@ export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps)
             <div className="bg-slate-825 flex items-center justify-between border-b border-slate-700 p-4">
                 <div className="flex items-center gap-3">
                     <FaTerminal className="h-5 w-5 text-slate-400" />
-                    <h3 className="text-lg font-semibold text-white">Host Logs</h3>
+                    <h3 className="text-lg font-semibold text-white">Robot Logs</h3>
                     {isControlling && (
                         <div className="flex items-center gap-2">
                             <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
