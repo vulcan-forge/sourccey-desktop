@@ -2,9 +2,6 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FaTools } from 'react-icons/fa';
-import { toast } from 'react-toastify';
-import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
 import { RobotCalibration } from '@/components/Elements/RemoteRobot/RobotCalibration';
 import { RobotStartSection } from '@/components/Elements/RemoteRobot/RobotStart';
 import { useKioskRobotStartStop } from '@/hooks/Kiosk/robot-start-stop.hook';
@@ -16,66 +13,7 @@ interface RobotControlProps {
     calibration: Calibration | null;
 }
 
-type StartupStatus = {
-    type: 'success' | 'error' | 'info';
-    message: string;
-};
-
-const mapHostLogToStartupStatus = (line: string): StartupStatus | null => {
-    const normalized = line.toLowerCase();
-
-    if (normalized.includes('waiting for commands')) {
-        return {
-            type: 'success',
-            message: 'Robot online and waiting for commands.',
-        };
-    }
-
-    if (normalized.includes('serial') || normalized.includes('tty') || normalized.includes('usb') || normalized.includes('port not found')) {
-        return {
-            type: 'error',
-            message: 'Arms not connected. Check USB/data cables and arm power.',
-        };
-    }
-
-    if (
-        normalized.includes('timed out') ||
-        normalized.includes('connection refused') ||
-        normalized.includes('network is unreachable') ||
-        normalized.includes('failed to connect')
-    ) {
-        return {
-            type: 'error',
-            message: 'Robot network unavailable. Confirm Wi-Fi/Ethernet and robot IP.',
-        };
-    }
-
-    if (normalized.includes('permission denied') || normalized.includes('access denied')) {
-        return {
-            type: 'error',
-            message: 'Permission blocked. Restart app with required system permissions.',
-        };
-    }
-
-    if (normalized.includes('calibration') && (normalized.includes('missing') || normalized.includes('invalid'))) {
-        return {
-            type: 'error',
-            message: 'Calibration missing or invalid. Re-run calibration before starting.',
-        };
-    }
-
-    if (normalized.includes('traceback') || normalized.includes('exception') || normalized.includes('error')) {
-        return {
-            type: 'error',
-            message: 'Robot start failed with an internal error. Check robot service health.',
-        };
-    }
-
-    return null;
-};
-
 export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType = 'sourccey', calibration }) => {
-    const lastToastMessageRef = useRef<string | null>(null);
     const hasCalibration = useMemo(() => !!calibration && Object.keys(calibration).length > 0, [calibration]);
     const [activeView, setActiveView] = useState<'control' | 'calibration'>(hasCalibration ? 'control' : 'calibration');
     const previousHasCalibrationRef = useRef(hasCalibration);
@@ -88,32 +26,6 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
         }
         previousHasCalibrationRef.current = hasCalibration;
     }, [hasCalibration]);
-
-    useEffect(() => {
-        if (!nickname) return;
-
-        const unlistenHostLog = kioskEventManager.listenHostLog((line) => {
-            const status = mapHostLogToStartupStatus(line);
-            if (!status) return;
-
-            if (lastToastMessageRef.current === status.message) {
-                return;
-            }
-            lastToastMessageRef.current = status.message;
-
-            if (status.type === 'success') {
-                toast.success(status.message, { ...toastSuccessDefaults });
-            } else if (status.type === 'error') {
-                toast.error(status.message, { ...toastErrorDefaults });
-            } else {
-                toast(status.message);
-            }
-        });
-
-        return () => {
-            unlistenHostLog();
-        };
-    }, [nickname]);
 
     const { isRobotStarted, isStarting, isStopping, handleStartRobot, handleStopRobot } = useKioskRobotStartStop(nickname || '');
 
