@@ -1,12 +1,12 @@
 'use client';
 
 import { FaPlay, FaStop } from 'react-icons/fa';
+import { RobotLogs } from '@/components/PageComponents/Robots/RobotLog';
 
 type RobotStartSectionProps = {
     isRobotStarted: boolean;
     isStarting: boolean;
     isStopping: boolean;
-    hostLogs: string[];
     onStartAction: () => void;
     onStopAction: () => void;
 };
@@ -15,7 +15,6 @@ export const RobotStartSection = ({
     isRobotStarted,
     isStarting,
     isStopping,
-    hostLogs,
     onStartAction,
     onStopAction,
 }: RobotStartSectionProps) => {
@@ -61,22 +60,7 @@ export const RobotStartSection = ({
                 </button>
             </div>
 
-            <div className="overflow-hidden rounded-lg border border-slate-600 bg-slate-900/50">
-                <div className="border-b border-slate-700 bg-slate-800 p-3">
-                    <h4 className="text-sm font-semibold text-white">Robot Logs</h4>
-                </div>
-                <div className="h-56 overflow-y-auto bg-slate-900/40 p-3 font-mono">
-                    {hostLogs.length > 0 ? (
-                        hostLogs.map((log, idx) => (
-                            <div key={idx} className="text-xs leading-relaxed text-slate-300">
-                                {log}
-                            </div>
-                        ))
-                    ) : (
-                        <div className="text-sm text-slate-400">No logs yet. Start the robot to see host output.</div>
-                    )}
-                </div>
-            </div>
+            <RobotLogs isControlling={isRobotStarted || isStarting || isStopping} />
         </div>
     );
 };

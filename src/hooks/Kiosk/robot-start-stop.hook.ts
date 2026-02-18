@@ -11,7 +11,6 @@ export const useKioskRobotStartStop = (nickname: string) => {
     const { isRobotStarted, setIsRobotStarted } = useRobotStatus();
     const [isStarting, setIsStarting] = useState(false);
     const [isStopping, setIsStopping] = useState(false);
-    const [hostLogs, setHostLogs] = useState<string[]>([]);
     const stopActionLockRef = useRef(false);
     const postStopGuardUntilRef = useRef(0);
 
@@ -19,7 +18,6 @@ export const useKioskRobotStartStop = (nickname: string) => {
         const unlistenStartRobot = kioskEventManager.listenStartRobot((payload) => {
             if (payload.nickname !== nickname) return;
 
-            setHostLogs((prev) => [...prev.slice(-99), `[system] ${payload.message ?? 'Host process started'} (pid: ${payload.pid ?? 'unknown'})`]);
             setIsStarting(false);
             setIsStopping(false);
             setIsRobotStarted(true);
@@ -30,10 +28,6 @@ export const useKioskRobotStartStop = (nickname: string) => {
         const unlistenStopRobot = kioskEventManager.listenStopRobot((payload) => {
             if (payload.nickname !== nickname) return;
 
-            setHostLogs((prev) => [
-                ...prev.slice(-99),
-                `[system] Host process stopped${payload.exit_code !== null ? ` (exit ${payload.exit_code})` : ''}: ${payload.message}`,
-            ]);
             // Keep stopping lock until polling confirms host is actually down.
             setIsStarting(false);
 
@@ -43,7 +37,6 @@ export const useKioskRobotStartStop = (nickname: string) => {
         const unlistenStopRobotError = kioskEventManager.listenStopRobotError((payload) => {
             if (payload.nickname !== nickname) return;
 
-            setHostLogs((prev) => [...prev.slice(-99), `[system] Failed to stop host: ${payload.error}`]);
             stopActionLockRef.current = false;
             setIsStarting(false);
             setIsStopping(false);
@@ -51,15 +44,10 @@ export const useKioskRobotStartStop = (nickname: string) => {
             toast.error(payload.error || 'Failed to stop robot.', { ...toastErrorDefaults });
         });
 
-        const unlistenHostLog = kioskEventManager.listenHostLog((line) => {
-            setHostLogs((prev) => [...prev.slice(-99), line]);
-        });
-
         return () => {
             unlistenStartRobot();
             unlistenStopRobot();
             unlistenStopRobotError();
-            unlistenHostLog();
         };
     }, [nickname, setIsRobotStarted]);
 
@@ -172,7 +160,6 @@ export const useKioskRobotStartStop = (nickname: string) => {
         isRobotStarted,
         isStarting,
         isStopping,
-        hostLogs,
         handleStartRobot,
         handleStopRobot,
     };
