@@ -217,9 +217,7 @@ export default function ModelsPage() {
 
             setDownloadStatusText(event.payload.status_text ?? 'Downloading model files...');
             setDownloadProgressPercent(
-                typeof event.payload.progress_percent === 'number'
-                    ? Math.max(0, Math.min(100, event.payload.progress_percent))
-                    : null,
+                typeof event.payload.progress_percent === 'number' ? Math.max(0, Math.min(100, event.payload.progress_percent)) : null
             );
         }).then((fn) => {
             unlisten = fn;
@@ -254,10 +252,7 @@ export default function ModelsPage() {
     }, []);
 
     const applyDownloadResult = useCallback(
-        async (
-            downloadedResult: NonNullable<HuggingFaceModelDownloadCompletionEvent['response']['result']>,
-            successMessage: string,
-        ) => {
+        async (downloadedResult: NonNullable<HuggingFaceModelDownloadCompletionEvent['response']['result']>, successMessage: string) => {
             const downloadedCard = mapCatalogModelToCard(downloadedResult.model);
             await refetchOrganizationCatalog();
             setSelectedModel(mapCardToSelectedModel(downloadedCard));
@@ -267,7 +262,7 @@ export default function ModelsPage() {
                 ...toastSuccessDefaults,
             });
         },
-        [refetchOrganizationCatalog],
+        [refetchOrganizationCatalog]
     );
 
     const handleLoadOrganization = () => {
@@ -293,9 +288,7 @@ export default function ModelsPage() {
         const model = modelCards.find((card) => card.repoId === repoId);
         const isReplace = !!model?.downloaded;
         if (isReplace) {
-            const confirmed = window.confirm(
-                `Model "${repoId}" already exists in cache. Replace it with a fresh download?`,
-            );
+            const confirmed = window.confirm(`Model "${repoId}" already exists in cache. Replace it with a fresh download?`);
             if (!confirmed) {
                 return;
             }
@@ -332,7 +325,7 @@ export default function ModelsPage() {
         }
 
         const confirmed = window.confirm(
-            `Delete "${selectedCard.repoId}" from Hugging Face cache?\n\nThis removes the local cached files for this model.`,
+            `Delete "${selectedCard.repoId}" from Hugging Face cache?\n\nThis removes the local cached files for this model.`
         );
         if (!confirmed) {
             return;
@@ -343,8 +336,7 @@ export default function ModelsPage() {
             const result = await deleteHuggingFaceModelFromCache(selectedCard.repoId);
             const refreshed = await refetchOrganizationCatalog();
             const refreshedModels = (refreshed.data?.models ?? []).map(mapCatalogModelToCard);
-            const refreshedSelected =
-                refreshedModels.find((model) => model.repoId === selectedCard.repoId) ?? null;
+            const refreshedSelected = refreshedModels.find((model) => model.repoId === selectedCard.repoId) ?? null;
 
             if (refreshedSelected) {
                 setSelectedModel(mapCardToSelectedModel(refreshedSelected));
@@ -368,87 +360,79 @@ export default function ModelsPage() {
         }
 
         let unlisten: (() => void) | null = null;
-        void listen<HuggingFaceModelDownloadCompletionEvent>(
-            'hf-model-download-complete',
-            (event) => {
-                const payload = event.payload;
-                if (!payload) return;
+        void listen<HuggingFaceModelDownloadCompletionEvent>('hf-model-download-complete', (event) => {
+            const payload = event.payload;
+            if (!payload) return;
 
-                const repoId = payload.repo_id;
-                if (downloadingRepoIdRef.current && repoId !== downloadingRepoIdRef.current) {
-                    return;
-                }
+            const repoId = payload.repo_id;
+            if (downloadingRepoIdRef.current && repoId !== downloadingRepoIdRef.current) {
+                return;
+            }
 
-                const handleCompletion = async () => {
-                    const response = payload.response;
-                    if (response.status === 'replace_required') {
-                        if (replaceRetriedRepoIdRef.current === repoId) {
-                            toast.error(
-                                'Replace download still requires confirmation after retry. Please try again.',
-                                { ...toastErrorDefaults },
-                            );
+            const handleCompletion = async () => {
+                const response = payload.response;
+                if (response.status === 'replace_required') {
+                    if (replaceRetriedRepoIdRef.current === repoId) {
+                        toast.error('Replace download still requires confirmation after retry. Please try again.', { ...toastErrorDefaults });
+                        clearDownloadStateSoon();
+                        return;
+                    }
+
+                    if (replaceConfirmedRepoIdRef.current !== repoId) {
+                        const confirmed = window.confirm(`${response.message}\n\nDo you want to replace it now?`);
+                        if (!confirmed) {
+                            setDownloadStatusText('Replace canceled.');
+                            setDownloadProgressPercent(0);
                             clearDownloadStateSoon();
                             return;
                         }
-
-                        if (replaceConfirmedRepoIdRef.current !== repoId) {
-                            const confirmed = window.confirm(
-                                `${response.message}\n\nDo you want to replace it now?`,
-                            );
-                            if (!confirmed) {
-                                setDownloadStatusText('Replace canceled.');
-                                setDownloadProgressPercent(0);
-                                clearDownloadStateSoon();
-                                return;
-                            }
-                            replaceConfirmedRepoIdRef.current = repoId;
-                            setReplaceConfirmedRepoId(repoId);
-                        }
-
-                        replaceRetriedRepoIdRef.current = repoId;
-                        setReplaceRetriedRepoId(repoId);
-                        setDownloadStatusText('Replacing cached model...');
-                        setDownloadProgressPercent(1);
-                        try {
-                            await startHuggingFaceModelDownload(repoId, true);
-                        } catch (retryError: unknown) {
-                            toast.error(getErrorMessage(retryError), {
-                                ...toastErrorDefaults,
-                            });
-                            clearDownloadStateSoon();
-                        }
-                        return;
+                        replaceConfirmedRepoIdRef.current = repoId;
+                        setReplaceConfirmedRepoId(repoId);
                     }
 
-                    if (response.status === 'failed') {
-                        toast.error(getErrorMessage(response.message || 'Download failed.'), {
+                    replaceRetriedRepoIdRef.current = repoId;
+                    setReplaceRetriedRepoId(repoId);
+                    setDownloadStatusText('Replacing cached model...');
+                    setDownloadProgressPercent(1);
+                    try {
+                        await startHuggingFaceModelDownload(repoId, true);
+                    } catch (retryError: unknown) {
+                        toast.error(getErrorMessage(retryError), {
                             ...toastErrorDefaults,
                         });
                         clearDownloadStateSoon();
-                        return;
                     }
+                    return;
+                }
 
-                    if (response.status === 'completed' && response.result) {
-                        const wasReplace = replaceConfirmedRepoIdRef.current === repoId;
-                        await applyDownloadResult(
-                            response.result,
-                            wasReplace
-                                ? `Model "${response.result.model.model_name}" replaced in Hugging Face cache.`
-                                : `Model "${response.result.model.model_name}" downloaded to Hugging Face cache.`,
-                        );
-                        clearDownloadStateSoon();
-                        return;
-                    }
-
-                    toast.error(getErrorMessage(response.message || 'Unexpected download response.'), {
+                if (response.status === 'failed') {
+                    toast.error(getErrorMessage(response.message || 'Download failed.'), {
                         ...toastErrorDefaults,
                     });
                     clearDownloadStateSoon();
-                };
+                    return;
+                }
 
-                void handleCompletion();
-            },
-        ).then((fn) => {
+                if (response.status === 'completed' && response.result) {
+                    const wasReplace = replaceConfirmedRepoIdRef.current === repoId;
+                    await applyDownloadResult(
+                        response.result,
+                        wasReplace
+                            ? `Model "${response.result.model.model_name}" replaced in Hugging Face cache.`
+                            : `Model "${response.result.model.model_name}" downloaded to Hugging Face cache.`
+                    );
+                    clearDownloadStateSoon();
+                    return;
+                }
+
+                toast.error(getErrorMessage(response.message || 'Unexpected download response.'), {
+                    ...toastErrorDefaults,
+                });
+                clearDownloadStateSoon();
+            };
+
+            void handleCompletion();
+        }).then((fn) => {
             unlisten = fn;
         });
 
@@ -457,11 +441,7 @@ export default function ModelsPage() {
                 unlisten();
             }
         };
-    }, [
-        applyDownloadResult,
-        clearDownloadStateSoon,
-        isKioskMode,
-    ]);
+    }, [applyDownloadResult, clearDownloadStateSoon, isKioskMode]);
 
     const handleRunSelectedModel = async () => {
         if (!selectedCard) {
@@ -531,11 +511,7 @@ export default function ModelsPage() {
         selectedCard.pretrainedModelPath &&
         selectedCard.highestCheckpointStep !== null
     );
-    const selectedCardOutOfDisk = !!(
-        selectedCard &&
-        !selectedCard.downloaded &&
-        selectedCard.hasEnoughSpace === false
-    );
+    const selectedCardOutOfDisk = !!(selectedCard && !selectedCard.downloaded && selectedCard.hasEnoughSpace === false);
     const isSelectedDownloading = !!(selectedCard && downloadingRepoId === selectedCard.repoId);
 
     if (isKioskMode) {
@@ -598,8 +574,7 @@ export default function ModelsPage() {
                             <span className="font-semibold text-slate-100">Robot:</span> {selectedRobot?.name || 'None'}
                         </div>
                         <div>
-                            <span className="font-semibold text-slate-100">Selected Model:</span>{' '}
-                            {selectedCard?.name || 'None'}
+                            <span className="font-semibold text-slate-100">Selected Model:</span> {selectedCard?.name || 'None'}
                         </div>
                     </div>
 
@@ -617,9 +592,7 @@ export default function ModelsPage() {
                                 />
                             </div>
                             <div className="text-xs text-slate-400">
-                                {downloadProgressPercent === null
-                                    ? 'Preparing download...'
-                                    : `${downloadProgressPercent.toFixed(1)}%`}
+                                {downloadProgressPercent === null ? 'Preparing download...' : `${downloadProgressPercent.toFixed(1)}%`}
                             </div>
                         </div>
                     )}
@@ -681,13 +654,9 @@ export default function ModelsPage() {
                                                         </div>
                                                     </div>
                                                     <div className="space-y-3 p-4">
-                                                        <div className="text-center text-lg font-semibold text-white">
-                                                            {model.name}
-                                                        </div>
+                                                        <div className="text-center text-lg font-semibold text-white">{model.name}</div>
                                                         {model.downloaded && (
-                                                            <div className="text-center text-sm font-semibold text-emerald-300">
-                                                                Downloaded
-                                                            </div>
+                                                            <div className="text-center text-sm font-semibold text-emerald-300">Downloaded</div>
                                                         )}
                                                     </div>
                                                 </div>
@@ -700,9 +669,7 @@ export default function ModelsPage() {
 
                         <aside className="min-h-0 overflow-y-auto rounded-xl border border-slate-700 bg-slate-800/95 p-4">
                             {!selectedCard && (
-                                <div className="text-sm text-slate-300">
-                                    Select a model card to view detailed stats and actions.
-                                </div>
+                                <div className="text-sm text-slate-300">Select a model card to view detailed stats and actions.</div>
                             )}
 
                             {selectedCard && (
@@ -718,11 +685,15 @@ export default function ModelsPage() {
                                     <div className="grid grid-cols-2 gap-2 text-xs text-slate-300">
                                         <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-2">
                                             <div className="text-slate-400">Downloads</div>
-                                            <div className="mt-1 text-sm font-semibold text-white">{formatCompactNumber(selectedCard.downloads)}</div>
+                                            <div className="mt-1 text-sm font-semibold text-white">
+                                                {formatCompactNumber(selectedCard.downloads)}
+                                            </div>
                                         </div>
                                         <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-2">
                                             <div className="text-slate-400">Likes</div>
-                                            <div className="mt-1 text-sm font-semibold text-white">{formatCompactNumber(selectedCard.likes)}</div>
+                                            <div className="mt-1 text-sm font-semibold text-white">
+                                                {formatCompactNumber(selectedCard.likes)}
+                                            </div>
                                         </div>
                                         <div className="rounded-lg border border-slate-700 bg-slate-900/60 p-2">
                                             <div className="text-slate-400">Model Size</div>
@@ -740,7 +711,8 @@ export default function ModelsPage() {
 
                                     <div className="space-y-1 text-xs text-slate-300">
                                         <div>
-                                            <span className="font-semibold text-slate-100">Updated:</span> {formatDate(selectedCard.lastModified)}
+                                            <span className="font-semibold text-slate-100">Updated:</span>{' '}
+                                            {formatDate(selectedCard.lastModified)}
                                         </div>
                                     </div>
 
@@ -765,9 +737,19 @@ export default function ModelsPage() {
                                         <button
                                             type="button"
                                             onClick={handleRunSelectedModel}
-                                            disabled={!selectedConnection || !isRobotConnected || isRunningModel || !selectedModelCanRun || isDeletingModel}
+                                            disabled={
+                                                !selectedConnection ||
+                                                !isRobotConnected ||
+                                                isRunningModel ||
+                                                !selectedModelCanRun ||
+                                                isDeletingModel
+                                            }
                                             className={`w-full rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
-                                                !selectedConnection || !isRobotConnected || isRunningModel || !selectedModelCanRun || isDeletingModel
+                                                !selectedConnection ||
+                                                !isRobotConnected ||
+                                                isRunningModel ||
+                                                !selectedModelCanRun ||
+                                                isDeletingModel
                                                     ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                                                     : 'cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700'
                                             }`}

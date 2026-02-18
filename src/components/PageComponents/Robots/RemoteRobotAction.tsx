@@ -152,14 +152,10 @@ export const RemoteRobotAction = ({
 
 export const remoteStartControlText = {
     [RemoteControlType.TELEOP]: 'Start Control',
-    [RemoteControlType.RECORD]: 'Start Record',
-    [RemoteControlType.REPLAY]: 'Start Replay',
-    [RemoteControlType.EVALUATE]: 'Start Evaluation',
+    [RemoteControlType.INFERENCE]: 'Start AI',
 };
 
 export const remoteStopControlText = {
     [RemoteControlType.TELEOP]: 'Stop Control',
-    [RemoteControlType.RECORD]: 'Stop Record',
-    [RemoteControlType.REPLAY]: 'Stop Replay',
-    [RemoteControlType.EVALUATE]: 'Stop Evaluation',
+    [RemoteControlType.INFERENCE]: 'Stop AI',
 };

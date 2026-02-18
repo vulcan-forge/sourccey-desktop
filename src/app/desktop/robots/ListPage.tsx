@@ -3,7 +3,7 @@
 import { addOwnedRobot, deleteOwnedRobot, getOwnedRobotByNickname } from '@/api/Local/Robot/owned_robot';
 import { getAllRobots } from '@/api/Local/Robot/robot';
 import { queryClient } from '@/hooks/default';
-import { BASE_OWNED_ROBOT_KEY, useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
+import { BASE_OWNED_ROBOT_KEY, setSelectedOwnedRobot, useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { removePairedRobotConnection, setPairedRobotConnection, usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
 import { removeRobotConnectionStatus, setRobotConnectionStatus, useRobotConnectionStatuses } from '@/hooks/Robot/robot-connection-status.hook';
 import { invoke } from '@tauri-apps/api/core';
@@ -285,7 +285,7 @@ export const RobotListPage = () => {
                 {isLoadingOwnedRobots ? (
                     <div className="flex min-h-[420px] items-center justify-center rounded-2xl border-2 border-slate-700 bg-slate-900/80 shadow-xl">
                         <div className="flex items-center gap-3 text-slate-300">
-                            <Spinner color="orange" width="w-6" height="h-6" />
+                            <Spinner color="yellow" width="w-6" height="h-6" />
                             <span className="text-sm font-semibold">Loading robots...</span>
                         </div>
                     </div>
@@ -530,7 +530,11 @@ const RobotCard = ({ robot, robotName, nickname, onUnpair, isUnpairing }: RobotC
             </div>
 
             <Link
-                href={`/app/owned-robots?id=${robot.id}`}
+                href={`/desktop/robots?id=${robot.id}`}
+                onClick={() => {
+                    console.log('robot', robot);
+                    setSelectedOwnedRobot(robot);
+                }}
                 className="inline-flex w-full cursor-pointer items-center justify-center rounded-md bg-gradient-to-r from-red-400/50 via-orange-400/50 to-yellow-400/50 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition-all duration-200 hover:from-red-500/70 hover:via-orange-500/70 hover:to-yellow-500/70"
             >
                 Manage Robot

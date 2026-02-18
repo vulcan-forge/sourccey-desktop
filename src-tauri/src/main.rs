@@ -16,12 +16,6 @@ use utils::pagination::{PaginatedResponse, PaginationParameters};
 
 // Import modules
 mod modules;
-use modules::ai::controllers::ai_models::ai_model_controller::{
-    count_ai_models, count_all_ai_models, download_ai_model_from_huggingface, get_ai_model,
-    get_ai_models, get_all_ai_models, get_huggingface_organization_models,
-    delete_huggingface_model_from_cache, download_huggingface_model_to_cache,
-    download_huggingface_model_to_cache_with_progress, start_huggingface_model_download,
-};
 use modules::log::controllers::command_log_controller::{
     add_command_log, delete_all_command_logs, delete_command_log, get_command_log,
     get_command_logs_paginated, update_command_log,
@@ -68,10 +62,6 @@ use modules::control::controllers::local_control::teleop_controller::{
 };
 use modules::control::controllers::remote_control::remote_teleop_controller::{
     init_remote_teleop, start_remote_teleop, stop_remote_teleop,
-};
-use modules::control::controllers::remote_control::remote_evaluate_controller::{
-    init_remote_evaluate, reset_remote_evaluate_episode, save_remote_evaluate_episode,
-    start_remote_evaluate, stop_remote_evaluate,
 };
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
@@ -206,37 +196,30 @@ fn main() {
         .manage(init_robot_processes())
         .manage(init_teleop())
         .manage(init_remote_teleop())
-        .manage(init_remote_evaluate())
         .manage(init_kiosk_host())
         .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![
-            // AI Model API
-            get_all_ai_models,
-            get_ai_models,
-            get_ai_model,
-            count_all_ai_models,
-            count_ai_models,
-            download_ai_model_from_huggingface,
-            get_huggingface_organization_models,
-            download_huggingface_model_to_cache,
-            delete_huggingface_model_from_cache,
-            download_huggingface_model_to_cache_with_progress,
-            start_huggingface_model_download,
+            //----------------------------------------------------------//
             // Log API
+            //----------------------------------------------------------//
             get_command_log,
             add_command_log,
             update_command_log,
             delete_command_log,
             delete_all_command_logs,
             get_command_logs_paginated,
+
+            //----------------------------------------------------------//
             // Robot API
+            //----------------------------------------------------------//
             get_robot_by_id,
             get_all_robots,
-            get_owned_robots,
-            get_owned_robot_by_id,
-            get_owned_robot_by_nickname,
-            add_owned_robot,
-            delete_owned_robot,
+
+            //----------------------------------------------------------//
+            // Control Functionality
+            //----------------------------------------------------------//
+
+            // Control API
             // SSH
             connect,
             disconnect,
@@ -262,11 +245,6 @@ fn main() {
             get_active_teleop_sessions,
             start_remote_teleop,
             stop_remote_teleop,
-            // Remote evaluate
-            start_remote_evaluate,
-            stop_remote_evaluate,
-            save_remote_evaluate_episode,
-            reset_remote_evaluate_episode,
             // App Mode
             get_app_mode,
             // Kiosk host + pairing
@@ -288,7 +266,7 @@ fn main() {
             start_kiosk_robot,
             stop_kiosk_robot,
             get_kiosk_robot_status,
-            // WiFi + AP + battery
+            // WiFi API
             scan_wifi_networks,
             connect_to_wifi,
             get_current_wifi_connection,
@@ -299,6 +277,9 @@ fn main() {
             get_battery_data,
             // Debug API
             debug_check_updates,
+
+            // Owned Robots
+            get_owned_robots,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

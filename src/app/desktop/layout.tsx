@@ -3,7 +3,6 @@
 import { Spinner } from '@/components/Elements/Spinner';
 import { SideNavbar } from '@/components/Layouts/Navbar/Layout/SideNavbar';
 import { TopNavbar } from '@/components/Layouts/Navbar/Layout/TopNavbar';
-import { ControlBar } from '@/components/Layouts/ControlBar/ControlBar';
 import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 
@@ -25,7 +24,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <SideNavbar />
                 <div className="min-h-0 w-full flex-1 overflow-auto">{children}</div>
             </div>
-            <ControlBar />
             <RemoteControlBar />
         </div>
     );

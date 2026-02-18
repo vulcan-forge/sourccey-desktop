@@ -24,10 +24,7 @@ export enum RemoteRobotStatus {
 export enum RemoteControlType {
     NONE = 'none',
     TELEOP = 'teleop',
-    RECORD = 'record',
-    REPLAY = 'replay',
-    TRAINING = 'training',
-    EVALUATE = 'evaluate',
+    INFERENCE = 'inference',
 }
 
 export const getRemoteRobotState = (nickname: string | null): RemoteRobotState =>
