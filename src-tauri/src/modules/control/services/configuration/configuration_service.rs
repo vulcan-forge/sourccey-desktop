@@ -112,7 +112,7 @@ impl ConfigurationService {
         let python_path = DirectoryService::get_python_path()?;
 
         let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/scripts/sourccey/auto_config.py".to_string());
+        command_parts.push("src/lerobot/scripts/sourccey/configuration/auto_config.py".to_string());
 
         let mut cmd = Command::new(python_path);
         for arg in &command_parts[1..] {
