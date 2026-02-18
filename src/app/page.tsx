@@ -16,17 +16,31 @@ const HomePage = (): ReactElement => {
 
     // Check for updates FIRST before anything else
     useEffect(() => {
+        let settled = false;
+        const fallbackTimer = setTimeout(() => {
+            if (!settled) {
+                setUpdateCheckComplete(true);
+            }
+        }, 2000);
+
         const checkUpdates = async () => {
             try {
                 await checkForUpdates();
             } catch (error) {
                 console.error('Error checking for updates:', error);
             } finally {
+                settled = true;
+                clearTimeout(fallbackTimer);
                 setUpdateCheckComplete(true);
             }
         };
 
         checkUpdates();
+
+        return () => {
+            settled = true;
+            clearTimeout(fallbackTimer);
+        };
     }, []);
 
     // Delay showing loading screen to prevent flash on fast loads
@@ -40,10 +54,6 @@ const HomePage = (): ReactElement => {
 
     // In kiosk mode, skip authentication and go directly to app once sync is done
     useEffect(() => {
-        if (!updateCheckComplete) {
-            return;
-        }
-
         if (isLoadingAppMode) {
             return;
         }
@@ -53,7 +63,7 @@ const HomePage = (): ReactElement => {
             console.log(`App mode redirect: ${targetPath}`);
             router.replace(targetPath);
         }
-    }, [router, pathname, isKioskMode, isLoadingAppMode, updateCheckComplete]);
+    }, [router, pathname, isKioskMode, isLoadingAppMode]);
 
     // Don't show loading screen until update check is complete and 1 second has passed
     if (!updateCheckComplete || !showLoading) {

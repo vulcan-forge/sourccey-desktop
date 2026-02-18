@@ -31,12 +31,17 @@ const getAppMode = async (): Promise<boolean> => {
 };
 
 export const useAppMode = () => {
-    const { data: isKioskMode = false, isLoading } = useQuery({
+    const isKioskPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/kiosk');
+    const { data, isLoading } = useQuery({
         queryKey: APP_MODE_KEY,
         queryFn: getAppMode,
+        enabled: isTauri(),
         staleTime: Infinity, // Never refetch since app mode doesn't change
         gcTime: Infinity, // Keep in cache for 24 hours
     });
 
-    return { isKioskMode, isLoading };
+    return {
+        isKioskMode: isKioskPath ? true : data ?? false,
+        isLoading: isKioskPath ? false : isLoading,
+    };
 };
