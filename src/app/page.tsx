@@ -3,12 +3,13 @@
 import React, { useEffect, useState, type ReactElement } from 'react';
 import { Spinner } from '@/components/Elements/Spinner';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { checkForUpdates } from '@/utils/updater/updater';
 
 const HomePage = (): ReactElement => {
     const router = useRouter();
+    const pathname = usePathname();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
     const [showLoading, setShowLoading] = useState(false);
     const [updateCheckComplete, setUpdateCheckComplete] = useState(false);
@@ -47,14 +48,12 @@ const HomePage = (): ReactElement => {
             return;
         }
 
-        if (isKioskMode) {
-            console.log('Kiosk mode: pushing to /kiosk');
-            router.push('/kiosk');
-        } else {
-            console.log('Desktop mode: pushing to /desktop');
-            router.push('/desktop');
+        const targetPath = isKioskMode ? '/kiosk' : '/desktop';
+        if (pathname !== targetPath) {
+            console.log(`App mode redirect: ${targetPath}`);
+            router.replace(targetPath);
         }
-    }, [router, isKioskMode, isLoadingAppMode, updateCheckComplete]);
+    }, [router, pathname, isKioskMode, isLoadingAppMode, updateCheckComplete]);
 
     // Don't show loading screen until update check is complete and 1 second has passed
     if (!updateCheckComplete || !showLoading) {
