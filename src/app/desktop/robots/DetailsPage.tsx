@@ -3,8 +3,6 @@
 import { Spinner } from '@/components/Elements/Spinner';
 import { RobotLogs } from '@/components/PageComponents/Robots/RobotLog';
 import { RobotAction } from '@/components/PageComponents/Robots/RobotAction';
-import { RobotConfig } from '@/components/PageComponents/Robots/RobotConfig';
-import { TeleopAction } from '@/components/PageComponents/Robots/Teleop/TeleopAction';
 import { ControlType, setControlledRobot, useGetControlledRobot } from '@/hooks/Control/control.hook';
 import { useSelectedOwnedRobot } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { useSearchParams } from 'next/navigation';
@@ -12,12 +10,14 @@ import { useState } from 'react';
 import { FaBolt, FaPlay, FaTools } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
+import { RemoteRobotConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
+import { RemoteTeleopAction } from '@/components/PageComponents/Robots/Teleop/RemoteTeleopAction';
 
 export const RobotDetailsPage = () => {
     const searchParams = useSearchParams();
     const id = searchParams.get('id') || '';
     const { data: ownedRobot, isLoading } = useSelectedOwnedRobot();
-    const [activeTab, setActiveTab] = useState<'overview' | 'teleop' | 'ai'>('overview');
+    const [activeTab, setActiveTab] = useState<'ai' | 'teleop'>('ai');
 
     if (!ownedRobot || isLoading) {
         return (
@@ -32,13 +32,13 @@ export const RobotDetailsPage = () => {
             <div className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800/60 p-3">
                 <button
                     type="button"
-                    onClick={() => setActiveTab('overview')}
+                    onClick={() => setActiveTab('ai')}
                     className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                        activeTab === 'overview' ? 'bg-orange-500/20 text-orange-200' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                        activeTab === 'ai' ? 'bg-orange-500/20 text-orange-200' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
                     }`}
                 >
                     <FaTools className="h-3.5 w-3.5" />
-                    Overview
+                    Run AI
                 </button>
                 <button
                     type="button"
@@ -48,39 +48,12 @@ export const RobotDetailsPage = () => {
                     }`}
                 >
                     <FaPlay className="h-3.5 w-3.5" />
-                    Teleoperate
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setActiveTab('ai')}
-                    className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
-                        activeTab === 'ai' ? 'bg-emerald-500/20 text-emerald-200' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
-                    }`}
-                >
-                    <FaBolt className="h-3.5 w-3.5" />
-                    Run AI
+                    Manual Control
                 </button>
             </div>
 
-            {activeTab === 'overview' && <OverviewTab ownedRobot={ownedRobot} />}
-            {activeTab === 'teleop' && <TeleoperateTab ownedRobot={ownedRobot} />}
             {activeTab === 'ai' && <RunAITab ownedRobot={ownedRobot} />}
-        </div>
-    );
-};
-
-const OverviewTab = ({ ownedRobot }: { ownedRobot: any }) => {
-    const nickname = ownedRobot?.nickname ?? '';
-    const { data: controlledRobot }: any = useGetControlledRobot(nickname);
-    const isTeleopRunning = !!controlledRobot?.ownedRobot && controlledRobot?.controlType === ControlType.TELEOP;
-
-    return (
-        <div className="flex flex-col gap-6">
-            <RobotConfig ownedRobot={ownedRobot} />
-            <div className="flex flex-col gap-4">
-                <TeleopAction ownedRobot={ownedRobot} onClose={() => {}} logs={true} />
-                <RobotLogs isControlling={isTeleopRunning} />
-            </div>
+            {activeTab === 'teleop' && <TeleoperateTab ownedRobot={ownedRobot} />}
         </div>
     );
 };
@@ -92,7 +65,7 @@ const TeleoperateTab = ({ ownedRobot }: { ownedRobot: any }) => {
 
     return (
         <div className="flex flex-col gap-4">
-            <TeleopAction ownedRobot={ownedRobot} onClose={() => {}} logs={true} />
+            <RemoteTeleopAction ownedRobot={ownedRobot} onClose={() => {}} logs={true} />
             <RobotLogs isControlling={isTeleopRunning} />
         </div>
     );
