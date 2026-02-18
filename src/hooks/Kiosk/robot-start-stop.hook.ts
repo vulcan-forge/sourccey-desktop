@@ -2,99 +2,192 @@ import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useRobotStatus } from '@/context/robot-status-context';
 import { toast } from 'react-toastify';
-import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
+import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
 
 export const useKioskRobotStartStop = (nickname: string) => {
-    const STOP_CONFIRM_TIMEOUT_MS = 20000;
     const POST_STOP_TAP_GUARD_MS = 800;
     const { isRobotStarted, setIsRobotStarted } = useRobotStatus();
     const [isStarting, setIsStarting] = useState(false);
     const [isStopping, setIsStopping] = useState(false);
-    const [hostLogs, setHostLogs] = useState<string[]>([]);
     const stopActionLockRef = useRef(false);
     const postStopGuardUntilRef = useRef(0);
+    const lastToastMessageRef = useRef<string | null>(null);
+    const suppressAutoStartingRef = useRef(false);
+    const hasConfirmedStartRef = useRef(false);
+
+    const completeStop = () => {
+        stopActionLockRef.current = false;
+        setIsStopping(false);
+        setIsStarting(false);
+        setIsRobotStarted(false);
+        hasConfirmedStartRef.current = false;
+        postStopGuardUntilRef.current = Date.now() + POST_STOP_TAP_GUARD_MS;
+    };
+
+    const failStop = () => {
+        stopActionLockRef.current = false;
+        setIsStopping(false);
+    };
+
+    const mapHostLogToStartupStatus = (line: string) => {
+        const normalized = line.toLowerCase();
+
+        if (normalized.includes('waiting for commands')) {
+            return {
+                type: 'success' as const,
+                message: 'Robot started successfully.',
+            };
+        }
+
+        if (normalized.includes('serial') || normalized.includes('tty') || normalized.includes('usb') || normalized.includes('port not found')) {
+            return {
+                type: 'error' as const,
+                message: 'Arms not connected. Check USB/data cables and arm power.',
+            };
+        }
+
+        if (
+            normalized.includes('timed out') ||
+            normalized.includes('connection refused') ||
+            normalized.includes('network is unreachable') ||
+            normalized.includes('failed to connect')
+        ) {
+            return {
+                type: 'error' as const,
+                message: 'Robot network unavailable. Confirm Wi-Fi/Ethernet and robot IP.',
+            };
+        }
+
+        if (normalized.includes('permission denied') || normalized.includes('access denied')) {
+            return {
+                type: 'error' as const,
+                message: 'Permission blocked. Restart app with required system permissions.',
+            };
+        }
+
+        if (normalized.includes('calibration') && (normalized.includes('missing') || normalized.includes('invalid'))) {
+            return {
+                type: 'error' as const,
+                message: 'Calibration missing or invalid. Re-run calibration before starting.',
+            };
+        }
+
+        if (normalized.includes('traceback') || normalized.includes('exception') || normalized.includes('error')) {
+            return {
+                type: 'error' as const,
+                message: 'Robot start failed with an internal error. Check robot service health.',
+            };
+        }
+
+        return null;
+    };
 
     useEffect(() => {
         const unlistenStartRobot = kioskEventManager.listenStartRobot((payload) => {
             if (payload.nickname !== nickname) return;
 
-            setHostLogs((prev) => [...prev.slice(-99), `[system] ${payload.message ?? 'Host process started'} (pid: ${payload.pid ?? 'unknown'})`]);
-            setIsStarting(false);
+            suppressAutoStartingRef.current = false;
+            setIsStarting(true);
             setIsStopping(false);
-            setIsRobotStarted(true);
-
-            toast.success('Robot started successfully', { ...toastSuccessDefaults });
         });
 
         const unlistenStopRobot = kioskEventManager.listenStopRobot((payload) => {
             if (payload.nickname !== nickname) return;
 
-            setHostLogs((prev) => [
-                ...prev.slice(-99),
-                `[system] Host process stopped${payload.exit_code !== null ? ` (exit ${payload.exit_code})` : ''}: ${payload.message}`,
-            ]);
-            // Keep stopping lock until polling confirms host is actually down.
-            setIsStarting(false);
-
+            completeStop();
             toast.success('Robot stopped successfully', { ...toastSuccessDefaults });
         });
 
         const unlistenStopRobotError = kioskEventManager.listenStopRobotError((payload) => {
             if (payload.nickname !== nickname) return;
 
-            setHostLogs((prev) => [...prev.slice(-99), `[system] Failed to stop host: ${payload.error}`]);
-            stopActionLockRef.current = false;
-            setIsStarting(false);
-            setIsStopping(false);
-
+            failStop();
             toast.error(payload.error || 'Failed to stop robot.', { ...toastErrorDefaults });
-        });
-
-        const unlistenHostLog = kioskEventManager.listenHostLog((line) => {
-            setHostLogs((prev) => [...prev.slice(-99), line]);
         });
 
         return () => {
             unlistenStartRobot();
             unlistenStopRobot();
             unlistenStopRobotError();
-            unlistenHostLog();
         };
     }, [nickname, setIsRobotStarted]);
 
     useEffect(() => {
-        let cancelled = false;
+        const unlistenHostLog = kioskEventManager.listenHostLog((line) => {
+            if (nickname && !line.includes(`[${nickname}]`)) return;
+
+            const status = mapHostLogToStartupStatus(line);
+            if (!status) return;
+
+            if (lastToastMessageRef.current === status.message) {
+                return;
+            }
+            lastToastMessageRef.current = status.message;
+
+            if (status.type === 'success') {
+                if (isStarting) {
+                    hasConfirmedStartRef.current = true;
+                    setIsRobotStarted(true);
+                    setIsStarting(false);
+                    setIsStopping(false);
+                }
+                toast.success(status.message, { ...toastSuccessDefaults });
+            } else {
+                if (isStarting) {
+                    suppressAutoStartingRef.current = true;
+                    setIsRobotStarted(false);
+                    setIsStarting(false);
+                }
+                toast.error(status.message, { ...toastErrorDefaults });
+
+                if (isStarting && !hasConfirmedStartRef.current && nickname) {
+                    stopActionLockRef.current = true;
+                    setIsStopping(true);
+
+                    void invoke<string>('stop_kiosk_host', { nickname })
+                        .catch((error) => {
+                            console.error('Failed to auto-stop robot after start error:', error);
+                        })
+                        .finally(() => {
+                            stopActionLockRef.current = false;
+                            setIsStopping(false);
+                        });
+                }
+            }
+        });
+
+        return () => {
+            unlistenHostLog();
+        };
+    }, [nickname, setIsRobotStarted, isStarting]);
+
+    useEffect(() => {
         let interval: any;
-        const lastActiveRef = { current: false };
 
         const poll = async () => {
             try {
                 const active = await invoke<boolean>('is_kiosk_host_active', { nickname });
 
-                if (!isRobotStarted && active && !lastActiveRef.current) {
-                    lastActiveRef.current = true;
-                    setIsStopping(false);
-                    setIsStarting(true);
-
-                    setTimeout(() => {
-                        if (cancelled) return;
-                        setIsRobotStarted(true);
+                if (!active) {
+                    suppressAutoStartingRef.current = false;
+                    hasConfirmedStartRef.current = false;
+                    if (isRobotStarted || isStarting) {
                         setIsStarting(false);
-                    }, 3000);
-
+                        setIsRobotStarted(false);
+                    }
+                    if (isStopping) {
+                        completeStop();
+                    } else if (!stopActionLockRef.current) {
+                        setIsStopping(false);
+                    }
                     return;
                 }
 
-                if (isRobotStarted && !active && lastActiveRef.current) {
-                    lastActiveRef.current = false;
-                    setIsStarting(false);
-                    setIsStopping(false);
-                    setIsRobotStarted(false);
-                    return;
+                if (!isRobotStarted && !isStopping && !suppressAutoStartingRef.current) {
+                    setIsStarting(true);
                 }
             } catch {
-                lastActiveRef.current = false;
                 // Do not clear stop lock during stop flow on transient polling errors.
                 if (!stopActionLockRef.current) {
                     setIsStarting(false);
@@ -108,7 +201,6 @@ export const useKioskRobotStartStop = (nickname: string) => {
         interval = setInterval(poll, 3000);
 
         return () => {
-            cancelled = true;
             interval && clearInterval(interval);
         };
     }, [nickname, isRobotStarted, isStopping, setIsRobotStarted]);
@@ -120,6 +212,10 @@ export const useKioskRobotStartStop = (nickname: string) => {
         setIsStarting(true);
         setIsStopping(false);
         setIsRobotStarted(false);
+        suppressAutoStartingRef.current = false;
+        hasConfirmedStartRef.current = false;
+        lastToastMessageRef.current = 'Robot is starting...';
+        toast.info('Robot is starting...', { ...toastInfoDefaults });
 
         try {
             await invoke<string>('start_kiosk_host', { nickname });
@@ -132,20 +228,6 @@ export const useKioskRobotStartStop = (nickname: string) => {
         }
     };
 
-    const waitForHostStopped = async () => {
-        const startedAt = Date.now();
-        while (Date.now() - startedAt < STOP_CONFIRM_TIMEOUT_MS) {
-            try {
-                const active = await invoke<boolean>('is_kiosk_host_active', { nickname });
-                if (!active) return;
-            } catch {
-                // Keep waiting on transient checker errors during shutdown.
-            }
-            await new Promise((resolve) => setTimeout(resolve, 400));
-        }
-        throw new Error('Timed out waiting for robot to stop.');
-    };
-
     const handleStopRobot = async () => {
         if (isStopping || isStarting || stopActionLockRef.current) return;
 
@@ -154,14 +236,8 @@ export const useKioskRobotStartStop = (nickname: string) => {
         setIsStarting(false);
         try {
             await invoke<string>('stop_kiosk_host', { nickname });
-            await waitForHostStopped();
-            setIsRobotStarted(false);
-            setIsStopping(false);
-            stopActionLockRef.current = false;
-            postStopGuardUntilRef.current = Date.now() + POST_STOP_TAP_GUARD_MS;
         } catch (error: any) {
-            stopActionLockRef.current = false;
-            setIsStopping(false);
+            failStop();
 
             console.error('Failed to stop robot:', error);
             toast.error('Failed to stop robot.', { ...toastErrorDefaults });
@@ -172,7 +248,6 @@ export const useKioskRobotStartStop = (nickname: string) => {
         isRobotStarted,
         isStarting,
         isStopping,
-        hostLogs,
         handleStartRobot,
         handleStopRobot,
     };

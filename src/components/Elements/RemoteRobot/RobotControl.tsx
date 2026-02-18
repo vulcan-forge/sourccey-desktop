@@ -115,9 +115,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
         };
     }, [nickname]);
 
-    const { isRobotStarted, isStarting, isStopping, hostLogs, handleStartRobot, handleStopRobot } = useKioskRobotStartStop(
-        nickname || ''
-    );
+    const { isRobotStarted, isStarting, isStopping, handleStartRobot, handleStopRobot } = useKioskRobotStartStop(nickname || '');
 
     if (!nickname) {
         return (
@@ -153,10 +151,10 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
                 <RobotCalibration nickname={nickname} robotType={robotType} calibration={calibration} />
             ) : (
                 <RobotStartSection
+                    nickname={nickname}
                     isRobotStarted={isRobotStarted}
                     isStarting={isStarting}
                     isStopping={isStopping}
-                    hostLogs={hostLogs}
                     onStartAction={handleStartRobot}
                     onStopAction={handleStopRobot}
                 />
