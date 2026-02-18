@@ -44,11 +44,15 @@ export const RobotStartSection = ({
                               : 'cursor-pointer bg-green-600 text-white hover:bg-green-700 active:bg-green-800'
                     }`}
                 >
-                    {isStarting || isStopping ? (
+                    {isStarting ? (
                         <>
                             <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
-                            {isStarting && 'Starting...'}
-                            {isStopping && 'Stopping...'}
+                            Starting...
+                        </>
+                    ) : isStopping ? (
+                        <>
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                            Stopping...
                         </>
                     ) : isRobotStarted ? (
                         <>
