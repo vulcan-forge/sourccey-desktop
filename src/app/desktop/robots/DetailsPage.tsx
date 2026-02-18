@@ -1,7 +1,7 @@
 'use client';
 
 import { Spinner } from '@/components/Elements/Spinner';
-import { RobotLogs } from '@/components/PageComponents/Robots/RobotLog';
+import { RobotLogs } from '@/components/PageComponents/Robots/RobotLogs/RobotDesktopLogs';
 import { RobotAction } from '@/components/PageComponents/Robots/RobotAction';
 import { ControlType, setControlledRobot, useGetControlledRobot } from '@/hooks/Control/control.hook';
 import { useSelectedOwnedRobot } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
@@ -66,7 +66,7 @@ const TeleoperateTab = ({ ownedRobot }: { ownedRobot: any }) => {
     return (
         <div className="flex flex-col gap-4">
             <RemoteTeleopAction ownedRobot={ownedRobot} onClose={() => {}} logs={true} />
-            <RobotLogs isControlling={isTeleopRunning} />
+            <RobotLogs isControlling={isTeleopRunning} nickname={nickname} />
         </div>
     );
 };
@@ -105,7 +105,7 @@ const RunAITab = ({ ownedRobot }: { ownedRobot: any }) => {
                 controlType={ControlType.AIMODEL}
                 logs={true}
             />
-            <RobotLogs isControlling={isAiRunning} />
+            <RobotLogs isControlling={isAiRunning} nickname={nickname} />
         </div>
     );
 };

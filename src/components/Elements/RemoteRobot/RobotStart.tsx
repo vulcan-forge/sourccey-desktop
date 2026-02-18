@@ -1,9 +1,10 @@
 'use client';
 
 import { FaPlay, FaStop } from 'react-icons/fa';
-import { RobotLogs } from '@/components/PageComponents/Robots/RobotLog';
+import { RobotKioskLogs } from '@/components/PageComponents/Robots/RobotLogs/RobotKioskLogs';
 
 type RobotStartSectionProps = {
+    nickname?: string;
     isRobotStarted: boolean;
     isStarting: boolean;
     isStopping: boolean;
@@ -11,13 +12,7 @@ type RobotStartSectionProps = {
     onStopAction: () => void;
 };
 
-export const RobotStartSection = ({
-    isRobotStarted,
-    isStarting,
-    isStopping,
-    onStartAction,
-    onStopAction,
-}: RobotStartSectionProps) => {
+export const RobotStartSection = ({ nickname, isRobotStarted, isStarting, isStopping, onStartAction, onStopAction }: RobotStartSectionProps) => {
     return (
         <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
             <div className="flex items-start justify-between gap-4">
@@ -60,7 +55,7 @@ export const RobotStartSection = ({
                 </button>
             </div>
 
-            <RobotLogs isControlling={isRobotStarted || isStarting || isStopping} />
+            <RobotKioskLogs isControlling={isRobotStarted || isStarting || isStopping} nickname={nickname} />
         </div>
     );
 };

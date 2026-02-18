@@ -5,7 +5,7 @@ import { FaTools, FaCheckCircle } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import type { Calibration } from '@/components/PageComponents/Robots/RobotConfig';
+import type { Calibration } from '@/components/PageComponents/Robots/RemoteRobotConfig';
 
 interface CalibrationSectionProps {
     nickname: string;

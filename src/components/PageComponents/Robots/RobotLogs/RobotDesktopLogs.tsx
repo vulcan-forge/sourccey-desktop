@@ -1,54 +1,106 @@
-import { filterLogs, setupProcessShutdownListeners, setupLogListeners } from '@/utils/logs/control-logs/control-logs';
+'use client';
+
+import { filterLogs } from '@/utils/logs/control-logs/control-logs';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FaTerminal, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 
-export const RobotLogs = ({ isControlling }: { isControlling: boolean }) => {
+type RobotDesktopLogsProps = {
+    isControlling: boolean;
+    nickname?: string;
+};
+
+type SshPayload = {
+    nickname?: string;
+    message?: string;
+    error?: string;
+    output?: string;
+};
+
+const formatMessage = (label: string, message: string) => {
+    const trimmed = message.trim();
+    return trimmed ? `[${label}] ${trimmed}` : `[${label}]`;
+};
+
+export const RobotDesktopLogs = ({ isControlling, nickname }: RobotDesktopLogsProps) => {
     const [controlLogs, setControlLogs] = useState<string[]>([]);
     const [isExpanded, setIsExpanded] = useState(isControlling);
     const logsRef = useRef<string[]>([]);
 
+    const appendLog = useCallback((log: string) => {
+        const filteredLogs = filterLogs([...logsRef.current, log]);
+        const newLogs = filteredLogs.slice(-100);
+        logsRef.current = newLogs;
+        setControlLogs(newLogs);
+    }, []);
+
     // Update internal state when external prop changes
     useEffect(() => {
         setIsExpanded(isControlling);
-        // if (!isControlling) {
-        //     logsRef.current = [];
-        //     setControlLogs([]);
-        // }
+        if (!isControlling) {
+            logsRef.current = [];
+            setControlLogs([]);
+        }
     }, [isControlling]);
 
     useEffect(() => {
-        if (isControlling) {
-            const setupListeners = async () => {
-                // Create a callback function to handle incoming logs
-                const handleLogReceived = (log: string) => {
-                    // Add to current logs and update state immediately
-                    const filteredCurrentLogs = filterLogs(logsRef.current);
-                    const newLogs = [...filteredCurrentLogs, log].slice(-100);
-
-                    logsRef.current = newLogs;
-                    setControlLogs(newLogs);
-                };
-
-                // Set up log listeners with bulletproof singleton
-                await setupLogListeners(handleLogReceived);
-
-                // Set up process shutdown listeners
-                await setupProcessShutdownListeners();
-            };
-
-            setupListeners();
-
-            // Return a cleanup function that does nothing since we're using singletons
-            return () => {};
+        if (!isControlling) {
+            return;
         }
-    }, [isControlling]);
+
+        let isActive = true;
+        const unlistenFns: UnlistenFn[] = [];
+
+        const matchesNickname = (payload?: SshPayload) => {
+            if (!nickname) return true;
+            return payload?.nickname === nickname;
+        };
+
+        const register = async (eventName: string, label: string, getMessage: (payload: SshPayload) => string) => {
+            const unlisten = await listen<SshPayload>(eventName, (event) => {
+                if (!isActive) return;
+                if (!matchesNickname(event.payload)) return;
+                appendLog(formatMessage(label, getMessage(event.payload)));
+            });
+
+            if (!isActive) {
+                unlisten();
+                return;
+            }
+
+            unlistenFns.push(unlisten);
+        };
+
+        const setupListeners = async () => {
+            await register('ssh-connection-success', 'SSH', (p) => `Connected: ${p.message ?? ''}`);
+            await register('ssh-connection-error', 'SSH', (p) => `Connection error: ${p.error ?? ''}`);
+            await register('ssh-is-connected', 'SSH', (p) => `Status: ${p.message ?? ''}`);
+            await register('ssh-is-connected-error', 'SSH', (p) => `Status error: ${p.error ?? ''}`);
+            await register('robot-start-success', 'SSH', (p) => `Start: ${p.message ?? ''}`);
+            await register('robot-start-error', 'SSH', (p) => `Start error: ${p.error ?? ''}`);
+            await register('robot-stop-success', 'SSH', (p) => `Stop: ${p.message ?? ''}`);
+            await register('robot-stop-error', 'SSH', (p) => `Stop error: ${p.error ?? ''}`);
+            await register('robot-is-started-success', 'SSH', (p) => {
+                const output = p.output ? ` (${p.output})` : '';
+                return `Running: ${p.message ?? ''}${output}`;
+            });
+            await register('robot-is-started-error', 'SSH', (p) => `Running error: ${p.error ?? ''}`);
+        };
+
+        setupListeners();
+
+        return () => {
+            isActive = false;
+            unlistenFns.forEach((fn) => fn());
+        };
+    }, [appendLog, isControlling, nickname]);
 
     return (
         <div className="bg-slate-825 overflow-hidden rounded-xl border-2 border-slate-700 backdrop-blur-sm">
             <div className="bg-slate-825 flex items-center justify-between border-b border-slate-700 p-4">
                 <div className="flex items-center gap-3">
                     <FaTerminal className="h-5 w-5 text-slate-400" />
-                    <h3 className="text-lg font-semibold text-white">Control Logs</h3>
+                    <h3 className="text-lg font-semibold text-white">SSH Logs</h3>
                     {isControlling && (
                         <div className="flex items-center gap-2">
                             <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
@@ -92,7 +144,7 @@ export const RobotLogs = ({ isControlling }: { isControlling: boolean }) => {
                                 ))
                             ) : (
                                 <div className="text-sm text-slate-400">
-                                    {isControlling ? 'Waiting for control data...' : 'Robot control has not started yet'}
+                                    {isControlling ? 'Waiting for SSH events...' : 'SSH log stream is inactive'}
                                 </div>
                             )}
                         </div>
@@ -108,3 +160,5 @@ export const RobotLogs = ({ isControlling }: { isControlling: boolean }) => {
         </div>
     );
 };
+
+export const RobotLogs = RobotDesktopLogs;

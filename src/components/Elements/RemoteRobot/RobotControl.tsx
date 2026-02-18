@@ -8,7 +8,7 @@ import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
 import { RobotCalibration } from '@/components/Elements/RemoteRobot/RobotCalibration';
 import { RobotStartSection } from '@/components/Elements/RemoteRobot/RobotStart';
 import { useKioskRobotStartStop } from '@/hooks/Kiosk/robot-start-stop.hook';
-import type { Calibration } from '@/components/PageComponents/Robots/RobotConfig';
+import type { Calibration } from '@/components/PageComponents/Robots/RemoteRobotConfig';
 
 interface RobotControlProps {
     nickname: string;
@@ -151,6 +151,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
                 <RobotCalibration nickname={nickname} robotType={robotType} calibration={calibration} />
             ) : (
                 <RobotStartSection
+                    nickname={nickname}
                     isRobotStarted={isRobotStarted}
                     isStarting={isStarting}
                     isStopping={isStopping}
