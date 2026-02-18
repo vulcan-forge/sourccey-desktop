@@ -16,6 +16,12 @@ use utils::pagination::{PaginatedResponse, PaginationParameters};
 
 // Import modules
 mod modules;
+use modules::ai::controllers::ai_models::ai_model_controller::{
+    count_ai_models, count_all_ai_models, delete_huggingface_model_from_cache,
+    download_ai_model_from_huggingface, download_huggingface_model_to_cache,
+    download_huggingface_model_to_cache_with_progress, get_ai_model, get_ai_models,
+    get_all_ai_models, get_huggingface_organization_models, start_huggingface_model_download,
+};
 use modules::log::controllers::command_log_controller::{
     add_command_log, delete_all_command_logs, delete_command_log, get_command_log,
     get_command_logs_paginated, update_command_log,
@@ -199,6 +205,18 @@ fn main() {
         .manage(init_kiosk_host())
         .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![
+            // AI Model API
+            get_all_ai_models,
+            get_ai_models,
+            get_ai_model,
+            count_all_ai_models,
+            count_ai_models,
+            download_ai_model_from_huggingface,
+            get_huggingface_organization_models,
+            download_huggingface_model_to_cache,
+            delete_huggingface_model_from_cache,
+            download_huggingface_model_to_cache_with_progress,
+            start_huggingface_model_download,
             //----------------------------------------------------------//
             // Log API
             //----------------------------------------------------------//
