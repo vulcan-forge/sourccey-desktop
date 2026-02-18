@@ -144,6 +144,11 @@ impl KioskPairingService {
             .set_nonblocking(true)
             .map_err(|e| format!("Failed to set nonblocking on service socket: {}", e))?;
 
+        println!(
+            "Kiosk pairing network started: udp={} tcp={}",
+            DISCOVERY_PORT, DEFAULT_SERVICE_PORT
+        );
+
         let discovery_state = state.clone();
         thread::spawn(move || loop {
             let mut buf = [0_u8; 1024];

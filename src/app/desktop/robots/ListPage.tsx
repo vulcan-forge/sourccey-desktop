@@ -102,7 +102,8 @@ export const RobotListPage = () => {
     const handleDiscoverRobots = async () => {
         setIsDiscovering(true);
         try {
-            const discovered = await invoke<DiscoveredRobot[]>('discover_pairable_robots', { timeoutMs: 1400 });
+            const discovered = await invoke<DiscoveredRobot[]>('discover_pairable_robots', { timeoutMs: 5000 });
+            console.log('discovered raw', discovered);
             const ownedNicknames = new Set(
                 (ownedRobots || [])
                     .map((ownedRobot: any) => ownedRobot?.owned_robot?.nickname || ownedRobot?.nickname || '')
