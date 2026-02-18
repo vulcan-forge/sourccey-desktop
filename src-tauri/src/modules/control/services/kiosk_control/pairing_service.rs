@@ -155,6 +155,10 @@ impl KioskPairingService {
             match discovery_socket.recv_from(&mut buf) {
                 Ok((size, src)) => {
                     let payload = String::from_utf8_lossy(&buf[..size]).trim().to_string();
+                    println!(
+                        "Kiosk discovery received: {} bytes from {} payload='{}'",
+                        size, src, payload
+                    );
                     if payload != DISCOVERY_MAGIC {
                         continue;
                     }
@@ -176,7 +180,17 @@ impl KioskPairingService {
                     };
 
                     if let Ok(serialized) = serde_json::to_string(&announce) {
-                        let _ = discovery_socket.send_to(serialized.as_bytes(), src);
+                        match discovery_socket.send_to(serialized.as_bytes(), src) {
+                            Ok(sent) => {
+                                println!(
+                                    "Kiosk discovery replied: {} bytes to {}",
+                                    sent, src
+                                );
+                            }
+                            Err(e) => {
+                                eprintln!("Kiosk discovery reply failed to {}: {}", src, e);
+                            }
+                        }
                     }
                 }
                 Err(e) => {
