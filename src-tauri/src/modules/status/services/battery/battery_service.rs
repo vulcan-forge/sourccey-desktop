@@ -21,7 +21,7 @@ impl BatteryService {
     pub fn get_battery_data() -> Result<BatteryData, String> {
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
         let python_path = DirectoryService::get_python_path()?;
-        let script_path = lerobot_dir.join("src/lerobot/scripts/sourccey/battery.py");
+        let script_path = lerobot_dir.join("src/lerobot/scripts/sourccey/battery/battery.py");
 
         let mut cmd = Command::new(python_path);
         cmd.arg(&script_path);

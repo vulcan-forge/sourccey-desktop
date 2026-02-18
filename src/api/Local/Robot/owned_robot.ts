@@ -13,9 +13,9 @@ export const getOwnedRobotByNickname = async (nickname: string) => {
     return result;
 };
 
-export const getOwnedRobots = async (profile_id: string) => {
+export const getOwnedRobots = async () => {
     try {
-        const result = await invoke('get_owned_robots_by_profile', { profileId: profile_id });
+        const result = await invoke('get_owned_robots', {});
         return result;
     } catch (error) {
         console.error('getOwnedRobots error:', error);
@@ -26,9 +26,8 @@ export const getOwnedRobots = async (profile_id: string) => {
 //-------------------------------------------------//
 // CREATE Robot Functions
 //-------------------------------------------------//
-export const addOwnedRobot = async (profile_id: string, robot_id: string, nickname: string) => {
+export const addOwnedRobot = async (robot_id: string, nickname: string) => {
     const request = {
-        profile_id,
         robot_id,
         nickname,
     };

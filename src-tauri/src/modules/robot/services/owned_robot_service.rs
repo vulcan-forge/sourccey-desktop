@@ -63,18 +63,13 @@ impl OwnedRobotService {
         Ok(owned_robot_with_relations)
     }
 
-    pub async fn get_owned_robots_by_profile(
-        &self,
-        profile_id: String,
-    ) -> Result<Vec<OwnedRobotWithRelations>, DbErr> {
+    pub async fn get_owned_robots(&self) -> Result<Vec<OwnedRobotWithRelations>, DbErr> {
         let results = OwnedRobotEntity::find()
-            .filter(OwnedRobotColumn::ProfileId.eq(profile_id))
             .filter(OwnedRobotColumn::DeletedAt.is_null())
             .find_with_related(RobotEntity)
             .all(&self.connection)
             .await?;
 
-        // Transform to clean API structure
         let owned_robots_with_relations = results
             .into_iter()
             .map(|(owned_robot, robot_vec)| {

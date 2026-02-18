@@ -7,10 +7,7 @@ export const ALL_CONTROLLED_ROBOTS_CONFIG_KEY = [BASE_CONTROLLED_ROBOTS_CONFIG_K
 
 export enum ControlType {
     TELEOP = 'teleop',
-    RECORD = 'record',
-    REPLAY = 'replay',
-    TRAINING = 'training',
-    EVALUATE = 'evaluate',
+    AIMODEL = 'ai model',
 }
 
 //---------------------------------------------------------------------------------------------------//

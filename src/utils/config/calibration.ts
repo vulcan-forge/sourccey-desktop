@@ -6,3 +6,7 @@ export const readCalibration = async (robot_type: string, nickname: string) => {
     console.log('after read calibration', calibration);
     return calibration;
 };
+
+export const getCalibrationModifiedAt = async (robot_type: string, nickname: string) => {
+    return await invoke<number | null>('get_calibration_modified_at', { robotType: robot_type, nickname: nickname });
+};

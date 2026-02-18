@@ -16,37 +16,15 @@ use utils::pagination::{PaginatedResponse, PaginationParameters};
 
 // Import modules
 mod modules;
-use modules::ai::controllers::ai_models::ai_model_controller::{
-    count_ai_models, count_all_ai_models, get_ai_model, get_ai_models, get_all_ai_models,
-};
-use modules::ai::controllers::dataset::v3::dataset_controller::{
-    combine_datasets, count_all_datasets, count_datasets, get_all_datasets, get_dataset, get_datasets,
-};
-use modules::ai::controllers::dataset::v3::dataset_metadata_controller::{
-    get_dataset_metadata, get_episode_metadata,
-};
-use modules::ai::controllers::dataset::v3::dataset_parquet_controller::{
-    get_dataset_parquet_data, get_episode_parquet,
-};
-use modules::ai::controllers::dataset::v3::dataset_video_controller::{
-    get_dataset_video_data, get_episode_video,
-};
-use modules::ai::controllers::training::training_controller::{
-    init_training, start_training, stop_training, training_exists,
-};
 use modules::log::controllers::command_log_controller::{
     add_command_log, delete_all_command_logs, delete_command_log, get_command_log,
     get_command_logs_paginated, update_command_log,
 };
-use modules::profile::controllers::profile_controller::{
-    create_profile, get_first_profile, get_profile_by_id,
-};
 use modules::robot::controllers::owned_robot_controller::{
     add_owned_robot, delete_owned_robot, get_owned_robot_by_id, get_owned_robot_by_nickname,
-    get_owned_robots_by_profile,
+    get_owned_robots,
 };
 use modules::robot::controllers::robot_controller::{get_all_robots, get_robot_by_id};
-use modules::sync::controllers::sync_controller::{get_sync_status, sync_robots};
 
 // Import Robotics Control Modules
 use modules::control::controllers::communication::ssh_controller::{
@@ -63,35 +41,24 @@ use modules::control::controllers::configuration::configuration_controller::{
     detect_config, read_config, read_remote_config, write_config, write_remote_config,
 };
 use modules::control::controllers::configuration::calibration_controller::{
-    read_calibration, write_calibration, auto_calibrate, remote_auto_calibrate,
+    read_calibration, write_calibration, get_calibration_modified_at, auto_calibrate, remote_auto_calibrate,
 };
 use modules::control::controllers::kiosk_control::kiosk_host_controller::{
     get_pi_username, get_ssh_password_changed_status,
     get_system_info, init_kiosk_host, is_kiosk_host_active, set_pi_password,
     set_ssh_password_changed_status, start_kiosk_host, stop_kiosk_host,
 };
-use modules::control::controllers::local_control::evaluate_controller::{
-    init_evaluate, reset_evaluate_episode, save_evaluate_episode, start_evaluate, stop_evaluate,
+use modules::control::controllers::kiosk_control::pairing_controller::{
+    check_kiosk_robot_connection,
+    get_kiosk_robot_status,
+    discover_pairable_robots, get_kiosk_pairing_info, init_kiosk_pairing, pair_with_kiosk_robot,
+    request_kiosk_pairing_modal, send_model_to_kiosk_robot, start_kiosk_robot, stop_kiosk_robot,
 };
-use modules::control::controllers::local_control::record_controller::{
-    init_record, reset_record_episode, save_record_episode, start_record, stop_record,
-};
-use modules::control::controllers::local_control::replay_controller::{
-    init_replay, start_replay, stop_replay,
+use modules::control::services::kiosk_control::pairing_service::{
+    KioskPairingService, KioskPairingState,
 };
 use modules::control::controllers::local_control::teleop_controller::{
     get_active_teleop_sessions, init_teleop, is_teleop_active, start_teleop, stop_teleop,
-};
-use modules::control::controllers::remote_control::remote_evaluate_controller::{
-    init_remote_evaluate, reset_remote_evaluate_episode, save_remote_evaluate_episode,
-    start_remote_evaluate, stop_remote_evaluate,
-};
-use modules::control::controllers::remote_control::remote_record_controller::{
-    init_remote_record, reset_remote_record_episode, save_remote_record_episode,
-    start_remote_record, stop_remote_record,
-};
-use modules::control::controllers::remote_control::remote_replay_controller::{
-    init_remote_replay, start_remote_replay, stop_remote_replay,
 };
 use modules::control::controllers::remote_control::remote_teleop_controller::{
     init_remote_teleop, start_remote_teleop, stop_remote_teleop,
@@ -190,10 +157,12 @@ fn main() {
                     let _ = win.set_fullscreen(true);
                     let _ = win.set_decorations(false);
                     let _ = win.set_resizable(false);
+                    let _ = win.set_cursor_visible(false);
                 } else {
                     let _ = win.set_fullscreen(false);
                     let _ = win.set_decorations(true);
                     let _ = win.set_resizable(true);
+                    let _ = win.set_cursor_visible(true);
                     // Optional dev defaults:
                     // use tauri::window::{LogicalSize, Size};
                     // let _ = win.set_size(Size::Logical(LogicalSize{ width:1280.0, height:800.0 }));
@@ -205,7 +174,11 @@ fn main() {
 
             // Start process monitor in kiosk mode (after app is initialized)
             if kiosk {
-                // No kiosk process monitors yet
+                KioskPairingService::register_kiosk_runtime(app.handle().clone());
+                let pairing_state = app.state::<KioskPairingState>().inner().clone();
+                if let Err(e) = KioskPairingService::start_kiosk_pairing_network(pairing_state) {
+                    eprintln!("Failed to start kiosk pairing network: {}", e);
+                }
             }
 
             Ok(())
@@ -222,69 +195,26 @@ fn main() {
         .manage(init_ssh())
         .manage(init_robot_processes())
         .manage(init_teleop())
-        .manage(init_record())
-        .manage(init_training())
-        .manage(init_replay())
-        .manage(init_evaluate())
         .manage(init_remote_teleop())
-        .manage(init_remote_record())
-        .manage(init_remote_replay())
-        .manage(init_remote_evaluate())
         .manage(init_kiosk_host())
+        .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![
             //----------------------------------------------------------//
-            // File System Functionality
-            //----------------------------------------------------------//
-
-            // AI Model API
-            get_all_ai_models,
-            get_ai_models,
-            get_ai_model,
-            count_all_ai_models,
-            count_ai_models,
-            // Dataset API
-            get_all_datasets,
-            get_datasets,
-            get_dataset,
-            count_all_datasets,
-            count_datasets,
-            combine_datasets,
-            // Dataset Metadata API
-            get_dataset_metadata,
-            get_episode_metadata,
-            // Dataset Parquet API
-            get_dataset_parquet_data,
-            get_episode_parquet,
-            // Dataset Video API
-            get_dataset_video_data,
-            get_episode_video,
-            //----------------------------------------------------------//
-            // Database Functionality
-            //----------------------------------------------------------//
-
-            // Profile API
-            get_profile_by_id,
-            get_first_profile,
-            create_profile,
-            // Robot API
-            get_robot_by_id,
-            get_all_robots,
-            // Owned Robot API
-            get_owned_robot_by_id,
-            get_owned_robot_by_nickname,
-            get_owned_robots_by_profile,
-            add_owned_robot,
-            delete_owned_robot,
-            // Sync API
-            sync_robots,
-            get_sync_status,
             // Log API
+            //----------------------------------------------------------//
             get_command_log,
             add_command_log,
             update_command_log,
             delete_command_log,
             delete_all_command_logs,
             get_command_logs_paginated,
+
+            //----------------------------------------------------------//
+            // Robot API
+            //----------------------------------------------------------//
+            get_robot_by_id,
+            get_all_robots,
+
             //----------------------------------------------------------//
             // Control Functionality
             //----------------------------------------------------------//
@@ -307,6 +237,7 @@ fn main() {
             // Calibration
             read_calibration,
             write_calibration,
+            get_calibration_modified_at,
             auto_calibrate,
             remote_auto_calibrate,
             // Teleoperation Functions
@@ -316,33 +247,7 @@ fn main() {
             get_active_teleop_sessions,
             start_remote_teleop,
             stop_remote_teleop,
-            // Record Functions
-            start_record,
-            stop_record,
-            save_record_episode,
-            reset_record_episode,
-            start_remote_record,
-            stop_remote_record,
-            save_remote_record_episode,
-            reset_remote_record_episode,
-            // Replay Functions
-            start_replay,
-            stop_replay,
-            start_remote_replay,
-            stop_remote_replay,
-            // Evaluate Functions
-            start_evaluate,
-            stop_evaluate,
-            save_evaluate_episode,
-            reset_evaluate_episode,
-            start_remote_evaluate,
-            stop_remote_evaluate,
-            save_remote_evaluate_episode,
-            reset_remote_evaluate_episode,
-            // Training Functions
-            start_training,
-            stop_training,
-            training_exists,
+
             // App Mode
             get_app_mode,
             // Kiosk Host Functions
@@ -354,6 +259,16 @@ fn main() {
             set_pi_password,
             get_ssh_password_changed_status,
             set_ssh_password_changed_status,
+            // Pairing + model dispatch
+            get_kiosk_pairing_info,
+            discover_pairable_robots,
+            pair_with_kiosk_robot,
+            request_kiosk_pairing_modal,
+            send_model_to_kiosk_robot,
+            check_kiosk_robot_connection,
+            start_kiosk_robot,
+            stop_kiosk_robot,
+            get_kiosk_robot_status,
             // WiFi API
             scan_wifi_networks,
             connect_to_wifi,
@@ -368,6 +283,9 @@ fn main() {
 
             // Debug API
             debug_check_updates,
+
+            // Owned Robots
+            get_owned_robots,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

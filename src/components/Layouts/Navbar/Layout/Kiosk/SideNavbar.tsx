@@ -1,7 +1,7 @@
 'use client';
 import { usePathname } from 'next/navigation';
-import { HiHome, HiClock } from 'react-icons/hi';
-import { FaRobot, FaCog } from 'react-icons/fa';
+import { HiHome } from 'react-icons/hi';
+import { FaRobot, FaCog, FaBrain } from 'react-icons/fa';
 import Link from 'next/link';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 
@@ -11,26 +11,21 @@ export const SideNavbar = () => {
 
     const navItems = [
         {
-            href: '/app',
+            href: '/kiosk',
             label: 'Home',
             icon: HiHome,
         },
         {
-            href: '/app/robot-remote',
+            href: '/kiosk/robot',
             label: 'Robot',
             icon: FaRobot,
-        },
-        {
-            href: '/app/history',
-            label: 'History',
-            icon: HiClock,
         },
     ];
 
     const bottomNavItems: any = isKioskMode
         ? [
               {
-                  href: '/app/settings',
+                  href: '/kiosk/settings',
                   label: 'Settings',
                   icon: FaCog,
               },
@@ -39,8 +34,8 @@ export const SideNavbar = () => {
 
     const isActive = (href: string) => {
         // Special case for home page
-        if (href === '/app') {
-            return pathname === '/app';
+        if (href === '/kiosk') {
+            return pathname === '/kiosk';
         }
 
         // For other pages, check if the current pathname starts with the href

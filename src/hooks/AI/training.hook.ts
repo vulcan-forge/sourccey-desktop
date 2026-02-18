@@ -1,4 +1,4 @@
-import type { TrainingConfig } from '@/components/PageComponents/OwnedRobots/Training/TrainingConfig';
+import type { TrainingConfig } from '@/components/PageComponents/Robots/Training/TrainingConfig';
 import { queryClient } from '@/hooks/default';
 import { useQuery } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';

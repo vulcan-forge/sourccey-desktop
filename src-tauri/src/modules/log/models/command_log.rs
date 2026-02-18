@@ -25,7 +25,6 @@ pub struct Model {
     // Relationships
     pub robot_id: Option<String>,
     pub owned_robot_id: Option<String>,
-    pub profile_id: Option<String>,
 
     // Execution Data
     pub execution_time_ms: Option<i64>,
@@ -53,13 +52,6 @@ pub enum Relation {
         to = "crate::modules::robot::models::owned_robot::Column::Id"
     )]
     OwnedRobot,
-
-    #[sea_orm(
-        belongs_to = "crate::modules::profile::models::profile::Entity",
-        from = "Column::ProfileId",
-        to = "crate::modules::profile::models::profile::Column::Id"
-    )]
-    Profile,
 }
 
 impl Related<crate::modules::robot::models::robot::Entity> for Entity {
@@ -71,12 +63,6 @@ impl Related<crate::modules::robot::models::robot::Entity> for Entity {
 impl Related<crate::modules::robot::models::owned_robot::Entity> for Entity {
     fn to() -> RelationDef {
         Relation::OwnedRobot.def()
-    }
-}
-
-impl Related<crate::modules::profile::models::profile::Entity> for Entity {
-    fn to() -> RelationDef {
-        Relation::Profile.def()
     }
 }
 
@@ -195,7 +181,6 @@ impl ActiveModel {
             error_message: Set(None),
             robot_id: Set(None),
             owned_robot_id: Set(None),
-            profile_id: Set(None),
             execution_time_ms: Set(None),
             started_at: Set(Utc::now()),
             completed_at: Set(None),
@@ -242,11 +227,6 @@ impl ActiveModel {
 
     pub fn with_owned_robot_id(mut self, owned_robot_id: String) -> Self {
         self.owned_robot_id = Set(Some(owned_robot_id));
-        self
-    }
-
-    pub fn with_profile_id(mut self, profile_id: String) -> Self {
-        self.profile_id = Set(Some(profile_id));
         self
     }
 

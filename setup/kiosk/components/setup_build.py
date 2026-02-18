@@ -296,7 +296,8 @@ class BuildManager:
         """Install the .deb package"""
         self.print_status(f"Installing {deb_path.name}...")
 
-        install_cmd = f"sudo apt install -y {str(deb_path)}"
+        # Force reinstall even when package version is unchanged (common in local kiosk builds).
+        install_cmd = f"sudo apt install --reinstall -y {str(deb_path)}"
         install_result = subprocess.run(
             install_cmd,
             shell=True,

@@ -1,76 +1,36 @@
 'use client';
 import { usePathname } from 'next/navigation';
-import { HiHome, HiClock } from 'react-icons/hi';
-import { FaDatabase, FaBrain, FaRobot, FaMicrochip, FaCog } from 'react-icons/fa';
+import { HiHome } from 'react-icons/hi';
+import { FaBrain, FaRobot } from 'react-icons/fa';
 import Link from 'next/link';
-import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 
-interface DesktopSidebarProps {
-    profile?: any;
-    isLoading?: boolean;
-}
-
-export const SideNavbar = ({ profile, isLoading }: DesktopSidebarProps) => {
+export const SideNavbar = () => {
     const pathname = usePathname();
-    const { isKioskMode } = useAppMode();
 
-    const allNavItems = [
+    const mainNavItems = [
         {
-            href: '/app',
+            href: '/desktop',
             label: 'Home',
             icon: HiHome,
         },
         {
-            href: '/app/robot',
-            label: 'Robot',
+            href: '/desktop/robots',
+            label: 'Robots',
             icon: FaRobot,
         },
         {
-            href: '/app/owned-robots',
-            label: 'My Robots',
-            icon: FaRobot,
-        },
-        {
-            href: '/app/data',
-            label: 'Data',
-            icon: FaDatabase,
-        },
-        {
-            href: '/app/ai-models',
+            href: '/desktop/models',
             label: 'AI Models',
             icon: FaBrain,
         },
-        {
-            href: '/app/training',
-            label: 'Training',
-            icon: FaMicrochip,
-        },
-        {
-            href: '/app/history',
-            label: 'History',
-            icon: HiClock,
-        },
     ];
 
-    // Filter nav items based on kiosk mode
-    const mainNavItems = isKioskMode
-        ? allNavItems.filter((item) => item.href === '/app' || item.href === '/app/robot' || item.href === '/app/history')
-        : allNavItems.filter((item) => item.href !== '/app/robot');
-
-    const bottomNavItems: any = isKioskMode
-        ? [
-              {
-                  href: '/app/settings-kiosk',
-                  label: 'Settings',
-                  icon: FaCog,
-              },
-          ]
-        : [];
+    const bottomNavItems: any = [];
 
     const isActive = (href: string) => {
         // Special case for home page
-        if (href === '/app') {
-            return pathname === '/app';
+        if (href === '/desktop') {
+            return pathname === '/desktop';
         }
 
         // For other pages, check if the current pathname starts with the href

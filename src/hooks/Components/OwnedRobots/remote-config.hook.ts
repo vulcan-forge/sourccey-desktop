@@ -1,7 +1,7 @@
-import type { RemoteEvaluateDatasetConfig } from '@/components/PageComponents/OwnedRobots/Evaluate/RemoteEvaluateConfig';
-import type { RemoteRecordDatasetConfig } from '@/components/PageComponents/OwnedRobots/Record/RemoteRecordConfig';
-import type { RemoteReplayDatasetConfig } from '@/components/PageComponents/OwnedRobots/Replay/RemoteReplayConfig';
-import type { RemoteTeleopConfig } from '@/components/PageComponents/OwnedRobots/Teleop/RemoteTeleopAction';
+import type { RemoteEvaluateDatasetConfig } from '@/components/PageComponents/Robots/Evaluate/RemoteEvaluateConfig';
+import type { RemoteRecordDatasetConfig } from '@/components/PageComponents/Robots/Record/RemoteRecordConfig';
+import type { RemoteReplayDatasetConfig } from '@/components/PageComponents/Robots/Replay/RemoteReplayConfig';
+import type { RemoteTeleopConfig } from '@/components/PageComponents/Robots/Teleop/RemoteTeleopAction';
 import { queryClient } from '@/hooks/default';
 import { useQuery } from '@tanstack/react-query';
 

@@ -20,7 +20,6 @@ pub struct CommandLogWithRobot {
 pub struct CommandLogFilters {
     pub robot_id: Option<String>,
     pub owned_robot_id: Option<String>,
-    pub profile_id: Option<String>,
     pub status: Option<String>,
     pub command: Option<String>,
     pub started_after: Option<DateTime<Utc>>,
@@ -105,9 +104,6 @@ impl CommandLogService {
         }
         if let Some(owned_robot_id) = filters.owned_robot_id {
             query = query.filter(CommandLogColumn::OwnedRobotId.eq(owned_robot_id));
-        }
-        if let Some(profile_id) = filters.profile_id {
-            query = query.filter(CommandLogColumn::ProfileId.eq(profile_id));
         }
         if let Some(status) = filters.status {
             query = query.filter(CommandLogColumn::Status.eq(status));

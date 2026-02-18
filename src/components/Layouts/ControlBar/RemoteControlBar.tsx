@@ -1,7 +1,7 @@
 'use client';
 
 import { GeneralModal } from '@/components/Elements/Modals/GeneralModal';
-import { RemoteRobotConfig } from '@/components/PageComponents/OwnedRobots/RemoteRobotConfig';
+import { RemoteRobotConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
 import { RemoteRobotStatus, useGetRemoteRobotsState } from '@/hooks/Control/remote-control.hook';
 import { useModalContext } from '@/hooks/Modals/context.hook';
 import { FaGamepad, FaRobot } from 'react-icons/fa';
