@@ -1,11 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import { queryClient } from '@/hooks/default';
 
 export const APP_MODE_KEY = ['app-mode'];
 
 // Get app mode from cache or invoke
 const getAppMode = async (): Promise<boolean> => {
+    if (!isTauri()) {
+        return false;
+    }
+
     // Check cache first
     const cached = queryClient.getQueryData<boolean>(APP_MODE_KEY);
     if (cached !== undefined) {
@@ -13,7 +17,11 @@ const getAppMode = async (): Promise<boolean> => {
     }
 
     try {
-        const isKiosk = await invoke<boolean>('get_app_mode');
+        const timeoutMs = 1500;
+        const isKiosk = await Promise.race<boolean>([
+            invoke<boolean>('get_app_mode'),
+            new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
+        ]);
         return isKiosk;
     } catch (error) {
         console.error('Failed to get app mode:', error);
