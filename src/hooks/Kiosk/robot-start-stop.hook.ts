@@ -23,11 +23,16 @@ export const useKioskRobotStartStop = (nickname: string) => {
         if (normalized.includes('waiting for commands')) {
             return {
                 type: 'success' as const,
-                message: 'Robot online and waiting for commands.',
+                message: 'Robot started successfully.',
             };
         }
 
-        if (normalized.includes('serial') || normalized.includes('tty') || normalized.includes('usb') || normalized.includes('port not found')) {
+        if (
+            normalized.includes('serial') ||
+            normalized.includes('tty') ||
+            normalized.includes('usb') ||
+            normalized.includes('port not found')
+        ) {
             return {
                 type: 'error' as const,
                 message: 'Arms not connected. Check USB/data cables and arm power.',
