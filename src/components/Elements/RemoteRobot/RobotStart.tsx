@@ -1,6 +1,5 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import { FaPlay, FaStop } from 'react-icons/fa';
 import { RobotKioskLogs } from '@/components/PageComponents/Robots/RobotLogs/RobotKioskLogs';
 
@@ -10,7 +9,7 @@ type RobotStartSectionProps = {
     isStarting: boolean;
     isStopping: boolean;
     onStartAction: () => void;
-    onStopAction: () => Promise<void> | void;
+    onStopAction: () => void;
 };
 
 export const RobotStartSection = ({
@@ -21,29 +20,6 @@ export const RobotStartSection = ({
     onStartAction,
     onStopAction,
 }: RobotStartSectionProps) => {
-    const [stopPending, setStopPending] = useState(false);
-
-    useEffect(() => {
-        if (isStopping) {
-            setStopPending(true);
-            return;
-        }
-
-        if (!isRobotStarted) {
-            setStopPending(false);
-        }
-    }, [isRobotStarted, isStopping]);
-
-    const handleStopClick = async () => {
-        setStopPending(true);
-        try {
-            await onStopAction();
-        } catch (error) {
-            setStopPending(false);
-            console.error('Failed to stop robot:', error);
-        }
-    };
-
     return (
         <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
             <div className="flex items-start justify-between gap-4">
@@ -58,10 +34,10 @@ export const RobotStartSection = ({
 
             <div>
                 <button
-                    onClick={isRobotStarted ? handleStopClick : onStartAction}
-                    disabled={isStarting || isStopping || stopPending}
+                    onClick={isRobotStarted ? onStopAction : onStartAction}
+                    disabled={isStarting || isStopping}
                     className={`inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl px-12 py-2 text-lg transition-all ${
-                        isStarting || isStopping || stopPending
+                        isStarting || isStopping
                             ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                             : isRobotStarted
                               ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600 active:bg-red-700'
@@ -73,7 +49,7 @@ export const RobotStartSection = ({
                             <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                             Starting...
                         </>
-                    ) : isStopping || stopPending ? (
+                    ) : isStopping ? (
                         <>
                             <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
                             Stopping...
