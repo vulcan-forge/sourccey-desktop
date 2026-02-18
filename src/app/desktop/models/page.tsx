@@ -472,6 +472,14 @@ export default function ModelsPage() {
             toast.error('Select a robot first from the Robots page.', { ...toastErrorDefaults });
             return;
         }
+        if (!selectedConnection) {
+            toast.error('Selected robot is not paired yet. Pair it from the Robots page.', { ...toastErrorDefaults });
+            return;
+        }
+        if (!isRobotConnected) {
+            toast.error('Selected robot is not connected. Press Connect from the Robots page first.', { ...toastErrorDefaults });
+            return;
+        }
         if (!selectedCard.downloaded) {
             toast.error('Download this model first.', {
                 ...toastErrorDefaults,
@@ -489,7 +497,7 @@ export default function ModelsPage() {
             const result = await invoke<string>('start_remote_evaluate', {
                 config: {
                     nickname: selectedRobotNickname,
-                    remote_ip: selectedConnection?.host ?? '',
+                    remote_ip: selectedConnection.host,
                     model_name: selectedCard.name,
                     model_repo_id: repoOwner,
                     model_path: selectedCard.pretrainedModelPath,
@@ -757,9 +765,9 @@ export default function ModelsPage() {
                                         <button
                                             type="button"
                                             onClick={handleRunSelectedModel}
-                                            disabled={isRunningModel || !selectedModelCanRun || isDeletingModel}
+                                            disabled={!selectedConnection || !isRobotConnected || isRunningModel || !selectedModelCanRun || isDeletingModel}
                                             className={`w-full rounded-xl px-4 py-2 text-sm font-semibold transition-all ${
-                                                isRunningModel || !selectedModelCanRun || isDeletingModel
+                                                !selectedConnection || !isRobotConnected || isRunningModel || !selectedModelCanRun || isDeletingModel
                                                     ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                                                     : 'cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700'
                                             }`}
