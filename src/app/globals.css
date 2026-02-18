@@ -1,10 +1,6 @@
-@import 'tailwindcss' source(none);
-@source "../**/*.{js,jsx,ts,tsx,mdx}";
+@import 'tailwindcss';
 @source not "../../modules/";
 @source not "../../src-tauri/";
-@source not "../../downloaded_model_example/";
-@source not "../../node_modules/";
-@source not "../../.next/";
 
 @theme {
     --text-2xs: 0.625rem;
