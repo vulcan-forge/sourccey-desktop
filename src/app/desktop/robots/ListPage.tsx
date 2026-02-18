@@ -237,6 +237,7 @@ export const RobotListPage = () => {
             await queryClient.invalidateQueries({ queryKey: [BASE_OWNED_ROBOT_KEY] });
             toast.success(`Unpaired ${label}.`, { ...toastSuccessDefaults });
         } catch (error: any) {
+            console.log('error', error);
             toast.error(error?.message || 'Failed to unpair robot.', { ...toastErrorDefaults });
         } finally {
             setUnpairingId(null);

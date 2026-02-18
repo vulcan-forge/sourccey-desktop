@@ -7,10 +7,9 @@ import { ControlType, setControlledRobot, useGetControlledRobot } from '@/hooks/
 import { useSelectedOwnedRobot } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
-import { FaBolt, FaPlay, FaTools } from 'react-icons/fa';
+import { FaPlay, FaTools } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import { RemoteRobotConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
 import { RemoteTeleopAction } from '@/components/PageComponents/Robots/Teleop/RemoteTeleopAction';
 
 export const RobotDetailsPage = () => {

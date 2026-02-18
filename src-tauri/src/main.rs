@@ -205,7 +205,9 @@ fn main() {
         .manage(init_kiosk_host())
         .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![
+            //----------------------------------------------------------//
             // AI Model API
+            //----------------------------------------------------------//
             get_all_ai_models,
             get_ai_models,
             get_ai_model,
@@ -217,6 +219,7 @@ fn main() {
             delete_huggingface_model_from_cache,
             download_huggingface_model_to_cache_with_progress,
             start_huggingface_model_download,
+
             //----------------------------------------------------------//
             // Log API
             //----------------------------------------------------------//
@@ -232,6 +235,15 @@ fn main() {
             //----------------------------------------------------------//
             get_robot_by_id,
             get_all_robots,
+
+            //----------------------------------------------------------//
+            // Owned Robot API
+            //----------------------------------------------------------//
+            get_owned_robot_by_id,
+            get_owned_robot_by_nickname,
+            get_owned_robots,
+            add_owned_robot,
+            delete_owned_robot,
 
             //----------------------------------------------------------//
             // Control Functionality
@@ -295,9 +307,6 @@ fn main() {
             get_battery_data,
             // Debug API
             debug_check_updates,
-
-            // Owned Robots
-            get_owned_robots,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
