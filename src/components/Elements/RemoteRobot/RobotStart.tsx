@@ -1,7 +1,7 @@
 'use client';
 
 import { FaPlay, FaStop } from 'react-icons/fa';
-import { RobotKioskLogs } from '@/components/PageComponents/Robots/RobotLogs/RobotKioskLogs';
+import { RobotKioskLogs } from '@/components/PageComponents/Robots/Logs/RobotKioskLogs';
 
 type RobotStartSectionProps = {
     nickname?: string;
