@@ -2,9 +2,64 @@ export interface AIModel {
     repo_id: string;
     name: string;
     path: string;
+    highest_checkpoint_step: number | null;
     episodes: number;
     robot_type: string;
     training_config: TrainingConfig | null;
+}
+
+export interface HuggingFaceModelCard {
+    repo_id: string;
+    model_name: string;
+    description: string | null;
+    size_bytes: number | null;
+    downloads: number | null;
+    likes: number | null;
+    last_modified: string | null;
+    downloaded: boolean;
+    snapshot_path: string | null;
+    highest_checkpoint_step: number | null;
+    pretrained_model_path: string | null;
+    has_enough_space: boolean | null;
+}
+
+export interface HuggingFaceOrganizationCatalog {
+    organization: string;
+    cache_path: string;
+    free_bytes: number;
+    models: HuggingFaceModelCard[];
+}
+
+export interface HuggingFaceModelDownloadResult {
+    cache_path: string;
+    free_bytes_before: number;
+    free_bytes_after: number;
+    model: HuggingFaceModelCard;
+}
+
+export interface HuggingFaceModelDeleteResult {
+    status: 'deleted' | 'not_found';
+    message: string;
+    repo_id: string;
+    free_bytes_before: number;
+    free_bytes_after: number;
+}
+
+export interface HuggingFaceModelDownloadResponse {
+    status: 'completed' | 'replace_required' | 'failed';
+    message: string;
+    result: HuggingFaceModelDownloadResult | null;
+}
+
+export interface HuggingFaceDownloadProgressEvent {
+    repo_id: string;
+    status_text: string;
+    progress_percent: number | null;
+}
+
+export interface HuggingFaceModelDownloadCompletionEvent {
+    repo_id: string;
+    response: HuggingFaceModelDownloadResponse;
 }
 
 // Training Configuration Types

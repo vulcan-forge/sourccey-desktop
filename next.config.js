@@ -2,14 +2,28 @@
 const nextConfig = {
     // Static export (Next 15 does this inside `next build`)
     output: 'export',
-  
-    images: {
-      unoptimized: true,
-      remotePatterns: [
-        { protocol: 'https', hostname: '**' },
-      ],
+
+    webpack: (config, { dev }) => {
+        if (dev) {
+            config.watchOptions = {
+                ...(config.watchOptions || {}),
+                // Keep file watchers away from very large non-frontend folders.
+                ignored: [
+                    '**/downloaded_model_example/**',
+                    '**/src-tauri/target/**',
+                    '**/modules/lerobot-vulcan/.venv/**',
+                    '**/modules/lerobot-vulcan/.cache/**',
+                ],
+            };
+        }
+
+        return config;
     },
-  };
-  
-  module.exports = nextConfig;
-  
+
+    images: {
+        unoptimized: true,
+        remotePatterns: [{ protocol: 'https', hostname: '**' }],
+    },
+};
+
+module.exports = nextConfig;

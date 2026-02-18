@@ -11,6 +11,10 @@ pub struct RemoteEvaluateConfig {
     pub nickname: String,
     pub remote_ip: String,
     pub model_name: String,
+    #[serde(default)]
+    pub model_repo_id: Option<String>,
+    #[serde(default)]
+    pub model_path: Option<String>,
     pub model_steps: i32,
     pub dataset: RemoteEvaluateDatasetConfig,
 }

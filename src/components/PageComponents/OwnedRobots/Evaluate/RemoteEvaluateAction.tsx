@@ -77,12 +77,12 @@ export const RemoteEvaluateAction = ({
         setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.EVALUATE, ownedRobot);
     };
 
-    const stopEvaluate = async (nickname: string, model_name: string) => {
+    const stopEvaluate = async (nickname: string) => {
         if (!isControlling) {
             return;
         }
 
-        const result = await invoke('stop_remote_evaluate', { model_name });
+        const result = await invoke('stop_remote_evaluate', { nickname });
         toast.success(`Evaluate stopped: ${result}`, {
             ...toastSuccessDefaults,
         });
@@ -94,7 +94,7 @@ export const RemoteEvaluateAction = ({
         try {
             setIsLoading(true);
             if (isControlling) {
-                await stopEvaluate(nickname, remoteEvaluateConfig.model_name);
+                await stopEvaluate(nickname);
             } else {
                 await startEvaluate(nickname);
             }

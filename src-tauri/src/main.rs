@@ -17,7 +17,10 @@ use utils::pagination::{PaginatedResponse, PaginationParameters};
 // Import modules
 mod modules;
 use modules::ai::controllers::ai_models::ai_model_controller::{
-    count_ai_models, count_all_ai_models, get_ai_model, get_ai_models, get_all_ai_models,
+    count_ai_models, count_all_ai_models, download_ai_model_from_huggingface, get_ai_model,
+    get_ai_models, get_all_ai_models, get_huggingface_organization_models,
+    delete_huggingface_model_from_cache, download_huggingface_model_to_cache,
+    download_huggingface_model_to_cache_with_progress, start_huggingface_model_download,
 };
 use modules::ai::controllers::dataset::v3::dataset_controller::{
     combine_datasets, count_all_datasets, count_datasets, get_all_datasets, get_dataset, get_datasets,
@@ -258,6 +261,12 @@ fn main() {
             get_ai_model,
             count_all_ai_models,
             count_ai_models,
+            download_ai_model_from_huggingface,
+            get_huggingface_organization_models,
+            download_huggingface_model_to_cache,
+            delete_huggingface_model_from_cache,
+            download_huggingface_model_to_cache_with_progress,
+            start_huggingface_model_download,
             // Dataset API
             get_all_datasets,
             get_datasets,

@@ -5,9 +5,71 @@ pub struct AIModel {
     pub repo_id: String,
     pub name: String,
     pub path: String,
+    pub highest_checkpoint_step: Option<u32>,
     pub episodes: usize,
     pub robot_type: String,
     pub training_config: Option<TrainingConfig>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HuggingFaceModelCard {
+    pub repo_id: String,
+    pub model_name: String,
+    pub description: Option<String>,
+    pub size_bytes: Option<u64>,
+    pub downloads: Option<u64>,
+    pub likes: Option<u64>,
+    pub last_modified: Option<String>,
+    pub downloaded: bool,
+    pub snapshot_path: Option<String>,
+    pub highest_checkpoint_step: Option<u32>,
+    pub pretrained_model_path: Option<String>,
+    pub has_enough_space: Option<bool>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HuggingFaceOrganizationCatalog {
+    pub organization: String,
+    pub cache_path: String,
+    pub free_bytes: u64,
+    pub models: Vec<HuggingFaceModelCard>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HuggingFaceModelDownloadResult {
+    pub cache_path: String,
+    pub free_bytes_before: u64,
+    pub free_bytes_after: u64,
+    pub model: HuggingFaceModelCard,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HuggingFaceModelDeleteResult {
+    pub status: String,
+    pub message: String,
+    pub repo_id: String,
+    pub free_bytes_before: u64,
+    pub free_bytes_after: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HuggingFaceModelDownloadResponse {
+    pub status: String,
+    pub message: String,
+    pub result: Option<HuggingFaceModelDownloadResult>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HuggingFaceDownloadProgressEvent {
+    pub repo_id: String,
+    pub status_text: String,
+    pub progress_percent: Option<f64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct HuggingFaceModelDownloadCompletionEvent {
+    pub repo_id: String,
+    pub response: HuggingFaceModelDownloadResponse,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

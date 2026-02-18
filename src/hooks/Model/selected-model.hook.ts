@@ -7,11 +7,15 @@ export type SelectedModel = {
     id: string;
     repoId: string;
     name: string;
-    tier: 'free' | 'premium';
-    rating: string;
-    strength: string;
-    clothingTypes: string;
+    tier?: 'free' | 'premium' | 'downloaded';
+    rating?: string;
+    strength?: string;
+    clothingTypes?: string;
+    highestCheckpointStep?: number | null;
+    policyType?: string | null;
+    fullRepoId?: string | null;
     image?: string | null;
+    pretrainedModelPath?: string | null;
 };
 
 export const getSelectedModel = () => queryClient.getQueryData<SelectedModel | null>(SELECTED_MODEL_KEY) ?? null;

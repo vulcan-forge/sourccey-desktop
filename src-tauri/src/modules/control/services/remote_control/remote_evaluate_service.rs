@@ -279,14 +279,7 @@ impl RemoteEvaluateService {
         command_parts.push(format!("--remote_ip=\"{}\"", config.remote_ip));
 
         let evaluate_name = format!("eval_{}", config.dataset.dataset);
-        let step_string = format!("{:06}", config.model_steps);
-        let model_path = format!(
-            "{}/ai_models/{}/{}/checkpoints/{}/pretrained_model",
-            lerobot_cache_dir.display().to_string().replace('\\', "/"),
-            config.nickname,
-            config.model_name,
-            step_string
-        );
+        let model_path = Self::resolve_model_path(config, lerobot_cache_dir);
 
         // For execution: no quotes around model path
         command_parts.push(format!("--model_path={}", model_path));
@@ -323,14 +316,7 @@ impl RemoteEvaluateService {
         command_parts.push(format!("--remote_ip=\"{}\"", config.remote_ip));
 
         let evaluate_name = format!("eval_{}", config.dataset.dataset);
-        let step_string = format!("{:06}", config.model_steps);
-        let model_path = format!(
-            "{}/ai_models/{}/{}/checkpoints/{}/pretrained_model",
-            lerobot_cache_dir.display().to_string().replace('\\', "/"),
-            config.nickname,
-            config.model_name,
-            step_string
-        );
+        let model_path = Self::resolve_model_path(config, lerobot_cache_dir);
 
         // For logging: quotes around model path for readability
         command_parts.push(format!("--model_path=\"{}\"", model_path));
@@ -354,5 +340,30 @@ impl RemoteEvaluateService {
         command_parts.push(format!("--dataset.task=\"{}\"", config.dataset.task));
 
         command_parts
+    }
+
+    fn resolve_model_path(
+        config: &RemoteEvaluateConfig,
+        lerobot_cache_dir: &std::path::PathBuf,
+    ) -> String {
+        if let Some(model_path) = config.model_path.clone() {
+            let trimmed = model_path.trim();
+            if !trimmed.is_empty() {
+                return trimmed.replace('\\', "/");
+            }
+        }
+
+        let step_string = format!("{:06}", config.model_steps);
+        let model_repo_id = config
+            .model_repo_id
+            .clone()
+            .unwrap_or_else(|| config.nickname.clone());
+        format!(
+            "{}/ai_models/{}/{}/checkpoints/{}/pretrained_model",
+            lerobot_cache_dir.display().to_string().replace('\\', "/"),
+            model_repo_id,
+            config.model_name,
+            step_string
+        )
     }
 }

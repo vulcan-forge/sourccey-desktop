@@ -117,6 +117,8 @@ export interface RemoteEvaluateConfig {
     nickname: string;
     remote_ip: string;
     model_name: string;
+    model_repo_id?: string;
+    model_path?: string;
     model_steps: number;
     dataset: RemoteEvaluateDatasetConfig;
 }
