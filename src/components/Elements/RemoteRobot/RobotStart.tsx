@@ -27,9 +27,7 @@ export const RobotStartSection = ({
                     <h3 className="text-lg font-semibold text-white">Robot Control</h3>
                     <p className="mt-1 text-sm text-slate-300">Start or stop the robot host process. Logs will stream below.</p>
                 </div>
-                <div
-                    className={`rounded-full border px-3 py-1 text-xs font-semibold text-slate-300 ${isRobotStarted ? 'border-green-600 bg-green-800 text-white' : 'border-slate-600 bg-slate-800'}`}
-                >
+                <div className={`rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300`}>
                     {isRobotStarted ? 'Running' : 'Stopped'}
                 </div>
             </div>
