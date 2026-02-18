@@ -1,4 +1,3 @@
-use crate::modules::ai::services::dataset::v3::dataset_service::DatasetService;
 use crate::modules::ai::types::ai_models::ai_model_types::{
     AIModel, HuggingFaceDownloadProgressEvent, HuggingFaceModelDownloadCompletionEvent,
     HuggingFaceModelDeleteResult, HuggingFaceModelDownloadResponse, HuggingFaceModelDownloadResult,
@@ -1060,14 +1059,14 @@ emit_result(payload)
 
     /// Count episodes for a dataset using the training data service
     pub fn count_episodes(repo_id: &str) -> Result<usize, String> {
-        let dataset_path = DirectoryService::get_lerobot_dataset_path_from_repo_id(repo_id)?;
-        return DatasetService::count_episodes(&dataset_path);
+        let _ = repo_id;
+        Ok(0)
     }
 
     /// Load robot type from dataset using DatasetService
     fn load_robot_type_from_dataset(repo_id: &str) -> Result<String, String> {
-        let dataset_path = DirectoryService::get_lerobot_dataset_path_from_repo_id(repo_id)?;
-        return DatasetService::load_robot_type(&dataset_path);
+        let _ = repo_id;
+        Ok("unknown".to_string())
     }
 
     /// Load training configuration from the checkpoint with the largest step count

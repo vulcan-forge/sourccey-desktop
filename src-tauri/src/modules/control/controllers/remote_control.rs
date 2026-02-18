@@ -1,1 +1,2 @@
+pub mod remote_evaluate_controller;
 pub mod remote_teleop_controller;

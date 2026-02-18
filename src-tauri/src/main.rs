@@ -22,21 +22,6 @@ use modules::ai::controllers::ai_models::ai_model_controller::{
     delete_huggingface_model_from_cache, download_huggingface_model_to_cache,
     download_huggingface_model_to_cache_with_progress, start_huggingface_model_download,
 };
-use modules::ai::controllers::dataset::v3::dataset_controller::{
-    combine_datasets, count_all_datasets, count_datasets, get_all_datasets, get_dataset, get_datasets,
-};
-use modules::ai::controllers::dataset::v3::dataset_metadata_controller::{
-    get_dataset_metadata, get_episode_metadata,
-};
-use modules::ai::controllers::dataset::v3::dataset_parquet_controller::{
-    get_dataset_parquet_data, get_episode_parquet,
-};
-use modules::ai::controllers::dataset::v3::dataset_video_controller::{
-    get_dataset_video_data, get_episode_video,
-};
-use modules::ai::controllers::training::training_controller::{
-    init_training, start_training, stop_training, training_exists,
-};
 use modules::log::controllers::command_log_controller::{
     add_command_log, delete_all_command_logs, delete_command_log, get_command_log,
     get_command_logs_paginated, update_command_log,
@@ -83,6 +68,10 @@ use modules::control::controllers::local_control::teleop_controller::{
 };
 use modules::control::controllers::remote_control::remote_teleop_controller::{
     init_remote_teleop, start_remote_teleop, stop_remote_teleop,
+};
+use modules::control::controllers::remote_control::remote_evaluate_controller::{
+    init_remote_evaluate, reset_remote_evaluate_episode, save_remote_evaluate_episode,
+    start_remote_evaluate, stop_remote_evaluate,
 };
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
@@ -217,14 +206,10 @@ fn main() {
         .manage(init_robot_processes())
         .manage(init_teleop())
         .manage(init_remote_teleop())
+        .manage(init_remote_evaluate())
         .manage(init_kiosk_host())
         .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![
-            //----------------------------------------------------------//
-<<<<<<< HEAD
-            // File System Functionality
-            //----------------------------------------------------------//
-
             // AI Model API
             get_all_ai_models,
             get_ai_models,
@@ -237,64 +222,21 @@ fn main() {
             delete_huggingface_model_from_cache,
             download_huggingface_model_to_cache_with_progress,
             start_huggingface_model_download,
-            // Dataset API
-            get_all_datasets,
-            get_datasets,
-            get_dataset,
-            count_all_datasets,
-            count_datasets,
-            combine_datasets,
-            // Dataset Metadata API
-            get_dataset_metadata,
-            get_episode_metadata,
-            // Dataset Parquet API
-            get_dataset_parquet_data,
-            get_episode_parquet,
-            // Dataset Video API
-            get_dataset_video_data,
-            get_episode_video,
-            //----------------------------------------------------------//
-            // Database Functionality
-            //----------------------------------------------------------//
-
-            // Profile API
-            get_profile_by_id,
-            get_first_profile,
-            create_profile,
-            // Robot API
-            get_robot_by_id,
-            get_all_robots,
-            // Owned Robot API
-            get_owned_robot_by_id,
-            get_owned_robot_by_nickname,
-            get_owned_robots_by_profile,
-            add_owned_robot,
-            delete_owned_robot,
-            // Sync API
-            sync_robots,
-            get_sync_status,
-=======
->>>>>>> d5529157039361910b1784ae7fab5aeb2b89bc55
             // Log API
-            //----------------------------------------------------------//
             get_command_log,
             add_command_log,
             update_command_log,
             delete_command_log,
             delete_all_command_logs,
             get_command_logs_paginated,
-
-            //----------------------------------------------------------//
             // Robot API
-            //----------------------------------------------------------//
             get_robot_by_id,
             get_all_robots,
-
-            //----------------------------------------------------------//
-            // Control Functionality
-            //----------------------------------------------------------//
-
-            // Control API
+            get_owned_robots,
+            get_owned_robot_by_id,
+            get_owned_robot_by_nickname,
+            add_owned_robot,
+            delete_owned_robot,
             // SSH
             connect,
             disconnect,
@@ -302,30 +244,32 @@ fn main() {
             start_robot,
             stop_robot,
             is_robot_started,
-            // Configuration
+            // Configuration + calibration
             read_config,
             write_config,
             detect_config,
-            // Remote Configuration
             read_remote_config,
             write_remote_config,
-            // Calibration
             read_calibration,
             write_calibration,
             get_calibration_modified_at,
             auto_calibrate,
             remote_auto_calibrate,
-            // Teleoperation Functions
+            // Teleoperation
             start_teleop,
             stop_teleop,
             is_teleop_active,
             get_active_teleop_sessions,
             start_remote_teleop,
             stop_remote_teleop,
-
+            // Remote evaluate
+            start_remote_evaluate,
+            stop_remote_evaluate,
+            save_remote_evaluate_episode,
+            reset_remote_evaluate_episode,
             // App Mode
             get_app_mode,
-            // Kiosk Host Functions
+            // Kiosk host + pairing
             start_kiosk_host,
             stop_kiosk_host,
             is_kiosk_host_active,
@@ -344,7 +288,7 @@ fn main() {
             start_kiosk_robot,
             stop_kiosk_robot,
             get_kiosk_robot_status,
-            // WiFi API
+            // WiFi + AP + battery
             scan_wifi_networks,
             connect_to_wifi,
             get_current_wifi_connection,
@@ -352,15 +296,9 @@ fn main() {
             set_wifi,
             set_access_point,
             is_access_point_active,
-            // Battery API
             get_battery_data,
-            // Store and cart functions removed
-
             // Debug API
             debug_check_updates,
-
-            // Owned Robots
-            get_owned_robots,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
