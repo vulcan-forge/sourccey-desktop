@@ -1,3 +1,4 @@
+import { isTauri } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
 
 // Export types for use in components
@@ -62,7 +63,7 @@ class SshEventManager {
 
     constructor() {
         // Only initialize on client side to prevent SSR errors
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && isTauri()) {
             this.setupEventListeners();
             this.isInitialized = true;
         }
@@ -70,7 +71,7 @@ class SshEventManager {
 
     private async setupEventListeners() {
         // Double check we're in browser environment
-        if (typeof window === 'undefined') {
+        if (typeof window === 'undefined' || !isTauri()) {
             return;
         }
 
