@@ -41,6 +41,7 @@ export const RemoteRobotAction = ({
     robotStatus,
     controlType,
     logs,
+    allowUnconnectedControl = false,
 }: {
     ownedRobot: any;
     toggleControl: () => void;
@@ -51,6 +52,7 @@ export const RemoteRobotAction = ({
     robotStatus: RemoteRobotStatus;
     controlType: RemoteControlType;
     logs: boolean;
+    allowUnconnectedControl?: boolean;
 }) => {
     const nickname = ownedRobot?.nickname ?? '';
     const robotType = ownedRobot?.robot_type ?? '';
@@ -61,15 +63,17 @@ export const RemoteRobotAction = ({
     // State Variables
     const isConnected = robotStatus == RemoteRobotStatus.CONNECTED || robotStatus == RemoteRobotStatus.STARTED;
     const isRobotStarted = robotStatus == RemoteRobotStatus.STARTED;
-    const isControlDisabled = isLoading || isLoadingCalibration || !calibration || robotStatus == RemoteRobotStatus.NONE;
+    const requiresConnection = !allowUnconnectedControl;
+    const isControlDisabled =
+        isLoading || isLoadingCalibration || !calibration || (requiresConnection && robotStatus == RemoteRobotStatus.NONE);
 
     // Show connect component if not connected
-    if (!isConnected) {
+    if (requiresConnection && !isConnected) {
         return <ConnectRobotComponent nickname={nickname} />;
     }
 
     // Show start robot component if connected but not started
-    if (isConnected && !isRobotStarted) {
+    if (requiresConnection && isConnected && !isRobotStarted) {
         return <StartRobotComponent nickname={nickname} />;
     }
 
@@ -107,13 +111,17 @@ export const RemoteRobotAction = ({
                     disabled={isControlDisabled}
                     data-tooltip-id="control-button-tooltip"
                     data-tooltip-content={
-                        !isConnected
-                            ? 'Robot must be connected first'
-                            : !isRobotStarted
-                              ? 'Robot must be started first'
-                              : isControlDisabled
+                        !requiresConnection
+                            ? isControlDisabled
                                 ? 'Auto calibration required before controlling'
                                 : ''
+                            : !isConnected
+                              ? 'Robot must be connected first'
+                              : !isRobotStarted
+                                ? 'Robot must be started first'
+                                : isControlDisabled
+                                  ? 'Auto calibration required before controlling'
+                                  : ''
                     }
                     className={`inline-flex w-36 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-all ${
                         isControlDisabled

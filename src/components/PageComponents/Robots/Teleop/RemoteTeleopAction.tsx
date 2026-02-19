@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { RemoteRobotAction } from '@/components/PageComponents/Robots/RemoteRobotAction';
+import { RemoteConfigSection } from '@/components/PageComponents/Robots/Teleop/RemoteConfigSection';
 import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 
@@ -60,7 +61,7 @@ export const RemoteTeleopAction = ({
         toast.success(`Remote Teleop stopped: ${result}`, {
             ...toastSuccessDefaults,
         });
-        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.NONE, ownedRobot);
+        setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
         onClose();
     };
 
@@ -77,13 +78,15 @@ export const RemoteTeleopAction = ({
             toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`, {
                 ...toastErrorDefaults,
             });
-            setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.NONE, ownedRobot);
+            setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
         } finally {
             setIsLoading(false);
         }
     };
 
     return (
+        <>
+        <RemoteConfigSection ownedRobot={ownedRobot} />
         <RemoteRobotAction
             ownedRobot={ownedRobot}
             toggleControl={toggleControl}
@@ -92,7 +95,9 @@ export const RemoteTeleopAction = ({
             robotStatus={robotStatus}
             controlType={controlType}
             logs={logs}
+            allowUnconnectedControl={true}
         />
+        </>
     );
 };
 
