@@ -3,13 +3,14 @@
 import React, { useEffect, type ReactElement } from 'react';
 import { Spinner } from '@/components/Elements/Spinner';
 import Image from 'next/image';
-import { invoke, isTauri } from '@tauri-apps/api/core';
 import { checkForUpdates } from '@/utils/updater/updater';
 import { usePathname, useRouter } from 'next/navigation';
+import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 
 const HomePage = (): ReactElement => {
     const router = useRouter();
     const pathname = usePathname();
+    const { isKioskMode, isLoading: isAppModeLoading } = useAppMode();
     // Check for updates FIRST before anything else
     useEffect(() => {
         const checkUpdates = async () => {
@@ -23,46 +24,16 @@ const HomePage = (): ReactElement => {
         checkUpdates();
     }, []);
 
-    // Navigate based on Tauri app mode (client-side)
+    // Navigate based on app mode (client-side)
     useEffect(() => {
-        let cancelled = false;
+        if (isAppModeLoading) return;
+        if (pathname.startsWith('/kiosk') || pathname.startsWith('/desktop')) return;
 
-        const resolveTargetPath = async () => {
-            if (typeof window === 'undefined') return;
-
-            if (pathname.startsWith('/kiosk') || pathname.startsWith('/desktop')) {
-                return;
-            }
-
-            try {
-                const timeoutMs = 1500;
-                const isKiosk = isTauri()
-                    ? await Promise.race<boolean>([
-                          invoke<boolean>('get_app_mode'),
-                          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
-                      ])
-                    : false;
-
-                if (cancelled) return;
-
-                const targetPath = isKiosk ? '/kiosk' : '/desktop';
-                if (!cancelled && pathname !== targetPath) {
-                    router.replace(targetPath);
-                }
-            } catch (error) {
-                console.error('Failed to resolve app mode:', error);
-                if (!cancelled && pathname !== '/desktop') {
-                    router.replace('/desktop');
-                }
-            }
-        };
-
-        resolveTargetPath();
-
-        return () => {
-            cancelled = true;
-        };
-    }, [pathname, router]);
+        const targetPath = isKioskMode ? '/kiosk' : '/desktop';
+        if (pathname !== targetPath) {
+            router.replace(targetPath);
+        }
+    }, [isAppModeLoading, isKioskMode, pathname, router]);
 
     return (
         <>
