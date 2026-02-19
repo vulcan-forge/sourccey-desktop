@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FaTools } from 'react-icons/fa';
 import { RobotCalibration } from '@/components/Elements/RemoteRobot/RobotCalibration';
 import { RobotStartSection } from '@/components/Elements/RemoteRobot/RobotStart';
+import { RemoteConfigSection } from '@/components/PageComponents/Robots/RemoteConfigSection';
 import { useKioskRobotStartStop } from '@/hooks/Kiosk/robot-start-stop.hook';
 import type { Calibration } from '@/components/PageComponents/Robots/RemoteRobotConfig';
 
@@ -17,6 +18,7 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
     const hasCalibration = useMemo(() => !!calibration && Object.keys(calibration).length > 0, [calibration]);
     const [activeView, setActiveView] = useState<'control' | 'calibration'>(hasCalibration ? 'control' : 'calibration');
     const previousHasCalibrationRef = useRef(hasCalibration);
+    const ownedRobotForConfig = useMemo(() => ({ nickname }), [nickname]);
 
     useEffect(() => {
         if (!hasCalibration) {
@@ -62,14 +64,17 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
             {!hasCalibration || activeView === 'calibration' ? (
                 <RobotCalibration nickname={nickname} robotType={robotType} calibration={calibration} />
             ) : (
-                <RobotStartSection
-                    nickname={nickname}
-                    isRobotStarted={isRobotStarted}
-                    isStarting={isStarting}
-                    isStopping={isStopping}
-                    onStartAction={handleStartRobot}
-                    onStopAction={handleStopRobot}
-                />
+                <>
+                    <RemoteConfigSection ownedRobot={ownedRobotForConfig} embedded={true} showHeader={false} />
+                    <RobotStartSection
+                        nickname={nickname}
+                        isRobotStarted={isRobotStarted}
+                        isStarting={isStarting}
+                        isStopping={isStopping}
+                        onStartAction={handleStartRobot}
+                        onStopAction={handleStopRobot}
+                    />
+                </>
             )}
         </div>
     );

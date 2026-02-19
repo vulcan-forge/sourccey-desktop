@@ -90,28 +90,38 @@ export const RemoteTeleopAction = ({
     };
 
     return (
-        <>
-            <RemoteConfigSection
-                ownedRobot={ownedRobot}
-                embedded={true}
-                showHeader={false}
-                isOpen={isConfigOpen}
-                onToggle={() => setIsConfigOpen((open) => !open)}
-            />
-            <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
-                <RemoteRobotAction
-                    ownedRobot={ownedRobot}
-                    toggleControl={toggleControl}
-                    isLoading={isLoading}
-                    isControlling={isControlling}
-                    robotStatus={robotStatus}
-                    controlType={controlType}
-                    logs={logs}
-                    allowUnconnectedControl={true}
-                />
-                <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} />
+        <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
+            <div className="flex items-center justify-between">
+                <div className="text-sm font-semibold text-slate-300">
+                    {isConfigOpen ? 'Remote Config' : 'Remote Teleop'}
+                </div>
+                <button
+                    type="button"
+                    onClick={() => setIsConfigOpen((open) => !open)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-700"
+                >
+                    {isConfigOpen ? 'Back to Control' : 'Configs'}
+                </button>
             </div>
-        </>
+
+            {isConfigOpen ? (
+                <RemoteConfigSection ownedRobot={ownedRobot} embedded={true} showHeader={false} isOpen={true} />
+            ) : (
+                <>
+                    <RemoteRobotAction
+                        ownedRobot={ownedRobot}
+                        toggleControl={toggleControl}
+                        isLoading={isLoading}
+                        isControlling={isControlling}
+                        robotStatus={robotStatus}
+                        controlType={controlType}
+                        logs={logs}
+                        allowUnconnectedControl={true}
+                    />
+                    <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} />
+                </>
+            )}
+        </div>
     );
 };
 
