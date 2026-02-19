@@ -20,6 +20,24 @@ const HomePage = (): ReactElement => {
         checkUpdates();
     }, []);
 
+    // Log global errors to help diagnose Fast Refresh reloads
+    useEffect(() => {
+        const handleError = (event: ErrorEvent) => {
+            console.error('Global error:', event.message, event.error);
+        };
+        const handleRejection = (event: PromiseRejectionEvent) => {
+            console.error('Unhandled rejection:', event.reason);
+        };
+
+        window.addEventListener('error', handleError);
+        window.addEventListener('unhandledrejection', handleRejection);
+
+        return () => {
+            window.removeEventListener('error', handleError);
+            window.removeEventListener('unhandledrejection', handleRejection);
+        };
+    }, []);
+
     // Force navigation based on Tauri app mode (hard reload)
     useEffect(() => {
         let cancelled = false;
@@ -86,7 +104,7 @@ const HomePage = (): ReactElement => {
                                             Welcome to Sourccey!
                                         </span>
                                     </h1>
-                                    <p className="text-mdtext-center font-semibold text-slate-300">
+                                    <p className="text-md text-center font-semibold text-slate-300">
                                         Loading your journey with intelligent robots!
                                     </p>
                                 </div>
