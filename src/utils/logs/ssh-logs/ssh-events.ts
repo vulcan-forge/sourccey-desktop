@@ -165,7 +165,7 @@ class SshEventManager {
     };
 
     public onConnectionStatusError: (event: SshConnectionStatusError) => void = (event) => {
-        console.error(`❌ Robot ${event.nickname} is not connected: ${event.error}`);
+        void event;
     };
 
     public onRobotStartSuccess: (event: SshRobotStartSuccess) => void = (event) => {

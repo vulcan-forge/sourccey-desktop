@@ -1,34 +1,19 @@
-import { TeleopAction } from '@/components/PageComponents/Robots/Teleop/TeleopAction';
-import { RobotConfig } from '@/components/PageComponents/Robots/RobotConfig';
-import { RemoteRobotConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
+import { useState } from 'react';
 import { RemoteTeleopAction } from '@/components/PageComponents/Robots/Teleop/RemoteTeleopAction';
-
-const REMOTE_ROBOT_TYPES = ['sourccey', 'lekiwi'];
-export const TeleopContainer = ({ ownedRobot }: { ownedRobot: any }) => {
-    if (!ownedRobot) return <></>;
-
-    const isRemote = REMOTE_ROBOT_TYPES.includes(ownedRobot?.robot?.robot_type);
-    return (
-        <div className="mb-20 flex w-full flex-col gap-6 p-6">
-            {isRemote ? <RemoteRobotTeleop ownedRobot={ownedRobot} /> : <RobotTeleop ownedRobot={ownedRobot} />}
-        </div>
-    );
-};
-
-export const RobotTeleop = ({ ownedRobot }: { ownedRobot: any }) => {
-    return (
-        <>
-            <RobotConfig ownedRobot={ownedRobot} />
-            <TeleopAction ownedRobot={ownedRobot} onClose={() => {}} logs={true} />
-        </>
-    );
-};
+import { RobotLogs } from '@/components/PageComponents/Robots/Logs/RobotDesktopLogs';
+import { ControlType, useGetControlledRobot } from '@/hooks/Control/control.hook';
+import { SshConnectionSection } from '@/components/PageComponents/Robots/Teleop/SshConnectionSection';
 
 export const RemoteRobotTeleop = ({ ownedRobot }: { ownedRobot: any }) => {
+    const nickname = ownedRobot?.nickname ?? '';
+    const { data: controlledRobot }: any = useGetControlledRobot(nickname);
+    const isTeleopRunning = !!controlledRobot?.ownedRobot && controlledRobot?.controlType === ControlType.TELEOP;
+
     return (
         <>
-            <RemoteRobotConfig ownedRobot={ownedRobot} onClose={() => {}} />
+            <SshConnectionSection ownedRobot={ownedRobot} />
             <RemoteTeleopAction ownedRobot={ownedRobot} onClose={() => {}} logs={true} />
+            <RobotLogs isControlling={isTeleopRunning} nickname={nickname} />
         </>
     );
 };
