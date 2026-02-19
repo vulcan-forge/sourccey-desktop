@@ -5,7 +5,7 @@ import { ToastCloseButton } from '@/utils/toast/ToastComponents';
 import { ToastContainer } from 'react-toastify';
 import { usePathname } from 'next/navigation';
 
-export const MainLayout = ({ children }: { children: React.ReactNode }) => {
+export function MainLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname() ?? '';
     const isKioskRoute = pathname.startsWith('/kiosk');
 
@@ -14,7 +14,7 @@ export const MainLayout = ({ children }: { children: React.ReactNode }) => {
     } else {
         return <DesktopLayout>{children}</DesktopLayout>;
     }
-};
+}
 
 export const DesktopLayout = ({ children }: { children: React.ReactNode }) => {
     return (
@@ -34,3 +34,5 @@ export const KioskLayout = ({ children }: { children: React.ReactNode }) => {
         </div>
     );
 };
+
+export default MainLayout;

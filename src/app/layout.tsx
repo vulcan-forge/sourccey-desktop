@@ -1,5 +1,5 @@
 import Provider from '@/app/provider';
-import { MainLayout } from '@/components/Layouts/Main/MainLayout';
+import MainLayout from '@/components/Layouts/Main/MainLayout';
 import type { Metadata } from 'next';
 import './globals.css';
 
