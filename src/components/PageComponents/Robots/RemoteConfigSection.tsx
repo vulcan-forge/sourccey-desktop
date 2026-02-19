@@ -10,9 +10,19 @@ import type { RemoteConfig } from '@/components/PageComponents/Robots/RemoteRobo
 
 type RemoteConfigSectionProps = {
     ownedRobot: any;
+    embedded?: boolean;
+    showHeader?: boolean;
+    isOpen?: boolean;
+    onToggle?: () => void;
 };
 
-export const RemoteConfigSection = ({ ownedRobot }: RemoteConfigSectionProps) => {
+export const RemoteConfigSection = ({
+    ownedRobot,
+    embedded = false,
+    showHeader = false,
+    isOpen,
+    onToggle,
+}: RemoteConfigSectionProps) => {
     const nickname = ownedRobot?.nickname ?? '';
     const normalizedNickname = useMemo(() => (nickname.startsWith('@') ? nickname.slice(1) : nickname), [nickname]);
     const { data: remoteConfig, isLoading: isLoadingConfig }: any = useGetRemoteConfig(nickname);
@@ -67,32 +77,44 @@ export const RemoteConfigSection = ({ ownedRobot }: RemoteConfigSectionProps) =>
         }
     };
 
+    const isConfigsVisible = isOpen ?? isConfigsOpen;
+    const handleToggle = onToggle ?? (() => setIsConfigsOpen((open) => !open));
+
+    const containerClassName = embedded
+        ? 'flex flex-col gap-3 rounded-xl border border-slate-700/60 bg-slate-900/40 p-4'
+        : 'flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-800/60 p-5';
+
+    const buttonClassName =
+        'inline-flex cursor-pointer items-center rounded-lg border border-slate-600 bg-slate-900 px-3 py-1 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-800';
+
     return (
-        <div className="flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-800/60 p-5">
-            <div className="flex items-start justify-between gap-4">
-                <div>
+        <div className={containerClassName}>
+            {showHeader && !embedded && (
+                <div className="flex items-center justify-between gap-4">
                     <h3 className="text-lg font-semibold text-white">Remote Config</h3>
-                    <p className="mt-1 text-sm text-slate-300">Update the connection details used for teleoperation.</p>
+                    <button type="button" onClick={handleToggle} className={buttonClassName}>
+                        Configs
+                    </button>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => setIsConfigsOpen((open) => !open)}
-                    className="inline-flex cursor-pointer items-center rounded-lg border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-700"
-                >
-                    Configs
-                </button>
+            )}
+
+            <div className="flex items-center justify-between gap-3">
+                <div className="text-xs text-slate-400">
+                    {remoteConfig?.remote_ip
+                        ? `Host: ${remoteConfig.remote_ip}:${remoteConfig.remote_port || '22'}`
+                        : 'Remote host not configured.'}
+                </div>
+                {embedded && (
+                    <button type="button" onClick={handleToggle} className={buttonClassName}>
+                        Configs
+                    </button>
+                )}
             </div>
 
-            <div className="text-xs text-slate-400">
-                {remoteConfig?.remote_ip
-                    ? `Host: ${remoteConfig.remote_ip}:${remoteConfig.remote_port || '22'}`
-                    : 'Remote host not configured.'}
-            </div>
+            {pairedHost && !embedded && <div className="text-[11px] text-slate-500">Paired host: {pairedHost}</div>}
 
-            {pairedHost && <div className="text-[11px] text-slate-500">Paired host: {pairedHost}</div>}
-
-            {isConfigsOpen && draftConfig && (
-                <div className="mt-2 rounded-lg border border-slate-700 bg-slate-900/60 p-4">
+            {isConfigsVisible && draftConfig && (
+                <div className="mt-2 rounded-lg border border-slate-700/60 bg-slate-950/60 p-4">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                         <label className="flex flex-col gap-1 text-xs text-slate-400">
                             Host

@@ -23,6 +23,7 @@ export const RemoteTeleopAction = ({
     logs: boolean;
 }) => {
     const [isLoading, setIsLoading] = useState(false);
+    const [isConfigOpen, setIsConfigOpen] = useState(false);
 
     const nickname = ownedRobot?.nickname ?? '';
     const normalizedNickname = nickname.startsWith('@') ? nickname.slice(1) : nickname;
@@ -90,7 +91,13 @@ export const RemoteTeleopAction = ({
 
     return (
         <>
-            <RemoteConfigSection ownedRobot={ownedRobot} />
+            <RemoteConfigSection
+                ownedRobot={ownedRobot}
+                embedded={true}
+                showHeader={false}
+                isOpen={isConfigOpen}
+                onToggle={() => setIsConfigOpen((open) => !open)}
+            />
             <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
                 <RemoteRobotAction
                     ownedRobot={ownedRobot}
