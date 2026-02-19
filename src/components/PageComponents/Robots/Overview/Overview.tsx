@@ -23,24 +23,6 @@ export const Overview = ({ ownedRobot }: { ownedRobot: any }) => {
 
     const { data: controlledRobot }: any = useGetControlledRobot(nickname);
     const isControlling = !!controlledRobot?.ownedRobot;
-    const { data: aiModelCount, isLoading: isAiModelCountLoading }: any = useGetAIModelCount(nickname);
-    const { data: datasetCount, isLoading: isDatasetCountLoading }: any = useGetDatasetCount(nickname);
-
-    const hasBattery = robot.name !== 'SO-100';
-    const tabs = [
-        {
-            id: 'ai-models',
-            label: 'AI Models',
-            icon: FaBrain,
-            count: aiModelCount || 0,
-        },
-        {
-            id: 'datasets',
-            label: 'Training Data',
-            icon: FaDatabase,
-            count: datasetCount || 0,
-        },
-    ];
 
     const handleDeleteRobot = async () => {
         try {
@@ -121,73 +103,11 @@ export const Overview = ({ ownedRobot }: { ownedRobot: any }) => {
 
                         <div className="flex flex-row gap-2">
                             <div className="flex items-center gap-2 rounded-lg bg-slate-700 px-2 py-2 sm:px-3">
-                                <FaBrain className="h-3 w-3 text-green-400 sm:h-4 sm:w-4" />
-                                {isAiModelCountLoading ? (
-                                    <Spinner />
-                                ) : (
-                                    <span className="text-xs text-slate-300 sm:text-sm">{aiModelCount || 0} Models</span>
-                                )}
-                            </div>
-
-                            <div className="flex items-center gap-2 rounded-lg bg-slate-700 px-2 py-2 sm:px-3">
-                                <FaDatabase className="h-3 w-3 text-blue-400 sm:h-4 sm:w-4" />
-                                {isDatasetCountLoading ? (
-                                    <Spinner />
-                                ) : (
-                                    <span className="text-xs text-slate-300 sm:text-sm">{datasetCount || 0} Records</span>
-                                )}
-                            </div>
-                        </div>
-
-                        <div className="flex flex-row gap-2">
-                            <div className="flex items-center gap-2 rounded-lg bg-slate-700 px-2 py-2 sm:px-3">
                                 <div className={`h-2 w-2 rounded-full ${isControlling ? 'bg-green-400' : 'bg-red-400'}`} />
                                 <span className="text-xs text-slate-300 sm:text-sm">{isControlling ? 'Running' : 'Not Running'}</span>
                             </div>
-                            {hasBattery && (
-                                <div className="flex items-center gap-2 rounded-lg bg-slate-700 px-2 py-2 sm:px-3">
-                                    <FaBolt className="h-3 w-3 text-orange-400 sm:h-4 sm:w-4" />
-                                    <span className="text-xs text-slate-300 sm:text-sm">{batteryLevel}%</span>
-                                </div>
-                            )}
                         </div>
                     </div>
-                </div>
-            </div>
-
-            {/* Tabbed Section - unchanged */}
-            <div className="rounded-xl border-2 border-slate-700 bg-slate-800 backdrop-blur-sm">
-                {/* Tab Navigation */}
-                <div className="grid grid-cols-2 border-b border-slate-700 sm:flex">
-                    {tabs.map((tab) => {
-                        const Icon = tab.icon;
-                        const isActive = activeTab === tab.id;
-
-                        return (
-                            <button
-                                key={tab.id}
-                                onClick={() => setActiveTab(tab.id as 'ai-models' | 'datasets')}
-                                className={`flex cursor-pointer items-center justify-center gap-2 border-b-2 px-3 py-3 text-sm font-medium transition-all duration-200 sm:justify-start sm:gap-3 sm:px-6 sm:py-4 ${
-                                    isActive
-                                        ? 'border-blue-500 bg-slate-700/30 text-blue-400'
-                                        : 'border-transparent text-slate-400 hover:bg-slate-700/20 hover:text-slate-300'
-                                }`}
-                            >
-                                <Icon className="h-4 w-4" />
-                                <span className="hidden sm:inline">{tab.label}</span>
-                                <span className="sm:hidden">{tab.label.split(' ')[0]}</span>
-                                {tab.count > 0 && (
-                                    <span
-                                        className={`rounded-full px-2 py-0.5 text-xs font-medium ${
-                                            isActive ? 'bg-blue-500/20 text-blue-300' : 'bg-slate-650 text-slate-400'
-                                        }`}
-                                    >
-                                        {tab.count}
-                                    </span>
-                                )}
-                            </button>
-                        );
-                    })}
                 </div>
             </div>
 

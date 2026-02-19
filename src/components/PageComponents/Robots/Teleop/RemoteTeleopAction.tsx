@@ -2,8 +2,7 @@ import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-ut
 import { invoke } from '@tauri-apps/api/core';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
-import { RemoteRobotAction } from '@/components/PageComponents/Robots/RemoteRobotAction';
-import { RemoteConfigSection } from '@/components/PageComponents/Robots/RemoteConfigSection';
+import { RemoteRobotAction } from '@/components/PageComponents/Robots/Action/RemoteRobotAction';
 import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { RobotLogs } from '@/components/PageComponents/Robots/Logs/RobotDesktopLogs';
@@ -23,7 +22,6 @@ export const RemoteTeleopAction = ({
     logs: boolean;
 }) => {
     const [isLoading, setIsLoading] = useState(false);
-    const [isConfigOpen, setIsConfigOpen] = useState(false);
 
     const nickname = ownedRobot?.nickname ?? '';
     const normalizedNickname = nickname.startsWith('@') ? nickname.slice(1) : nickname;
@@ -90,35 +88,18 @@ export const RemoteTeleopAction = ({
     };
 
     return (
-        <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
-            <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-300">{isConfigOpen ? 'Remote Config' : 'Remote Teleop'}</div>
-                <button
-                    type="button"
-                    onClick={() => setIsConfigOpen((open) => !open)}
-                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-700"
-                >
-                    {isConfigOpen ? 'Back to Control' : 'Configs'}
-                </button>
-            </div>
-
-            {isConfigOpen ? (
-                <RemoteConfigSection ownedRobot={ownedRobot} embedded={true} showHeader={false} isOpen={true} />
-            ) : (
-                <>
-                    <RemoteRobotAction
-                        ownedRobot={ownedRobot}
-                        toggleControl={toggleControl}
-                        isLoading={isLoading}
-                        isControlling={isControlling}
-                        robotStatus={robotStatus}
-                        controlType={controlType}
-                        logs={logs}
-                        allowUnconnectedControl={true}
-                    />
-                    <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} />
-                </>
-            )}
+        <div className="flex flex-col gap-4">
+            <RemoteRobotAction
+                ownedRobot={ownedRobot}
+                toggleControl={toggleControl}
+                isLoading={isLoading}
+                isControlling={isControlling}
+                robotStatus={robotStatus}
+                controlType={controlType}
+                logs={logs}
+                allowUnconnectedControl={true}
+            />
+            <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} />
         </div>
     );
 };

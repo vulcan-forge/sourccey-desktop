@@ -6,7 +6,7 @@ import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useGetRemoteConfig, setRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
-import type { RemoteConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
+import type { RemoteConfig } from '@/components/PageComponents/Robots/Config/RemoteRobotConfig';
 
 type RemoteConfigSectionProps = {
     ownedRobot: any;

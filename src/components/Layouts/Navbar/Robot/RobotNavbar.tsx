@@ -1,8 +1,8 @@
-import { FaGamepad, FaVideo } from 'react-icons/fa';
+import { FaGamepad, FaVideo, FaSlidersH } from 'react-icons/fa';
 
 import { setContent, useGetContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
 import Link from 'next/link';
-import { FaArrowLeft, FaCog } from 'react-icons/fa';
+import { FaArrowLeft, FaCog, FaMicrochip } from 'react-icons/fa';
 
 export const RobotNavbar = () => {
     const { data: content } = useGetContent();
@@ -10,13 +10,15 @@ export const RobotNavbar = () => {
     const overview = 'overview';
     const teleoperate = 'teleoperate';
     const runAIModel = 'run ai model';
+    const config = 'config';
 
     const isOverviewActive = content === overview;
     const isTeleoperateActive = content === teleoperate;
     const isRunAIModelActive = content === runAIModel;
+    const isConfigActive = content === config;
 
     return (
-        <nav className="bg-slate-825 border-slate-725 flex flex-col border-b px-6 py-4 backdrop-blur-sm">
+        <nav className="bg-slate-825 border-slate-725 flex flex-col border-b px-4 py-4 backdrop-blur-sm">
             <div className="flex items-center gap-4">
                 <Link
                     href="/app/owned-robots"
@@ -28,19 +30,21 @@ export const RobotNavbar = () => {
 
                 <div className="bg-slate-725 mx-4 h-8 w-0.5" />
 
-                <div className="flex gap-2">
+                <div className="flex w-full gap-2">
                     <NavButton content={overview} icon={FaCog} isActive={isOverviewActive}>
                         Overview
                     </NavButton>
                     <NavButton content={teleoperate} icon={FaGamepad} isActive={isTeleoperateActive}>
                         Teleoperate
                     </NavButton>
-                    <NavButton content={runAIModel} icon={FaVideo} isActive={isRunAIModelActive}>
-                        Run AI Model
+                    <NavButton content={runAIModel} icon={FaMicrochip} isActive={isRunAIModelActive}>
+                        Run AI
+                    </NavButton>
+                    <div className="grow"></div>
+                    <NavButton content={config} icon={FaSlidersH} isActive={isConfigActive}>
+                        Config
                     </NavButton>
                 </div>
-
-                <div className="grow" />
             </div>
         </nav>
     );
