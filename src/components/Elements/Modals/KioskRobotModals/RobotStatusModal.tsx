@@ -130,7 +130,7 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
                             </div>
                             <div className="text-right text-xs font-semibold text-slate-300">
                                 <div>UDP {DISCOVERY_UDP_PORT}</div>
-                                <div>TCP {servicePort ?? '—'}</div>
+                                <div>TCP {servicePort ?? '--'}</div>
                             </div>
                         </div>
 

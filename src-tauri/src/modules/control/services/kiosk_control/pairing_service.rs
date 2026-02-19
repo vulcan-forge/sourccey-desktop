@@ -4,7 +4,7 @@ use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Write};
-use std::net::{TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
+use std::net::{IpAddr, Ipv4Addr, TcpListener, TcpStream, ToSocketAddrs, UdpSocket};
 use std::process::Command;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
@@ -244,17 +244,25 @@ impl KioskPairingService {
             .set_broadcast(true)
             .map_err(|e| format!("Failed to enable broadcast: {}", e))?;
         socket
-            .set_read_timeout(Some(Duration::from_millis(150)))
+            .set_read_timeout(Some(Duration::from_millis(250)))
             .map_err(|e| format!("Failed to set discovery timeout: {}", e))?;
 
-        socket
-            .send_to(DISCOVERY_MAGIC.as_bytes(), ("255.255.255.255", DISCOVERY_PORT))
-            .map_err(|e| format!("Failed to send discovery packet: {}", e))?;
+        let broadcast_targets = Self::get_broadcast_targets();
+        let mut send_attempts = 0;
+        let mut last_send_at = Instant::now() - Duration::from_millis(500);
 
         let deadline = Instant::now() + Duration::from_millis(timeout_ms.max(300));
         let mut found: HashMap<String, DiscoveredKioskRobot> = HashMap::new();
 
         while Instant::now() < deadline {
+            if send_attempts < 3 && last_send_at.elapsed() >= Duration::from_millis(200) {
+                for target in &broadcast_targets {
+                    let _ = socket.send_to(DISCOVERY_MAGIC.as_bytes(), (*target, DISCOVERY_PORT));
+                }
+                send_attempts += 1;
+                last_send_at = Instant::now();
+            }
+
             let mut buf = [0_u8; 1024];
             match socket.recv_from(&mut buf) {
                 Ok((size, src)) => {
@@ -273,6 +281,28 @@ impl KioskPairingService {
         }
 
         Ok(found.into_values().collect())
+    }
+
+    fn get_broadcast_targets() -> Vec<IpAddr> {
+        let mut targets = vec![IpAddr::V4(Ipv4Addr::BROADCAST)];
+
+        // Best-effort: derive a /24 broadcast from the local outbound IP.
+        if let Ok(sock) = UdpSocket::bind(("0.0.0.0", 0)) {
+            if sock.connect(("8.8.8.8", 80)).is_ok() {
+                if let Ok(local_addr) = sock.local_addr() {
+                    if let IpAddr::V4(local_ip) = local_addr.ip() {
+                        let octets = local_ip.octets();
+                        let subnet_broadcast = Ipv4Addr::new(octets[0], octets[1], octets[2], 255);
+                        let subnet_ip = IpAddr::V4(subnet_broadcast);
+                        if !targets.contains(&subnet_ip) {
+                            targets.push(subnet_ip);
+                        }
+                    }
+                }
+            }
+        }
+
+        targets
     }
 
     pub fn pair_with_kiosk_robot(host: &str, code: &str, client_name: &str) -> Result<PairWithKioskResult, String> {
