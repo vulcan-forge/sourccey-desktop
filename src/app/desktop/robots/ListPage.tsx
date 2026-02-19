@@ -206,6 +206,7 @@ export const RobotListPage = () => {
             setPairModalTarget(null);
             setPairingCode('');
         } catch (error: any) {
+            console.log('error', error);
             toast.error(error?.message || 'Failed to pair robot.', { ...toastErrorDefaults });
         } finally {
             setIsPairing(false);

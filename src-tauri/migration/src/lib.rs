@@ -8,6 +8,7 @@ mod m20250725_000001_add_robot_type_to_robot;
 mod m20250726_000001_add_command_log_foreign_key_indexes;
 mod m20250109_000001_drop_cart_item_table;
 mod m20250727_000001_add_owned_robot_indexes;
+mod m20260219_000001_drop_owned_robot_profile_id;
 
 pub struct Migrator;
 
@@ -23,6 +24,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20250726_000001_add_command_log_foreign_key_indexes::Migration),
             Box::new(m20250109_000001_drop_cart_item_table::Migration),
             Box::new(m20250727_000001_add_owned_robot_indexes::Migration),
+            Box::new(m20260219_000001_drop_owned_robot_profile_id::Migration),
         ]
     }
 }
