@@ -1,7 +1,7 @@
 'use client';
 
 import { Spinner } from '@/components/Elements/Spinner';
-import { RobotLogs } from '@/components/PageComponents/Robots/RobotLogs/RobotDesktopLogs';
+import { RobotLogs } from '@/components/PageComponents/Robots/Logs/RobotDesktopLogs';
 import { RobotAction } from '@/components/PageComponents/Robots/RobotAction';
 import { ControlType, setControlledRobot, useGetControlledRobot } from '@/hooks/Control/control.hook';
 import { useSelectedOwnedRobot } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
