@@ -1,5 +1,4 @@
 import Provider from '@/app/provider';
-import MainLayout from '@/components/Layouts/Main/MainLayout';
 import type { Metadata } from 'next';
 import './globals.css';
 
@@ -13,7 +12,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <html lang="en">
             <body>
                 <Provider>
-                    <MainLayout>{children}</MainLayout>
+                    {children}
                 </Provider>
             </body>
         </html>
