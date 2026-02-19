@@ -9,7 +9,7 @@ export const RobotNavbar = () => {
 
     const overview = 'overview';
     const teleoperate = 'teleoperate';
-    const runAIModel = 'run ai model';
+    const runAIModel = 'ai';
     const config = 'config';
 
     const isOverviewActive = content === overview;

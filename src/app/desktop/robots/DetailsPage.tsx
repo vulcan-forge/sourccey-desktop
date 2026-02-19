@@ -7,6 +7,7 @@ import { RemoteConfigSection } from '@/components/PageComponents/Robots/Config/R
 import { RobotLayout } from '@/components/PageComponents/Robots/RobotLayout';
 import { useSelectedOwnedRobot } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { useGetContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
+import { AIModelContainer } from '@/components/PageComponents/Robots/AI/AIContainer';
 
 export const RobotDetailsPage = () => {
     const { data: ownedRobot, isLoading } = useSelectedOwnedRobot();
@@ -26,7 +27,7 @@ export const RobotDetailsPage = () => {
             <div className="flex h-full w-full flex-col space-y-4 overflow-y-auto p-4">
                 {activeContent === 'overview' && <Overview ownedRobot={ownedRobot} />}
                 {activeContent === 'teleoperate' && <RemoteTeleopContainer ownedRobot={ownedRobot} />}
-                {/* {activeContent === 'run ai model' && <RemoteEvaluateAction ownedRobot={ownedRobot} onClose={() => {}} logs={true} />} */}
+                {activeContent === 'ai' && <AIModelContainer ownedRobot={ownedRobot} />}
                 {activeContent === 'config' && <RemoteConfigSection ownedRobot={ownedRobot} embedded={true} showHeader={false} isOpen={true} />}
             </div>
         </RobotLayout>
