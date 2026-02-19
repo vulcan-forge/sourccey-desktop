@@ -216,6 +216,15 @@ fn main() {
             get_all_robots,
 
             //----------------------------------------------------------//
+            // Owned Robot API
+            //----------------------------------------------------------//
+            get_owned_robot_by_id,
+            get_owned_robot_by_nickname,
+            get_owned_robots,
+            add_owned_robot,
+            delete_owned_robot,
+
+            //----------------------------------------------------------//
             // Control Functionality
             //----------------------------------------------------------//
 
@@ -283,9 +292,6 @@ fn main() {
 
             // Debug API
             debug_check_updates,
-
-            // Owned Robots
-            get_owned_robots,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
