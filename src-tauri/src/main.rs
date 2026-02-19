@@ -249,26 +249,31 @@ fn main() {
             // Control Functionality
             //----------------------------------------------------------//
 
-            // Control API
-            // SSH
+            // Control API SSH
             connect,
             disconnect,
             is_connected,
             start_robot,
             stop_robot,
             is_robot_started,
-            // Configuration + calibration
+
+            // Configuration
             read_config,
             write_config,
             detect_config,
+
+            // Remote Configuration
             read_remote_config,
             write_remote_config,
+
+            // Calibration
             read_calibration,
             write_calibration,
             get_calibration_modified_at,
             auto_calibrate,
             remote_auto_calibrate,
-            // Teleoperation
+
+            // Teleoperation Functions
             start_teleop,
             stop_teleop,
             is_teleop_active,
@@ -277,7 +282,8 @@ fn main() {
             stop_remote_teleop,
             // App Mode
             get_app_mode,
-            // Kiosk host + pairing
+
+            // Kiosk Host Functions
             start_kiosk_host,
             stop_kiosk_host,
             is_kiosk_host_active,
@@ -286,6 +292,7 @@ fn main() {
             set_pi_password,
             get_ssh_password_changed_status,
             set_ssh_password_changed_status,
+
             // Pairing + model dispatch
             get_kiosk_pairing_info,
             discover_pairable_robots,
@@ -296,6 +303,7 @@ fn main() {
             start_kiosk_robot,
             stop_kiosk_robot,
             get_kiosk_robot_status,
+
             // WiFi API
             scan_wifi_networks,
             connect_to_wifi,
@@ -304,7 +312,12 @@ fn main() {
             set_wifi,
             set_access_point,
             is_access_point_active,
+
+            // Battery API
             get_battery_data,
+
+            // Store and cart functions removed
+
             // Debug API
             debug_check_updates,
         ])
