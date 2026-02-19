@@ -40,16 +40,12 @@ export const useKioskRobotStartStop = (nickname: string) => {
             };
         }
 
-<<<<<<< HEAD
         if (
             normalized.includes('serial') ||
             normalized.includes('tty') ||
             normalized.includes('usb') ||
             normalized.includes('port not found')
         ) {
-=======
-        if (normalized.includes('serial') || normalized.includes('tty') || normalized.includes('usb') || normalized.includes('port not found')) {
->>>>>>> 70779ee432781509bc3bbde0512bdba7e7a635a4
             return {
                 type: 'error' as const,
                 message: 'Arms not connected. Check USB/data cables and arm power.',
