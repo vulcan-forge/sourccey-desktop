@@ -3,9 +3,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { RemoteRobotAction } from '@/components/PageComponents/Robots/RemoteRobotAction';
-import { RemoteConfigSection } from '@/components/PageComponents/Robots/Teleop/RemoteConfigSection';
+import { RemoteConfigSection } from '@/components/PageComponents/Robots/RemoteConfigSection';
 import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
+import { RobotLogs } from '@/components/PageComponents/Robots/Logs/RobotDesktopLogs';
 
 export enum RobotControlStatus {
     STARTED = 'Robot is being controlled',
@@ -24,6 +25,7 @@ export const RemoteTeleopAction = ({
     const [isLoading, setIsLoading] = useState(false);
 
     const nickname = ownedRobot?.nickname ?? '';
+    const normalizedNickname = nickname.startsWith('@') ? nickname.slice(1) : nickname;
     const { data: remoteRobotState }: any = useGetRemoteRobotState(nickname);
     const { data: remoteConfig }: any = useGetRemoteConfig(nickname);
 
@@ -31,19 +33,21 @@ export const RemoteTeleopAction = ({
     const controlType = remoteRobotState?.controlType;
     const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == RemoteControlType.TELEOP;
 
-    const startTeleop = async (nickname: string) => {
+    const startTeleop = async (normalized: string) => {
         if (isControlling) {
             return;
         }
 
         const remoteTeleopConfig: RemoteTeleopConfig = {
-            nickname,
+            nickname: normalized,
             remote_ip: remoteConfig.remote_ip,
             left_arm_port: remoteConfig.left_arm_port,
             right_arm_port: remoteConfig.right_arm_port,
             keyboard: remoteConfig.keyboard,
             fps: remoteConfig.fps,
         };
+
+        console.log('remoteTeleopConfig', remoteTeleopConfig);
 
         const result = await invoke('start_remote_teleop', { config: remoteTeleopConfig });
         toast.success(`Remote Teleop started: ${result}`, {
@@ -52,12 +56,12 @@ export const RemoteTeleopAction = ({
         setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.TELEOP, ownedRobot);
     };
 
-    const stopTeleop = async (nickname: string) => {
+    const stopTeleop = async (normalized: string) => {
         if (!isControlling) {
             return;
         }
 
-        const result = await invoke('stop_remote_teleop', { nickname });
+        const result = await invoke('stop_remote_teleop', { nickname: normalized });
         toast.success(`Remote Teleop stopped: ${result}`, {
             ...toastSuccessDefaults,
         });
@@ -69,9 +73,9 @@ export const RemoteTeleopAction = ({
         try {
             setIsLoading(true);
             if (isControlling) {
-                await stopTeleop(nickname);
+                await stopTeleop(normalizedNickname);
             } else {
-                await startTeleop(nickname);
+                await startTeleop(normalizedNickname);
             }
         } catch (error) {
             console.error('Failed to toggle control:', error);
@@ -86,17 +90,20 @@ export const RemoteTeleopAction = ({
 
     return (
         <>
-        <RemoteConfigSection ownedRobot={ownedRobot} />
-        <RemoteRobotAction
-            ownedRobot={ownedRobot}
-            toggleControl={toggleControl}
-            isLoading={isLoading}
-            isControlling={isControlling}
-            robotStatus={robotStatus}
-            controlType={controlType}
-            logs={logs}
-            allowUnconnectedControl={true}
-        />
+            <RemoteConfigSection ownedRobot={ownedRobot} />
+            <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
+                <RemoteRobotAction
+                    ownedRobot={ownedRobot}
+                    toggleControl={toggleControl}
+                    isLoading={isLoading}
+                    isControlling={isControlling}
+                    robotStatus={robotStatus}
+                    controlType={controlType}
+                    logs={logs}
+                    allowUnconnectedControl={true}
+                />
+                <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} />
+            </div>
         </>
     );
 };
