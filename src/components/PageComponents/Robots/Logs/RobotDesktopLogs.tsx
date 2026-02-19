@@ -8,6 +8,7 @@ import { FaTerminal, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 type RobotDesktopLogsProps = {
     isControlling: boolean;
     nickname?: string;
+    embedded?: boolean;
 };
 
 type SshPayload = {
@@ -22,17 +23,23 @@ const formatMessage = (label: string, message: string) => {
     return trimmed ? `[${label}] ${trimmed}` : `[${label}]`;
 };
 
-export const RobotDesktopLogs = ({ isControlling, nickname }: RobotDesktopLogsProps) => {
+export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: RobotDesktopLogsProps) => {
     const [controlLogs, setControlLogs] = useState<string[]>([]);
     const [isExpanded, setIsExpanded] = useState(isControlling);
     const logsRef = useRef<string[]>([]);
 
-    const appendLog = useCallback((log: string) => {
-        const filteredLogs = filterLogs([...logsRef.current, log]);
-        const newLogs = filteredLogs.slice(-100);
-        logsRef.current = newLogs;
-        setControlLogs(newLogs);
-    }, []);
+    const appendLog = useCallback(
+        (log: string) => {
+            if (nickname && !log.includes(`[${nickname}]`)) {
+                return;
+            }
+            const filteredLogs = filterLogs([...logsRef.current, log]);
+            const newLogs = filteredLogs.slice(-100);
+            logsRef.current = newLogs;
+            setControlLogs(newLogs);
+        },
+        [nickname]
+    );
 
     // Update internal state when external prop changes
     useEffect(() => {
@@ -85,6 +92,15 @@ export const RobotDesktopLogs = ({ isControlling, nickname }: RobotDesktopLogsPr
                 return `Running: ${p.message ?? ''}${output}`;
             });
             await register('robot-is-started-error', 'SSH', (p) => `Running error: ${p.error ?? ''}`);
+            const unlistenTeleop = await listen<string>('teleop-log', (event) => {
+                if (!isActive) return;
+                appendLog(event.payload);
+            });
+            if (!isActive) {
+                unlistenTeleop();
+                return;
+            }
+            unlistenFns.push(unlistenTeleop);
         };
 
         setupListeners();
@@ -95,12 +111,19 @@ export const RobotDesktopLogs = ({ isControlling, nickname }: RobotDesktopLogsPr
         };
     }, [appendLog, isControlling, nickname]);
 
+    const containerClassName = embedded
+        ? 'bg-slate-825 overflow-hidden rounded-lg border-2 border-slate-700/60'
+        : 'bg-slate-825 overflow-hidden rounded-xl border-2 border-slate-700 backdrop-blur-sm';
+    const headerClassName = embedded
+        ? 'bg-slate-825 flex items-center justify-between border-b border-slate-700/60 px-4 py-3'
+        : 'bg-slate-825 flex items-center justify-between border-b border-slate-700 p-4';
+
     return (
-        <div className="bg-slate-825 overflow-hidden rounded-xl border-2 border-slate-700 backdrop-blur-sm">
-            <div className="bg-slate-825 flex items-center justify-between border-b border-slate-700 p-4">
+        <div className={containerClassName}>
+            <div className={headerClassName}>
                 <div className="flex items-center gap-3">
                     <FaTerminal className="h-5 w-5 text-slate-400" />
-                    <h3 className="text-lg font-semibold text-white">SSH Logs</h3>
+                    <h3 className="text-lg font-semibold text-white">Robot Logs</h3>
                     {isControlling && (
                         <div className="flex items-center gap-2">
                             <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
@@ -144,7 +167,7 @@ export const RobotDesktopLogs = ({ isControlling, nickname }: RobotDesktopLogsPr
                                 ))
                             ) : (
                                 <div className="text-sm text-slate-400">
-                                    {isControlling ? 'Waiting for SSH events...' : 'SSH log stream is inactive'}
+                                    {isControlling ? 'Waiting for robot output...' : 'Log stream is inactive'}
                                 </div>
                             )}
                         </div>

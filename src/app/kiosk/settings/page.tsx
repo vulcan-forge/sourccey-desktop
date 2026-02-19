@@ -5,7 +5,7 @@ import { FaSave, FaTimes, FaSpinner, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { markPasswordAsChanged } from '@/hooks/Components/SSH/ssh.hook';
 import { toast } from 'react-toastify';
-import type { RemoteConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
+import type { RemoteConfig } from '@/components/PageComponents/Robots/Config/RemoteRobotConfig';
 import {
     setAccessPointEnabled,
     setAccessPointPassword,
@@ -364,7 +364,6 @@ export default function KioskSettingsPage() {
                                 </p>
                             )}
                         </div>
-
                     </div>
                 </div>
 
@@ -503,7 +502,6 @@ export default function KioskSettingsPage() {
                     )}
                 </div>
             </div>
-
         </div>
     );
 }
