@@ -1,13 +1,11 @@
 'use client';
 import { usePathname } from 'next/navigation';
 import { HiHome } from 'react-icons/hi';
-import { FaRobot, FaCog, FaBrain } from 'react-icons/fa';
+import { FaRobot, FaCog } from 'react-icons/fa';
 import Link from 'next/link';
-import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 
 export const SideNavbar = () => {
-    const pathname = usePathname();
-    const { isKioskMode } = useAppMode();
+    const pathname = usePathname() ?? '';
 
     const navItems = [
         {
@@ -22,15 +20,13 @@ export const SideNavbar = () => {
         },
     ];
 
-    const bottomNavItems: any = isKioskMode
-        ? [
-              {
-                  href: '/kiosk/settings',
-                  label: 'Settings',
-                  icon: FaCog,
-              },
-          ]
-        : [];
+    const bottomNavItems: any = [
+        {
+            href: '/kiosk/settings',
+            label: 'Settings',
+            icon: FaCog,
+        },
+    ];
 
     const isActive = (href: string) => {
         // Special case for home page

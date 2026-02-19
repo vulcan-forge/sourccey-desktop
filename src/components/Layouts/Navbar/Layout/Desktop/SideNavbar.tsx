@@ -5,7 +5,7 @@ import { FaBrain, FaRobot } from 'react-icons/fa';
 import Link from 'next/link';
 
 export const SideNavbar = () => {
-    const pathname = usePathname();
+    const pathname = usePathname() ?? '';
 
     const mainNavItems = [
         {

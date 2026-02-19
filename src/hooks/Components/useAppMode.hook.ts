@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { queryClient } from '@/hooks/default';
-import { usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
 
 export const APP_MODE_KEY = ['app-mode'];
 
@@ -32,12 +32,18 @@ const getAppMode = async (): Promise<boolean> => {
 };
 
 export const useAppMode = () => {
-    const pathname = usePathname() ?? '';
-    const isKioskPath = pathname.startsWith('/kiosk');
+    const [isKioskPath, setIsKioskPath] = useState(false);
+
+    useEffect(() => {
+        if (typeof window === 'undefined') return;
+        setIsKioskPath(window.location.pathname.startsWith('/kiosk'));
+    }, []);
+
     const { data, isLoading } = useQuery({
         queryKey: APP_MODE_KEY,
         queryFn: getAppMode,
         enabled: isTauri(),
+        initialData: queryClient.getQueryData<boolean>(APP_MODE_KEY) ?? false,
         staleTime: Infinity, // Never refetch since app mode doesn't change
         gcTime: Infinity, // Keep in cache for 24 hours
     });
