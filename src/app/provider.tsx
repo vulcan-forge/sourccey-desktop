@@ -10,7 +10,7 @@ import { VirtualKeyboardProvider } from '@/context/virtual-keyboard-context';
 import { ACCESS_POINT_ENABLED_KEY, ACCESS_POINT_SSID_KEY, ACCESS_POINT_PASSWORD_KEY } from '@/hooks/WIFI/access-point.hook';
 import { SAVED_WIFI_SSIDS_KEY } from '@/hooks/WIFI/wifi.hook';
 import { SELECTED_ROBOT_KEY } from '@/hooks/Robot/selected-robot.hook';
-import { SELECTED_MODEL_KEY } from '@/hooks/Model/selected-model.hook';
+import { SELECTED_MODEL_KEY } from '@/hooks/AI/selected-model.hook';
 import { PAIRED_ROBOT_CONNECTIONS_KEY } from '@/hooks/Robot/paired-robot-connection.hook';
 
 // SSH password status is now persisted via file system (not React Query)

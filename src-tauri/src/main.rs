@@ -63,6 +63,7 @@ use modules::control::controllers::local_control::teleop_controller::{
 use modules::control::controllers::remote_control::remote_teleop_controller::{
     init_remote_teleop, start_remote_teleop, stop_remote_teleop,
 };
+use modules::ai_model::controllers::ai_model_controller::get_ai_models_paginated;
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
     set_wifi,
@@ -300,6 +301,9 @@ fn main() {
 
             // Debug API
             debug_check_updates,
+
+            // AI Model API
+            get_ai_models_paginated,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

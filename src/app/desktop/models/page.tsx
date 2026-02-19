@@ -3,7 +3,7 @@
 import { usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
 import { useRobotConnectionStatuses } from '@/hooks/Robot/robot-connection-status.hook';
 import { useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
-import { setSelectedModel, useSelectedModel } from '@/hooks/Model/selected-model.hook';
+import { setSelectedModel, useSelectedModel } from '@/hooks/AI/selected-model.hook';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { invoke } from '@tauri-apps/api/core';
 import Image from 'next/image';
@@ -341,7 +341,7 @@ export default function ModelsPage() {
                         >
                             <div className={isKioskMode ? 'p-2' : 'p-3'}>
                                 <div
-                                    className={`relative w-full overflow-hidden border border-slate-600 bg-slate-750 ${
+                                    className={`bg-slate-750 relative w-full overflow-hidden border border-slate-600 ${
                                         isKioskMode ? 'aspect-[3/4] rounded-lg' : 'aspect-square rounded-xl'
                                     }`}
                                 >

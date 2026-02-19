@@ -1,6 +1,6 @@
 import { useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { useGetCalibrationModifiedAt } from '@/hooks/Control/config.hook';
-import { useSelectedModel } from '@/hooks/Model/selected-model.hook';
+import { useSelectedModel } from '@/hooks/AI/selected-model.hook';
 import { useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { FaBrain, FaRobot, FaTools } from 'react-icons/fa';
 
@@ -16,9 +16,7 @@ export const HomeWelcome = () => {
                 </div>
                 <div className="text-right">
                     <div className="text-sm text-slate-400">Total Robots</div>
-                    <div className="text-3xl font-bold text-white">
-                        {isLoadingOwnedRobots ? '...' : ownedRobots?.length || 0}
-                    </div>
+                    <div className="text-3xl font-bold text-white">{isLoadingOwnedRobots ? '...' : ownedRobots?.length || 0}</div>
                 </div>
             </div>
 
@@ -39,11 +37,7 @@ export const HomeQuickLinks = () => {
     const rightArmNickname = nickname ? `${nickname}_right` : '';
 
     const { data: baseCalibrationModifiedAt } = useGetCalibrationModifiedAt(robotType, nickname, !!robotType && !!nickname);
-    const { data: leftCalibrationModifiedAt } = useGetCalibrationModifiedAt(
-        followerType,
-        leftArmNickname,
-        !!followerType && !!leftArmNickname
-    );
+    const { data: leftCalibrationModifiedAt } = useGetCalibrationModifiedAt(followerType, leftArmNickname, !!followerType && !!leftArmNickname);
     const { data: rightCalibrationModifiedAt } = useGetCalibrationModifiedAt(
         followerType,
         rightArmNickname,
