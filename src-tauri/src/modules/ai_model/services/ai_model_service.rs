@@ -18,6 +18,47 @@ impl AiModelService {
     }
 
     //-------------------------------------------------------------------------//
+    // Get AI Model by ID
+    //-------------------------------------------------------------------------//
+    pub async fn get_ai_model(&self, id: String) -> Result<Option<AiModel>, DbErr> {
+        AiModelEntity::find_by_id(id)
+            .filter(AiModelColumn::DeletedAt.is_null())
+            .one(&self.connection)
+            .await
+    }
+
+    //-------------------------------------------------------------------------//
+    // Create AI Model
+    //-------------------------------------------------------------------------//
+    pub async fn add_ai_model(&self, model: AiModelActiveModel) -> Result<AiModel, DbErr> {
+        model.insert(&self.connection).await
+    }
+
+    //-------------------------------------------------------------------------//
+    // Update AI Model
+    //-------------------------------------------------------------------------//
+    pub async fn update_ai_model(&self, model: AiModelActiveModel) -> Result<AiModel, DbErr> {
+        model.update(&self.connection).await
+    }
+
+    //-------------------------------------------------------------------------//
+    // Delete AI Model (Soft Delete)
+    //-------------------------------------------------------------------------//
+    pub async fn delete_ai_model(&self, id: String) -> Result<(), DbErr> {
+        let model = AiModelEntity::find_by_id(id)
+            .one(&self.connection)
+            .await?;
+
+        if let Some(model) = model {
+            let mut active: AiModelActiveModel = model.into();
+            active.deleted_at = Set(Some(chrono::Utc::now()));
+            active.update(&self.connection).await?;
+        }
+
+        Ok(())
+    }
+
+    //-------------------------------------------------------------------------//
     // Get AI Models Paginated
     //-------------------------------------------------------------------------//
     pub async fn get_ai_models_paginated(

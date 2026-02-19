@@ -1,7 +1,71 @@
+use crate::modules::ai_model::models::ai_model::AiModel;
 use crate::modules::ai_model::services::ai_model_service::{AiModelFilters, AiModelService};
 use crate::utils::pagination::{PaginatedResponse, PaginationParameters};
-use crate::modules::ai_model::models::ai_model::AiModel;
 use tauri::{AppHandle, Manager};
+
+//-------------------------------------------------------------------------//
+// Get AI Model
+//-------------------------------------------------------------------------//
+#[tauri::command]
+pub async fn get_ai_model(app_handle: AppHandle, id: String) -> Result<Option<AiModel>, String> {
+    let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
+    let ai_model_service = AiModelService::new(db_manager.get_connection().clone());
+
+    let model = ai_model_service
+        .get_ai_model(id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(model)
+}
+
+//-------------------------------------------------------------------------//
+// Add AI Model
+//-------------------------------------------------------------------------//
+#[tauri::command]
+pub async fn add_ai_model(app_handle: AppHandle, model: AiModel) -> Result<AiModel, String> {
+    let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
+    let ai_model_service = AiModelService::new(db_manager.get_connection().clone());
+
+    let model = ai_model_service
+        .add_ai_model(model.into())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(model)
+}
+
+//-------------------------------------------------------------------------//
+// Update AI Model
+//-------------------------------------------------------------------------//
+#[tauri::command]
+pub async fn update_ai_model(app_handle: AppHandle, model: AiModel) -> Result<AiModel, String> {
+    let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
+    let ai_model_service = AiModelService::new(db_manager.get_connection().clone());
+
+    let model = ai_model_service
+        .update_ai_model(model.into())
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(model)
+}
+
+//-------------------------------------------------------------------------//
+// Delete AI Model
+//-------------------------------------------------------------------------//
+#[tauri::command]
+pub async fn delete_ai_model(app_handle: AppHandle, id: String) -> Result<bool, String> {
+    let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
+    let ai_model_service = AiModelService::new(db_manager.get_connection().clone());
+
+    ai_model_service
+        .delete_ai_model(id)
+        .await
+        .map_err(|e| e.to_string())?;
+
+    Ok(true)
+}
 
 //-------------------------------------------------------------------------//
 // Get AI Models Paginated
