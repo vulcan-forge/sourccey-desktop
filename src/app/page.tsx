@@ -1,12 +1,18 @@
 'use client';
 
-import React, { useEffect, type ReactElement } from 'react';
+import { useEffect, useState, type ReactElement } from 'react';
 import { Spinner } from '@/components/Elements/Spinner';
 import Image from 'next/image';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { useRouter } from 'next/navigation';
+import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { checkForUpdates } from '@/utils/updater/updater';
 
 const HomePage = (): ReactElement => {
+    const router = useRouter();
+    const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
+    const [showLoading, setShowLoading] = useState(false);
+    const [updateCheckComplete, setUpdateCheckComplete] = useState(false);
+
     // Check for updates FIRST before anything else
     useEffect(() => {
         const checkUpdates = async () => {
@@ -14,53 +20,50 @@ const HomePage = (): ReactElement => {
                 await checkForUpdates();
             } catch (error) {
                 console.error('Error checking for updates:', error);
+            } finally {
+                setUpdateCheckComplete(true);
             }
         };
 
         checkUpdates();
     }, []);
 
-    // Force navigation based on Tauri app mode (hard reload)
+    // Delay showing loading screen to prevent flash on fast loads
     useEffect(() => {
-        let cancelled = false;
+        const timer = setTimeout(() => {
+            setShowLoading(true);
+        }, 1000);
 
-        const resolveTargetPath = async () => {
-            if (typeof window === 'undefined') return;
-
-            const currentPath = window.location.pathname;
-            if (currentPath.startsWith('/kiosk') || currentPath.startsWith('/desktop')) {
-                return;
-            }
-
-            try {
-                const timeoutMs = 1500;
-                const isKiosk = isTauri()
-                    ? await Promise.race<boolean>([
-                          invoke<boolean>('get_app_mode'),
-                          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
-                      ])
-                    : false;
-
-                if (cancelled) return;
-
-                const targetPath = isKiosk ? '/kiosk' : '/desktop';
-                if (window.location.pathname !== targetPath) {
-                    window.location.replace(targetPath);
-                }
-            } catch (error) {
-                console.error('Failed to resolve app mode:', error);
-                if (!cancelled && window.location.pathname !== '/desktop') {
-                    window.location.replace('/desktop');
-                }
-            }
-        };
-
-        resolveTargetPath();
-
-        return () => {
-            cancelled = true;
-        };
+        return () => clearTimeout(timer);
     }, []);
+
+    // In kiosk mode, skip authentication and go directly to app once sync is done
+    useEffect(() => {
+        if (!updateCheckComplete) {
+            return;
+        }
+
+        if (isLoadingAppMode) {
+            return;
+        }
+
+        if (isKioskMode) {
+            console.log('Kiosk mode: pushing to /kiosk');
+            router.push('/kiosk');
+        } else {
+            console.log('Desktop mode: pushing to /desktop');
+            router.push('/desktop');
+        }
+    }, [router, isKioskMode, isLoadingAppMode, updateCheckComplete]);
+
+    // Don't show loading screen until update check is complete and 1 second has passed
+    if (!updateCheckComplete || !showLoading) {
+        return (
+            <>
+                <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900"></div>
+            </>
+        );
+    }
 
     return (
         <>
