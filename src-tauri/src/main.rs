@@ -69,6 +69,10 @@ use modules::control::controllers::local_control::teleop_controller::{
 use modules::control::controllers::remote_control::remote_teleop_controller::{
     init_remote_teleop, start_remote_teleop, stop_remote_teleop,
 };
+use modules::control::controllers::remote_control::remote_evaluate_controller::{
+    init_remote_evaluate, reset_remote_evaluate_episode, save_remote_evaluate_episode,
+    start_remote_evaluate, stop_remote_evaluate,
+};
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
     set_wifi,
@@ -202,6 +206,7 @@ fn main() {
         .manage(init_robot_processes())
         .manage(init_teleop())
         .manage(init_remote_teleop())
+        .manage(init_remote_evaluate())
         .manage(init_kiosk_host())
         .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![
@@ -280,6 +285,10 @@ fn main() {
             get_active_teleop_sessions,
             start_remote_teleop,
             stop_remote_teleop,
+            start_remote_evaluate,
+            stop_remote_evaluate,
+            save_remote_evaluate_episode,
+            reset_remote_evaluate_episode,
             // App Mode
             get_app_mode,
 

@@ -199,6 +199,50 @@ class SetupScript:
         """Setup Python environment for lerobot-vulcan"""
         return self.python_manager.setup_python_environment()
 
+    def install_desktop_python_dependencies(self) -> bool:
+        """Install desktop-only Python dependencies into lerobot-vulcan .venv."""
+        self.print_status("Installing desktop Python dependencies (CUDA torch + transformers)...")
+        lerobot_path = self.project_root / "modules" / "lerobot-vulcan"
+        venv_python = ".venv/Scripts/python.exe" if platform.system() == "Windows" else ".venv/bin/python"
+
+        try:
+            subprocess.run(
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--python",
+                    venv_python,
+                    "--index-url",
+                    "https://download.pytorch.org/whl/cu128",
+                    "torch==2.9.1+cu128",
+                    "torchvision==0.24.1+cu128",
+                ],
+                cwd=lerobot_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            subprocess.run(
+                [
+                    "uv",
+                    "pip",
+                    "install",
+                    "--python",
+                    venv_python,
+                    "transformers>=4.53.0,<5.0.0",
+                ],
+                cwd=lerobot_path,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            self.print_success("Desktop Python dependencies installed")
+            return True
+        except Exception as e:
+            self.print_error(f"Failed to install desktop Python dependencies: {e}")
+            return False
+
     def setup_bun_packages(self) -> bool:
         """Install Bun packages"""
         return self.javascript_manager.install_packages()
@@ -319,6 +363,7 @@ class SetupScript:
         # Continue with other setup steps
         setup_steps = [
             self.setup_python_environment(),
+            self.install_desktop_python_dependencies(),
             self.setup_bun_packages(),
             self.setup_ffmpeg()
         ]

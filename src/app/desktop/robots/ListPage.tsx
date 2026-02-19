@@ -6,6 +6,7 @@ import { queryClient } from '@/hooks/default';
 import { BASE_OWNED_ROBOT_KEY, setSelectedOwnedRobot, useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { removePairedRobotConnection, setPairedRobotConnection, usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
 import { removeRobotConnectionStatus, setRobotConnectionStatus, useRobotConnectionStatuses } from '@/hooks/Robot/robot-connection-status.hook';
+import { setSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { invoke } from '@tauri-apps/api/core';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
@@ -48,6 +49,7 @@ export const RobotListPage = () => {
     const [discoveredRobots, setDiscoveredRobots] = useState<DiscoveredRobot[]>([]);
     const [hasDiscovered, setHasDiscovered] = useState(false);
     const [unpairingId, setUnpairingId] = useState<string | null>(null);
+    const [connectingNickname, setConnectingNickname] = useState<string | null>(null);
     const [pairingCode, setPairingCode] = useState('');
     const [pairModalTarget, setPairModalTarget] = useState<PairModalTarget | null>(null);
 
@@ -246,6 +248,57 @@ export const RobotListPage = () => {
         }
     };
 
+    const handleConnectRobot = async (robot: any) => {
+        const normalizedNickname = robot?.normalizedNickname;
+        const label = robot?.name || robot?.nickname || 'robot';
+
+        if (!normalizedNickname) {
+            toast.error('Missing robot nickname. Unable to connect.', { ...toastErrorDefaults });
+            return;
+        }
+
+        const connection = pairedConnections?.[normalizedNickname];
+        if (!connection) {
+            toast.error('Robot is not paired yet. Pair it from Discover first.', { ...toastErrorDefaults });
+            return;
+        }
+
+        setSelectedRobot({
+            id: String(robot?.id || ''),
+            name: robot?.name || 'Robot',
+            nickname: normalizedNickname,
+            robotType: robot?.robotType || 'Unknown',
+            image: robot?.image || null,
+        });
+
+        setConnectingNickname(normalizedNickname);
+        try {
+            const statusMessage = await invoke<string>('get_kiosk_robot_status', {
+                host: connection.host,
+                port: connection.port,
+                token: connection.token,
+            });
+            const started = statusMessage.trim().toLowerCase() === 'started';
+            setRobotConnectionStatus(normalizedNickname, {
+                connected: true,
+                started,
+                checkedAt: Date.now(),
+                message: started ? 'Robot is started' : 'Robot is stopped',
+            });
+            toast.success(`${label} connected. You can run models now.`, { ...toastSuccessDefaults });
+        } catch (error: any) {
+            setRobotConnectionStatus(normalizedNickname, {
+                connected: false,
+                started: false,
+                checkedAt: Date.now(),
+                message: 'Disconnected',
+            });
+            toast.error(error?.message || `Failed to connect to ${label}.`, { ...toastErrorDefaults });
+        } finally {
+            setConnectingNickname(null);
+        }
+    };
+
     const connectedRobots = (ownedRobots || []).map((ownedRobot: any) => {
         const rawNickname = ownedRobot?.owned_robot?.nickname || ownedRobot?.nickname || '';
         const normalizedNickname = normalizeNickname(rawNickname);
@@ -310,6 +363,8 @@ export const RobotListPage = () => {
                                     nickname={nickname}
                                     onUnpair={handleUnpairRobot}
                                     isUnpairing={unpairingId === robot.id || unpairingId === robot.normalizedNickname}
+                                    onConnect={handleConnectRobot}
+                                    isConnecting={connectingNickname === robot.normalizedNickname}
                                 />
                             );
                         })}
@@ -472,9 +527,11 @@ type RobotCardProps = {
     nickname: string;
     onUnpair: (robot: any) => void;
     isUnpairing: boolean;
+    onConnect: (robot: any) => void;
+    isConnecting: boolean;
 };
 
-const RobotCard = ({ robot, robotName, nickname, onUnpair, isUnpairing }: RobotCardProps) => {
+const RobotCard = ({ robot, robotName, nickname, onUnpair, isUnpairing, onConnect, isConnecting }: RobotCardProps) => {
     const hostLabel = robot.host;
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
@@ -537,11 +594,30 @@ const RobotCard = ({ robot, robotName, nickname, onUnpair, isUnpairing }: RobotC
                 onClick={() => {
                     console.log('robot', robot);
                     setSelectedOwnedRobot(robot);
+                    setSelectedRobot({
+                        id: String(robot?.id || ''),
+                        name: robot?.name || 'Robot',
+                        nickname: robot?.normalizedNickname || '',
+                        robotType: robot?.robotType || 'Unknown',
+                        image: robot?.image || null,
+                    });
                 }}
                 className="inline-flex w-full cursor-pointer items-center justify-center rounded-md bg-gradient-to-r from-red-400/50 via-orange-400/50 to-yellow-400/50 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition-all duration-200 hover:from-red-500/70 hover:via-orange-500/70 hover:to-yellow-500/70"
             >
                 Manage Robot
             </Link>
+            <button
+                type="button"
+                onClick={() => onConnect(robot)}
+                disabled={isConnecting}
+                className={`inline-flex w-full items-center justify-center rounded-md px-3 py-2 text-sm font-semibold transition-colors ${
+                    isConnecting
+                        ? 'cursor-not-allowed bg-slate-700 text-slate-400'
+                        : 'cursor-pointer bg-emerald-600 text-white hover:bg-emerald-700'
+                }`}
+            >
+                {isConnecting ? 'Connecting...' : 'Connect'}
+            </button>
         </div>
     );
 };

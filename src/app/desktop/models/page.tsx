@@ -162,7 +162,9 @@ export default function ModelsPage() {
     const { data: pairedConnections } = usePairedRobotConnections();
     const { data: connectionStatuses } = useRobotConnectionStatuses();
 
-    const selectedRobotNickname = selectedRobot?.nickname || '';
+    const normalizeNickname = (nickname: string) => (nickname.startsWith('@') ? nickname.slice(1) : nickname);
+    const selectedRobotNicknameRaw = selectedRobot?.nickname || '';
+    const selectedRobotNickname = normalizeNickname(selectedRobotNicknameRaw);
     const selectedConnection = selectedRobotNickname ? pairedConnections?.[selectedRobotNickname] : null;
     const isRobotConnected = !!(selectedRobotNickname && connectionStatuses?.[selectedRobotNickname]?.connected);
 
