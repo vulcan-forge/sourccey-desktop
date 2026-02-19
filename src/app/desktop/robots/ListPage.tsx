@@ -272,7 +272,7 @@ export const RobotListPage = () => {
             <div className="mx-auto max-w-7xl">
                 <div className="mb-4">
                     <h1 className="text-3xl font-bold text-white">Robots</h1>
-                    <p className="mt-2 text-slate-300">Discover, pair, and manage your nearby robots.</p>
+                    <p className="mt-2 text-slate-300">Manage your nearby robots.</p>
                 </div>
 
                 <div className="mb-6 border-b border-slate-700 pb-4">
@@ -498,8 +498,8 @@ const RobotCard = ({ robot, robotName, nickname, onUnpair, isUnpairing }: RobotC
                     <div className="text-xs text-slate-400">{nickname || 'unnamed'}</div>
                 </div>
                 <div className="grow"></div>
-                <div className="flex items-center gap-2">
-                    {hostLabel && <div className="text-slate-400">IP: {hostLabel}</div>}
+                <div className="flex items-start gap-2">
+                    {hostLabel && <div className="text-xs text-slate-400">IP: {hostLabel}</div>}
                     <div className="relative" ref={menuRef}>
                         <button
                             type="button"
