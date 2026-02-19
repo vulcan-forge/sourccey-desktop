@@ -1,13 +1,14 @@
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { invoke } from '@tauri-apps/api/core';
 import { queryClient } from '@/hooks/default';
 
 export const APP_MODE_KEY = ['app-mode'];
 
 // Get app mode from cache or invoke
 const getAppMode = async (): Promise<boolean> => {
-    if (!isTauri()) {
+    const hasTauri = typeof window !== 'undefined' && (window as any).__TAURI__?.invoke;
+    if (!hasTauri) {
         return false;
     }
 
@@ -36,7 +37,7 @@ export const useAppMode = () => {
     const { data, isLoading, isFetching } = useQuery({
         queryKey: APP_MODE_KEY,
         queryFn: getAppMode,
-        enabled: isClient && isTauri(),
+        enabled: isClient,
         staleTime: 0,
         refetchOnMount: 'always',
         gcTime: Infinity,
