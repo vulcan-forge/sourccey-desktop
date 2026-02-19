@@ -11,12 +11,6 @@ const getAppMode = async (): Promise<boolean> => {
         return false;
     }
 
-    // Check cache first
-    const cached = queryClient.getQueryData<boolean>(APP_MODE_KEY);
-    if (cached !== undefined) {
-        return cached;
-    }
-
     try {
         const timeoutMs = 1500;
         const isKiosk = await Promise.race<boolean>([
@@ -39,16 +33,17 @@ export const useAppMode = () => {
         setIsClient(true);
         setIsKioskPath(window.location.pathname.startsWith('/kiosk'));
     }, []);
-    const { data, isLoading } = useQuery({
+    const { data, isLoading, isFetching } = useQuery({
         queryKey: APP_MODE_KEY,
         queryFn: getAppMode,
         enabled: isClient && isTauri(),
-        staleTime: Infinity, // Never refetch since app mode doesn't change
-        gcTime: Infinity, // Keep in cache for 24 hours
+        staleTime: 0,
+        refetchOnMount: 'always',
+        gcTime: Infinity,
     });
 
     return {
         isKioskMode: isClient ? (isKioskPath ? true : data ?? false) : false,
-        isLoading: !isClient || (isKioskPath ? false : isLoading),
+        isLoading: !isClient || (isKioskPath ? false : isLoading || isFetching),
     };
 };
