@@ -2,7 +2,6 @@ import { useState } from 'react';
 import { RemoteTeleopAction } from '@/components/PageComponents/Robots/Teleop/RemoteTeleopAction';
 import { RobotLogs } from '@/components/PageComponents/Robots/Logs/RobotDesktopLogs';
 import { ControlType, useGetControlledRobot } from '@/hooks/Control/control.hook';
-import { SshConnectionSection } from '@/components/PageComponents/Robots/Teleop/SshConnectionSection';
 
 export const RemoteRobotTeleop = ({ ownedRobot }: { ownedRobot: any }) => {
     const nickname = ownedRobot?.nickname ?? '';
@@ -11,7 +10,6 @@ export const RemoteRobotTeleop = ({ ownedRobot }: { ownedRobot: any }) => {
 
     return (
         <>
-            <SshConnectionSection ownedRobot={ownedRobot} />
             <RemoteTeleopAction ownedRobot={ownedRobot} onClose={() => {}} logs={true} />
             <RobotLogs isControlling={isTeleopRunning} nickname={nickname} />
         </>
