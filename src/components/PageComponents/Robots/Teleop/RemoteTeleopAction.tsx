@@ -92,13 +92,11 @@ export const RemoteTeleopAction = ({
     return (
         <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
             <div className="flex items-center justify-between">
-                <div className="text-sm font-semibold text-slate-300">
-                    {isConfigOpen ? 'Remote Config' : 'Remote Teleop'}
-                </div>
+                <div className="text-sm font-semibold text-slate-300">{isConfigOpen ? 'Remote Config' : 'Remote Teleop'}</div>
                 <button
                     type="button"
                     onClick={() => setIsConfigOpen((open) => !open)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-700"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-700"
                 >
                     {isConfigOpen ? 'Back to Control' : 'Configs'}
                 </button>
