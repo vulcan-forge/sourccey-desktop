@@ -10,12 +10,14 @@ export const SELECTED_OWNED_ROBOT_KEY = ['selected-owned-robot'];
 // Owned Robot Hooks and Functions
 //---------------------------------------------------------------------------------------------------//
 
-export const useGetOwnedRobot = (id: string) => {
+export const useGetOwnedRobot = (id: string | null, enabled: boolean = true) => {
     return useQuery({
         queryKey: [BASE_OWNED_ROBOT_KEY, 'id', id],
         queryFn: async () => {
+            if (!id) return null;
             return await getOwnedRobotById(id);
         },
+        enabled: enabled && !!id,
     });
 };
 
