@@ -1,5 +1,19 @@
+'use client';
+
+import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FaTimes, FaCircle, FaBatteryHalf, FaWifi, FaBatteryFull, FaBatteryQuarter, FaBolt, FaBatteryEmpty, FaBatteryThreeQuarters } from 'react-icons/fa';
+import { invoke } from '@tauri-apps/api/core';
+import {
+    FaTimes,
+    FaCircle,
+    FaBatteryHalf,
+    FaWifi,
+    FaBatteryFull,
+    FaBatteryQuarter,
+    FaBolt,
+    FaBatteryEmpty,
+    FaBatteryThreeQuarters,
+} from 'react-icons/fa';
 import type { SystemInfo } from '@/hooks/System/system-info.hook';
 interface RobotStatusModalProps {
     isOpen: boolean;
@@ -8,7 +22,38 @@ interface RobotStatusModalProps {
     isRobotStarted: boolean;
 }
 
+type KioskPairingInfo = {
+    service_port: number;
+};
+
+const DISCOVERY_UDP_PORT = 42111;
+
 export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }: RobotStatusModalProps) => {
+    const [servicePort, setServicePort] = useState<number | null>(null);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        let cancelled = false;
+
+        const loadPairingInfo = async () => {
+            try {
+                const info = await invoke<KioskPairingInfo>('get_kiosk_pairing_info');
+                if (!cancelled) {
+                    setServicePort(info?.service_port ?? null);
+                }
+            } catch {
+                if (!cancelled) {
+                    setServicePort(null);
+                }
+            }
+        };
+
+        loadPairingInfo();
+        return () => {
+            cancelled = true;
+        };
+    }, [isOpen]);
+
     if (!isOpen) return null;
 
     const getBatteryTextColor = (percent: number) => {
@@ -42,7 +87,7 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
 
     const batteryPercent = systemInfo.batteryData.percent >= 0 ? systemInfo.batteryData.percent : 0;
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
-    
+
     return (
         typeof window !== 'undefined' &&
         createPortal(
@@ -74,7 +119,7 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
                             <div className={`text-sm font-semibold ${isRobotStarted ? 'text-green-400' : 'text-slate-500'}`}>
                                 {isRobotStarted ? 'Online' : 'Inactive'}
                             </div>
-                        </div>                        
+                        </div>
 
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                             <div className="flex items-center gap-3">
@@ -89,18 +134,23 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                             <div className="flex items-center gap-3">
                                 <div className="text-slate-400">
-                                    {getBatteryIcon(batteryPercent, systemInfo.batteryData.charging)}
+                                    <FaWifi />
                                 </div>
+                                <span className="text-sm font-medium text-slate-300">Discovery Ports</span>
+                            </div>
+                            <div className="text-right text-xs font-semibold text-slate-300">
+                                <div>UDP {DISCOVERY_UDP_PORT}</div>
+                                <div>TCP {servicePort ?? '--'}</div>
+                            </div>
+                        </div>
+
+                        <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                            <div className="flex items-center gap-3">
+                                <div className="text-slate-400">{getBatteryIcon(batteryPercent, systemInfo.batteryData.charging)}</div>
                                 <span className="text-sm font-medium text-slate-300">Battery Life</span>
                             </div>
                             <div className="flex flex-col items-end gap-1">
-                                <div
-                                        className={`text-base font-semibold ${
-                                            getBatteryTextColor(batteryPercent)
-                                    }`}
-                                >
-                                    {batteryPercentString}
-                                </div>
+                                <div className={`text-base font-semibold ${getBatteryTextColor(batteryPercent)}`}>{batteryPercentString}</div>
                                 <div className="text-xs font-medium text-slate-400">({systemInfo.batteryData.voltage} V)</div>
                             </div>
                         </div>
