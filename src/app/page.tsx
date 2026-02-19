@@ -1,18 +1,15 @@
 'use client';
 
-import { useEffect, useState, type ReactElement } from 'react';
+import React, { useEffect, type ReactElement } from 'react';
 import { Spinner } from '@/components/Elements/Spinner';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
-import { useAppMode } from '@/hooks/Components/useAppMode.hook';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 import { checkForUpdates } from '@/utils/updater/updater';
+import { usePathname, useRouter } from 'next/navigation';
 
 const HomePage = (): ReactElement => {
     const router = useRouter();
-    const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
-    const [showLoading, setShowLoading] = useState(false);
-    const [updateCheckComplete, setUpdateCheckComplete] = useState(false);
-
+    const pathname = usePathname();
     // Check for updates FIRST before anything else
     useEffect(() => {
         const checkUpdates = async () => {
@@ -20,50 +17,52 @@ const HomePage = (): ReactElement => {
                 await checkForUpdates();
             } catch (error) {
                 console.error('Error checking for updates:', error);
-            } finally {
-                setUpdateCheckComplete(true);
             }
         };
 
         checkUpdates();
     }, []);
 
-    // Delay showing loading screen to prevent flash on fast loads
+    // Navigate based on Tauri app mode (client-side)
     useEffect(() => {
-        const timer = setTimeout(() => {
-            setShowLoading(true);
-        }, 1000);
+        let cancelled = false;
 
-        return () => clearTimeout(timer);
-    }, []);
+        const resolveTargetPath = async () => {
+            if (typeof window === 'undefined') return;
 
-    // In kiosk mode, skip authentication and go directly to app once sync is done
-    useEffect(() => {
-        if (!updateCheckComplete) {
-            return;
-        }
+            if (pathname.startsWith('/kiosk') || pathname.startsWith('/desktop')) {
+                return;
+            }
 
-        if (isLoadingAppMode) {
-            return;
-        }
+            try {
+                const timeoutMs = 1500;
+                const isKiosk = isTauri()
+                    ? await Promise.race<boolean>([
+                          invoke<boolean>('get_app_mode'),
+                          new Promise<boolean>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
+                      ])
+                    : false;
 
-        if (isKioskMode) {
-            console.log('Kiosk mode: pushing to /kiosk');
-            router.push('/kiosk');
-        } else {
-            console.log('Desktop mode: pushing to /desktop');
-            router.push('/desktop');
-        }
-    }, [router, isKioskMode, isLoadingAppMode, updateCheckComplete]);
+                if (cancelled) return;
 
-    // Don't show loading screen until update check is complete and 1 second has passed
-    if (!updateCheckComplete || !showLoading) {
-        return (
-            <>
-                <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900"></div>
-            </>
-        );
-    }
+                const targetPath = isKiosk ? '/kiosk' : '/desktop';
+                if (!cancelled && pathname !== targetPath) {
+                    router.replace(targetPath);
+                }
+            } catch (error) {
+                console.error('Failed to resolve app mode:', error);
+                if (!cancelled && pathname !== '/desktop') {
+                    router.replace('/desktop');
+                }
+            }
+        };
+
+        resolveTargetPath();
+
+        return () => {
+            cancelled = true;
+        };
+    }, [pathname, router]);
 
     return (
         <>
@@ -89,7 +88,7 @@ const HomePage = (): ReactElement => {
                                             Welcome to Sourccey!
                                         </span>
                                     </h1>
-                                    <p className="text-mdtext-center font-semibold text-slate-300">
+                                    <p className="text-md text-center font-semibold text-slate-300">
                                         Loading your journey with intelligent robots!
                                     </p>
                                 </div>
