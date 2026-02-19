@@ -7,7 +7,10 @@ export const APP_MODE_KEY = ['app-mode'];
 
 // Get app mode from cache or invoke
 const getAppMode = async (): Promise<boolean> => {
-    const hasTauri = typeof window !== 'undefined' && (window as any).__TAURI__?.invoke;
+    const hasTauri =
+        typeof window !== 'undefined' &&
+        // Tauri v2 exposes IPC through __TAURI_INTERNALS__
+        ((window as any).__TAURI_INTERNALS__?.invoke || (window as any).isTauri);
     if (!hasTauri) {
         return false;
     }
