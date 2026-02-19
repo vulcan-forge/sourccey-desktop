@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { FaCog, FaRobot, FaSpinner, FaPlay, FaStop, FaWifi, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
-import { setConfig, useGetConfig } from '@/hooks/Control/config.hook';
 import { SshControl, sshStartRobot, sshStopRobot } from '@/utils/logs/ssh-logs/ssh-control';
 import {
     sshLogManager,
@@ -18,7 +17,6 @@ import {
 } from '@/utils/logs/ssh-logs/ssh-events';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import type { ConfigConfig } from '@/components/PageComponents/Robots/RobotConfig';
 import {
     getRemoteRobotState,
     RemoteControlType,
@@ -793,4 +791,64 @@ export interface RemoteConfig {
     right_arm_port: string;
     keyboard: string;
     fps: number;
+}
+
+interface Arm {
+    port: string;
+}
+
+interface Camera {
+    type: string;
+    camera_index: number;
+    fps: number;
+    width: number;
+    height: number;
+    color_mode: string;
+}
+
+interface CameraConfig {
+    [key: string]: Camera;
+}
+
+export interface Config {
+    leader_arms: {
+        [key: string]: Arm;
+    };
+    follower_arms: {
+        [key: string]: Arm;
+    };
+    cameras: CameraConfig;
+}
+
+export interface Calibration {
+    [key: string]: MotorCalibration;
+}
+
+export interface MotorCalibration {
+    id: number;
+    drive_mode: number;
+    homing_offset: number;
+    range_min: number;
+    range_max: number;
+}
+
+//----------------------------------------------------------//
+// Config Config
+//----------------------------------------------------------//
+
+export interface ConfigConfig {
+    nickname: string;
+    robot_type: string;
+}
+
+//----------------------------------------------------------//
+// Calibration Config
+//----------------------------------------------------------//
+
+export interface CalibrationConfig {
+    nickname: string;
+    robot_type: string;
+    teleop_type: string;
+    robot_port: string;
+    teleop_port: string;
 }

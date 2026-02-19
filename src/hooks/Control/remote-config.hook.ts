@@ -1,4 +1,4 @@
-import type { RemoteConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
+import type { RemoteConfig } from '@/components/PageComponents/Robots/Config/RemoteRobotConfig';
 import { queryClient } from '@/hooks/default';
 import { useQuery } from '@tanstack/react-query';
 import { invoke, isTauri } from '@tauri-apps/api/core';

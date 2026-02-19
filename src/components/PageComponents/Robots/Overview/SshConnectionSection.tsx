@@ -9,7 +9,7 @@ import { usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection
 import { SshControl } from '@/utils/logs/ssh-logs/ssh-control';
 import { RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { isConnected, isConnecting, isDisconnecting } from '@/utils/robot/robot-status';
-import type { RemoteConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
+import type { RemoteConfig } from '@/components/PageComponents/Robots/Config/RemoteRobotConfig';
 
 type SshConnectionSectionProps = {
     ownedRobot: any;
@@ -67,12 +67,7 @@ export const SshConnectionSection = ({ ownedRobot }: SshConnectionSectionProps) 
             try {
                 const isConnectedNow = await SshControl.isConnected(remoteConfig, nickname);
                 if (cancelled) return;
-                setRemoteRobotState(
-                    nickname,
-                    isConnectedNow ? RemoteRobotStatus.CONNECTED : RemoteRobotStatus.NONE,
-                    null,
-                    ownedRobot
-                );
+                setRemoteRobotState(nickname, isConnectedNow ? RemoteRobotStatus.CONNECTED : RemoteRobotStatus.NONE, null, ownedRobot);
             } catch {
                 if (cancelled) return;
                 setRemoteRobotState(nickname, RemoteRobotStatus.NONE, null, ownedRobot);
@@ -271,9 +266,7 @@ export const SshConnectionSection = ({ ownedRobot }: SshConnectionSectionProps) 
                             onClick={saveConfig}
                             disabled={isSavingConfig}
                             className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                                isSavingConfig
-                                    ? 'cursor-not-allowed bg-slate-700 text-slate-400'
-                                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                                isSavingConfig ? 'cursor-not-allowed bg-slate-700 text-slate-400' : 'bg-blue-500 text-white hover:bg-blue-600'
                             }`}
                         >
                             {isSavingConfig ? 'Saving...' : 'Save Config'}

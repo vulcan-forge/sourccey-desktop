@@ -1,17 +1,24 @@
-import { useState } from 'react';
 import { RemoteTeleopAction } from '@/components/PageComponents/Robots/Teleop/RemoteTeleopAction';
 import { RobotLogs } from '@/components/PageComponents/Robots/Logs/RobotDesktopLogs';
-import { ControlType, useGetControlledRobot } from '@/hooks/Control/control.hook';
+import { RemoteControlType, RemoteRobotStatus, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 
-export const RemoteRobotTeleop = ({ ownedRobot }: { ownedRobot: any }) => {
+export const RemoteTeleopContainer = ({ ownedRobot }: { ownedRobot: any }) => {
     const nickname = ownedRobot?.nickname ?? '';
-    const { data: controlledRobot }: any = useGetControlledRobot(nickname);
-    const isTeleopRunning = !!controlledRobot?.ownedRobot && controlledRobot?.controlType === ControlType.TELEOP;
+    const normalizedNickname = nickname.startsWith('@') ? nickname.slice(1) : nickname;
+    const { data: remoteRobotState }: any = useGetRemoteRobotState(nickname);
+    const robotStatus = remoteRobotState?.status;
+    const controlType = remoteRobotState?.controlType;
+    const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == RemoteControlType.TELEOP;
 
     return (
-        <>
-            <RemoteTeleopAction ownedRobot={ownedRobot} onClose={() => {}} logs={true} />
-            <RobotLogs isControlling={isTeleopRunning} nickname={nickname} />
-        </>
+        <div className="flex flex-col gap-4">
+            <RemoteTeleopAction
+                ownedRobot={ownedRobot}
+                onClose={() => {}}
+                logsSlot={
+                    <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} />
+                }
+            />
+        </div>
     );
 };

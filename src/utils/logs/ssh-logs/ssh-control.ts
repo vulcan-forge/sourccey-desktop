@@ -1,4 +1,4 @@
-import type { RemoteConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
+import type { RemoteConfig } from '@/components/PageComponents/Robots/Config/RemoteRobotConfig';
 import { invoke } from '@tauri-apps/api/core';
 
 // SSH Control Functions
