@@ -5,7 +5,7 @@ import { FaTools } from 'react-icons/fa';
 import { RobotCalibration } from '@/components/Elements/RemoteRobot/RobotCalibration';
 import { RobotStartSection } from '@/components/Elements/RemoteRobot/RobotStart';
 import { useKioskRobotStartStop } from '@/hooks/Kiosk/robot-start-stop.hook';
-import type { Calibration } from '@/components/PageComponents/Robots/RemoteRobotConfig';
+import type { Calibration } from '@/components/PageComponents/Robots/Config/RemoteRobotConfig';
 
 interface RobotControlProps {
     nickname: string;

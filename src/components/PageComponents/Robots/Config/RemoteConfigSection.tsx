@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
@@ -6,19 +6,21 @@ import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useGetRemoteConfig, setRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
-import type { RemoteConfig } from '@/components/PageComponents/Robots/RemoteRobotConfig';
+import type { RemoteConfig } from '@/components/PageComponents/Robots/Config/RemoteRobotConfig';
 
 type RemoteConfigSectionProps = {
     ownedRobot: any;
+    embedded?: boolean;
+    showHeader?: boolean;
+    isOpen?: boolean;
 };
 
-export const RemoteConfigSection = ({ ownedRobot }: RemoteConfigSectionProps) => {
+export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader = false, isOpen }: RemoteConfigSectionProps) => {
     const nickname = ownedRobot?.nickname ?? '';
     const normalizedNickname = useMemo(() => (nickname.startsWith('@') ? nickname.slice(1) : nickname), [nickname]);
     const { data: remoteConfig, isLoading: isLoadingConfig }: any = useGetRemoteConfig(nickname);
     const { data: pairedConnections }: any = usePairedRobotConnections();
 
-    const [isConfigsOpen, setIsConfigsOpen] = useState(false);
     const [draftConfig, setDraftConfig] = useState<RemoteConfig | null>(null);
     const [isSavingConfig, setIsSavingConfig] = useState(false);
     const hasAppliedPairedHostRef = useRef(false);
@@ -67,97 +69,78 @@ export const RemoteConfigSection = ({ ownedRobot }: RemoteConfigSectionProps) =>
         }
     };
 
+    const isConfigsVisible = isOpen ?? true;
     return (
-        <div className="flex flex-col gap-3 rounded-xl border border-slate-700 bg-slate-800/60 p-5">
-            <div className="flex items-start justify-between gap-4">
-                <div>
-                    <h3 className="text-lg font-semibold text-white">Remote Config</h3>
-                    <p className="mt-1 text-sm text-slate-300">Update the connection details used for teleoperation.</p>
-                </div>
-                <button
-                    type="button"
-                    onClick={() => setIsConfigsOpen((open) => !open)}
-                    className="inline-flex cursor-pointer items-center rounded-lg border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-200 transition-colors hover:border-slate-500 hover:bg-slate-700"
-                >
-                    Configs
-                </button>
-            </div>
+        <div className={'flex flex-col gap-3 rounded-xl border-2 border-slate-700/60 bg-slate-900/20 p-4'}>
+            {showHeader && !embedded && <h3 className="text-lg font-semibold text-white">Remote Config</h3>}
 
-            <div className="text-xs text-slate-400">
-                {remoteConfig?.remote_ip
-                    ? `Host: ${remoteConfig.remote_ip}:${remoteConfig.remote_port || '22'}`
-                    : 'Remote host not configured.'}
-            </div>
-
-            {pairedHost && <div className="text-[11px] text-slate-500">Paired host: {pairedHost}</div>}
-
-            {isConfigsOpen && draftConfig && (
-                <div className="mt-2 rounded-lg border border-slate-700 bg-slate-900/60 p-4">
+            {isConfigsVisible && draftConfig && (
+                <div className="mt-2 rounded-lg p-4">
                     <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <label className="flex flex-col gap-1 text-xs text-slate-400">
+                        <label className="flex flex-col gap-1 text-xs text-slate-300">
                             Host
                             <input
                                 value={draftConfig.remote_ip ?? ''}
                                 onChange={(event) => updateDraft('remote_ip', event.target.value)}
-                                className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-100"
+                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
                             />
                         </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-400">
+                        <label className="flex flex-col gap-1 text-xs text-slate-300">
                             Port
                             <input
                                 value={draftConfig.remote_port ?? ''}
                                 onChange={(event) => updateDraft('remote_port', event.target.value)}
-                                className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-100"
+                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
                             />
                         </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-400">
+                        <label className="flex flex-col gap-1 text-xs text-slate-300">
                             Username
                             <input
                                 value={draftConfig.username ?? ''}
                                 onChange={(event) => updateDraft('username', event.target.value)}
-                                className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-100"
+                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
                             />
                         </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-400">
+                        <label className="flex flex-col gap-1 text-xs text-slate-300">
                             Password
                             <input
                                 type="password"
                                 value={draftConfig.password ?? ''}
                                 onChange={(event) => updateDraft('password', event.target.value)}
-                                className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-100"
+                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
                             />
                         </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-400">
+                        <label className="flex flex-col gap-1 text-xs text-slate-300">
                             Left Arm Port
                             <input
                                 value={draftConfig.left_arm_port ?? ''}
                                 onChange={(event) => updateDraft('left_arm_port', event.target.value)}
-                                className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-100"
+                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
                             />
                         </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-400">
+                        <label className="flex flex-col gap-1 text-xs text-slate-300">
                             Right Arm Port
                             <input
                                 value={draftConfig.right_arm_port ?? ''}
                                 onChange={(event) => updateDraft('right_arm_port', event.target.value)}
-                                className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-100"
+                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
                             />
                         </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-400">
+                        <label className="flex flex-col gap-1 text-xs text-slate-300">
                             Keyboard
                             <input
                                 value={draftConfig.keyboard ?? ''}
                                 onChange={(event) => updateDraft('keyboard', event.target.value)}
-                                className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-100"
+                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
                             />
                         </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-400">
+                        <label className="flex flex-col gap-1 text-xs text-slate-300">
                             FPS
                             <input
                                 type="number"
                                 value={draftConfig.fps ?? 0}
                                 onChange={(event) => updateDraft('fps', Number(event.target.value || 0))}
-                                className="rounded border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-slate-100"
+                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
                             />
                         </label>
                     </div>
@@ -166,10 +149,8 @@ export const RemoteConfigSection = ({ ownedRobot }: RemoteConfigSectionProps) =>
                             type="button"
                             onClick={saveConfig}
                             disabled={isSavingConfig}
-                            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                                isSavingConfig
-                                    ? 'cursor-not-allowed bg-slate-700 text-slate-400'
-                                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                            className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                                isSavingConfig ? 'cursor-not-allowed bg-slate-700 text-slate-400' : 'bg-blue-500 text-white hover:bg-blue-600'
                             }`}
                         >
                             {isSavingConfig ? 'Saving...' : 'Save Config'}

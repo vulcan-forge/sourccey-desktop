@@ -1,4 +1,4 @@
-import type { Config } from '@/components/PageComponents/Robots/RobotConfig';
+import type { Config } from '@/components/PageComponents/Robots/Config/RobotConfig';
 import { queryClient } from '@/hooks/default';
 import { getCalibrationModifiedAt, readCalibration } from '@/utils/config/calibration';
 import { useQuery } from '@tanstack/react-query';
