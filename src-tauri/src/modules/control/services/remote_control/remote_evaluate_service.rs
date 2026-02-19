@@ -106,7 +106,7 @@ impl RemoteEvaluateService {
             .spawn()
             .map_err(|e| {
                 format!(
-                    "Failed to start evaluate: {}. Python: {}, Working dir: {}",
+                    "Failed to start inference: {}. Python: {}, Working dir: {}",
                     e,
                     python_path_str,
                     lerobot_dir_str
@@ -170,7 +170,7 @@ impl RemoteEvaluateService {
                 (child, stdin, shutdown_flag.clone(), command_log_id.clone()),
             );
         } else {
-            return Err("Failed to capture stdin from evaluate process".to_string());
+            return Err("Failed to capture stdin from inference process".to_string());
         }
 
         // Start process monitoring with built-in delay
@@ -185,14 +185,14 @@ impl RemoteEvaluateService {
                 "nickname": config.nickname.clone(),
                 "model_name": config.model_name.clone(),
                 "exit_code": None::<i32>,
-                "message": "Evaluate process died unexpectedly"
+                "message": "Inference process died unexpectedly"
             }),
             Some(command_log_id),
             Some(db_connection),
         );
 
         Ok(format!(
-            "Local Evaluate script started successfully for model: {}",
+            "Local Inference script started successfully for model: {}",
             config.model_name
         ))
     }
@@ -221,7 +221,7 @@ impl RemoteEvaluateService {
             }
 
             Ok(format!(
-                "Evaluate script stop command sent for robot: {}",
+                "Inference script stop command sent for robot: {}",
                 nickname
             ))
         } else {
@@ -268,13 +268,13 @@ impl RemoteEvaluateService {
         }
     }
 
-    /// Build the command arguments for remote evaluate (for execution)
+    /// Build the command arguments for remote inference (for execution)
     fn build_command_args(
         config: &RemoteEvaluateConfig,
         lerobot_cache_dir: &std::path::PathBuf,
     ) -> Vec<String> {
         let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/control/sourccey/sourccey/evaluate.py".to_string());
+        command_parts.push("src/lerobot/control/sourccey/sourccey/inference.py".to_string());
         command_parts.push(format!("--id=\"{}\"", config.nickname));
         command_parts.push(format!("--remote_ip=\"{}\"", config.remote_ip));
 
@@ -305,13 +305,13 @@ impl RemoteEvaluateService {
         command_parts
     }
 
-    /// Build the command arguments for remote evaluate (for logging)
+    /// Build the command arguments for remote inference (for logging)
     fn build_command_args_for_log(
         config: &RemoteEvaluateConfig,
         lerobot_cache_dir: &std::path::PathBuf,
     ) -> Vec<String> {
         let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/control/sourccey/sourccey/evaluate.py".to_string());
+        command_parts.push("src/lerobot/control/sourccey/sourccey/inference.py".to_string());
         command_parts.push(format!("--id=\"{}\"", config.nickname));
         command_parts.push(format!("--remote_ip=\"{}\"", config.remote_ip));
 

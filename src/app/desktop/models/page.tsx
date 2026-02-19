@@ -133,6 +133,8 @@ export default function ModelsPage() {
     const [downloadProgressPercent, setDownloadProgressPercent] = useState<number | null>(null);
     const [isRunningModel, setIsRunningModel] = useState(false);
     const [isDeletingModel, setIsDeletingModel] = useState(false);
+    const [deleteConfirmModel, setDeleteConfirmModel] = useState<ModelCard | null>(null);
+    const [replaceConfirmRequest, setReplaceConfirmRequest] = useState<{ repoId: string; message: string; isRetry: boolean } | null>(null);
     const downloadResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const downloadingRepoIdRef = useRef<string | null>(null);
     const replaceConfirmedRepoIdRef = useRef<string | null>(null);
@@ -282,28 +284,15 @@ export default function ModelsPage() {
         setOrganization(normalizedInput);
     };
 
-    const handleDownloadModel = async (repoId: string) => {
-        if (downloadingRepoId) {
-            return;
-        }
-
-        const model = modelCards.find((card) => card.repoId === repoId);
-        const isReplace = !!model?.downloaded;
-        if (isReplace) {
-            const confirmed = window.confirm(`Model "${repoId}" already exists in cache. Replace it with a fresh download?`);
-            if (!confirmed) {
-                return;
-            }
-        }
-
+    const triggerDownload = async (repoId: string, isReplace: boolean, statusText?: string, progressPercent?: number) => {
         downloadingRepoIdRef.current = repoId;
         replaceConfirmedRepoIdRef.current = isReplace ? repoId : null;
         replaceRetriedRepoIdRef.current = null;
         setDownloadingRepoId(repoId);
         setReplaceConfirmedRepoId(isReplace ? repoId : null);
         setReplaceRetriedRepoId(null);
-        setDownloadStatusText(isReplace ? 'Preparing replacement download...' : 'Starting download...');
-        setDownloadProgressPercent(0);
+        setDownloadStatusText(statusText ?? (isReplace ? 'Preparing replacement download...' : 'Starting download...'));
+        setDownloadProgressPercent(progressPercent ?? 0);
 
         try {
             await startHuggingFaceModelDownload(repoId, isReplace);
@@ -315,7 +304,52 @@ export default function ModelsPage() {
         }
     };
 
-    const handleDeleteSelectedModel = async () => {
+    const handleConfirmReplaceDownload = async () => {
+        if (!replaceConfirmRequest) return;
+        const { repoId, isRetry } = replaceConfirmRequest;
+        setReplaceConfirmRequest(null);
+
+        if (isRetry) {
+            replaceConfirmedRepoIdRef.current = repoId;
+            setReplaceConfirmedRepoId(repoId);
+            replaceRetriedRepoIdRef.current = repoId;
+            setReplaceRetriedRepoId(repoId);
+            setDownloadStatusText('Replacing cached model...');
+            setDownloadProgressPercent(1);
+            try {
+                await startHuggingFaceModelDownload(repoId, true);
+            } catch (retryError: unknown) {
+                toast.error(getErrorMessage(retryError), {
+                    ...toastErrorDefaults,
+                });
+                clearDownloadStateSoon();
+            }
+            return;
+        }
+
+        await triggerDownload(repoId, true);
+    };
+
+    const handleDownloadModel = async (repoId: string) => {
+        if (downloadingRepoId) {
+            return;
+        }
+
+        const model = modelCards.find((card) => card.repoId === repoId);
+        const isReplace = !!model?.downloaded;
+        if (isReplace) {
+            setReplaceConfirmRequest({
+                repoId,
+                message: `Model "${repoId}" already exists in cache. Replace it with a fresh download?`,
+                isRetry: false,
+            });
+            return;
+        }
+
+        await triggerDownload(repoId, false);
+    };
+
+    const handleRequestDeleteSelectedModel = () => {
         if (!selectedCard || !selectedCard.downloaded) {
             return;
         }
@@ -325,20 +359,22 @@ export default function ModelsPage() {
             });
             return;
         }
+        setDeleteConfirmModel(selectedCard);
+    };
 
-        const confirmed = window.confirm(
-            `Delete "${selectedCard.repoId}" from Hugging Face cache?\n\nThis removes the local cached files for this model.`
-        );
-        if (!confirmed) {
+    const handleDeleteSelectedModel = async () => {
+        if (!deleteConfirmModel) {
             return;
         }
 
+        const repoId = deleteConfirmModel.repoId;
+        setDeleteConfirmModel(null);
         setIsDeletingModel(true);
         try {
-            const result = await deleteHuggingFaceModelFromCache(selectedCard.repoId);
+            const result = await deleteHuggingFaceModelFromCache(repoId);
             const refreshed = await refetchOrganizationCatalog();
             const refreshedModels = (refreshed.data?.models ?? []).map(mapCatalogModelToCard);
-            const refreshedSelected = refreshedModels.find((model) => model.repoId === selectedCard.repoId) ?? null;
+            const refreshedSelected = refreshedModels.find((model) => model.repoId === repoId) ?? null;
 
             if (refreshedSelected) {
                 setSelectedModel(mapCardToSelectedModel(refreshedSelected));
@@ -381,15 +417,12 @@ export default function ModelsPage() {
                     }
 
                     if (replaceConfirmedRepoIdRef.current !== repoId) {
-                        const confirmed = window.confirm(`${response.message}\n\nDo you want to replace it now?`);
-                        if (!confirmed) {
-                            setDownloadStatusText('Replace canceled.');
-                            setDownloadProgressPercent(0);
-                            clearDownloadStateSoon();
-                            return;
-                        }
-                        replaceConfirmedRepoIdRef.current = repoId;
-                        setReplaceConfirmedRepoId(repoId);
+                        setReplaceConfirmRequest({
+                            repoId,
+                            message: `${response.message}\n\nDo you want to replace it now?`,
+                            isRetry: true,
+                        });
+                        return;
                     }
 
                     replaceRetriedRepoIdRef.current = repoId;
@@ -762,7 +795,7 @@ export default function ModelsPage() {
                                         {selectedCard.downloaded && (
                                             <button
                                                 type="button"
-                                                onClick={handleDeleteSelectedModel}
+                                                onClick={handleRequestDeleteSelectedModel}
                                                 disabled={isDeletingModel || !!downloadingRepoId}
                                                 className={`w-full rounded-xl px-4 py-2.5 text-sm font-semibold transition-all ${
                                                     isDeletingModel || !!downloadingRepoId
@@ -791,6 +824,79 @@ export default function ModelsPage() {
                     </div>
                 </section>
             </div>
+
+            {deleteConfirmModel && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                    <div className="w-full max-w-md rounded-xl border border-slate-600 bg-slate-900/95 p-5 shadow-2xl">
+                        <h3 className="text-lg font-semibold text-white">Delete Model?</h3>
+                        <p className="mt-2 text-sm text-slate-300">
+                            Delete <span className="font-semibold text-white">{deleteConfirmModel.repoId}</span> from Hugging Face cache?
+                        </p>
+                        <p className="mt-1 text-xs text-slate-400">This removes local cached files for this model.</p>
+
+                        <div className="mt-4 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => setDeleteConfirmModel(null)}
+                                disabled={isDeletingModel}
+                                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                                    isDeletingModel
+                                        ? 'cursor-not-allowed bg-slate-700 text-slate-400'
+                                        : 'cursor-pointer bg-slate-700 text-slate-100 hover:bg-slate-600'
+                                }`}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={handleDeleteSelectedModel}
+                                disabled={isDeletingModel}
+                                className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                                    isDeletingModel
+                                        ? 'cursor-not-allowed bg-red-900/60 text-red-200/70'
+                                        : 'cursor-pointer bg-red-600 text-white hover:bg-red-700'
+                                }`}
+                            >
+                                {isDeletingModel ? 'Deleting...' : 'Delete'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {replaceConfirmRequest && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+                    <div className="w-full max-w-md rounded-xl border border-slate-600 bg-slate-900/95 p-5 shadow-2xl">
+                        <h3 className="text-lg font-semibold text-white">Replace Download?</h3>
+                        <p className="mt-2 whitespace-pre-line text-sm text-slate-300">{replaceConfirmRequest.message}</p>
+
+                        <div className="mt-4 flex justify-end gap-2">
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setReplaceConfirmRequest(null);
+                                    if (replaceConfirmRequest.isRetry) {
+                                        setDownloadStatusText('Replace canceled.');
+                                        setDownloadProgressPercent(0);
+                                        clearDownloadStateSoon();
+                                    }
+                                }}
+                                disabled={!!downloadingRepoId && !replaceConfirmRequest.isRetry}
+                                className="cursor-pointer rounded-lg bg-slate-700 px-4 py-2 text-sm font-semibold text-slate-100 transition-colors hover:bg-slate-600"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => void handleConfirmReplaceDownload()}
+                                className="cursor-pointer rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                            >
+                                Replace
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
