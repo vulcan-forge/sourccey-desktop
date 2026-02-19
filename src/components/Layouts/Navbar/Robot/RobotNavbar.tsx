@@ -1,4 +1,4 @@
-import { FaGamepad, FaVideo, FaSlidersH } from 'react-icons/fa';
+import { FaGamepad, FaSlidersH } from 'react-icons/fa';
 
 import { setContent, useGetContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
 import Link from 'next/link';
@@ -9,12 +9,12 @@ export const RobotNavbar = () => {
 
     const overview = 'overview';
     const teleoperate = 'teleoperate';
-    const runAIModel = 'ai';
+    const aiModels = 'ai';
     const config = 'config';
 
     const isOverviewActive = content === overview;
     const isTeleoperateActive = content === teleoperate;
-    const isRunAIModelActive = content === runAIModel;
+    const isAiModelsActive = content === aiModels;
     const isConfigActive = content === config;
 
     return (
@@ -37,8 +37,8 @@ export const RobotNavbar = () => {
                     <NavButton content={teleoperate} icon={FaGamepad} isActive={isTeleoperateActive}>
                         Teleoperate
                     </NavButton>
-                    <NavButton content={runAIModel} icon={FaMicrochip} isActive={isRunAIModelActive}>
-                        Run AI
+                    <NavButton content={aiModels} icon={FaMicrochip} isActive={isAiModelsActive}>
+                        AI Models
                     </NavButton>
                     <div className="grow"></div>
                     <NavButton content={config} icon={FaSlidersH} isActive={isConfigActive}>

@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core';
-import { useMutation, useQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery } from '@tanstack/react-query';
 import { queryClient } from '@/hooks/default';
 import type { PaginatedResponse } from '@/types/PaginatedResponse';
 
@@ -51,6 +51,28 @@ export const useGetAiModelsPaginated = (page: number = 1, pageSize: number = 20,
         enabled,
     });
 
+export const useGetAiModelsInfinite = (pageSize: number = 20, enabled = true) =>
+    useInfiniteQuery({
+        queryKey: [...AI_MODEL_KEY, 'infinite', pageSize],
+        queryFn: async ({ pageParam }) => {
+            if (!enabled) return null;
+            const page = pageParam || 1;
+            return await invoke<PaginatedResponse<AiModel>>('get_ai_models_paginated', {
+                pagination: { page, page_size: pageSize },
+            });
+        },
+        initialPageParam: 1,
+        getNextPageParam: (lastPage) => {
+            if (!lastPage || !lastPage.has_next) return undefined;
+            return lastPage.page + 1;
+        },
+        getPreviousPageParam: (firstPage) => {
+            if (!firstPage || !firstPage.has_previous) return undefined;
+            return firstPage.page - 1;
+        },
+        enabled,
+    });
+
 export const useAddAiModel = () =>
     useMutation({
         mutationFn: async (model: AiModel) => addAiModel(model),
@@ -76,5 +98,15 @@ export const useDeleteAiModel = () =>
         onSuccess: (_result, id) => {
             queryClient.invalidateQueries({ queryKey: AI_MODEL_KEY });
             queryClient.invalidateQueries({ queryKey: [...AI_MODEL_KEY, 'id', id] });
+        },
+    });
+
+export const useSyncAiModelsFromCache = () =>
+    useMutation({
+        mutationFn: async () => {
+            return await invoke('sync_ai_models_from_cache');
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: AI_MODEL_KEY });
         },
     });
