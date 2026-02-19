@@ -1,19 +1,27 @@
 import { useQuery } from '@tanstack/react-query';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { useEffect, useState } from 'react';
+import { invoke } from '@tauri-apps/api/core';
 import { queryClient } from '@/hooks/default';
 
 export const APP_MODE_KEY = ['app-mode'];
 
 // Get app mode from cache or invoke
-const getAppMode = async (): Promise<boolean> => {
-    if (!isTauri()) {
-        return false;
+const waitForTauri = async (timeoutMs: number): Promise<boolean> => {
+    if (typeof window === 'undefined') return false;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if ((window as any).__TAURI_INTERNALS__?.invoke || (window as any).isTauri) {
+            return true;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
     }
+    return false;
+};
 
-    // Check cache first
-    const cached = queryClient.getQueryData<boolean>(APP_MODE_KEY);
-    if (cached !== undefined) {
-        return cached;
+const getAppMode = async (): Promise<boolean> => {
+    const hasTauri = await waitForTauri(1500);
+    if (!hasTauri) {
+        return false;
     }
 
     try {
@@ -31,17 +39,24 @@ const getAppMode = async (): Promise<boolean> => {
 };
 
 export const useAppMode = () => {
-    const isKioskPath = typeof window !== 'undefined' && window.location.pathname.startsWith('/kiosk');
-    const { data, isLoading } = useQuery({
+    const [isClient, setIsClient] = useState(false);
+    const [isKioskPath, setIsKioskPath] = useState(false);
+
+    useEffect(() => {
+        setIsClient(true);
+        setIsKioskPath(window.location.pathname.startsWith('/kiosk'));
+    }, []);
+    const { data, isLoading, isFetching } = useQuery({
         queryKey: APP_MODE_KEY,
         queryFn: getAppMode,
-        enabled: isTauri(),
-        staleTime: Infinity, // Never refetch since app mode doesn't change
-        gcTime: Infinity, // Keep in cache for 24 hours
+        enabled: isClient,
+        staleTime: 0,
+        refetchOnMount: 'always',
+        gcTime: Infinity,
     });
 
     return {
-        isKioskMode: isKioskPath ? true : data ?? false,
-        isLoading: isKioskPath ? false : isLoading,
+        isKioskMode: isClient ? (isKioskPath ? true : data ?? false) : false,
+        isLoading: !isClient || (isKioskPath ? false : isLoading || isFetching),
     };
 };
