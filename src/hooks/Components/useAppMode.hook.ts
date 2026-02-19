@@ -6,11 +6,20 @@ import { queryClient } from '@/hooks/default';
 export const APP_MODE_KEY = ['app-mode'];
 
 // Get app mode from cache or invoke
+const waitForTauri = async (timeoutMs: number): Promise<boolean> => {
+    if (typeof window === 'undefined') return false;
+    const deadline = Date.now() + timeoutMs;
+    while (Date.now() < deadline) {
+        if ((window as any).__TAURI_INTERNALS__?.invoke || (window as any).isTauri) {
+            return true;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 50));
+    }
+    return false;
+};
+
 const getAppMode = async (): Promise<boolean> => {
-    const hasTauri =
-        typeof window !== 'undefined' &&
-        // Tauri v2 exposes IPC through __TAURI_INTERNALS__
-        ((window as any).__TAURI_INTERNALS__?.invoke || (window as any).isTauri);
+    const hasTauri = await waitForTauri(1500);
     if (!hasTauri) {
         return false;
     }
