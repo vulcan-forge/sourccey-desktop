@@ -33,10 +33,10 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
             if (nickname && !log.includes(`[${nickname}]`)) {
                 return;
             }
-        const filteredLogs = filterLogs([...logsRef.current, log]);
-        const newLogs = filteredLogs.slice(-100);
-        logsRef.current = newLogs;
-        setControlLogs(newLogs);
+            const filteredLogs = filterLogs([...logsRef.current, log]);
+            const newLogs = filteredLogs.slice(-100);
+            logsRef.current = newLogs;
+            setControlLogs(newLogs);
         },
         [nickname]
     );
@@ -112,7 +112,7 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
     }, [appendLog, isControlling, nickname]);
 
     const containerClassName = embedded
-        ? 'bg-slate-825 overflow-hidden rounded-lg border border-slate-700/60'
+        ? 'bg-slate-825 overflow-hidden rounded-lg border-2 border-slate-700/60'
         : 'bg-slate-825 overflow-hidden rounded-xl border-2 border-slate-700 backdrop-blur-sm';
     const headerClassName = embedded
         ? 'bg-slate-825 flex items-center justify-between border-b border-slate-700/60 px-4 py-3'

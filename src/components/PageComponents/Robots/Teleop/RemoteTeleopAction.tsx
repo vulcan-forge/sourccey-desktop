@@ -93,7 +93,7 @@ export const RemoteTeleopAction = ({
     };
 
     return (
-        <div className="flex flex-col gap-4 rounded-lg border border-slate-700/60 bg-slate-800 p-5">
+        <div className="flex flex-col gap-4 rounded-lg border-2 border-slate-700/60 bg-slate-800 p-5">
             <div className="flex items-center justify-between gap-4">
                 <h2 className="flex items-center gap-2 text-lg font-semibold text-white">
                     <FaGamepad className="h-5 w-5 text-slate-400" />
