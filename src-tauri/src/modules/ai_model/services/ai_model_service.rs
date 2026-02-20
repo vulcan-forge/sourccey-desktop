@@ -91,12 +91,23 @@ impl AiModelService {
 
         for (name, path) in model_dirs {
             seen_paths.insert(path.clone());
+            let path_buf = PathBuf::from(&path);
+            let model_path_relative = get_model_relative_path(&cache_dir, &path_buf);
+            let latest_checkpoint = get_latest_checkpoint(&path_buf);
             if let Some(existing_model) = existing_by_path.get(&path) {
                 let mut active: AiModelActiveModel = existing_model.clone().into();
                 let mut changed = false;
 
                 if existing_model.name != name {
                     active.name = Set(name.clone());
+                    changed = true;
+                }
+                if existing_model.model_path_relative != model_path_relative {
+                    active.model_path_relative = Set(model_path_relative.clone());
+                    changed = true;
+                }
+                if existing_model.latest_checkpoint != latest_checkpoint {
+                    active.latest_checkpoint = Set(latest_checkpoint);
                     changed = true;
                 }
                 if existing_model.deleted_at.is_some() {
@@ -111,7 +122,12 @@ impl AiModelService {
                     updated += 1;
                 }
             } else {
-                let model = AiModelActiveModel::new(name, path);
+                let model = AiModelActiveModel::new(
+                    name,
+                    path,
+                    model_path_relative.clone(),
+                    latest_checkpoint,
+                );
                 model.insert(&self.connection).await?;
                 added += 1;
             }
@@ -206,4 +222,46 @@ fn list_model_dirs(root: &Path) -> Vec<(String, String)> {
         results.push((name, path_str));
     }
     results
+}
+
+fn get_model_relative_path(root: &Path, full_path: &Path) -> Option<String> {
+    if let Ok(relative) = full_path.strip_prefix(root) {
+        let relative_str = relative.to_string_lossy().to_string();
+        if !relative_str.is_empty() {
+            return Some(relative_str);
+        }
+    }
+    full_path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.to_string())
+}
+
+fn get_latest_checkpoint(model_dir: &Path) -> Option<i64> {
+    let checkpoints_dir = model_dir.join("checkpoints");
+    if !checkpoints_dir.is_dir() {
+        return None;
+    }
+
+    let mut max_step: Option<i64> = None;
+    if let Ok(entries) = std::fs::read_dir(checkpoints_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|n| n.to_str()) else {
+                continue;
+            };
+            let Ok(step) = name.parse::<i64>() else {
+                continue;
+            };
+            max_step = Some(match max_step {
+                Some(current) => current.max(step),
+                None => step,
+            });
+        }
+    }
+
+    max_step
 }

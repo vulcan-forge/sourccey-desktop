@@ -4,9 +4,9 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { FaSyncAlt, FaCube, FaCopy } from 'react-icons/fa';
 import { useGetAiModelsInfinite, useSyncAiModelsFromCache } from '@/hooks/Models/AIModel/ai-model.hook';
 import { SelectedModelPanel } from '@/components/PageComponents/Robots/AI/SelectedModelPanel';
-import { RobotLogs } from '@/components/PageComponents/Robots/Logs/RobotDesktopLogs';
 import { toast } from 'react-toastify';
 import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
+import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 
 export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
     const pageSize = 18;
@@ -18,7 +18,9 @@ export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
     const models = useMemo(() => {
         return data?.pages.flatMap((page) => page?.data ?? []) ?? [];
     }, [data]);
-    const selectedModel = models.find((model) => model.id === selectedModelId) ?? null;
+    const selectedModel: any = models.find((model) => model.id === selectedModelId) ?? null;
+    const nickname = ownedRobot?.nickname ?? '';
+    const { data: remoteConfig } = useGetRemoteConfig(nickname);
 
     useEffect(() => {
         if (!sentinelRef.current) return;
@@ -129,8 +131,9 @@ export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
             {selectedModel && (
                 <SelectedModelPanel
                     model={selectedModel}
-                    onClear={() => setSelectedModelId(null)}
-                    logsSlot={<RobotLogs isControlling={false} embedded={true} />}
+                    ownedRobot={ownedRobot}
+                    remoteConfig={remoteConfig}
+                    onClearAction={() => setSelectedModelId(null)}
                 />
             )}
         </div>

@@ -62,7 +62,7 @@ class LogListenerManager {
     }
 
     private async _doSetup(): Promise<void> {
-        const logEvents = ['teleop-log', 'record-log', 'replay-log', 'evaluate-log'];
+        const logEvents = ['teleop-log', 'record-log', 'replay-log', 'evaluate-log', 'inference-log'];
 
         for (const eventName of logEvents) {
             const unlisten = await this.createLogListener(eventName);
@@ -164,6 +164,7 @@ class ProcessShutdownManager {
             { event: 'record-process-shutdown', controlType: ControlType.RECORD, name: 'Record' },
             { event: 'replay-process-shutdown', controlType: ControlType.REPLAY, name: 'Replay' },
             { event: 'evaluate-process-shutdown', controlType: ControlType.EVALUATE, name: 'Evaluate' },
+            { event: 'inference-process-shutdown', controlType: ControlType.AIMODEL, name: 'Inference' },
         ];
 
         for (const { event, controlType, name } of shutdownEvents) {

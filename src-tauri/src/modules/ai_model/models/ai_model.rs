@@ -17,6 +17,8 @@ pub struct Model {
     // Model Data
     pub name: String,
     pub model_path: String,
+    pub model_path_relative: Option<String>,
+    pub latest_checkpoint: Option<i64>,
 
     // Timestamps
     pub created_at: Option<DateTime<Utc>>,
@@ -73,11 +75,18 @@ impl BaseActiveModel for ActiveModel {
 
 // Helper methods for ActiveModel
 impl ActiveModel {
-    pub fn new(name: String, model_path: String) -> Self {
+    pub fn new(
+        name: String,
+        model_path: String,
+        model_path_relative: Option<String>,
+        latest_checkpoint: Option<i64>,
+    ) -> Self {
         Self {
             id: Set(Uuid::now_v7().to_string()),
             name: Set(name),
             model_path: Set(model_path),
+            model_path_relative: Set(model_path_relative),
+            latest_checkpoint: Set(latest_checkpoint),
             created_at: Set(Some(Utc::now())),
             updated_at: Set(Some(Utc::now())),
             deleted_at: Set(None),

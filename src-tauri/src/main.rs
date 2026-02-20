@@ -63,6 +63,9 @@ use modules::control::controllers::local_control::teleop_controller::{
 use modules::control::controllers::remote_control::remote_teleop_controller::{
     init_remote_teleop, start_remote_teleop, stop_remote_teleop,
 };
+use modules::control::controllers::remote_control::remote_inference_controller::{
+    init_remote_inference, start_remote_inference, stop_remote_inference,
+};
 use modules::ai_model::controllers::ai_model_controller::{
     add_ai_model, delete_ai_model, get_ai_model, get_ai_models_paginated,
     sync_ai_models_from_cache, update_ai_model,
@@ -200,6 +203,7 @@ fn main() {
         .manage(init_robot_processes())
         .manage(init_teleop())
         .manage(init_remote_teleop())
+        .manage(init_remote_inference())
         .manage(init_kiosk_host())
         .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![
@@ -263,6 +267,8 @@ fn main() {
             get_active_teleop_sessions,
             start_remote_teleop,
             stop_remote_teleop,
+            start_remote_inference,
+            stop_remote_inference,
 
             // App Mode
             get_app_mode,

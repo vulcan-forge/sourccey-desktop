@@ -101,6 +101,16 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
                 return;
             }
             unlistenFns.push(unlistenTeleop);
+
+            const unlistenInference = await listen<string>('inference-log', (event) => {
+                if (!isActive) return;
+                appendLog(event.payload);
+            });
+            if (!isActive) {
+                unlistenInference();
+                return;
+            }
+            unlistenFns.push(unlistenInference);
         };
 
         setupListeners();
@@ -112,10 +122,10 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
     }, [appendLog, isControlling, nickname]);
 
     const containerClassName = embedded
-        ? 'bg-slate-825 overflow-hidden rounded-lg border-2 border-slate-700/60'
+        ? 'bg-slate-825 overflow-hidden rounded-lg border-2 border-slate-700'
         : 'bg-slate-825 overflow-hidden rounded-xl border-2 border-slate-700 backdrop-blur-sm';
     const headerClassName = embedded
-        ? 'bg-slate-825 flex items-center justify-between border-b border-slate-700/60 px-4 py-3'
+        ? 'bg-slate-825 flex items-center justify-between border-b border-slate-700 px-4 py-3'
         : 'bg-slate-825 flex items-center justify-between border-b border-slate-700 p-4';
 
     return (

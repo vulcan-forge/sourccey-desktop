@@ -7,6 +7,8 @@ export type AiModel = {
     id: string;
     name: string;
     model_path: string;
+    model_path_relative?: string | null;
+    latest_checkpoint?: number | null;
     created_at?: string | null;
     updated_at?: string | null;
     deleted_at?: string | null;

@@ -163,6 +163,7 @@ export const remoteStartControlText = {
     [RemoteControlType.RECORD]: 'Start Record',
     [RemoteControlType.REPLAY]: 'Start Replay',
     [RemoteControlType.EVALUATE]: 'Start Evaluation',
+    [RemoteControlType.INFERENCE]: 'Start Inference',
 };
 
 export const remoteStopControlText = {
@@ -170,4 +171,5 @@ export const remoteStopControlText = {
     [RemoteControlType.RECORD]: 'Stop Record',
     [RemoteControlType.REPLAY]: 'Stop Replay',
     [RemoteControlType.EVALUATE]: 'Stop Evaluation',
+    [RemoteControlType.INFERENCE]: 'Stop Inference',
 };
