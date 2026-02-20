@@ -37,7 +37,6 @@ export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
         return () => observer.disconnect();
     }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
 
-
     const handleRefresh = async () => {
         await syncModels();
         await refetch();
@@ -90,13 +89,12 @@ export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
                                 <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20">
                                     <FaCube className="text-amber-300" />
                                 </div>
-                                <div>
-                                    <div className="text-sm font-semibold text-white">{model.name}</div>
-                                    <div className="text-xs text-slate-400">Local model</div>
+                                <div className="min-w-0">
+                                    <div className="truncate text-sm font-semibold text-white">{model.name}</div>
                                 </div>
                             </div>
                             <div className="flex items-center gap-2 text-xs text-slate-400">
-                                <span className="text-slate-500">Path:</span>
+                                <span className="text-slate-300">Path:</span>
                                 <span className="truncate">{model.model_path}</span>
                                 <button
                                     type="button"
