@@ -9,7 +9,7 @@ import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 
 export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
-    const pageSize = 18;
+    const pageSize = 20;
     const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
     const { data, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage, refetch } = useGetAiModelsInfinite(pageSize, true);
     const { mutateAsync: syncModels, isPending: isSyncing } = useSyncAiModelsFromCache();
@@ -46,7 +46,7 @@ export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
 
     return (
         <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between rounded-xl border border-slate-700/50 bg-slate-900/40 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.28)]">
+            <div className="flex items-center justify-between rounded-xl border-2 border-slate-700/50 bg-slate-900/40 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.28)]">
                 <div>
                     <h2 className="text-lg font-semibold text-white">AI Models</h2>
                     <p className="text-xs text-slate-400">Synced from your local cache directory.</p>
@@ -80,7 +80,7 @@ export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
                     models.map((model) => (
                         <div
                             key={model.id}
-                            className={`group flex cursor-pointer flex-col gap-3 rounded-xl border p-4 transition-all ${
+                            className={`group flex cursor-pointer flex-col gap-3 rounded-xl border-2 p-4 transition-all ${
                                 selectedModelId === model.id
                                     ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_10px_24px_rgba(251,146,60,0.15)]'
                                     : 'border-slate-700/50 bg-slate-900/30 hover:border-amber-400/40 hover:bg-slate-900/45'

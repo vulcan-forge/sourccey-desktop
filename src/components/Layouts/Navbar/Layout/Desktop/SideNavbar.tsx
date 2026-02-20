@@ -1,7 +1,7 @@
 'use client';
 import { usePathname } from 'next/navigation';
 import { HiHome } from 'react-icons/hi';
-import { FaBrain, FaRobot } from 'react-icons/fa';
+import { FaBrain, FaMicrochip, FaRobot } from 'react-icons/fa';
 import Link from 'next/link';
 
 export const SideNavbar = () => {
@@ -21,7 +21,7 @@ export const SideNavbar = () => {
         {
             href: '/desktop/models',
             label: 'AI Models',
-            icon: FaBrain,
+            icon: FaMicrochip,
         },
     ];
 

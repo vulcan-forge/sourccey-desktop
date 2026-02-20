@@ -1,22 +1,15 @@
 'use client';
 
-import { GeneralModal } from '@/components/Elements/Modals/GeneralModal';
-import { RemoteRobotConfig } from '@/components/PageComponents/Robots/Config/RemoteRobotConfig';
 import { RemoteRobotStatus, useGetRemoteRobotsState } from '@/hooks/Control/remote-control.hook';
-import { useModalContext } from '@/hooks/Modals/context.hook';
 import { FaGamepad, FaRobot } from 'react-icons/fa';
+import Link from 'next/link';
 
 export const RemoteControlBar = () => {
-    const { openModal } = useModalContext();
     const { data: robots }: any = useGetRemoteRobotsState();
+
     const remoteRobots = Object.values(robots || {})
         .filter((robot: any) => robot !== null && robot.status !== RemoteRobotStatus.NONE)
         .map((robot: any) => robot);
-
-    const handleTabClick = (robot: any) => {
-        const modalId = `robot-remote-control-${robot?.controlledRobot?.nickname}`;
-        openModal(modalId, robot);
-    };
 
     return (
         <>
@@ -31,46 +24,25 @@ export const RemoteControlBar = () => {
                         <div className="scrollbar-hide flex max-w-96 items-center gap-2 overflow-x-auto">
                             {remoteRobots.map((robot: any, index: number) => {
                                 const key = index;
+                                const controlledRobot = robot?.controlledRobot;
+                                const nickname = controlledRobot?.nickname;
+                                const robotId = controlledRobot?.id;
+                                const label = nickname > 24 ? `${nickname.slice(0, 24)}...` : nickname;
                                 return (
-                                    <button
+                                    <Link
                                         key={key}
-                                        onClick={() => handleTabClick(robot)}
+                                        href={robotId ? `/desktop/robots?id=${robotId}` : '/desktop/robots'}
                                         className="group flex flex-shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-slate-600/50 bg-slate-700/50 px-3 py-2 text-sm font-medium whitespace-nowrap text-slate-200 transition-all duration-200 hover:border-slate-500/50 hover:bg-slate-600/50 hover:text-white"
                                     >
                                         <FaRobot className="h-3 w-3 text-green-400" />
-                                        <span>{robot?.nickname?.length > 24 ? `${robot?.nickname.slice(0, 24)}...` : robot?.nickname}</span>
+                                        <span>{label || 'Robot'}</span>
                                         <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
-                                    </button>
+                                    </Link>
                                 );
                             })}
                         </div>
                     </div>
                 </div>
-            )}
-            {remoteRobots.map((robot: any, index: number) => {
-                return <RemoteControlModal key={index} ownedRobot={robot} />;
-            })}
-        </>
-    );
-};
-
-const RemoteControlModal = ({ ownedRobot }: { ownedRobot: any }) => {
-    const { useGetModal, closeModal } = useModalContext();
-
-    const modelId = `robot-remote-control-${ownedRobot?.nickname}`;
-    const { data: modalState }: any = useGetModal(modelId);
-    const handleCloseModal = (modelId: string) => {
-        closeModal(modelId);
-    };
-
-    if (!modalState) return null;
-
-    return (
-        <>
-            {modalState && (
-                <GeneralModal isOpen={true} onClose={() => handleCloseModal(modelId)} title="Control" size="xl">
-                    <RemoteRobotConfig ownedRobot={ownedRobot} onClose={() => handleCloseModal(modelId)} />
-                </GeneralModal>
             )}
         </>
     );
