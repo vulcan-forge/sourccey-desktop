@@ -144,6 +144,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
                     setIsRobotStarted(false);
                     setIsStarting(false);
                 }
+                console.error('Robot start error log:', line);
                 toast.error(status.message, { ...toastErrorDefaults });
 
                 if (isStarting && !hasConfirmedStartRef.current && nickname) {
