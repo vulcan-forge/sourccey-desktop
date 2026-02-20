@@ -50,3 +50,5 @@ production.env
 *.asc
 *.key
 
+# Devops keys
+devops/keys/

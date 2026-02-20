@@ -565,7 +565,7 @@ impl KioskPairingService {
             };
         }
 
-        let token = Uuid::new_v4().to_string();
+        let token = Uuid::now_v7().to_string();
         runtime.valid_tokens.insert(token.clone());
         if let Err(error) = Self::save_persisted_tokens(&runtime.valid_tokens) {
             eprintln!("Failed to persist pairing tokens: {}", error);
@@ -1198,7 +1198,7 @@ snapshot_download(
     }
 
     fn generate_pairing_code() -> String {
-        let raw = Uuid::new_v4().as_u128() % 1_000_000;
+        let raw = Uuid::now_v7().as_u128() % 1_000_000;
         format!("{:06}", raw)
     }
 

@@ -1,6 +1,6 @@
 [package]
 name = "sourccey"
-version = "0.0.3"
+version = "0.0.4"
 description = "Sourccey Desktop Application"
 authors = ["you"]
 edition = "2021"
@@ -35,14 +35,14 @@ lazy_static = "1.4"
 async-trait = "0.1"
 
 # Add parquet dependencies
-parquet = "50"
-arrow = "50"
+parquet = "51"
+arrow = "51"
 
 # Updated SeaORM dependencies to v1.1
 sea-orm = { version = "1.1", features = ["sqlx-sqlite", "runtime-tokio-rustls", "macros", "with-uuid", "with-chrono"] }
 tokio = { version = "1", features = ["full"] }
 uuid = { version = "1.7", features = ["v7", "serde"] }
-chrono = { version = "0.4", features = ["serde"] }
+chrono = { version = "=0.4.34", features = ["serde"] }
 rust_decimal = { version = "1.35", features = ["serde"] }
 
 # Add migration dependency
@@ -53,6 +53,6 @@ migration = { path = "migration" }
 [dev-dependencies]
 sea-orm-cli = "1.1.13"
 
+
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-updater = "2"
-
