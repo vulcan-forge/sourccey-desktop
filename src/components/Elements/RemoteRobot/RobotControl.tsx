@@ -60,7 +60,12 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
             </div>
 
             {!hasCalibration || activeView === 'calibration' ? (
-                <RobotCalibration nickname={nickname} robotType={robotType} calibration={calibration} />
+                <RobotCalibration
+                    nickname={nickname}
+                    robotType={robotType}
+                    calibration={calibration}
+                    onCalibrationSuccess={() => setActiveView('control')}
+                />
             ) : (
                 <RobotStartSection
                     nickname={nickname}
