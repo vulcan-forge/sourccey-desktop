@@ -130,8 +130,13 @@ pub async fn download_ai_model_from_huggingface(
         return Err("repo_id is required".to_string());
     }
 
+    let app_handle_for_download = app_handle.clone();
     let download_result = tauri::async_runtime::spawn_blocking(move || {
-        AiModelService::download_ai_model_from_huggingface(&repo_id, model_name.as_deref())
+        AiModelService::download_ai_model_from_huggingface(
+            app_handle_for_download,
+            &repo_id,
+            model_name.as_deref(),
+        )
     })
     .await
     .map_err(|e| format!("Download task failed: {}", e))??;

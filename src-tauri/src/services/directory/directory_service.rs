@@ -104,7 +104,13 @@ impl DirectoryService {
 
     pub fn get_lerobot_ai_model_repository_path(repo_id: &str) -> Result<PathBuf, String> {
         let lerobot_cache_dir = Self::get_lerobot_ai_models_path()?;
-        Ok(lerobot_cache_dir.join(repo_id))
+        let repo_folder_name = repo_id
+            .split('/')
+            .filter(|segment| !segment.trim().is_empty())
+            .next_back()
+            .unwrap_or(repo_id)
+            .trim();
+        Ok(lerobot_cache_dir.join(repo_folder_name))
     }
 
     pub fn get_lerobot_ai_model_path(repo_id: &str, name: &str) -> Result<PathBuf, String> {

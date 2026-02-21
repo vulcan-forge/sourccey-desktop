@@ -8,9 +8,18 @@ interface GeneralModalProps {
     children: React.ReactNode;
     size?: 'sm' | 'md' | 'lg' | 'xl';
     showCloseButton?: boolean;
+    borderClassName?: string;
 }
 
-export const GeneralModal: React.FC<GeneralModalProps> = ({ isOpen, onClose, title, children, size = 'md', showCloseButton = true }) => {
+export const GeneralModal: React.FC<GeneralModalProps> = ({
+    isOpen,
+    onClose,
+    title,
+    children,
+    size = 'md',
+    showCloseButton = true,
+    borderClassName,
+}) => {
     // Handle escape key press
     useEffect(() => {
         const handleEscape = (event: KeyboardEvent) => {
@@ -52,7 +61,9 @@ export const GeneralModal: React.FC<GeneralModalProps> = ({ isOpen, onClose, tit
             <div className="absolute inset-0 bg-black/70" onClick={handleBackdropClick} />
 
             <div
-                className={`relative w-full ${sizeClasses[size]} mx-4 transform rounded-xl border border-slate-700/50 bg-slate-800/90 p-6 shadow-2xl backdrop-blur-sm transition-all duration-300`}
+                className={`relative w-full ${sizeClasses[size]} mx-4 transform rounded-xl ${
+                    borderClassName ?? 'border border-slate-700/50'
+                } bg-slate-800/90 p-6 shadow-2xl backdrop-blur-sm transition-all duration-300`}
             >
                 <div className="mb-6 flex items-center justify-between">
                     <h2 className="text-xl font-bold text-white">{title}</h2>

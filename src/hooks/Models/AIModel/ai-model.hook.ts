@@ -125,8 +125,8 @@ export const useGetAiModelCachePath = () =>
 
 export const downloadAiModelFromHuggingface = async (repoId: string, modelName?: string): Promise<string> => {
     return await invoke<string>('download_ai_model_from_huggingface', {
-        repo_id: repoId,
-        model_name: modelName,
+        repoId,
+        modelName,
     });
 };
 
