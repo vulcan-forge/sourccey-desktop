@@ -26,7 +26,6 @@ class SystemPackageInstaller:
         update_cmd = ["sudo", "apt-get", "update"]
         update_result = subprocess.run(
             update_cmd,
-            check=True,
             capture_output=True,
             text=True,
             timeout=1200,
@@ -39,7 +38,6 @@ class SystemPackageInstaller:
         upgrade_cmd = ["sudo", "apt-get", "upgrade", "-y", "--no-install-recommends"]
         upgrade_result = subprocess.run(
             upgrade_cmd,
-            check=True,
             capture_output=True,
             text=True,
             timeout=1800,
@@ -49,6 +47,7 @@ class SystemPackageInstaller:
             self.print_error("Failed to upgrade system")
             self.print_status(f"Upgrade output: {upgrade_result.stdout}")
             self.print_error(f"Upgrade error: {upgrade_result.stderr}")
+            self.print_warning("Common fixes: run 'sudo dpkg --configure -a' and 'sudo apt-get -f install'.")
             return False
 
         self.print_success("System updated")
