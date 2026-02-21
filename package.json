@@ -8,8 +8,8 @@
         "export": "next export -o out",
         "start": "next start",
         "lint": "next lint",
-        "tauri": "tauri",
-        "tauri:build": "dotenv -e .env -- tauri build",
+        "tauri": "bun scripts/build/tauri-env.js",
+        "tauri:build": "bun scripts/build/tauri-env.js build",
         "tauri:kiosk": "export DISPLAY=:0.0 && xhost +local: 2>/dev/null || true && bun tauri dev -- -- --kiosk",
         "tauri:kiosk desktop": "bun tauri dev -- -- --kiosk"
     },

@@ -1,12 +1,12 @@
 {
-    "version": "0.0.3",
-    "date": "2025-10-14T12:00:00Z",
+    "version": "0.0.4",
+    "date": "2026-02-21T12:00:00Z",
     "force": true,
     "platforms": {
         "windows-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSRWszbFpsYkJHa0R0enhsNFBXcTA3UXhmdXNJL1BDNXh5anNMN1pPNVNJRTRuREtLMk52elVITDFNRmRCVWZOVjFiZUZwYnkvWnJnMnh5a3huQ2hUcVI0TkxRV1ZEWHdvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzYwNTA3MDU2CWZpbGU6U291cmNjZXlfMC4wLjNfeDY0LXNldHVwLmV4ZQpBM0NwSkpuYU9mZjVjeWsvb0Nhb2NRVlI1WjNYUWtHaWhndm1zRU1GT2VYelBFNXBleDFsZFdsVmhkbnkzUW5UUzUzdGZncXZXWDJNaUZ5elBzVlFCdz09Cg==",
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQ3dFZ1JLZk1JWnBmMkp6Wi96TjhTcVFMdHJySzFmcFM1dXIvdnpEVWg5Y1YrU05yOHVMaDFyN2VOdlB0Skc3RTJtUUhkaTJ5ZE1YaVJ5ZVZMSG1iN1E4PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcxNjc4NzQ1CWZpbGU6U291cmNjZXlfMC4wLjRfeDY0X2VuLVVTLm1zaQpiMHNnSVhZSVdPM2xEWWYzbExxd3pkSkpYR0l2d3RWaU5YdmFGei95UkFlcithYjd6QXpYL3VvYXUvZk44aE0rMnVLNVE0enFNYXlUcXNXVHQ0bkFEQT09Cg==",
             "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/SourcceyInstaller.exe"
         }
     },
-    "notes": "Initial nightly release\n- Robot control\n- AI training\n- Kiosk mode"
+    "notes": "Initial release\n- Robot control\n- AI Control\n- Kiosk mode"
 }
