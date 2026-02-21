@@ -286,7 +286,7 @@ export const RobotListPage = () => {
                 {isLoadingOwnedRobots ? (
                     <div className="flex min-h-[420px] items-center justify-center rounded-2xl border-2 border-slate-700 bg-slate-900/80 shadow-xl">
                         <div className="flex items-center gap-3 text-slate-300">
-                            <Spinner color="orange" width="w-6" height="h-6" />
+                            <Spinner color="yellow" width="w-6" height="h-6" />
                             <span className="text-sm font-semibold">Loading robots...</span>
                         </div>
                     </div>

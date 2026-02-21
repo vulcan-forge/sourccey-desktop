@@ -8,7 +8,7 @@ export default function ModelsPage() {
             <div className="mx-auto max-w-7xl space-y-6">
                 <div>
                     <h1 className="text-3xl font-bold text-white">AI Models</h1>
-                    <p className="mt-2 text-slate-300">Browse and run locally cached models.</p>
+                    <p className="mt-2 text-slate-300">Browse and run AI models.</p>
                 </div>
                 <AIModelsContainer />
             </div>

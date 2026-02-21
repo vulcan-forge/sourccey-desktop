@@ -67,8 +67,8 @@ use modules::control::controllers::remote_control::remote_inference_controller::
     init_remote_inference, start_remote_inference, stop_remote_inference,
 };
 use modules::ai_model::controllers::ai_model_controller::{
-    add_ai_model, delete_ai_model, get_ai_model, get_ai_models_paginated,
-    sync_ai_models_from_cache, update_ai_model,
+    add_ai_model, delete_ai_model, download_ai_model_from_huggingface, get_ai_model,
+    get_ai_model_cache_path, get_ai_models_paginated, sync_ai_models_from_cache, update_ai_model,
 };
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
@@ -143,6 +143,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
             // Database initialization
@@ -318,6 +319,8 @@ fn main() {
             delete_ai_model,
             get_ai_models_paginated,
             sync_ai_models_from_cache,
+            download_ai_model_from_huggingface,
+            get_ai_model_cache_path,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

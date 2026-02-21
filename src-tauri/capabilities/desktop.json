@@ -2,5 +2,19 @@
     "identifier": "desktop-capability",
     "platforms": ["macOS", "windows", "linux"],
     "windows": ["main"],
-    "permissions": ["updater:default", "dialog:default", "dialog:allow-message", "dialog:allow-confirm"]
+    "permissions": [
+        "updater:default",
+        "dialog:default",
+        "dialog:allow-message",
+        "dialog:allow-confirm",
+        "opener:default",
+        {
+            "identifier": "opener:allow-open-path",
+            "allow": [
+                {
+                    "path": "$HOME/.cache/huggingface/lerobot/ai_models"
+                }
+            ]
+        }
+    ]
 }

@@ -1,12 +1,14 @@
 use crate::modules::ai_model::models::ai_model::{
     AiModel, AiModelColumn, ActiveModel as AiModelActiveModel, Entity as AiModelEntity,
 };
+use crate::services::directory::directory_service::DirectoryService;
 use crate::utils::pagination::{PaginatedResponse, PaginationParameters};
 use chrono::Utc;
 use sea_orm::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AiModelFilters {}
@@ -189,6 +191,73 @@ impl AiModelService {
             has_previous: page > 1,
         })
     }
+
+    //-------------------------------------------------------------------------//
+    // Download AI Model from Hugging Face
+    //-------------------------------------------------------------------------//
+    pub fn download_ai_model_from_huggingface(
+        repo_id: &str,
+        model_name: Option<&str>,
+    ) -> Result<String, String> {
+        if !is_safe_repo_id(repo_id) {
+            return Err("Invalid repo_id".to_string());
+        }
+
+        let resolved_name = match model_name {
+            Some(name) if !name.trim().is_empty() => name.trim().to_string(),
+            _ => repo_id
+                .split('/')
+                .last()
+                .map(|name| name.trim().to_string())
+                .filter(|name| !name.is_empty())
+                .ok_or_else(|| "Unable to derive model name from repo_id".to_string())?,
+        };
+
+        if !is_safe_model_name(&resolved_name) {
+            return Err("Invalid model_name".to_string());
+        }
+
+        let model_path = DirectoryService::get_lerobot_ai_model_path(repo_id, &resolved_name)?;
+        std::fs::create_dir_all(&model_path).map_err(|e| format!("Failed to create model directory: {}", e))?;
+
+        let python_path = DirectoryService::get_python_path()?;
+        let downloader_script = r#"
+import sys
+from huggingface_hub import snapshot_download
+
+repo_id = sys.argv[1]
+local_dir = sys.argv[2]
+
+snapshot_download(
+    repo_id=repo_id,
+    repo_type="model",
+    local_dir=local_dir,
+    local_dir_use_symlinks=False,
+)
+"#;
+
+        let output = Command::new(python_path)
+            .arg("-c")
+            .arg(downloader_script)
+            .arg(repo_id)
+            .arg(model_path.to_string_lossy().to_string())
+            .output()
+            .map_err(|e| format!("Failed to launch model download process: {}", e))?;
+
+        if !output.status.success() {
+            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            return Err(if !stderr.is_empty() {
+                stderr
+            } else if !stdout.is_empty() {
+                stdout
+            } else {
+                "Unknown model download error".to_string()
+            });
+        }
+
+        Ok("Model download completed".to_string())
+    }
 }
 
 fn get_ai_model_cache_dir() -> PathBuf {
@@ -264,4 +333,22 @@ fn get_latest_checkpoint(model_dir: &Path) -> Option<i64> {
     }
 
     max_step
+}
+
+fn is_safe_repo_id(value: &str) -> bool {
+    if value.trim().is_empty() || value.starts_with('/') || value.contains('\\') || value.contains("..") {
+        return false;
+    }
+    value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.' || ch == '/')
+}
+
+fn is_safe_model_name(value: &str) -> bool {
+    if value.trim().is_empty() || value.starts_with('/') || value.contains('\\') || value.contains("..") || value.contains('/') {
+        return false;
+    }
+    value
+        .chars()
+        .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.' || ch == ' ')
 }

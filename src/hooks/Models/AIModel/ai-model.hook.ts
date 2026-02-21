@@ -112,3 +112,30 @@ export const useSyncAiModelsFromCache = () =>
             queryClient.invalidateQueries({ queryKey: AI_MODEL_KEY });
         },
     });
+
+export const getAiModelCachePath = async (): Promise<string> => {
+    return await invoke<string>('get_ai_model_cache_path');
+};
+
+export const useGetAiModelCachePath = () =>
+    useQuery({
+        queryKey: [...AI_MODEL_KEY, 'cache-path'],
+        queryFn: async () => getAiModelCachePath(),
+    });
+
+export const downloadAiModelFromHuggingface = async (repoId: string, modelName?: string): Promise<string> => {
+    return await invoke<string>('download_ai_model_from_huggingface', {
+        repo_id: repoId,
+        model_name: modelName,
+    });
+};
+
+export const useDownloadAiModelFromHuggingface = () =>
+    useMutation({
+        mutationFn: async ({ repoId, modelName }: { repoId: string; modelName?: string }) => {
+            return await downloadAiModelFromHuggingface(repoId, modelName);
+        },
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: AI_MODEL_KEY });
+        },
+    });
