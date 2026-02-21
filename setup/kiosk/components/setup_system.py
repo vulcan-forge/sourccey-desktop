@@ -5,6 +5,7 @@ System Dependencies Module for Sourccey Kiosk
 Handles installation of system packages and dependencies.
 """
 import subprocess
+import os
 from typing import Callable
 class SystemPackageInstaller:
     def __init__(self, print_status: Callable, print_success: Callable,
@@ -19,25 +20,30 @@ class SystemPackageInstaller:
         """Update system packages"""
         self.print_status("Updating system packages...")
 
-        update_cmd = "sudo apt update"
+        env = os.environ.copy()
+        env["DEBIAN_FRONTEND"] = "noninteractive"
+
+        update_cmd = ["sudo", "apt-get", "update"]
         update_result = subprocess.run(
             update_cmd,
-            shell=True,
             check=True,
             capture_output=True,
             text=True,
+            timeout=1200,
+            env=env,
         )
         if update_result is None or update_result.returncode != 0:
             self.print_error("Failed to update package lists")
             return False
 
-        upgrade_cmd = "sudo apt upgrade -y"
+        upgrade_cmd = ["sudo", "apt-get", "upgrade", "-y", "--no-install-recommends"]
         upgrade_result = subprocess.run(
             upgrade_cmd,
-            shell=True,
             check=True,
             capture_output=True,
             text=True,
+            timeout=1800,
+            env=env,
         )
         if upgrade_result is None or upgrade_result.returncode != 0:
             self.print_error("Failed to upgrade system")
@@ -45,8 +51,18 @@ class SystemPackageInstaller:
             self.print_error(f"Upgrade error: {upgrade_result.stderr}")
             return False
 
-        self.print_success(f"System updated: {upgrade_result.stdout}")
+        self.print_success("System updated")
         return True
+    
+    def _safe_update_system(self) -> bool:
+        try:
+            return self.update_system()
+        except subprocess.TimeoutExpired:
+            self.print_error("System update timed out. Re-run with --skip-system and update manually.")
+            return False
+        except Exception as e:
+            self.print_error(f"System update failed: {e}")
+            return False
 
     def install_x11_packages(self) -> bool:
         """Install X11, Openbox, and LightDM"""
@@ -75,7 +91,7 @@ class SystemPackageInstaller:
 
     def install_all(self) -> bool:
         """Install all system dependencies"""
-        if not self.update_system():
+        if not self._safe_update_system():
             return False
 
         if not self.install_x11_packages():

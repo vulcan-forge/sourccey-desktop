@@ -271,11 +271,15 @@ class KioskSetupScript:
         self.print_status(f"Installing packages: {' '.join(packages)}")
 
         try:
+            env = os.environ.copy()
+            env["DEBIAN_FRONTEND"] = "noninteractive"
             install_result = subprocess.run(
-                ["sudo", "apt", "install", "-y"] + packages,
+                ["sudo", "apt-get", "install", "-y", "--no-install-recommends"] + packages,
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
+                timeout=1800,
+                env=env,
             )
 
             if install_result is None or install_result.returncode != 0:
@@ -287,6 +291,9 @@ class KioskSetupScript:
             self.print_success("Packages installed successfully")
             return True
 
+        except subprocess.TimeoutExpired:
+            self.print_error("Package installation timed out. You can re-run with --skip-system and install manually.")
+            return False
         except Exception as e:
             self.print_error(f"Error installing packages: {e}")
             return False
