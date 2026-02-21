@@ -18,6 +18,9 @@ export const useGetOwnedRobot = (id: string | null, enabled: boolean = true) => 
             return await getOwnedRobotById(id);
         },
         enabled: enabled && !!id,
+        staleTime: 30_000,
+        refetchOnWindowFocus: false,
+        placeholderData: (previousData) => previousData,
     });
 };
 
@@ -37,6 +40,9 @@ export const useGetOwnedRobots = (enabled: boolean = true) => {
             return await getOwnedRobots();
         },
         enabled,
+        staleTime: 30_000,
+        refetchOnWindowFocus: false,
+        placeholderData: (previousData) => previousData,
     });
 };
 

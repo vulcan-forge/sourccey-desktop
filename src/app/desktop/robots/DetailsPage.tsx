@@ -10,11 +10,11 @@ import { useGetContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook'
 import { AIModelContainer } from '@/components/PageComponents/Robots/AI/AIContainer';
 
 export const RobotDetailsPage = () => {
-    const { data: ownedRobot, isLoading } = useSelectedOwnedRobot();
+    const { data: ownedRobot } = useSelectedOwnedRobot();
     const { data: content } = useGetContent();
     const activeContent = (content as string) ?? 'overview';
 
-    if (!ownedRobot || isLoading) {
+    if (!ownedRobot) {
         return (
             <div className="flex h-24 w-full items-center justify-center">
                 <Spinner />

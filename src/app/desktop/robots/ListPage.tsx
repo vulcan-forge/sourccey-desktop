@@ -5,7 +5,12 @@ import { getAllRobots } from '@/api/Local/Robot/robot';
 import { queryClient } from '@/hooks/default';
 import { BASE_OWNED_ROBOT_KEY, useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { removePairedRobotConnection, setPairedRobotConnection, usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
-import { removeRobotConnectionStatus, setRobotConnectionStatus, useRobotConnectionStatuses } from '@/hooks/Robot/robot-connection-status.hook';
+import {
+    removeRobotConnectionStatus,
+    setRobotConnectionStatus,
+    setRobotConnectionStatuses,
+    useRobotConnectionStatuses,
+} from '@/hooks/Robot/robot-connection-status.hook';
 import { invoke } from '@tauri-apps/api/core';
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
@@ -55,47 +60,68 @@ export const RobotListPage = () => {
 
     useEffect(() => {
         let cancelled = false;
-        let heartbeatInterval: NodeJS.Timeout | null = null;
+        let heartbeatTimer: ReturnType<typeof setTimeout> | null = null;
+        let isRunning = false;
 
         const heartbeat = async () => {
+            if (isRunning || cancelled) return;
+            isRunning = true;
             const entries = Object.entries(pairedConnections || {});
-            if (entries.length === 0) return;
+            if (entries.length === 0) {
+                isRunning = false;
+                return;
+            }
 
-            await Promise.all(
-                entries.map(async ([nickname, connection]) => {
-                    try {
-                        const statusMessage = await invoke<string>('get_kiosk_robot_status', {
-                            host: connection.host,
-                            port: connection.port,
-                            token: connection.token,
-                        });
-                        if (cancelled) return;
-                        const started = statusMessage.trim().toLowerCase() === 'started';
-                        setRobotConnectionStatus(nickname, {
-                            connected: true,
-                            started,
-                            checkedAt: Date.now(),
-                            message: started ? 'Robot is started' : 'Robot is stopped',
-                        });
-                    } catch {
-                        if (cancelled) return;
-                        setRobotConnectionStatus(nickname, {
-                            connected: false,
-                            started: false,
-                            checkedAt: Date.now(),
-                            message: 'Disconnected',
-                        });
-                    }
-                })
-            );
+            try {
+                const updates = await Promise.all(
+                    entries.map(async ([nickname, connection]) => {
+                        try {
+                            const statusMessage = await invoke<string>('get_kiosk_robot_status', {
+                                host: connection.host,
+                                port: connection.port,
+                                token: connection.token,
+                            });
+                            const started = statusMessage.trim().toLowerCase() === 'started';
+                            return [
+                                nickname,
+                                {
+                                    connected: true,
+                                    started,
+                                    checkedAt: Date.now(),
+                                    message: started ? 'Robot is started' : 'Robot is stopped',
+                                },
+                            ] as const;
+                        } catch {
+                            return [
+                                nickname,
+                                {
+                                    connected: false,
+                                    started: false,
+                                    checkedAt: Date.now(),
+                                    message: 'Disconnected',
+                                },
+                            ] as const;
+                        }
+                    })
+                );
+
+                if (!cancelled) {
+                    const batchedUpdates = Object.fromEntries(updates);
+                    setRobotConnectionStatuses(batchedUpdates);
+                }
+            } finally {
+                isRunning = false;
+                if (!cancelled) {
+                    heartbeatTimer = setTimeout(heartbeat, 10000);
+                }
+            }
         };
 
-        heartbeat();
-        heartbeatInterval = setInterval(heartbeat, 10000);
+        void heartbeat();
 
         return () => {
             cancelled = true;
-            if (heartbeatInterval) clearInterval(heartbeatInterval);
+            if (heartbeatTimer) clearTimeout(heartbeatTimer);
         };
     }, [pairedConnections]);
 

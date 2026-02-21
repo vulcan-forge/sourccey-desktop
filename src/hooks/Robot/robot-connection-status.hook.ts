@@ -23,6 +23,15 @@ export const setRobotConnectionStatus = (nickname: string, status: RobotConnecti
     });
 };
 
+export const setRobotConnectionStatuses = (statuses: RobotConnectionStatusMap) => {
+    if (Object.keys(statuses).length === 0) return;
+    const current = getRobotConnectionStatuses();
+    queryClient.setQueryData(ROBOT_CONNECTION_STATUS_KEY, {
+        ...current,
+        ...statuses,
+    });
+};
+
 export const removeRobotConnectionStatus = (nickname: string) => {
     const current = getRobotConnectionStatuses();
     const next = { ...current };
