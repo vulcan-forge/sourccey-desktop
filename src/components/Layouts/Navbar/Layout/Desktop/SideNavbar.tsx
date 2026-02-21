@@ -1,7 +1,7 @@
 'use client';
 import { usePathname } from 'next/navigation';
 import { HiHome } from 'react-icons/hi';
-import { FaBrain, FaMicrochip, FaRobot } from 'react-icons/fa';
+import { FaMicrochip, FaRobot } from 'react-icons/fa';
 import Link from 'next/link';
 
 export const SideNavbar = () => {
@@ -24,17 +24,18 @@ export const SideNavbar = () => {
             icon: FaMicrochip,
         },
     ];
-
     const bottomNavItems: any = [];
+    const normalizePath = (value: string) => value.replace(/\/+$/, '') || '/';
+    const normalizedPathname = normalizePath(pathname);
 
     const isActive = (href: string) => {
-        // Special case for home page
-        if (href === '/desktop') {
-            return pathname === '/desktop';
+        const normalizedHref = normalizePath(href);
+        // Home should only match exactly; other tabs match nested paths too.
+        if (normalizedHref === '/desktop') {
+            return normalizedPathname === normalizedHref;
         }
 
-        // For other pages, check if the current pathname starts with the href
-        return pathname.startsWith(href);
+        return normalizedPathname === normalizedHref || normalizedPathname.startsWith(`${normalizedHref}/`);
     };
 
     const renderNavItem = (item: any) => {

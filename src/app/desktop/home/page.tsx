@@ -1,3 +1,6 @@
+'use client';
+
+import { openUrl } from '@tauri-apps/plugin-opener';
 import Link from 'next/link';
 import Image from 'next/image';
 import { FaDiscord } from 'react-icons/fa6';
@@ -33,6 +36,10 @@ export default function HomePage() {
                                     href="https://staging.factory.sourccey.com/store"
                                     target="_blank"
                                     rel="noreferrer"
+                                    onClick={(event) => {
+                                        event.preventDefault();
+                                        void openUrl('https://staging.factory.sourccey.com/store');
+                                    }}
                                     className="inline-flex items-center justify-center rounded-lg border-2 border-slate-600 bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:border-slate-400"
                                 >
                                     Visit the Store
@@ -53,6 +60,10 @@ export default function HomePage() {
                                 href="https://discord.gg/wcxDdcMXhM"
                                 target="_blank"
                                 rel="noreferrer"
+                                onClick={(event) => {
+                                    event.preventDefault();
+                                    void openUrl('https://discord.gg/wcxDdcMXhM');
+                                }}
                                 className="inline-flex items-center gap-2 rounded-lg bg-[#5865F2] px-4 py-2 text-sm font-semibold text-white shadow-lg transition-colors hover:bg-[#4f5ae6]"
                             >
                                 <FaDiscord className="h-5 w-5" aria-hidden="true" />

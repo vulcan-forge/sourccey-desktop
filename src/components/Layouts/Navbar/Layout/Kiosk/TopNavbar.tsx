@@ -95,7 +95,7 @@ export const KioskTopNavbar = () => {
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
                 <div className="flex h-full w-full items-center">
-                    <Link href="/app" className="flex w-56 items-center gap-2 text-2xl font-bold">
+                    <Link href="/kiosk" className="flex w-56 items-center gap-2 text-2xl font-bold">
                         <Image
                             src="/assets/logo/SourcceyLogo.png"
                             alt="Sourccey Logo"
