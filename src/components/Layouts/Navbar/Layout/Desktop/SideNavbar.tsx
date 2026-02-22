@@ -2,7 +2,7 @@
 import { usePathname } from 'next/navigation';
 import { useRouter } from 'next/navigation';
 import { HiHome } from 'react-icons/hi';
-import { FaMicrochip, FaQuestion, FaRobot } from 'react-icons/fa';
+import { FaCog, FaMicrochip, FaQuestion, FaRobot } from 'react-icons/fa';
 import Link from 'next/link';
 
 export const SideNavbar = () => {
@@ -29,7 +29,14 @@ export const SideNavbar = () => {
             navigationMethod: 'router',
         },
     ];
-    const bottomNavItems: any = [];
+    const bottomNavItems: any = [
+        {
+            href: '/desktop/settings',
+            label: 'Settings',
+            icon: FaCog,
+            navigationMethod: 'router',
+        },
+    ];
     const normalizePath = (value: string) => value.replace(/\/+$/, '') || '/';
     const normalizedPathname = normalizePath(pathname);
 

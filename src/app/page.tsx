@@ -6,12 +6,19 @@ import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { checkForUpdates } from '@/utils/updater/updater';
+import { invoke, isTauri } from '@tauri-apps/api/core';
 
 const HomePage = (): ReactElement => {
     const router = useRouter();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
     const [showLoading, setShowLoading] = useState(false);
     const [updateCheckComplete, setUpdateCheckComplete] = useState(false);
+    const [setupCheckComplete, setSetupCheckComplete] = useState(false);
+
+    type SetupStatus = {
+        installed: boolean;
+        missing: string[];
+    };
 
     // Check for updates FIRST before anything else
     useEffect(() => {
@@ -49,15 +56,37 @@ const HomePage = (): ReactElement => {
 
         if (isKioskMode) {
             console.log('Kiosk mode: pushing to /kiosk');
+            setSetupCheckComplete(true);
             router.push('/kiosk/');
         } else {
-            console.log('Desktop mode: pushing to /desktop');
-            router.push('/desktop/');
+            const checkSetup = async () => {
+                try {
+                    if (isTauri()) {
+                        const status = (await invoke('setup_check')) as SetupStatus;
+                        if (!status.installed) {
+                            console.log('Desktop mode: setup required, pushing to /setup');
+                            router.push('/setup');
+                        } else {
+                            console.log('Desktop mode: pushing to /desktop');
+                            router.push('/desktop/');
+                        }
+                    } else {
+                        router.push('/desktop/');
+                    }
+                } catch (error) {
+                    console.error('Failed to check setup status:', error);
+                    router.push('/desktop/');
+                } finally {
+                    setSetupCheckComplete(true);
+                }
+            };
+
+            void checkSetup();
         }
     }, [router, isKioskMode, isLoadingAppMode, updateCheckComplete]);
 
     // Don't show loading screen until update check is complete and 1 second has passed
-    if (!updateCheckComplete || !showLoading) {
+    if (!updateCheckComplete || !showLoading || (!setupCheckComplete && !isKioskMode)) {
         return (
             <>
                 <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900"></div>

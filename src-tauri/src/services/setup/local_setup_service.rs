@@ -1,8 +1,9 @@
 use std::fs;
+use std::io::{self};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::io::{self};
-use tauri::{AppHandle, Manager};
+use serde::Serialize;
+use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::services::directory::directory_service::DirectoryService;
@@ -10,15 +11,29 @@ use crate::services::environment::build_service::BuildService;
 
 pub struct LocalSetupService;
 
+#[derive(Clone, Serialize)]
+pub struct SetupProgress {
+    pub step: String,
+    pub status: String,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Serialize)]
+pub struct SetupStatus {
+    pub installed: bool,
+    pub missing: Vec<String>,
+}
+
 impl LocalSetupService {
     const DEFAULT_LEROBOT_ZIP_URL: &str = "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
+    #[allow(dead_code)]
     pub fn maybe_start(app_handle: AppHandle, kiosk: bool) {
         if kiosk || BuildService::is_dev_mode() {
             return;
         }
 
         std::thread::spawn(move || {
-            if let Err(e) = Self::ensure_installed(&app_handle) {
+            if let Err(e) = Self::ensure_installed(&app_handle, None, true) {
                 eprintln!("[setup] {}", e);
                 app_handle
                     .dialog()
@@ -33,7 +48,58 @@ impl LocalSetupService {
         });
     }
 
-    fn ensure_installed(app_handle: &AppHandle) -> Result<(), String> {
+    pub fn check_status(app_handle: &AppHandle) -> Result<SetupStatus, String> {
+        let app_data_dir = app_handle
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+
+        let setup_dir = app_data_dir.join("setup");
+        let marker_path = setup_dir.join("lerobot_vulcan_installed");
+        let install_root = app_data_dir.join("modules");
+        let lerobot_dir = install_root.join("lerobot-vulcan");
+        let python_path = Self::python_path_for(&lerobot_dir);
+
+        let mut missing = Vec::new();
+        if !lerobot_dir.exists() {
+            missing.push("modules/lerobot-vulcan".to_string());
+        }
+        if !python_path.exists() {
+            missing.push("lerobot-vulcan/.venv".to_string());
+        }
+        if !marker_path.exists() {
+            missing.push("setup marker".to_string());
+        }
+
+        Ok(SetupStatus {
+            installed: missing.is_empty(),
+            missing,
+        })
+    }
+
+    pub fn run_setup(app_handle: &AppHandle) -> Result<(), String> {
+        let emit = |progress: SetupProgress| {
+            let _ = app_handle.emit("setup:progress", progress);
+        };
+        if let Ok(status) = Self::check_status(app_handle) {
+            if status.installed {
+                Self::emit_step(
+                    Some(&emit),
+                    "complete",
+                    "success",
+                    Some("Setup already complete".to_string()),
+                );
+                return Ok(());
+            }
+        }
+        Self::ensure_installed(app_handle, Some(&emit), false)
+    }
+
+    fn ensure_installed(
+        app_handle: &AppHandle,
+        emit: Option<&dyn Fn(SetupProgress)>,
+        show_dialogs: bool,
+    ) -> Result<(), String> {
         let app_data_dir = app_handle
             .path()
             .app_data_dir()
@@ -50,22 +116,29 @@ impl LocalSetupService {
             return Ok(());
         }
 
-        app_handle
-            .dialog()
-            .message("Setting up local robot runtime. This may take a few minutes.")
-            .title("Setting Up")
-            .kind(MessageDialogKind::Info)
-            .show(|_| {});
+        if show_dialogs {
+            app_handle
+                .dialog()
+                .message("Setting up local robot runtime. This may take a few minutes.")
+                .title("Setting Up")
+                .kind(MessageDialogKind::Info)
+                .show(|_| {});
+        }
 
         let resource_dir = app_handle
             .path()
             .resource_dir()
             .map_err(|e| format!("Failed to get resource directory: {}", e))?;
 
+        fs::create_dir_all(&setup_dir)
+            .map_err(|e| format!("Failed to create setup directory: {}", e))?;
+
         if !lerobot_dir.exists() {
+            Self::emit_step(emit, "download", "started", Some("Downloading lerobot-vulcan".to_string()));
             let zip_url = std::env::var("SOURCCEY_LEROBOT_ZIP_URL")
                 .unwrap_or_else(|_| Self::DEFAULT_LEROBOT_ZIP_URL.to_string());
             if zip_url.trim().is_empty() {
+                Self::emit_step(emit, "download", "error", Some("Missing lerobot-vulcan zip URL".to_string()));
                 return Err("SOURCCEY_LEROBOT_ZIP_URL is not set. Provide a zip URL for lerobot-vulcan.".to_string());
             }
 
@@ -73,10 +146,21 @@ impl LocalSetupService {
                 .map_err(|e| format!("Failed to create install root: {}", e))?;
 
             let zip_path = setup_dir.join("lerobot-vulcan.zip");
-            Self::download_file(&zip_url, &zip_path)?;
-            Self::extract_zip(&zip_path, &install_root)?;
+            Self::download_file(&zip_url, &zip_path).map_err(|e| {
+                Self::emit_step(emit, "download", "error", Some(e.clone()));
+                e
+            })?;
+            Self::emit_step(emit, "download", "success", None);
+
+            Self::emit_step(emit, "extract", "started", Some("Extracting lerobot-vulcan".to_string()));
+            Self::extract_zip(&zip_path, &install_root).map_err(|e| {
+                Self::emit_step(emit, "extract", "error", Some(e.clone()));
+                e
+            })?;
+            Self::emit_step(emit, "extract", "success", None);
 
             if !lerobot_dir.exists() {
+                Self::emit_step(emit, "extract", "error", Some("lerobot-vulcan folder not found after extract".to_string()));
                 return Err(format!(
                     "lerobot-vulcan not found after extracting zip into {:?}",
                     install_root
@@ -84,8 +168,12 @@ impl LocalSetupService {
             }
         }
 
-        let uv_source = Self::find_uv_binary(&resource_dir)
-            .ok_or_else(|| "Bundled uv binary not found. Place uv in src-tauri/resources/uv.".to_string())?;
+        Self::emit_step(emit, "uv", "started", Some("Installing uv runtime".to_string()));
+        let uv_source = Self::find_uv_binary(&resource_dir).ok_or_else(|| {
+            let message = "Bundled uv binary not found. Place uv in src-tauri/resources/uv.".to_string();
+            Self::emit_step(emit, "uv", "error", Some(message.clone()));
+            message
+        })?;
         let uv_target_dir = app_data_dir.join("bin");
         fs::create_dir_all(&uv_target_dir)
             .map_err(|e| format!("Failed to create bin directory: {}", e))?;
@@ -97,14 +185,27 @@ impl LocalSetupService {
             fs::copy(&uv_source, &uv_target)
                 .map_err(|e| format!("Failed to copy uv binary: {}", e))?;
         }
+        Self::emit_step(emit, "uv", "success", None);
 
-        Self::run_command(&uv_target, &["venv"], &lerobot_dir, "uv venv")?;
+        Self::emit_step(emit, "venv", "started", Some("Creating virtual environment".to_string()));
+        Self::run_command(&uv_target, &["venv"], &lerobot_dir, "uv venv").map_err(|e| {
+            Self::emit_step(emit, "venv", "error", Some(e.clone()));
+            e
+        })?;
+        Self::emit_step(emit, "venv", "success", None);
+
+        Self::emit_step(emit, "deps", "started", Some("Installing dependencies".to_string()));
         Self::run_command(
             &uv_target,
             &["pip", "install", "-e", ".[sourccey]"],
             &lerobot_dir,
             "uv pip install",
-        )?;
+        )
+        .map_err(|e| {
+            Self::emit_step(emit, "deps", "error", Some(e.clone()));
+            e
+        })?;
+        Self::emit_step(emit, "deps", "success", None);
 
         let compile_script = lerobot_dir
             .join("src")
@@ -115,28 +216,43 @@ impl LocalSetupService {
             .join("protobuf")
             .join("compile.py");
         if compile_script.exists() {
+            Self::emit_step(emit, "protobuf", "started", Some("Compiling protobuf".to_string()));
             let compile_script_str = compile_script.to_string_lossy().to_string();
             Self::run_command(
                 &python_path,
                 &[compile_script_str.as_str()],
                 &lerobot_dir,
                 "compile protobuf",
-            )?;
+            )
+            .map_err(|e| {
+                Self::emit_step(emit, "protobuf", "error", Some(e.clone()));
+                e
+            })?;
+            Self::emit_step(emit, "protobuf", "success", None);
+        } else {
+            Self::emit_step(
+                emit,
+                "protobuf",
+                "success",
+                Some("Protobuf compile step skipped".to_string()),
+            );
         }
 
-        fs::create_dir_all(&setup_dir)
-            .map_err(|e| format!("Failed to create setup directory: {}", e))?;
         fs::write(&marker_path, "ok")
             .map_err(|e| format!("Failed to write setup marker: {}", e))?;
 
         DirectoryService::set_project_root_override(app_data_dir);
 
-        app_handle
-            .dialog()
-            .message("Local robot runtime setup complete.")
-            .title("Setup Complete")
-            .kind(MessageDialogKind::Info)
-            .show(|_| {});
+        if show_dialogs {
+            app_handle
+                .dialog()
+                .message("Local robot runtime setup complete.")
+                .title("Setup Complete")
+                .kind(MessageDialogKind::Info)
+                .show(|_| {});
+        }
+
+        Self::emit_step(emit, "complete", "success", Some("Setup complete".to_string()));
 
         Ok(())
     }
@@ -232,6 +348,16 @@ impl LocalSetupService {
         #[cfg(not(windows))]
         {
             lerobot_dir.join(".venv").join("bin").join("python")
+        }
+    }
+
+    fn emit_step(emit: Option<&dyn Fn(SetupProgress)>, step: &str, status: &str, message: Option<String>) {
+        if let Some(emit) = emit {
+            emit(SetupProgress {
+                step: step.to_string(),
+                status: status.to_string(),
+                message,
+            });
         }
     }
 }

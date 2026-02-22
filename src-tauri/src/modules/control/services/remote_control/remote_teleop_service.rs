@@ -60,19 +60,17 @@ impl RemoteTeleopService {
         // Validate paths exist before trying to spawn
         if !lerobot_dir.exists() {
             println!("LeRobot directory not found at: {:?}", lerobot_dir);
-            return Err(format!(
-                "LeRobot directory not found at: {:?}",
-                lerobot_dir
-            ));
+            let message = format!("LeRobot directory not found at: {:?}", lerobot_dir);
+            Self::log_teleop_error(&message);
+            return Err(message);
         }
         println!("lerobot_dir exists: {:?}", lerobot_dir.exists());
 
         if !python_path.exists() {
             println!("Python executable not found at: {:?}", python_path);
-            return Err(format!(
-                "Python executable not found at: {:?}",
-                python_path
-            ));
+            let message = format!("Python executable not found at: {:?}", python_path);
+            Self::log_teleop_error(&message);
+            return Err(message);
         }
         println!("python_path exists: {:?}", python_path.exists());
 
@@ -103,12 +101,14 @@ impl RemoteTeleopService {
             .stderr(Stdio::piped())
             .spawn()
             .map_err(|e| {
-                format!(
+                let message = format!(
                     "Failed to start teleop: {}. Python: {}, Working dir: {}",
                     e,
                     python_path_str,
                     lerobot_dir_str
-                )
+                );
+                Self::log_teleop_error(&message);
+                message
             })?;
 
         println!("child: {:?}", child);
@@ -132,8 +132,10 @@ impl RemoteTeleopService {
         {
             Ok(log) => log,
             Err(e) => {
-                eprintln!("Failed to add command log: {}", e);
-                return Err(format!("Failed to add command log: {}", e));
+                let message = format!("Failed to add command log: {}", e);
+                eprintln!("{}", message);
+                Self::log_teleop_error(&message);
+                return Err(message);
             }
         };
         println!("command_log: {:?}", command_log);
@@ -221,10 +223,9 @@ impl RemoteTeleopService {
                 nickname
             ))
         } else {
-            Err(format!(
-                "No teleop process found for nickname: {}",
-                nickname
-            ))
+            let message = format!("No teleop process found for nickname: {}", nickname);
+            Self::log_teleop_error(&message);
+            Err(message)
         }
     }
 
@@ -236,11 +237,22 @@ impl RemoteTeleopService {
         command_parts.push(format!("--remote_ip={}", config.remote_ip));
         command_parts.push(format!("--left_arm_port={}", config.left_arm_port));
         command_parts.push(format!("--right_arm_port={}", config.right_arm_port));
-        command_parts.push(format!("--keyboard={}", config.keyboard));
+        command_parts.push(format!("--keyboard_port={}", config.keyboard));
         command_parts.push(format!("--fps={}", config.fps));
         command_parts.push(format!("--reverse={}", "True"));
 
 
         command_parts
+    }
+
+    fn log_teleop_error(message: &str) {
+        if let Ok(path) = Self::teleop_log_path() {
+            LogService::write_log_line(path.to_string_lossy().as_ref(), Some("teleop"), message);
+        }
+    }
+
+    fn teleop_log_path() -> Result<std::path::PathBuf, String> {
+        let base_dir = DirectoryService::get_current_dir()?;
+        Ok(base_dir.join("logs").join("teleop.log"))
     }
 }

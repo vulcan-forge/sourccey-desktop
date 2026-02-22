@@ -16,10 +16,9 @@ Requirements:
 import os
 import sys
 import subprocess
-import platform
 import shutil
 from pathlib import Path
-from typing import Tuple, Optional
+from typing import Optional
 
 # Add the components directory to the Python path
 components_dir = Path(__file__).parent / "components"
@@ -203,42 +202,6 @@ class SetupScript:
         """Install Bun packages"""
         return self.javascript_manager.install_packages()
 
-    def setup_ffmpeg(self) -> bool:
-        """Setup FFmpeg if not already present"""
-        self.print_status("Checking FFmpeg installation...")
-
-        ffmpeg_path = self.project_root / "tools" / "ffmpeg"
-
-        # Check if FFmpeg is already installed
-        if platform.system() == "Windows":
-            ffmpeg_binary = ffmpeg_path / "ffmpeg.exe"
-        else:
-            ffmpeg_binary = ffmpeg_path / "ffmpeg"
-
-        if ffmpeg_binary.exists():
-            self.print_success("FFmpeg is already installed")
-            return True
-
-        # Import and call the FFmpeg setup function
-        try:
-            # Add the setup directory to Python path temporarily
-            import sys
-            setup_dir = str(self.project_root / "setup")
-            if setup_dir not in sys.path:
-                sys.path.insert(0, setup_dir)
-
-            from setup_ffmpeg import setup_ffmpeg # type: ignore
-            success = setup_ffmpeg()
-            if success:
-                self.print_success("FFmpeg installed successfully")
-            return success
-        except ImportError as e:
-            self.print_warning("FFmpeg setup module not found, skipping FFmpeg installation")
-            return True
-        except Exception as e:
-            self.print_error(f"Failed to install FFmpeg: {e}")
-            return False
-
     #################################################################
     # Summary and main functions
     #################################################################
@@ -319,8 +282,7 @@ class SetupScript:
         # Continue with other setup steps
         setup_steps = [
             self.setup_python_environment(),
-            self.setup_bun_packages(),
-            self.setup_ffmpeg()
+            self.setup_bun_packages()
         ]
 
         if not all(setup_steps):

@@ -1,6 +1,6 @@
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc;
 use std::sync::Arc;
@@ -10,6 +10,9 @@ use tauri::{AppHandle, Emitter};
 pub struct LogService;
 
 impl LogService {
+    const DEFAULT_MAX_BYTES: u64 = 5 * 1024 * 1024;
+    const DEFAULT_MAX_FILES: usize = 5;
+
     /// Start a logger with flexible configuration
     ///
     /// # Arguments
@@ -153,16 +156,29 @@ impl LogService {
     ) {
         std::thread::spawn(move || {
             let mut file = match Self::open_log_file(&file_path) {
-                Ok(f) => f,
+                Ok(f) => Some(f),
                 Err(e) => {
                     eprintln!("Failed to open log file {}: {}", file_path, e);
-                    return;
+                    None
                 }
             };
 
             for line in rx {
                 if shutdown_flag.load(Ordering::Relaxed) {
                     break;
+                }
+
+                if Self::should_rotate(&file_path) {
+                    if let Err(e) = Self::rotate_log_files(&file_path) {
+                        eprintln!("Failed to rotate log file {}: {}", file_path, e);
+                    }
+                    file = match Self::open_log_file(&file_path) {
+                        Ok(f) => Some(f),
+                        Err(e) => {
+                            eprintln!("Failed to open log file {}: {}", file_path, e);
+                            None
+                        }
+                    };
                 }
 
                 let timestamp = Self::get_timestamp();
@@ -172,12 +188,14 @@ impl LogService {
                     format!("{} {}\n", timestamp, line)
                 };
 
-                if let Err(e) = file.write_all(formatted.as_bytes()) {
-                    eprintln!("Failed to write to log file {}: {}", file_path, e);
-                    // Continue processing even if file write fails
-                } else if let Err(e) = file.flush() {
-                    eprintln!("Failed to flush log file {}: {}", file_path, e);
-                    // Continue processing even if flush fails
+                if let Some(ref mut file) = file {
+                    if let Err(e) = file.write_all(formatted.as_bytes()) {
+                        eprintln!("Failed to write to log file {}: {}", file_path, e);
+                    } else if let Err(e) = file.flush() {
+                        eprintln!("Failed to flush log file {}: {}", file_path, e);
+                    }
+                } else {
+                    eprintln!("Log file unavailable, dropping log line");
                 }
             }
         });
@@ -226,6 +244,92 @@ impl LogService {
             .append(true)
             .open(path)
             .map_err(|e| format!("Failed to open log file: {}", e))
+    }
+
+    pub fn write_log_line(file_path: &str, format_prefix: Option<&str>, line: &str) {
+        if Self::should_rotate(file_path) {
+            if let Err(e) = Self::rotate_log_files(file_path) {
+                eprintln!("Failed to rotate log file {}: {}", file_path, e);
+            }
+        }
+
+        let mut file = match Self::open_log_file(file_path) {
+            Ok(f) => f,
+            Err(e) => {
+                eprintln!("Failed to open log file {}: {}", file_path, e);
+                return;
+            }
+        };
+
+        let timestamp = Self::get_timestamp();
+        let formatted = if let Some(prefix) = format_prefix {
+            format!("{} [{}] {}\n", timestamp, prefix, line)
+        } else {
+            format!("{} {}\n", timestamp, line)
+        };
+
+        if let Err(e) = file.write_all(formatted.as_bytes()) {
+            eprintln!("Failed to write to log file {}: {}", file_path, e);
+        }
+    }
+
+    fn should_rotate(file_path: &str) -> bool {
+        let max_bytes = Self::max_bytes();
+        let path = Path::new(file_path);
+        match std::fs::metadata(path) {
+            Ok(meta) => meta.len() >= max_bytes,
+            Err(_) => false,
+        }
+    }
+
+    fn rotate_log_files(file_path: &str) -> Result<(), String> {
+        let max_files = Self::max_files();
+        if max_files == 0 {
+            return Ok(());
+        }
+
+        let base = PathBuf::from(file_path);
+        let oldest = Self::rotated_path(&base, max_files);
+        if oldest.exists() {
+            std::fs::remove_file(&oldest)
+                .map_err(|e| format!("Failed to remove old log file {:?}: {}", oldest, e))?;
+        }
+
+        for idx in (1..max_files).rev() {
+            let src = Self::rotated_path(&base, idx);
+            let dst = Self::rotated_path(&base, idx + 1);
+            if src.exists() {
+                std::fs::rename(&src, &dst)
+                    .map_err(|e| format!("Failed to rotate log file {:?}: {}", src, e))?;
+            }
+        }
+
+        if base.exists() {
+            let first = Self::rotated_path(&base, 1);
+            std::fs::rename(&base, &first)
+                .map_err(|e| format!("Failed to rotate log file {:?}: {}", base, e))?;
+        }
+
+        Ok(())
+    }
+
+    fn rotated_path(base: &Path, index: usize) -> PathBuf {
+        PathBuf::from(format!("{}.{}", base.to_string_lossy(), index))
+    }
+
+    fn max_bytes() -> u64 {
+        std::env::var("SOURCCEY_LOG_MAX_BYTES")
+            .ok()
+            .and_then(|v| v.parse::<u64>().ok())
+            .filter(|v| *v > 0)
+            .unwrap_or(Self::DEFAULT_MAX_BYTES)
+    }
+
+    fn max_files() -> usize {
+        std::env::var("SOURCCEY_LOG_MAX_FILES")
+            .ok()
+            .and_then(|v| v.parse::<usize>().ok())
+            .unwrap_or(Self::DEFAULT_MAX_FILES)
     }
 
     /// Get current timestamp in a readable format

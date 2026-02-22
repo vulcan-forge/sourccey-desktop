@@ -1,4 +1,5 @@
 use crate::services::directory::directory_service::DirectoryService;
+use crate::services::log::log_service::LogService;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
@@ -298,6 +299,8 @@ impl KioskPairingService {
 
         let response = Self::send_service_request(host, DEFAULT_SERVICE_PORT, &request)?;
         if !response.ok {
+            let message = format!("Pairing rejected by robot {}: {}", host, response.message);
+            Self::log_pairing_error(&message);
             return Err(response.message);
         }
 
@@ -434,40 +437,82 @@ impl KioskPairingService {
         let address = format!("{}:{}", host, port);
         let socket_addr = address
             .to_socket_addrs()
-            .map_err(|e| format!("Failed to resolve robot address: {}", e))?
+            .map_err(|e| {
+                let message = format!("Failed to resolve robot address: {}", e);
+                Self::log_pairing_error(&message);
+                message
+            })?
             .next()
-            .ok_or("No address found for robot host".to_string())?;
+            .ok_or_else(|| {
+                let message = "No address found for robot host".to_string();
+                Self::log_pairing_error(&message);
+                message
+            })?;
 
         let mut stream = TcpStream::connect_timeout(&socket_addr, Duration::from_secs(4))
-            .map_err(|e| format!("Failed to connect to robot service: {}", e))?;
+            .map_err(|e| {
+                let message = format!("Failed to connect to robot service: {}", e);
+                Self::log_pairing_error(&message);
+                message
+            })?;
         stream
             .set_read_timeout(Some(Duration::from_secs(8)))
-            .map_err(|e| format!("Failed to set read timeout: {}", e))?;
+            .map_err(|e| {
+                let message = format!("Failed to set read timeout: {}", e);
+                Self::log_pairing_error(&message);
+                message
+            })?;
         stream
             .set_write_timeout(Some(Duration::from_secs(8)))
-            .map_err(|e| format!("Failed to set write timeout: {}", e))?;
+            .map_err(|e| {
+                let message = format!("Failed to set write timeout: {}", e);
+                Self::log_pairing_error(&message);
+                message
+            })?;
 
         let payload = format!(
             "{}\n",
-            serde_json::to_string(request).map_err(|e| format!("Failed to encode request: {}", e))?
+            serde_json::to_string(request).map_err(|e| {
+                let message = format!("Failed to encode request: {}", e);
+                Self::log_pairing_error(&message);
+                message
+            })?
         );
         stream
             .write_all(payload.as_bytes())
-            .map_err(|e| format!("Failed to send request to robot: {}", e))?;
-        stream.flush().map_err(|e| format!("Failed to flush request: {}", e))?;
+            .map_err(|e| {
+                let message = format!("Failed to send request to robot: {}", e);
+                Self::log_pairing_error(&message);
+                message
+            })?;
+        stream.flush().map_err(|e| {
+            let message = format!("Failed to flush request: {}", e);
+            Self::log_pairing_error(&message);
+            message
+        })?;
 
         let mut reader = BufReader::new(stream);
         let mut response_line = String::new();
         reader
             .read_line(&mut response_line)
-            .map_err(|e| format!("Failed to read response from robot: {}", e))?;
+            .map_err(|e| {
+                let message = format!("Failed to read response from robot: {}", e);
+                Self::log_pairing_error(&message);
+                message
+            })?;
 
         if response_line.trim().is_empty() {
-            return Err("Robot service returned empty response".to_string());
+            let message = "Robot service returned empty response".to_string();
+            Self::log_pairing_error(&message);
+            return Err(message);
         }
 
         serde_json::from_str::<KioskServiceResponse>(response_line.trim())
-            .map_err(|e| format!("Failed to parse robot response: {}", e))
+            .map_err(|e| {
+                let message = format!("Failed to parse robot response: {}", e);
+                Self::log_pairing_error(&message);
+                message
+            })
     }
 
     fn handle_kiosk_service_client(mut stream: TcpStream, state: KioskPairingState) {
@@ -1262,5 +1307,16 @@ snapshot_download(
     fn pairing_state_file_path() -> Result<std::path::PathBuf, String> {
         let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
         Ok(cache_dir.join("pairing").join(PAIRING_STATE_FILE_NAME))
+    }
+
+    fn log_pairing_error(message: &str) {
+        if let Ok(path) = Self::pairing_log_path() {
+            LogService::write_log_line(path.to_string_lossy().as_ref(), Some("pairing"), message);
+        }
+    }
+
+    fn pairing_log_path() -> Result<std::path::PathBuf, String> {
+        let base_dir = DirectoryService::get_current_dir()?;
+        Ok(base_dir.join("logs").join("pairing.log"))
     }
 }

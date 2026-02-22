@@ -6,7 +6,7 @@
 mod database;
 use database::connection::DatabaseManager;
 use tauri::Manager;
-use services::setup::local_setup_service::LocalSetupService;
+use services::setup::local_setup_service::{LocalSetupService, SetupStatus};
 
 // Import modules from the services folder
 mod services;
@@ -136,6 +136,28 @@ fn get_app_mode(state: tauri::State<AppMode>) -> bool {
     state.0
 }
 
+#[tauri::command]
+fn get_log_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let base_dir = DirectoryService::get_current_dir()
+        .or_else(|_| app.path().app_data_dir().map_err(|e| format!("Failed to get app data dir: {}", e)))?;
+    let log_dir = base_dir.join("logs");
+    std::fs::create_dir_all(&log_dir).map_err(|e| format!("Failed to create log dir: {}", e))?;
+    Ok(log_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn setup_check(app: tauri::AppHandle) -> Result<SetupStatus, String> {
+    LocalSetupService::check_status(&app)
+}
+
+#[tauri::command]
+async fn setup_run(app: tauri::AppHandle) -> Result<(), String> {
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || LocalSetupService::run_setup(&app_handle))
+        .await
+        .map_err(|e| format!("Setup task failed: {}", e))?
+}
+
 fn main() {
     // Default desktop; --kiosk enables kiosk mode
     let kiosk = is_kiosk_from_args();
@@ -191,7 +213,6 @@ fn main() {
             }
 
             app.manage(AppMode(kiosk));
-            LocalSetupService::maybe_start(app.handle().clone(), kiosk);
 
             // Start process monitor in kiosk mode (after app is initialized)
             if kiosk {
@@ -287,6 +308,9 @@ fn main() {
 
             // App Mode
             get_app_mode,
+            get_log_dir,
+            setup_check,
+            setup_run,
 
             // Kiosk Host Functions
             start_kiosk_host,
