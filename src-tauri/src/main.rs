@@ -6,9 +6,11 @@
 mod database;
 use database::connection::DatabaseManager;
 use tauri::Manager;
+use services::setup::local_setup_service::LocalSetupService;
 
 // Import modules from the services folder
 mod services;
+use services::directory::directory_service::DirectoryService;
 
 // Import modules from the utils folder
 mod utils;
@@ -24,7 +26,7 @@ use modules::robot::controllers::owned_robot_controller::{
     add_owned_robot, delete_owned_robot, get_owned_robot_by_id, get_owned_robot_by_nickname,
     get_owned_robots,
 };
-use modules::robot::controllers::robot_controller::{get_all_robots, get_robot_by_id};
+use modules::robot::controllers::robot_controller::{get_all_robots, get_robot_by_id, upsert_robot_template};
 
 // Import Robotics Control Modules
 use modules::control::controllers::communication::ssh_controller::{
@@ -146,6 +148,16 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
+            // Prefer bundled resources as project root when available
+            if let Ok(app_data_dir) = app.path().app_data_dir() {
+                if kiosk {
+                    if let Ok(resource_dir) = app.path().resource_dir() {
+                        DirectoryService::set_project_root_override(resource_dir);
+                    }
+                } else {
+                    DirectoryService::set_project_root_override(app_data_dir);
+                }
+            }
             // Database initialization
             let app_handle = app.handle();
             tauri::async_runtime::block_on(async {
@@ -179,6 +191,7 @@ fn main() {
             }
 
             app.manage(AppMode(kiosk));
+            LocalSetupService::maybe_start(app.handle().clone(), kiosk);
 
             // Start process monitor in kiosk mode (after app is initialized)
             if kiosk {
@@ -223,6 +236,7 @@ fn main() {
             //----------------------------------------------------------//
             get_robot_by_id,
             get_all_robots,
+            upsert_robot_template,
 
             //----------------------------------------------------------//
             // Owned Robot API

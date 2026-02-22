@@ -28,6 +28,8 @@ serde_json = "1"
 regex = "1.5"
 os_pipe = "1.1"
 dirs = "5.0"
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls"] }
+zip = "0.6"
 russh = "0.43"
 russh-keys = "0.43"
 async-channel = "2.1"

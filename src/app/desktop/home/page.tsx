@@ -4,8 +4,10 @@ import { openUrl } from '@tauri-apps/plugin-opener';
 import Link from 'next/link';
 import Image from 'next/image';
 import { FaDiscord } from 'react-icons/fa6';
+import { useRouter } from 'next/navigation';
 
 export default function HomePage() {
+    const router = useRouter();
     return (
         <div className="min-h-screen bg-slate-900/30">
             <div className="container mx-auto flex flex-col gap-10 px-8 py-10">
@@ -26,12 +28,16 @@ export default function HomePage() {
                             </div>
                             <p className="text-base text-slate-200">Everything you need to manage your Sourccey, in one place.</p>
                             <div className="mt-6 flex flex-wrap items-center gap-3">
-                                <Link
-                                    href="/desktop/robots/"
-                                    className="inline-flex items-center justify-center rounded-lg bg-gradient-to-r from-red-400/70 via-orange-400/70 to-yellow-400/70 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:from-red-500/70 hover:via-orange-500/70 hover:to-yellow-500/70"
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        router.push('/desktop/robot');
+                                    }}
+                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-gradient-to-r from-red-400/70 via-orange-400/70 to-yellow-400/70 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:from-red-500/70 hover:via-orange-500/70 hover:to-yellow-500/70"
                                 >
                                     Go to Robots
-                                </Link>
+                                </button>
+
                                 <Link
                                     href="https://staging.factory.sourccey.com/store"
                                     target="_blank"

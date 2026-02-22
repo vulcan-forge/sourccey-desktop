@@ -3,8 +3,10 @@
 import { RemoteRobotStatus, useGetRemoteRobotsState } from '@/hooks/Control/remote-control.hook';
 import { FaGamepad, FaRobot } from 'react-icons/fa';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 
 export const RemoteControlBar = () => {
+    const router = useRouter();
     const { data: robots }: any = useGetRemoteRobotsState();
 
     const remoteRobots = Object.values(robots || {})
@@ -29,15 +31,18 @@ export const RemoteControlBar = () => {
                                 const robotId = controlledRobot?.id;
                                 const label = nickname > 24 ? `${nickname.slice(0, 24)}...` : nickname;
                                 return (
-                                    <Link
+                                    <button
+                                        type="button"
                                         key={key}
-                                        href={robotId ? `/desktop/robots/?id=${robotId}` : '/desktop/robots/'}
+                                        onClick={() => {
+                                            router.push(robotId ? `/desktop/robot?id=${robotId}` : '/desktop/robot');
+                                        }}
                                         className="group flex flex-shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-slate-600/50 bg-slate-700/50 px-3 py-2 text-sm font-medium whitespace-nowrap text-slate-200 transition-all duration-200 hover:border-slate-500/50 hover:bg-slate-600/50 hover:text-white"
                                     >
                                         <FaRobot className="h-3 w-3 text-green-400" />
                                         <span>{label || 'Robot'}</span>
                                         <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
-                                    </Link>
+                                    </button>
                                 );
                             })}
                         </div>

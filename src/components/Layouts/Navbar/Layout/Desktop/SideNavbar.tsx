@@ -58,7 +58,6 @@ export const SideNavbar = () => {
                     key={item.href}
                     type="button"
                     onClick={() => {
-                        console.log('item.href', item.href);
                         router.push(item.href);
                     }}
                     className={`${className} w-full cursor-pointer text-left`}

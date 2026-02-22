@@ -1,7 +1,7 @@
 'use client';
 
 import { addOwnedRobot, deleteOwnedRobot, getOwnedRobotByNickname } from '@/api/Local/Robot/owned_robot';
-import { getAllRobots } from '@/api/Local/Robot/robot';
+import { getAllRobots, upsertRobotTemplate } from '@/api/Local/Robot/robot';
 import { queryClient } from '@/hooks/default';
 import { BASE_OWNED_ROBOT_KEY, useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { removePairedRobotConnection, setPairedRobotConnection, usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
@@ -12,12 +12,12 @@ import {
     useRobotConnectionStatuses,
 } from '@/hooks/Robot/robot-connection-status.hook';
 import { invoke } from '@tauri-apps/api/core';
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { FaEllipsisH, FaSatelliteDish } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { Spinner } from '@/components/Elements/Spinner';
+import { useRouter } from 'next/navigation';
 
 type DiscoveredRobot = {
     host: string;
@@ -193,13 +193,21 @@ export const RobotListPage = () => {
             });
 
             const robots = await getAllRobots();
-            const matchedRobot =
+            let matchedRobot =
                 robots.find((robot: any) => (robot?.robot_type || '').toLowerCase() === (result.robot_type || '').toLowerCase()) ||
                 robots.find((robot: any) => (robot?.name || '').toLowerCase() === (result.robot_name || '').toLowerCase()) ||
                 robots[0];
 
             if (!matchedRobot?.id) {
-                throw new Error('No robot template available locally. Sync robots first.');
+                try {
+                    matchedRobot = await upsertRobotTemplate(result.robot_type, result.robot_name);
+                } catch (error) {
+                    console.error('Failed to create local robot template:', error);
+                }
+            }
+
+            if (!matchedRobot?.id) {
+                throw new Error('No robot template available locally.');
             }
 
             const existingOwnedRobot: any = await getOwnedRobotByNickname(result.nickname);
@@ -503,6 +511,8 @@ const RobotCard = ({ robot, robotName, nickname, onUnpair, isUnpairing }: RobotC
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const menuRef = useRef<HTMLDivElement>(null);
 
+    const router = useRouter();
+
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -556,12 +566,15 @@ const RobotCard = ({ robot, robotName, nickname, onUnpair, isUnpairing }: RobotC
                 </div>
             </div>
 
-            <Link
-                href={`/desktop/robots/?id=${robot.id}`}
+            <button
+                type="button"
+                onClick={() => {
+                    router.push(`/desktop/robot?id=${robot.id}`);
+                }}
                 className="inline-flex w-full cursor-pointer items-center justify-center rounded-md bg-gradient-to-r from-red-400/50 via-orange-400/50 to-yellow-400/50 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition-all duration-200 hover:from-red-500/70 hover:via-orange-500/70 hover:to-yellow-500/70"
             >
                 Manage Robot
-            </Link>
+            </button>
         </div>
     );
 };

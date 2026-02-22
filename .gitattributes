@@ -1,12 +1,9 @@
 # Merge gitmodules with our own
 .gitmodules merge=ours
-
 # Preserve local path constants during merges
 src-tauri/src/services/directory/path_constants.rs merge=ours
-
 # Set default behavior to automatically normalize line endings
 * text=auto
-
 # Explicitly declare text files you want to always be normalized and converted
 # to native line endings on checkout
 *.ts text
@@ -24,13 +21,10 @@ src-tauri/src/services/directory/path_constants.rs merge=ours
 *.toml text
 *.rs text
 *.py text
-
 # Declare files that will always have CRLF line endings on checkout
 *.bat text eol=crlf
-
 # Declare files that will always have LF line endings on checkout
 *.sh text eol=lf
-
 # Git LFS - Track all media files
 # Videos
 *.mp4 filter=lfs diff=lfs merge=lfs -text
@@ -39,17 +33,14 @@ src-tauri/src/services/directory/path_constants.rs merge=ours
 *.avi filter=lfs diff=lfs merge=lfs -text
 *.mkv filter=lfs diff=lfs merge=lfs -text
 *.flv filter=lfs diff=lfs merge=lfs -text
-
 # Images
 *.png filter=lfs diff=lfs merge=lfs -text
 *.jpg filter=lfs diff=lfs merge=lfs -text
 *.jpeg filter=lfs diff=lfs merge=lfs -text
 *.gif filter=lfs diff=lfs merge=lfs -text
 *.webp filter=lfs diff=lfs merge=lfs -text
-
 # Audio
 *.mp3 filter=lfs diff=lfs merge=lfs -text
-
 # Denote other binary files that should not be modified (but not in LFS)
 *.ico binary
 *.fla binary
@@ -61,3 +52,4 @@ src-tauri/src/services/directory/path_constants.rs merge=ours
 *.eot binary
 *.woff binary
 *.woff2 binary
+src-tauri/resources/uv/uv.exe filter=lfs diff=lfs merge=lfs -text
