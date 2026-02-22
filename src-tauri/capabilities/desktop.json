@@ -2,6 +2,9 @@
     "identifier": "desktop-capability",
     "platforms": ["macOS", "windows", "linux"],
     "windows": ["main"],
+    "remote": {
+        "urls": ["http://localhost:3000", "http://127.0.0.1:3000"]
+    },
     "permissions": [
         "updater:default",
         "dialog:default",
@@ -13,6 +16,18 @@
             "allow": [
                 {
                     "path": "$HOME/.cache/huggingface/lerobot/ai_models"
+                },
+                {
+                    "path": "$APPDATA/logs"
+                },
+                {
+                    "path": "$APPLOCALDATA/logs"
+                },
+                {
+                    "path": "$APPDATA"
+                },
+                {
+                    "path": "$APPLOCALDATA"
                 }
             ]
         }

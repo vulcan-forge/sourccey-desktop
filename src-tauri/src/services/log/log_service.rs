@@ -1,3 +1,4 @@
+use std::collections::VecDeque;
 use std::fs::{File, OpenOptions};
 use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
@@ -345,5 +346,30 @@ impl LogService {
         let datetime = chrono::DateTime::from_timestamp(secs as i64, 0).unwrap_or_default();
 
         format!("{}.{:03}", datetime.format("%Y-%m-%d %H:%M:%S"), millis)
+    }
+
+    pub fn read_log_tail(file_path: &str, max_lines: usize) -> Result<Vec<String>, String> {
+        if max_lines == 0 {
+            return Ok(Vec::new());
+        }
+
+        let path = Path::new(file_path);
+        if !path.exists() {
+            return Ok(Vec::new());
+        }
+
+        let file = File::open(path).map_err(|e| format!("Failed to open log file: {}", e))?;
+        let reader = BufReader::new(file);
+        let mut lines = VecDeque::with_capacity(max_lines);
+
+        for line in reader.lines() {
+            let line = line.map_err(|e| format!("Failed to read log file: {}", e))?;
+            if lines.len() == max_lines {
+                lines.pop_front();
+            }
+            lines.push_back(line);
+        }
+
+        Ok(lines.into_iter().collect())
     }
 }

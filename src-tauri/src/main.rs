@@ -11,6 +11,7 @@ use services::setup::local_setup_service::{LocalSetupService, SetupStatus};
 // Import modules from the services folder
 mod services;
 use services::directory::directory_service::DirectoryService;
+use services::log::log_service::LogService;
 
 // Import modules from the utils folder
 mod utils;
@@ -136,13 +137,40 @@ fn get_app_mode(state: tauri::State<AppMode>) -> bool {
     state.0
 }
 
-#[tauri::command]
-fn get_log_dir(app: tauri::AppHandle) -> Result<String, String> {
-    let base_dir = DirectoryService::get_current_dir()
-        .or_else(|_| app.path().app_data_dir().map_err(|e| format!("Failed to get app data dir: {}", e)))?;
+fn resolve_log_dir(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    let base_dir = app
+        .path()
+        .app_data_dir()
+        .or_else(|_| DirectoryService::get_current_dir())
+        .map_err(|e| format!("Failed to resolve log directory: {}", e))?;
     let log_dir = base_dir.join("logs");
     std::fs::create_dir_all(&log_dir).map_err(|e| format!("Failed to create log dir: {}", e))?;
+    Ok(log_dir)
+}
+
+fn frontend_log_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, String> {
+    Ok(resolve_log_dir(app)?.join("frontend.log"))
+}
+
+#[tauri::command]
+fn get_log_dir(app: tauri::AppHandle) -> Result<String, String> {
+    let log_dir = resolve_log_dir(&app)?;
     Ok(log_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
+fn write_frontend_log(app: tauri::AppHandle, level: String, message: String) -> Result<(), String> {
+    let log_path = frontend_log_path(&app)?;
+    let prefix = format!("frontend/{}", level);
+    LogService::write_log_line(log_path.to_string_lossy().as_ref(), Some(&prefix), &message);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_frontend_log_tail(app: tauri::AppHandle, max_lines: Option<usize>) -> Result<Vec<String>, String> {
+    let log_path = frontend_log_path(&app)?;
+    let limit = max_lines.unwrap_or(200).clamp(1, 1000);
+    LogService::read_log_tail(log_path.to_string_lossy().as_ref(), limit)
 }
 
 #[tauri::command]
@@ -309,6 +337,8 @@ fn main() {
             // App Mode
             get_app_mode,
             get_log_dir,
+            write_frontend_log,
+            get_frontend_log_tail,
             setup_check,
             setup_run,
 

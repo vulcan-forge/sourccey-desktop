@@ -6,9 +6,15 @@ import { TopNavbar } from '@/components/Layouts/Navbar/Layout/TopNavbar';
 import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
 import { PairingCodeModal } from '@/components/Elements/Modals/KioskRobotModals/PairingCodeModal';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
+import { initFrontendLogger } from '@/utils/logs/frontend-logger';
+import { useEffect } from 'react';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
+
+    useEffect(() => {
+        initFrontendLogger();
+    }, []);
 
     if (isLoadingAppMode) {
         return (

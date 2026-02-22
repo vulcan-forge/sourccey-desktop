@@ -35,6 +35,9 @@ next-env.d.ts
 ### Compiled & Cached Files ###
 __pycache__/
 
+# logs
+logs/
+
 # Tools and Setup
 tools/
 
