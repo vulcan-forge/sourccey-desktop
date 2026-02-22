@@ -31,7 +31,7 @@ export const RemoteControlBar = () => {
                                 return (
                                     <Link
                                         key={key}
-                                        href={robotId ? `/desktop/robots?id=${robotId}` : '/desktop/robots'}
+                                        href={robotId ? `/desktop/robots/?id=${robotId}` : '/desktop/robots/'}
                                         className="group flex flex-shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-slate-600/50 bg-slate-700/50 px-3 py-2 text-sm font-medium whitespace-nowrap text-slate-200 transition-all duration-200 hover:border-slate-500/50 hover:bg-slate-600/50 hover:text-white"
                                     >
                                         <FaRobot className="h-3 w-3 text-green-400" />

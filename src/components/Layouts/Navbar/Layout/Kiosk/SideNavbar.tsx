@@ -11,12 +11,12 @@ export const SideNavbar = () => {
 
     const navItems = [
         {
-            href: '/kiosk',
+            href: '/kiosk/',
             label: 'Home',
             icon: HiHome,
         },
         {
-            href: '/kiosk/robot',
+            href: '/kiosk/robot/',
             label: 'Robot',
             icon: FaRobot,
         },
@@ -25,7 +25,7 @@ export const SideNavbar = () => {
     const bottomNavItems: any = isKioskMode
         ? [
               {
-                  href: '/kiosk/settings',
+                  href: '/kiosk/settings/',
                   label: 'Settings',
                   icon: FaCog,
               },

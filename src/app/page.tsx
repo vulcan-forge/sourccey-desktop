@@ -49,10 +49,10 @@ const HomePage = (): ReactElement => {
 
         if (isKioskMode) {
             console.log('Kiosk mode: pushing to /kiosk');
-            router.push('/kiosk');
+            router.push('/kiosk/');
         } else {
             console.log('Desktop mode: pushing to /desktop');
-            router.push('/desktop');
+            router.push('/desktop/');
         }
     }, [router, isKioskMode, isLoadingAppMode, updateCheckComplete]);
 
