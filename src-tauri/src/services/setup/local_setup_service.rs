@@ -11,6 +11,7 @@ use crate::services::environment::build_service::BuildService;
 pub struct LocalSetupService;
 
 impl LocalSetupService {
+    const DEFAULT_LEROBOT_ZIP_URL: &str = "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
     pub fn maybe_start(app_handle: AppHandle, kiosk: bool) {
         if kiosk || BuildService::is_dev_mode() {
             return;
@@ -63,7 +64,7 @@ impl LocalSetupService {
 
         if !lerobot_dir.exists() {
             let zip_url = std::env::var("SOURCCEY_LEROBOT_ZIP_URL")
-                .unwrap_or_default();
+                .unwrap_or_else(|_| Self::DEFAULT_LEROBOT_ZIP_URL.to_string());
             if zip_url.trim().is_empty() {
                 return Err("SOURCCEY_LEROBOT_ZIP_URL is not set. Provide a zip URL for lerobot-vulcan.".to_string());
             }
