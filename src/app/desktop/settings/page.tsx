@@ -9,6 +9,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useDesktopExtrasStatus, useGetLerobotVulcanDir, useInstallDesktopExtras } from '@/hooks/System/setup-desktop-extras.hook';
 import { Spinner } from '@/components/Elements/Spinner';
+import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 export default function DesktopSettingsPage() {
     const { data, isLoading, refetch } = useDesktopExtrasStatus();
@@ -24,6 +25,7 @@ export default function DesktopSettingsPage() {
     const installed = data?.installed ?? false;
     const missing = data?.missing ?? [];
     const baseRuntimeMissing = missing.some((item) => item.includes('modules/lerobot-vulcan') || item.includes('.venv'));
+    const isRuntimeActionDisabled = isPending || baseRuntimeMissing || isBaseLoading;
 
     const orderedSteps = useMemo(
         () => [
@@ -140,12 +142,12 @@ export default function DesktopSettingsPage() {
                             <p className="mt-2 text-sm text-slate-300">View runtime and frontend logs in a dedicated logs viewer.</p>
                         </div>
                         <div>
-                            <Link
+                            <LinkButton
                                 href="/desktop/settings/logs"
                                 className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
                             >
                                 Open Logs Viewer
-                            </Link>
+                            </LinkButton>
                         </div>
                     </div>
                 </div>
@@ -159,12 +161,12 @@ export default function DesktopSettingsPage() {
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
-                            <Link
+                            <LinkButton
                                 href="/desktop/setup"
                                 className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
                             >
                                 Open Base Setup
-                            </Link>
+                            </LinkButton>
                             <div className="text-xs text-slate-400">{baseInstalled ? 'Status: Installed' : 'Status: Not installed'}</div>
                         </div>
                         {baseMissing.length > 0 && (
@@ -195,15 +197,15 @@ export default function DesktopSettingsPage() {
                                 Clean re-run the base setup to access the AI runtime.
                             </div>
                         )}
-                        {!isBaseLoading && baseInstalled && (
+                        {(isBaseLoading || baseInstalled) && (
                             <>
                                 <div className="flex flex-wrap items-center gap-3">
                                     <button
                                         type="button"
                                         onClick={handleInstall}
-                                        disabled={isPending || baseRuntimeMissing}
+                                        disabled={isRuntimeActionDisabled}
                                         className={`inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition ${
-                                            isPending || baseRuntimeMissing
+                                            isRuntimeActionDisabled
                                                 ? 'cursor-not-allowed border-slate-700/60 bg-slate-800/60 text-slate-400'
                                                 : 'cursor-pointer border-amber-500/50 bg-amber-500/10 text-amber-100 hover:border-amber-400/70'
                                         }`}
@@ -211,10 +213,16 @@ export default function DesktopSettingsPage() {
                                         {isPending ? 'Installing...' : installed ? 'Reinstall AI Modules' : 'Install AI Modules'}
                                     </button>
                                     <div className="text-xs text-slate-400">
-                                        {isLoading ? 'Checking status...' : installed ? 'Status: Installed' : 'Status: Not installed'}
+                                        {isBaseLoading
+                                            ? 'Checking base runtime...'
+                                            : isLoading
+                                              ? 'Checking status...'
+                                              : installed
+                                                ? 'Status: Installed'
+                                                : 'Status: Not installed'}
                                     </div>
                                     <div className="grow"></div>
-                                    {installed && (
+                                    {installed && !isBaseLoading && (
                                         <button
                                             type="button"
                                             onClick={handleOpenModules}
@@ -258,7 +266,9 @@ export default function DesktopSettingsPage() {
                                                             className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2"
                                                         >
                                                             <div className="text-[11px] font-semibold text-slate-100">{step.label}</div>
-                                                            <div className={`text-[10px] font-semibold tracking-[0.2em] uppercase ${statusClass}`}>
+                                                            <div
+                                                                className={`text-[10px] font-semibold tracking-[0.2em] uppercase ${statusClass}`}
+                                                            >
                                                                 {status}
                                                             </div>
                                                         </div>

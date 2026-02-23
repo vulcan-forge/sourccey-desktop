@@ -6,6 +6,7 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Spinner } from '@/components/Elements/Spinner';
+import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 const steps = [
     { id: 'download', label: 'Download lerobot-vulcan' },
@@ -250,13 +251,12 @@ export default function SetupPage() {
                                 )}
 
                                 {isComplete && !isRunning && (
-                                    <button
-                                        type="button"
-                                        onClick={() => router.push('/desktop/')}
+                                    <LinkButton
+                                        href="/desktop/"
                                         className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
                                     >
                                         Go to desktop
-                                    </button>
+                                    </LinkButton>
                                 )}
                             </div>
 

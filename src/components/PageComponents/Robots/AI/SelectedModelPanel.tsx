@@ -182,7 +182,7 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, onClearAct
                     ) : (
                         <FaPlay className="h-3.5 w-3.5" />
                     )}
-                    {isLoading ? 'Starting...' : isControlling ? 'Stop AI Model' : 'Run AI Model'}
+                    {isLoading ? (isControlling ? 'Stopping...' : 'Starting...') : isControlling ? 'Stop AI Model' : 'Run AI Model'}
                 </button>
             </div>
 

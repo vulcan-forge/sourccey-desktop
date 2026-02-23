@@ -180,8 +180,11 @@ fn get_frontend_log_tail(app: tauri::AppHandle, max_lines: Option<usize>) -> Res
 }
 
 #[tauri::command]
-fn setup_check(app: tauri::AppHandle) -> Result<SetupStatus, String> {
-    LocalSetupService::check_status(&app)
+async fn setup_check(app: tauri::AppHandle) -> Result<SetupStatus, String> {
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || LocalSetupService::check_status(&app_handle))
+        .await
+        .map_err(|e| format!("Setup task failed: {}", e))?
 }
 
 #[tauri::command]
@@ -194,8 +197,11 @@ async fn setup_run(app: tauri::AppHandle, force: Option<bool>) -> Result<(), Str
 }
 
 #[tauri::command]
-fn setup_desktop_extras_check(app: tauri::AppHandle) -> Result<DesktopExtrasStatus, String> {
-    LocalSetupService::check_desktop_extras(&app)
+async fn setup_desktop_extras_check(app: tauri::AppHandle) -> Result<DesktopExtrasStatus, String> {
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || LocalSetupService::check_desktop_extras(&app_handle))
+        .await
+        .map_err(|e| format!("Setup task failed: {}", e))?
 }
 
 #[tauri::command]
