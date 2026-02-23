@@ -1,8 +1,8 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
-    "productName": "Vulcan Robotics",
+    "productName": "Vulcan Studio",
     "version": "0.0.5",
-    "identifier": "VulcanRobotics",
+    "identifier": "VulcanStudio",
     "build": {
         "beforeDevCommand": "bun run dev",
         "beforeBuildCommand": "bun run build",
@@ -13,7 +13,7 @@
         "withGlobalTauri": true,
         "windows": [
             {
-                "title": "Vulcan Robotics",
+                "title": "Vulcan Studio",
                 "decorations": true,
                 "fullscreen": false,
                 "resizable": true,

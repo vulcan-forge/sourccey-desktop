@@ -77,6 +77,19 @@ impl RemoteTeleopService {
         let robot_type = "sourccey".to_string();
         let command_parts = Self::build_command_args(&config);
 
+        let start_message = format!(
+            "Starting remote teleop: nickname={}, remote_ip={}, left_arm_port={}, right_arm_port={}, keyboard={}, fps={}",
+            config.nickname,
+            config.remote_ip,
+            config.left_arm_port,
+            config.right_arm_port,
+            config.keyboard,
+            config.fps
+        );
+        println!("{}", start_message);
+        Self::log_teleop_info(&start_message);
+        Self::emit_teleop_info(&app_handle, &start_message);
+
         // Now build the actual Command
         let mut cmd = Command::new(&python_path);  // Use reference here
         for arg in &command_parts[1..] {
@@ -236,6 +249,17 @@ impl RemoteTeleopService {
         if let Ok(path) = Self::teleop_log_path() {
             LogService::write_log_line(path.to_string_lossy().as_ref(), Some("teleop"), message);
         }
+    }
+
+    fn log_teleop_info(message: &str) {
+        if let Ok(path) = Self::teleop_log_path() {
+            LogService::write_log_line(path.to_string_lossy().as_ref(), Some("teleop"), message);
+        }
+    }
+
+    fn emit_teleop_info(app_handle: &AppHandle, message: &str) {
+        let formatted = format!("[teleop] {}", message);
+        let _ = app_handle.emit("teleop-log", &formatted);
     }
 
     fn teleop_log_path() -> Result<std::path::PathBuf, String> {

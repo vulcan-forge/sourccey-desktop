@@ -65,9 +65,10 @@ export default function DesktopSettingsLogsPage() {
 
         try {
             const dir = logDir || ((await invoke('get_log_dir')) as string);
-            console.log('Log directory:', dir);
+            const normalizedDir = dir.replace(/\\/g, '/');
+            console.log('Log directory:', normalizedDir);
             setLogDir(dir);
-            await openPath(dir);
+            await openPath(normalizedDir);
         } catch (err) {
             console.error('Failed to open log directory:', err);
             setError(`Failed to open the log folder: ${getErrorMessage(err)}`);

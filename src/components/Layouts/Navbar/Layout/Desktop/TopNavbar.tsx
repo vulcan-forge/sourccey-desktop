@@ -16,7 +16,7 @@ export const DesktopTopNavbar = () => {
                             className="drop-shadow-logo"
                         />
                         <span className="inline-block bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 bg-clip-text pb-1 text-3xl leading-tight text-transparent">
-                            Vulcan Robotics
+                            Vulcan Studio
                         </span>
                     </Link>
 

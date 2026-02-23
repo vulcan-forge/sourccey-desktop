@@ -44,6 +44,25 @@ export default function DesktopSettingsPage() {
                 <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
                     <div className="flex flex-col gap-4">
                         <div>
+                            <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Logs</div>
+                            <p className="mt-2 text-sm text-slate-300">
+                                View recent telemetry and diagnostics from the desktop app.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <LinkButton
+                                href="/desktop/settings/logs"
+                                className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
+                            >
+                                Open Logs
+                            </LinkButton>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
+                    <div className="flex flex-col gap-4">
+                        <div>
                             <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Base Setup</div>
                             <p className="mt-2 text-sm text-slate-300">
                                 Download lerobot-vulcan, create the Python environment, and compile protobufs.
