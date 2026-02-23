@@ -9,6 +9,8 @@ use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
 use std::process::{Child, Command, Stdio};
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -45,6 +47,11 @@ impl TeleopService {
 
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
         let python_path = DirectoryService::get_python_path()?;
+        #[cfg(windows)]
+        let python_path = {
+            let pythonw = python_path.with_file_name("pythonw.exe");
+            if pythonw.exists() { pythonw } else { python_path }
+        };
         let robot_type = "so100_follower".to_string();
         let teleop_type = "so100_leader".to_string();
 
@@ -53,6 +60,12 @@ impl TeleopService {
 
         // Use command_parts for execution
         let mut cmd = Command::new(python_path);
+        #[cfg(windows)]
+        {
+            // Prevent spawning a console window in production.
+            // CREATE_NO_WINDOW (0x08000000) | DETACHED_PROCESS (0x00000008)
+            cmd.creation_flags(0x08000000 | 0x00000008);
+        }
         for arg in &command_parts[1..] {
             cmd.arg(arg);
         }
@@ -101,7 +114,7 @@ impl TeleopService {
             Some(&config.nickname),
             Some("teleop-log"),
             None,
-            true,
+            false,
             false,
         );
 
@@ -112,7 +125,7 @@ impl TeleopService {
             Some(&config.nickname),
             Some("teleop-log"),
             None,
-            true,
+            false,
             true,
         );
 

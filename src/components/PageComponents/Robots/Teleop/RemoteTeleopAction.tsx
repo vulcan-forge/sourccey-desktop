@@ -7,6 +7,7 @@ import { Tooltip } from 'react-tooltip';
 import { useGetCalibration } from '@/hooks/Control/config.hook';
 import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
+import { Spinner } from '@/components/Elements/Spinner';
 
 export enum RobotControlStatus {
     STARTED = 'Robot is being controlled',
@@ -50,8 +51,6 @@ export const RemoteTeleopAction = ({
             keyboard: remoteConfig.keyboard,
             fps: remoteConfig.fps,
         };
-
-        console.log('remoteTeleopConfig', remoteTeleopConfig);
 
         const result = await invoke('start_remote_teleop', { config: remoteTeleopConfig });
         toast.success(`Remote Teleop started: ${result}`, {
@@ -113,7 +112,7 @@ export const RemoteTeleopAction = ({
                     }`}
                 >
                     {isCalibrationLoading ? (
-                        <span className="animate-spin">âŒ›</span>
+                        <Spinner color="white" />
                     ) : isControlling ? (
                         <>
                             <FaStop className="h-4 w-4" /> Stop Control

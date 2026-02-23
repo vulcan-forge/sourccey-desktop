@@ -7,6 +7,7 @@ import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { RobotLogs } from '@/components/PageComponents/Robots/Logs/RobotDesktopLogs';
 import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
+import { Spinner } from '@/components/Elements/Spinner';
 
 type SelectedModelPanelProps = {
     model: {
@@ -175,7 +176,7 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, onClearAct
                     }`}
                 >
                     {isLoading ? (
-                        <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/80 border-t-transparent"></div>
+                        <Spinner color="white" />
                     ) : isControlling ? (
                         <FaStop className="h-3.5 w-3.5" />
                     ) : (
