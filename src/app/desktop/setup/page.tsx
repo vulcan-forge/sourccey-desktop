@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useRouter } from 'next/navigation';
@@ -45,6 +45,7 @@ export default function SetupPage() {
     const [isInstalled, setIsInstalled] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [log, setLog] = useState<string[]>([]);
+    const hasMarkedInstalledRef = useRef(false);
     const [stepState, setStepState] = useState<Record<string, StepStatus>>(() => {
         const initial: Record<string, StepStatus> = {};
         steps.forEach((step) => {
@@ -75,8 +76,26 @@ export default function SetupPage() {
         [appendLog]
     );
 
+    const markInstalled = useCallback((message: string) => {
+        if (hasMarkedInstalledRef.current) {
+            return;
+        }
+        hasMarkedInstalledRef.current = true;
+        setIsInstalled(true);
+        setIsComplete(true);
+        setStepState((prev) => {
+            const next = { ...prev };
+            steps.forEach((step) => {
+                next[step.id] = 'success';
+            });
+            return next;
+        });
+        setLog((prev) => (prev.length > 0 ? prev : [message]));
+    }, []);
+
     useEffect(() => {
         let unlisten: UnlistenFn | undefined;
+        let cancelled = false;
         const startListener = async () => {
             unlisten = await listen<SetupProgress>('setup:progress', (event) => {
                 const { step, status, message } = event.payload;
@@ -88,11 +107,15 @@ export default function SetupPage() {
                     setIsRunning(false);
                 }
             });
+            if (cancelled && unlisten) {
+                unlisten();
+            }
         };
 
         void startListener();
 
         return () => {
+            cancelled = true;
             if (unlisten) {
                 unlisten();
             }
@@ -102,6 +125,7 @@ export default function SetupPage() {
     useEffect(() => {
         const check = async () => {
             if (!isTauri()) {
+                markInstalled('Setup already complete.');
                 setIsReady(true);
                 return;
             }
@@ -110,8 +134,7 @@ export default function SetupPage() {
                 const status = (await invoke('setup_check')) as SetupStatus;
                 setIsInstalled(status.installed);
                 if (status.installed) {
-                    router.push('/desktop/');
-                    return;
+                    markInstalled('Setup already complete.');
                 }
             } catch (err) {
                 console.error('Setup status check failed:', err);
@@ -120,7 +143,7 @@ export default function SetupPage() {
         };
 
         void check();
-    }, [router]);
+    }, [markInstalled, router]);
 
     const startSetup = async () => {
         setIsRunning(true);
@@ -136,11 +159,9 @@ export default function SetupPage() {
         });
 
         try {
-            await invoke('setup_run');
+            await invoke('setup_run', { force: isInstalled });
             setIsRunning(false);
-            setIsComplete(true);
-            setIsInstalled(true);
-            appendLog('Setup complete. Ready to continue.');
+            markInstalled('Setup complete. Ready to continue.');
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Setup failed.';
             setError(message);
@@ -154,13 +175,13 @@ export default function SetupPage() {
     }
 
     return (
-        <div className="min-h-screen bg-linear-to-br from-slate-950 via-slate-900 to-slate-800">
-            <div className="container mx-auto flex min-h-screen flex-col items-center justify-center px-6 py-12">
+        <div className="flex h-screen w-full overflow-y-auto bg-linear-to-br from-slate-950 via-slate-900 to-slate-800">
+            <div className="container mx-auto flex min-h-full flex-col items-center justify-start px-6 py-12">
                 <div className="relative w-full max-w-3xl">
                     <div className="absolute -top-20 -left-16 h-32 w-32 rounded-full bg-red-500/20 blur-3xl" />
                     <div className="absolute -right-16 -bottom-16 h-32 w-32 rounded-full bg-amber-400/20 blur-3xl" />
 
-                    <div className="relative overflow-hidden rounded-3xl border border-slate-700/60 bg-slate-900/80 p-8 shadow-2xl backdrop-blur">
+                    <div className="relative rounded-3xl border border-slate-700/60 bg-slate-900/80 p-8 shadow-2xl backdrop-blur">
                         <div className="flex flex-col gap-6">
                             <div className="flex items-center gap-4">
                                 <Image
@@ -177,7 +198,8 @@ export default function SetupPage() {
                             </div>
 
                             <p className="text-sm text-slate-300">
-                                We will download lerobot-vulcan, create the Python environment, and configure the runtime tools. This can take several minutes depending on your connection and machine.
+                                We will download lerobot-vulcan, create the Python environment, and configure the runtime tools. This can take
+                                several minutes depending on your connection and machine.
                             </p>
 
                             <div className="rounded-2xl border border-slate-700/60 bg-slate-950/50 p-6">
@@ -231,7 +253,7 @@ export default function SetupPage() {
                                     <button
                                         type="button"
                                         onClick={() => router.push('/desktop/')}
-                                        className="inline-flex items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
+                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
                                     >
                                         Go to desktop
                                     </button>
@@ -243,7 +265,10 @@ export default function SetupPage() {
                                     <div className="mb-2 text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">Setup log</div>
                                     <div className="max-h-40 space-y-2 overflow-y-auto">
                                         {log.map((line, index) => (
-                                            <div key={`${line}-${index}`} className="rounded-md border border-slate-800/80 bg-slate-950/70 px-3 py-2 text-slate-200">
+                                            <div
+                                                key={`${line}-${index}`}
+                                                className="rounded-md border border-slate-800/80 bg-slate-950/70 px-3 py-2 text-slate-200"
+                                            >
                                                 {line}
                                             </div>
                                         ))}

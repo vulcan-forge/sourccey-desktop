@@ -24,6 +24,12 @@ pub struct SetupStatus {
     pub missing: Vec<String>,
 }
 
+#[derive(Clone, Serialize)]
+pub struct DesktopExtrasStatus {
+    pub installed: bool,
+    pub missing: Vec<String>,
+}
+
 impl LocalSetupService {
     const DEFAULT_LEROBOT_ZIP_URL: &str = "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
     #[allow(dead_code)]
@@ -56,7 +62,11 @@ impl LocalSetupService {
 
         let setup_dir = app_data_dir.join("setup");
         let marker_path = setup_dir.join("lerobot_vulcan_installed");
-        let install_root = app_data_dir.join("modules");
+        let install_root = if BuildService::is_dev_mode() {
+            DirectoryService::get_current_dir_dev()?.join("modules")
+        } else {
+            app_data_dir.join("modules")
+        };
         let lerobot_dir = install_root.join("lerobot-vulcan");
         let python_path = Self::python_path_for(&lerobot_dir);
 
@@ -77,12 +87,49 @@ impl LocalSetupService {
         })
     }
 
-    pub fn run_setup(app_handle: &AppHandle) -> Result<(), String> {
+    pub fn check_desktop_extras(app_handle: &AppHandle) -> Result<DesktopExtrasStatus, String> {
+        let app_data_dir = app_handle
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+
+        let setup_dir = app_data_dir.join("setup");
+        let marker_path = Self::desktop_extras_marker_path(&setup_dir);
+        let lerobot_dir = if BuildService::is_dev_mode() {
+            DirectoryService::get_current_dir_dev()?
+                .join("modules")
+                .join("lerobot-vulcan")
+        } else {
+            app_data_dir.join("modules").join("lerobot-vulcan")
+        };
+        let python_path = Self::python_path_for(&lerobot_dir);
+
+        let mut missing = Vec::new();
+        if !lerobot_dir.exists() {
+            missing.push("modules/lerobot-vulcan".to_string());
+        }
+        if !python_path.exists() {
+            missing.push("lerobot-vulcan/.venv".to_string());
+        }
+        if !marker_path.exists() {
+            missing.push("desktop extras marker".to_string());
+        }
+        if python_path.exists() && !Self::python_can_import(&python_path, "transformers") {
+            missing.push("xvla bindings".to_string());
+        }
+
+        Ok(DesktopExtrasStatus {
+            installed: missing.is_empty(),
+            missing,
+        })
+    }
+
+    pub fn run_setup(app_handle: &AppHandle, force: bool) -> Result<(), String> {
         let emit = |progress: SetupProgress| {
             let _ = app_handle.emit("setup:progress", progress);
         };
         if let Ok(status) = Self::check_status(app_handle) {
-            if status.installed {
+            if status.installed && !force {
                 Self::emit_step(
                     Some(&emit),
                     "complete",
@@ -91,8 +138,105 @@ impl LocalSetupService {
                 );
                 return Ok(());
             }
+            if status.installed && force {
+                return Self::reinstall_dependencies(app_handle, Some(&emit));
+            }
         }
         Self::ensure_installed(app_handle, Some(&emit), false)
+    }
+
+    pub fn run_desktop_extras(app_handle: &AppHandle) -> Result<(), String> {
+        let emit = |progress: SetupProgress| {
+            let _ = app_handle.emit("setup:desktop-extras-progress", progress);
+        };
+        let app_data_dir = app_handle
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+
+        let setup_dir = app_data_dir.join("setup");
+        let marker_path = Self::desktop_extras_marker_path(&setup_dir);
+        let lerobot_dir = if BuildService::is_dev_mode() {
+            DirectoryService::get_current_dir_dev()?
+                .join("modules")
+                .join("lerobot-vulcan")
+        } else {
+            app_data_dir.join("modules").join("lerobot-vulcan")
+        };
+        let python_path = Self::python_path_for(&lerobot_dir);
+
+        if !lerobot_dir.exists() {
+            Self::emit_step(
+                Some(&emit),
+                "check",
+                "error",
+                Some("lerobot-vulcan not found. Run the initial setup first.".to_string()),
+            );
+            return Err("lerobot-vulcan not found. Run the initial setup first.".to_string());
+        }
+        if !python_path.exists() {
+            Self::emit_step(
+                Some(&emit),
+                "check",
+                "error",
+                Some("lerobot-vulcan virtual environment not found. Run the initial setup first.".to_string()),
+            );
+            return Err("lerobot-vulcan virtual environment not found. Run the initial setup first.".to_string());
+        }
+
+        fs::create_dir_all(&setup_dir)
+            .map_err(|e| format!("Failed to create setup directory: {}", e))?;
+
+        Self::emit_step(
+            Some(&emit),
+            "uv",
+            "started",
+            Some("Preparing uv runtime".to_string()),
+        );
+        let uv_target = Self::ensure_uv_binary(app_handle, &app_data_dir)?;
+        Self::emit_step(Some(&emit), "uv", "success", None);
+
+        Self::emit_step(
+            Some(&emit),
+            "deps",
+            "started",
+            Some("Installing Sourccey desktop extras".to_string()),
+        );
+        Self::run_command(
+            &uv_target,
+            &["pip", "install", "-e", ".[sourccey-desktop,xvla]"],
+            &lerobot_dir,
+            "uv pip install sourccey-desktop",
+        )?;
+        Self::emit_step(Some(&emit), "deps", "success", None);
+
+        Self::emit_step(
+            Some(&emit),
+            "xvla",
+            "started",
+            Some("Verifying XVLA bindings".to_string()),
+        );
+        if !Self::python_can_import(&python_path, "transformers") {
+            Self::emit_step(
+                Some(&emit),
+                "xvla",
+                "error",
+                Some("XVLA bindings missing (transformers import failed)".to_string()),
+            );
+            return Err("XVLA bindings missing. Ensure xvla extras are installed.".to_string());
+        }
+        Self::emit_step(Some(&emit), "xvla", "success", None);
+
+        fs::write(&marker_path, "ok")
+            .map_err(|e| format!("Failed to write desktop extras marker: {}", e))?;
+
+        Self::emit_step(
+            Some(&emit),
+            "complete",
+            "success",
+            Some("Desktop extras installed".to_string()),
+        );
+        Ok(())
     }
 
     fn ensure_installed(
@@ -107,7 +251,11 @@ impl LocalSetupService {
 
         let setup_dir = app_data_dir.join("setup");
         let marker_path = setup_dir.join("lerobot_vulcan_installed");
-        let install_root = app_data_dir.join("modules");
+        let install_root = if BuildService::is_dev_mode() {
+            DirectoryService::get_current_dir_dev()?.join("modules")
+        } else {
+            app_data_dir.join("modules")
+        };
         let lerobot_dir = install_root.join("lerobot-vulcan");
         let python_path = Self::python_path_for(&lerobot_dir);
 
@@ -257,6 +405,111 @@ impl LocalSetupService {
         Ok(())
     }
 
+    fn reinstall_dependencies(
+        app_handle: &AppHandle,
+        emit: Option<&dyn Fn(SetupProgress)>,
+    ) -> Result<(), String> {
+        let app_data_dir = app_handle
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+
+        let setup_dir = app_data_dir.join("setup");
+        let marker_path = setup_dir.join("lerobot_vulcan_installed");
+        let lerobot_dir = if BuildService::is_dev_mode() {
+            DirectoryService::get_current_dir_dev()?
+                .join("modules")
+                .join("lerobot-vulcan")
+        } else {
+            app_data_dir.join("modules").join("lerobot-vulcan")
+        };
+        let python_path = Self::python_path_for(&lerobot_dir);
+
+        if !lerobot_dir.exists() || !python_path.exists() {
+            return Self::ensure_installed(app_handle, emit, false);
+        }
+
+        fs::create_dir_all(&setup_dir)
+            .map_err(|e| format!("Failed to create setup directory: {}", e))?;
+
+        Self::emit_step(
+            emit,
+            "download",
+            "success",
+            Some("lerobot-vulcan already present".to_string()),
+        );
+        Self::emit_step(
+            emit,
+            "extract",
+            "success",
+            Some("lerobot-vulcan already extracted".to_string()),
+        );
+
+        Self::emit_step(emit, "uv", "started", Some("Preparing uv runtime".to_string()));
+        let uv_target = Self::ensure_uv_binary(app_handle, &app_data_dir)?;
+        Self::emit_step(emit, "uv", "success", None);
+
+        Self::emit_step(
+            emit,
+            "venv",
+            "success",
+            Some("Using existing virtual environment".to_string()),
+        );
+
+        Self::emit_step(emit, "deps", "started", Some("Reinstalling dependencies".to_string()));
+        Self::run_command(
+            &uv_target,
+            &["pip", "install", "-e", ".[sourccey]"],
+            &lerobot_dir,
+            "uv pip install",
+        )
+        .map_err(|e| {
+            Self::emit_step(emit, "deps", "error", Some(e.clone()));
+            e
+        })?;
+        Self::emit_step(emit, "deps", "success", None);
+
+        let compile_script = lerobot_dir
+            .join("src")
+            .join("lerobot")
+            .join("robots")
+            .join("sourccey")
+            .join("sourccey")
+            .join("protobuf")
+            .join("compile.py");
+        if compile_script.exists() {
+            Self::emit_step(emit, "protobuf", "started", Some("Compiling protobuf".to_string()));
+            let compile_script_str = compile_script.to_string_lossy().to_string();
+            Self::run_command(
+                &python_path,
+                &[compile_script_str.as_str()],
+                &lerobot_dir,
+                "compile protobuf",
+            )
+            .map_err(|e| {
+                Self::emit_step(emit, "protobuf", "error", Some(e.clone()));
+                e
+            })?;
+            Self::emit_step(emit, "protobuf", "success", None);
+        } else {
+            Self::emit_step(
+                emit,
+                "protobuf",
+                "success",
+                Some("Protobuf compile step skipped".to_string()),
+            );
+        }
+
+        fs::write(&marker_path, "ok")
+            .map_err(|e| format!("Failed to write setup marker: {}", e))?;
+
+        DirectoryService::set_project_root_override(app_data_dir);
+
+        Self::emit_step(emit, "complete", "success", Some("Setup complete".to_string()));
+
+        Ok(())
+    }
+
     fn run_command(
         exe: &Path,
         args: &[&str],
@@ -278,6 +531,18 @@ impl LocalSetupService {
         }
 
         Ok(())
+    }
+
+    fn python_can_import(python_path: &Path, module: &str) -> bool {
+        if !python_path.exists() {
+            return false;
+        }
+        let code = format!("import {}", module);
+        Command::new(python_path)
+            .args(["-c", code.as_str()])
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
     }
 
     fn download_file(url: &str, dest: &Path) -> Result<(), String> {
@@ -338,6 +603,39 @@ impl LocalSetupService {
             resource_dir.join("uv").join("uv"),
         ];
         candidates.into_iter().find(|path| path.exists())
+    }
+
+    fn ensure_uv_binary(app_handle: &AppHandle, app_data_dir: &Path) -> Result<PathBuf, String> {
+        let uv_target_dir = app_data_dir.join("bin");
+        let existing = [uv_target_dir.join("uv.exe"), uv_target_dir.join("uv")]
+            .into_iter()
+            .find(|path| path.exists());
+        if let Some(path) = existing {
+            return Ok(path);
+        }
+
+        let resource_dir = app_handle
+            .path()
+            .resource_dir()
+            .map_err(|e| format!("Failed to get resource directory: {}", e))?;
+        let uv_source = Self::find_uv_binary(&resource_dir)
+            .ok_or_else(|| "Bundled uv binary not found. Place uv in src-tauri/resources/uv.".to_string())?;
+
+        fs::create_dir_all(&uv_target_dir)
+            .map_err(|e| format!("Failed to create bin directory: {}", e))?;
+        let uv_file_name = uv_source
+            .file_name()
+            .ok_or_else(|| "Bundled uv binary has no filename".to_string())?;
+        let uv_target = uv_target_dir.join(uv_file_name);
+        if !uv_target.exists() {
+            fs::copy(&uv_source, &uv_target)
+                .map_err(|e| format!("Failed to copy uv binary: {}", e))?;
+        }
+        Ok(uv_target)
+    }
+
+    fn desktop_extras_marker_path(setup_dir: &Path) -> PathBuf {
+        setup_dir.join("lerobot_vulcan_desktop_extras_installed")
     }
 
     fn python_path_for(lerobot_dir: &Path) -> PathBuf {

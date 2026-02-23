@@ -64,8 +64,8 @@ const HomePage = (): ReactElement => {
                     if (isTauri()) {
                         const status = (await invoke('setup_check')) as SetupStatus;
                         if (!status.installed) {
-                            console.log('Desktop mode: setup required, pushing to /setup');
-                            router.push('/setup');
+                            console.log('Desktop mode: setup required, pushing to /desktop/setup');
+                            router.push('/desktop/setup');
                         } else {
                             console.log('Desktop mode: pushing to /desktop');
                             router.push('/desktop/');

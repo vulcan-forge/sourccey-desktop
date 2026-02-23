@@ -18,6 +18,12 @@
                     "path": "$HOME/.cache/huggingface/lerobot/ai_models"
                 },
                 {
+                    "path": "$HOME/Desktop/Projects/Vulcan/sourccey-desktop/modules/lerobot-vulcan"
+                },
+                {
+                    "path": "$HOME/Desktop/Projects/Vulcan/sourccey-desktop/modules"
+                },
+                {
                     "path": "$APPDATA/logs"
                 },
                 {

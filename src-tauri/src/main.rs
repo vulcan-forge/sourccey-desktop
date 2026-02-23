@@ -6,7 +6,7 @@
 mod database;
 use database::connection::DatabaseManager;
 use tauri::Manager;
-use services::setup::local_setup_service::{LocalSetupService, SetupStatus};
+use services::setup::local_setup_service::{DesktopExtrasStatus, LocalSetupService, SetupStatus};
 
 // Import modules from the services folder
 mod services;
@@ -159,6 +159,12 @@ fn get_log_dir(app: tauri::AppHandle) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn get_lerobot_vulcan_dir() -> Result<String, String> {
+    let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
+    Ok(lerobot_dir.to_string_lossy().to_string())
+}
+
+#[tauri::command]
 fn write_frontend_log(app: tauri::AppHandle, level: String, message: String) -> Result<(), String> {
     let log_path = frontend_log_path(&app)?;
     let prefix = format!("frontend/{}", level);
@@ -179,9 +185,23 @@ fn setup_check(app: tauri::AppHandle) -> Result<SetupStatus, String> {
 }
 
 #[tauri::command]
-async fn setup_run(app: tauri::AppHandle) -> Result<(), String> {
+async fn setup_run(app: tauri::AppHandle, force: Option<bool>) -> Result<(), String> {
     let app_handle = app.clone();
-    tauri::async_runtime::spawn_blocking(move || LocalSetupService::run_setup(&app_handle))
+    let force = force.unwrap_or(false);
+    tauri::async_runtime::spawn_blocking(move || LocalSetupService::run_setup(&app_handle, force))
+        .await
+        .map_err(|e| format!("Setup task failed: {}", e))?
+}
+
+#[tauri::command]
+fn setup_desktop_extras_check(app: tauri::AppHandle) -> Result<DesktopExtrasStatus, String> {
+    LocalSetupService::check_desktop_extras(&app)
+}
+
+#[tauri::command]
+async fn setup_desktop_extras_run(app: tauri::AppHandle) -> Result<(), String> {
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || LocalSetupService::run_desktop_extras(&app_handle))
         .await
         .map_err(|e| format!("Setup task failed: {}", e))?
 }
@@ -337,10 +357,13 @@ fn main() {
             // App Mode
             get_app_mode,
             get_log_dir,
+            get_lerobot_vulcan_dir,
             write_frontend_log,
             get_frontend_log_tail,
             setup_check,
             setup_run,
+            setup_desktop_extras_check,
+            setup_desktop_extras_run,
 
             // Kiosk Host Functions
             start_kiosk_host,

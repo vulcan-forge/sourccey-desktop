@@ -4,27 +4,27 @@ import { Spinner } from '@/components/Elements/Spinner';
 import { SideNavbar } from '@/components/Layouts/Navbar/Layout/SideNavbar';
 import { TopNavbar } from '@/components/Layouts/Navbar/Layout/TopNavbar';
 import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
-import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { initFrontendLogger } from '@/utils/logs/frontend-logger';
 import { useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
-    const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
+    const pathname = usePathname();
 
     useEffect(() => {
         initFrontendLogger();
     }, []);
 
-    if (isLoadingAppMode) {
+    if (pathname?.startsWith('/desktop/setup')) {
         return (
-            <div className="flex h-screen items-center justify-center">
-                <Spinner />
-            </div>
+            <>
+                <div className={`bg-slate-850 flex h-screen flex-col overflow-hidden`}>{children}</div>
+            </>
         );
     }
 
     return (
-        <div className={`bg-slate-850 flex h-screen flex-col overflow-hidden ${isKioskMode ? 'kiosk-mode' : ''}`}>
+        <div className={`bg-slate-850 flex h-screen flex-col overflow-hidden`}>
             <TopNavbar />
             <div className="flex min-h-0 flex-1 overflow-hidden">
                 <SideNavbar />
