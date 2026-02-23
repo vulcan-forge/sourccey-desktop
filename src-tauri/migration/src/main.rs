@@ -13,7 +13,7 @@ async fn main() {
         // Ensure the directory exists
         std::fs::create_dir_all(&data_dir).expect("Failed to create Sourccey directory");
 
-        let db_path = format!("sqlite://{}/sourccey.db?mode=rwc",
+        let db_path = format!("sqlite://{}/vulcan-studio.db?mode=rwc",
             data_dir.to_string_lossy().replace('\\', "/"));
 
         env::set_var("DATABASE_URL", db_path);

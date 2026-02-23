@@ -17,7 +17,7 @@ impl DatabaseManager {
 
         std::fs::create_dir_all(&app_dir).expect("Failed to create app data directory");
 
-        let db_path = app_dir.join("sourccey.db");
+        let db_path = app_dir.join("vulcan-studio.db");
         let database_url = format!("sqlite://{}?mode=rwc", db_path.display());
 
         let connection = Database::connect(&database_url).await?;
