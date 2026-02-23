@@ -1,6 +1,6 @@
 {
-    "name": "sourccey-desktop",
-    "version": "0.0.4",
+    "name": "vulcan-robotics-desktop",
+    "version": "0.0.5",
     "private": true,
     "scripts": {
         "dev": "next dev",

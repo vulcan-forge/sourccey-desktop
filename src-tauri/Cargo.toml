@@ -1,6 +1,6 @@
 [package]
 name = "VulcanRobotics"
-version = "0.0.4"
+version = "0.0.5"
 description = "Vulcan Robotics Desktop Application"
 authors = ["you"]
 edition = "2021"
