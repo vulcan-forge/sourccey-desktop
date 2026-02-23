@@ -210,9 +210,9 @@ impl RemoteTeleopService {
                 nickname
             ))
         } else {
-            let message = format!("No teleop process found for nickname: {}", nickname);
+            let message = format!("Teleop process not found. Stop command sent for nickname: {}", nickname);
             Self::log_teleop_error(&message);
-            Err(message)
+            Ok(message)
         }
     }
 

@@ -186,8 +186,8 @@ impl TeleopService {
                 nickname
             ))
         } else {
-            Err(format!(
-                "No teleop process found for nickname: {}",
+            Ok(format!(
+                "Teleop process not found. Stop command sent for nickname: {}",
                 nickname
             ))
         }
