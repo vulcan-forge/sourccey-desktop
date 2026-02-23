@@ -9,16 +9,29 @@ export type DesktopExtrasStatus = {
 
 export const DESKTOP_EXTRAS_KEY = ['setup', 'desktop-extras'];
 
+export const getDesktopExtrasCachedStatus = () =>
+    queryClient.getQueryData<DesktopExtrasStatus | null>(DESKTOP_EXTRAS_KEY) ?? null;
+
+export const setDesktopExtrasCachedStatus = (status: DesktopExtrasStatus) =>
+    queryClient.setQueryData(DESKTOP_EXTRAS_KEY, status);
+
 export const getDesktopExtrasStatus = async (): Promise<DesktopExtrasStatus> => {
     if (!isTauri()) {
         return { installed: true, missing: [] };
     }
-    return await invoke<DesktopExtrasStatus>('setup_desktop_extras_check');
+    const cached = getDesktopExtrasCachedStatus();
+    if (cached?.installed === true) {
+        return cached;
+    }
+    const status = await invoke<DesktopExtrasStatus>('setup_desktop_extras_check');
+    setDesktopExtrasCachedStatus(status);
+    return status;
 };
 
 export const runDesktopExtrasSetup = async (): Promise<void> => {
     if (!isTauri()) return;
     await invoke('setup_desktop_extras_run');
+    setDesktopExtrasCachedStatus({ installed: true, missing: [] });
 };
 
 export const getLerobotVulcanDir = async (): Promise<string | null> => {
@@ -30,7 +43,10 @@ export const useDesktopExtrasStatus = () =>
     useQuery({
         queryKey: DESKTOP_EXTRAS_KEY,
         queryFn: getDesktopExtrasStatus,
-        staleTime: 10000,
+        staleTime: Infinity,
+        gcTime: Infinity,
+        refetchOnMount: false,
+        refetchOnWindowFocus: false,
     });
 
 export const useInstallDesktopExtras = () =>
