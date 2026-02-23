@@ -3,6 +3,7 @@ import { FaGamepad, FaSlidersH } from 'react-icons/fa';
 import { setContent, useGetContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
 import Link from 'next/link';
 import { FaArrowLeft, FaCog, FaMicrochip } from 'react-icons/fa';
+import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 export const RobotNavbar = () => {
     const { data: content } = useGetContent();
@@ -20,13 +21,13 @@ export const RobotNavbar = () => {
     return (
         <nav className="bg-slate-825 border-slate-725 flex flex-col border-b px-4 py-4 backdrop-blur-sm">
             <div className="flex items-center gap-4">
-                <Link
-                    href="/app/owned-robots"
-                    className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-slate-300 transition-all hover:bg-slate-700/70 hover:text-white"
+                <LinkButton
+                    href="/desktop/robot"
+                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg px-4 py-2 text-sm font-medium text-slate-300 transition-all hover:bg-slate-700/70 hover:text-white"
                 >
                     <FaArrowLeft className="h-4 w-4" />
                     Back
-                </Link>
+                </LinkButton>
 
                 <div className="bg-slate-725 mx-4 h-8 w-0.5" />
 
