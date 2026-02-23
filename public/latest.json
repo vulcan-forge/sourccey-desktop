@@ -1,11 +1,11 @@
 {
     "version": "0.0.5",
-    "date": "2026-02-21T12:00:00Z",
+    "date": "2026-02-23T12:00:00Z",
     "force": true,
     "platforms": {
         "windows-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzIvVG80ZTBLQmJYcEhjS1FXbnByKzlFMVk4ZFNuN2NMTjFxUGZZUWlJa2VOdlAvR1owTURob2kvSkhsYXcvMksvVy95bVJodWhlY0JXWHlma1FnVHdJPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcxODgwODI3CWZpbGU6VnVsY2FuIFJvYm90aWNzXzAuMC41X3g2NC1zZXR1cC5leGUKR0RXWjBpTHFEaSs4UHRmY2xxT0lvU1NoQXY1TytiMnBFT3VJRU5tNXlFWHVJSVZOdEpHNUl3Q244cXN5SW00MFRiejZSa2NjTm5BTWVyMVBrUnN3QXc9PQo=",
-            "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/VulcanRoboticsInstaller.exe"
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzBSR2luc0JzeEtFd09MeU5BZ1hUU3AxUDNEbVljS1pXbkU4andDVW5IQVdpMXpCZm9mZ1NnUFZvWmZ4ZzA0NXpXS2ZGU3ZjNHJmOVhoOVhBNElXQmdzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcxODg4MTY1CWZpbGU6VnVsY2FuIFN0dWRpb18wLjAuNV94NjQtc2V0dXAuZXhlCkw5WlBGV3FvaHlRRkVDRHFJcUROTTFCeVZuL1FKM2JjTHhCRzU0RHh0VkhBYisrVlRlMjZ1ejRHUjRyaWpBck1kMHBvcElNOWdtRmJ6elBCeEhLNkF3PT0K",
+            "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/VulcanStudioInstaller.exe"
         }
     },
     "notes": "Initial release\n- Robot control\n- AI Control\n- Kiosk mode"
