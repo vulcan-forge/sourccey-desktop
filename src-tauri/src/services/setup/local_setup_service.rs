@@ -314,6 +314,19 @@ impl LocalSetupService {
                     install_root
                 ));
             }
+        } else {
+            Self::emit_step(
+                emit,
+                "download",
+                "success",
+                Some("lerobot-vulcan already present".to_string()),
+            );
+            Self::emit_step(
+                emit,
+                "extract",
+                "success",
+                Some("lerobot-vulcan already extracted".to_string()),
+            );
         }
 
         Self::emit_step(emit, "uv", "started", Some("Installing uv runtime".to_string()));
@@ -336,7 +349,7 @@ impl LocalSetupService {
         Self::emit_step(emit, "uv", "success", None);
 
         Self::emit_step(emit, "venv", "started", Some("Creating virtual environment".to_string()));
-        Self::run_command(&uv_target, &["venv"], &lerobot_dir, "uv venv").map_err(|e| {
+        Self::run_command(&uv_target, &["venv", "--clear"], &lerobot_dir, "uv venv").map_err(|e| {
             Self::emit_step(emit, "venv", "error", Some(e.clone()));
             e
         })?;

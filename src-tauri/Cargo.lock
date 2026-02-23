@@ -3,6 +3,40 @@
 version = 4
 
 [[package]]
+name = "VulcanRobotics"
+version = "0.0.4"
+dependencies = [
+ "arrow",
+ "async-channel 2.5.0",
+ "async-trait",
+ "chrono",
+ "dirs 5.0.1",
+ "lazy_static",
+ "migration",
+ "os_pipe",
+ "parquet",
+ "regex",
+ "reqwest 0.12.28",
+ "russh",
+ "russh-keys",
+ "rust_decimal",
+ "sea-orm",
+ "sea-orm-cli",
+ "serde",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "tauri-plugin-dialog",
+ "tauri-plugin-fs",
+ "tauri-plugin-opener",
+ "tauri-plugin-process",
+ "tauri-plugin-updater",
+ "tokio",
+ "uuid",
+ "zip 0.6.6",
+]
+
+[[package]]
 name = "adler2"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6150,40 +6184,6 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
-]
-
-[[package]]
-name = "sourccey"
-version = "0.0.4"
-dependencies = [
- "arrow",
- "async-channel 2.5.0",
- "async-trait",
- "chrono",
- "dirs 5.0.1",
- "lazy_static",
- "migration",
- "os_pipe",
- "parquet",
- "regex",
- "reqwest 0.12.28",
- "russh",
- "russh-keys",
- "rust_decimal",
- "sea-orm",
- "sea-orm-cli",
- "serde",
- "serde_json",
- "tauri",
- "tauri-build",
- "tauri-plugin-dialog",
- "tauri-plugin-fs",
- "tauri-plugin-opener",
- "tauri-plugin-process",
- "tauri-plugin-updater",
- "tokio",
- "uuid",
- "zip 0.6.6",
 ]
 
 [[package]]

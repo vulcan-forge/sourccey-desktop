@@ -1,7 +1,7 @@
 [package]
-name = "sourccey"
+name = "VulcanRobotics"
 version = "0.0.4"
-description = "Sourccey Desktop Application"
+description = "Vulcan Robotics Desktop Application"
 authors = ["you"]
 edition = "2021"
 

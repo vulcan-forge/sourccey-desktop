@@ -4,8 +4,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-    title: 'Sourccey - The #1 Hub of Robotics Control',
-    description: 'Sourccey is the #1 hub of robotics control. Share, test, and control your open source robots to find out which are the best',
+    title: 'Vulcan Robotics - The #1 Hub of Robotics Control',
+    description: 'Vulcan Robotics is the #1 hub of robotics control. Command and control your fleet of Sourccey robots.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

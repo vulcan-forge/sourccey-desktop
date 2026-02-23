@@ -1,8 +1,8 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
-    "productName": "Sourccey",
+    "productName": "Vulcan Robotics",
     "version": "0.0.4",
-    "identifier": "Sourccey",
+    "identifier": "VulcanRobotics",
     "build": {
         "beforeDevCommand": "bun run dev",
         "beforeBuildCommand": "bun run build",
@@ -13,7 +13,7 @@
         "withGlobalTauri": true,
         "windows": [
             {
-                "title": "Sourccey",
+                "title": "Vulcan Robotics",
                 "decorations": true,
                 "fullscreen": false,
                 "resizable": true,
@@ -33,10 +33,7 @@
         "targets": "all",
         "createUpdaterArtifacts": true,
         "icon": ["icons/32x32.png", "icons/128x128.png", "icons/128x128@2x.png", "icons/icon.icns", "icons/icon.ico"],
-        "resources": [
-            "resources/uv/uv.exe",
-            "resources/uv/README.txt"
-        ],
+        "resources": ["resources/uv/uv.exe", "resources/uv/README.txt"],
         "windows": {
             "nsis": {
                 "installerIcon": "icons/icon.ico"
