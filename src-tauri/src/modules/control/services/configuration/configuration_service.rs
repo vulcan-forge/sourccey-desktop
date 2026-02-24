@@ -215,7 +215,7 @@ impl ConfigurationService {
 
     pub fn create_default_remote_config() -> RemoteConfig {
         RemoteConfig {
-            remote_ip: "192.168.1.237".to_string(),
+            remote_ip: "".to_string(),
             remote_port: "22".to_string(),
             username: "sourccey".to_string(),
             password: "vulcan".to_string(),

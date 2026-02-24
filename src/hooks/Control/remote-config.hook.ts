@@ -1,5 +1,6 @@
 import type { RemoteConfig } from '@/components/PageComponents/Robots/Config/RemoteRobotConfig';
 import { queryClient } from '@/hooks/default';
+import { getPairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
 import { useQuery } from '@tanstack/react-query';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
@@ -11,7 +12,7 @@ export const REMOTE_CONFIG_KEY = (nickname: string) => [BASE_REMOTE_CONTROL_CONF
 // Config Config
 //---------------------------------------------------------------------------------------------------//
 export const defaultRemoteConfig: RemoteConfig = {
-    remote_ip: '192.168.1.237',
+    remote_ip: '',
     remote_port: '22',
     username: 'sourccey',
     password: 'vulcan',
@@ -21,21 +22,43 @@ export const defaultRemoteConfig: RemoteConfig = {
     fps: 30,
 };
 
-export const getRemoteConfig = (nickname: string) => queryClient.getQueryData(REMOTE_CONFIG_KEY(nickname)) ?? defaultRemoteConfig;
+const normalizeNickname = (nickname: string) => (nickname.startsWith('@') ? nickname.slice(1) : nickname);
+
+const getPairedHost = (nickname: string) => {
+    const normalized = normalizeNickname(nickname);
+    const pairedConnections = getPairedRobotConnections();
+    return pairedConnections?.[normalized]?.host ?? '';
+};
+
+const getDefaultRemoteConfig = (nickname: string) => {
+    const pairedHost = getPairedHost(nickname);
+    return {
+        ...defaultRemoteConfig,
+        remote_ip: pairedHost || defaultRemoteConfig.remote_ip,
+    };
+};
+
+export const getRemoteConfig = (nickname: string) => queryClient.getQueryData(REMOTE_CONFIG_KEY(nickname)) ?? getDefaultRemoteConfig(nickname);
 export const setRemoteConfig = (nickname: string, config: RemoteConfig | null) => queryClient.setQueryData(REMOTE_CONFIG_KEY(nickname), config);
 export const useGetRemoteConfig = (nickname: string) =>
     useQuery({
         queryKey: REMOTE_CONFIG_KEY(nickname),
         queryFn: async () => {
-            const cached = getRemoteConfig(nickname);
+            const cached: any = getRemoteConfig(nickname);
             if (!isTauri()) {
                 return cached;
             }
 
             try {
                 const config = await invoke<RemoteConfig>('read_remote_config', { nickname });
-                setRemoteConfig(nickname, config);
-                return config;
+                const pairedHost = getPairedHost(nickname);
+                const resolvedConfig = pairedHost ? { ...config, remote_ip: pairedHost } : config;
+
+                setRemoteConfig(nickname, resolvedConfig);
+                if (resolvedConfig !== config) {
+                    await invoke('write_remote_config', { config: resolvedConfig, nickname });
+                }
+                return resolvedConfig;
             } catch (error) {
                 console.error('Failed to load remote config:', error);
                 return cached;
