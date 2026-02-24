@@ -161,7 +161,7 @@ class PythonSetupManager:
     # Python Environment Setup
     #################################################################
 
-    def setup_python_environment(self) -> bool:
+    def setup_python_environment(self, desktop: bool = False) -> bool:
         """Setup Python environment for lerobot-vulcan"""
         self.print_status("Setting up lerobot-vulcan environment...")
 
@@ -194,7 +194,7 @@ class PythonSetupManager:
             spec.loader.exec_module(lerobot_setup)
 
             # Call the setup function
-            success = lerobot_setup.setup()
+            success = lerobot_setup.setup(desktop=desktop)
 
             if success:
                 self.print_success("lerobot-vulcan setup completed successfully")
@@ -245,11 +245,12 @@ def setup_python_environment(
     print_status: Callable,
     print_success: Callable,
     print_warning: Callable,
-    print_error: Callable
+    print_error: Callable,
+    desktop: bool = False,
 ) -> bool:
     """Convenience function for setting up Python environment"""
     manager = PythonSetupManager(
         project_root, print_status, print_success, print_warning, print_error
     )
-    return manager.setup_python_environment()
+    return manager.setup_python_environment(desktop=desktop)
 

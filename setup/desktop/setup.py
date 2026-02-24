@@ -196,7 +196,7 @@ class SetupScript:
 
     def setup_python_environment(self) -> bool:
         """Setup Python environment for lerobot-vulcan"""
-        return self.python_manager.setup_python_environment()
+        return self.python_manager.setup_python_environment(desktop=True)
 
     def setup_bun_packages(self) -> bool:
         """Install Bun packages"""
