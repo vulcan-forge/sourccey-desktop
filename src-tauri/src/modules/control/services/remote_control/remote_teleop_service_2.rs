@@ -93,10 +93,12 @@ impl RemoteTeleopService2 {
 
         let envs = Self::build_envs()?;
 
-        let mut cmd = app_handle.shell().command(python_path_str.clone());
-        cmd.args(command_parts[1..].iter());
-        cmd.current_dir(lerobot_dir_str.clone());
-        cmd.envs(envs);
+        let cmd = app_handle
+            .shell()
+            .command(python_path_str.clone())
+            .args(command_parts[1..].iter())
+            .current_dir(lerobot_dir_str.clone())
+            .envs(envs);
 
         let (mut rx, child) = cmd.spawn().map_err(|e| {
             let message = format!(
