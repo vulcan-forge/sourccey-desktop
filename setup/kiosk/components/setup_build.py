@@ -303,10 +303,9 @@ class BuildManager:
         self.print_status(f"Installing {deb_path.name}...")
 
         # Force reinstall even when package version is unchanged (common in local kiosk builds).
-        install_cmd = f"sudo apt install --reinstall -y {str(deb_path)}"
+        install_cmd = ["sudo", "apt", "install", "--reinstall", "-y", str(deb_path)]
         install_result = subprocess.run(
             install_cmd,
-            shell=True,
             check=True,
             capture_output=True,
             text=True,
