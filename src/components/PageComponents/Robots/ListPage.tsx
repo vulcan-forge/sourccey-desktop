@@ -128,21 +128,9 @@ export const RobotListPage = () => {
     const handleDiscoverRobots = async () => {
         setIsDiscovering(true);
         try {
-            const discovered = await invoke<DiscoveredRobot[]>('discover_pairable_robots', { timeoutMs: 1400 });
-            const ownedNicknames = new Set(
-                (ownedRobots || [])
-                    .map((ownedRobot: any) => ownedRobot?.owned_robot?.nickname || ownedRobot?.nickname || '')
-                    .map((nickname: string) => normalizeNickname(nickname))
-                    .filter((nickname: string) => nickname.length > 0)
-            );
-            const pairedNicknames = new Set(Object.keys(pairedConnections || {}).map((nickname) => normalizeNickname(nickname)));
-            const filtered = discovered.filter((robot) => {
-                const normalized = normalizeNickname(robot.nickname || '');
-                return normalized && !ownedNicknames.has(normalized) && !pairedNicknames.has(normalized);
-            });
-
-            setDiscoveredRobots(filtered);
-            if (filtered.length === 0) {
+            const discovered = await invoke<DiscoveredRobot[]>('discover_pairable_robots', { timeoutMs: 2500 });
+            setDiscoveredRobots(discovered);
+            if (discovered.length === 0) {
                 toast.info('No new robots found.', { ...toastInfoDefaults });
             }
         } catch (error: any) {
