@@ -1,4 +1,5 @@
 use crate::services::directory::remote_directory_service::RemoteDirectoryService;
+use crate::services::log::log_service::LogService;
 use russh::client::{Config, Handler, Handle};
 use russh::{Channel, Error};
 use russh::ChannelMsg;
@@ -570,6 +571,15 @@ impl SshService {
         remote_config: &RemoteConfig,
         nickname: &str,
     ) -> Result<bool, String> {
+        let _ = LogService::write_app_log_line(
+            &app_handle,
+            "robot-actions.log",
+            Some("robot"),
+            &format!(
+                "Start robot requested: nickname={}, remote_ip={}, remote_port={}",
+                nickname, remote_config.remote_ip, remote_config.remote_port
+            ),
+        );
         // Check if robot is connected
         if !SshService::is_robot_connected(state_sessions, nickname) {
             return Err("Robot is not connected".to_string());
@@ -668,6 +678,15 @@ impl SshService {
         remote_config: &RemoteConfig,
         nickname: &str,
     ) -> Result<bool, String> {
+        let _ = LogService::write_app_log_line(
+            &app_handle,
+            "robot-actions.log",
+            Some("robot"),
+            &format!(
+                "Stop robot requested: nickname={}, remote_ip={}, remote_port={}",
+                nickname, remote_config.remote_ip, remote_config.remote_port
+            ),
+        );
         // Check if robot is connected
         if !SshService::is_robot_connected(state_sessions, nickname) {
             return Err("Robot is not connected".to_string());

@@ -192,6 +192,12 @@ fn get_log_tail_all(
 }
 
 #[tauri::command]
+fn clear_log_dir(app: tauri::AppHandle) -> Result<usize, String> {
+    let log_dir = resolve_log_dir(&app)?;
+    LogService::clear_log_dir(&log_dir)
+}
+
+#[tauri::command]
 async fn setup_check(app: tauri::AppHandle) -> Result<SetupStatus, String> {
     let app_handle = app.clone();
     tauri::async_runtime::spawn_blocking(move || LocalSetupService::check_status(&app_handle))
@@ -379,6 +385,7 @@ fn main() {
             write_frontend_log,
             get_frontend_log_tail,
             get_log_tail_all,
+            clear_log_dir,
             setup_check,
             setup_run,
             setup_desktop_extras_check,

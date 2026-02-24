@@ -48,7 +48,7 @@ pub async fn auto_calibrate(
 ) -> Result<(), String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    CalibrationService::auto_calibrate(db_connection, config).await
+    CalibrationService::auto_calibrate(app_handle, db_connection, config).await
 }
 
 #[tauri::command]
@@ -58,5 +58,12 @@ pub async fn remote_auto_calibrate(
 ) -> Result<(), String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    CalibrationService::remote_auto_calibrate(db_connection, &config.nickname, &config.robot_type, config.full_reset).await
+    CalibrationService::remote_auto_calibrate(
+        app_handle,
+        db_connection,
+        &config.nickname,
+        &config.robot_type,
+        config.full_reset,
+    )
+    .await
 }

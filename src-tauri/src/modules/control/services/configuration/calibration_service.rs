@@ -4,6 +4,7 @@ use crate::modules::control::types::configuration::calibration_types::{
 };
 use crate::modules::log::services::command_log_service::CommandLogService;
 use crate::services::directory::directory_service::DirectoryService;
+use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
@@ -11,6 +12,7 @@ use std::env;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Stdio;
+use tauri::AppHandle;
 use tokio::process::Command;
 
 pub struct CalibrationService;
@@ -72,27 +74,61 @@ impl CalibrationService {
     }
 
     pub async fn auto_calibrate(
+        app_handle: AppHandle,
         db_connection: DatabaseConnection,
         config: CalibrationConfig,
     ) -> Result<(), String> {
+        let start_message = format!(
+            "Auto calibrate started: nickname={}, robot_type={}, teleop_type={}, robot_port={}, teleop_port={}",
+            config.nickname, config.robot_type, config.teleop_type, config.robot_port, config.teleop_port
+        );
+        let _ = LogService::write_app_log_line(&app_handle, "robot-actions.log", Some("calibration"), &start_message);
+
         Self::auto_calibrate_robot(
+            &app_handle,
             db_connection.clone(),
             &config.robot_type,
             &config.nickname,
             &config.robot_port,
         )
-        .await?;
+        .await
+        .map_err(|e| {
+            let _ = LogService::write_app_log_line(
+                &app_handle,
+                "robot-actions.log",
+                Some("calibration"),
+                &format!("Auto calibrate robot failed: {}", e),
+            );
+            e
+        })?;
         Self::auto_calibrate_teleoperator(
+            &app_handle,
             db_connection.clone(),
             &config.teleop_type,
             &config.nickname,
             &config.teleop_port,
         )
-        .await?;
+        .await
+        .map_err(|e| {
+            let _ = LogService::write_app_log_line(
+                &app_handle,
+                "robot-actions.log",
+                Some("calibration"),
+                &format!("Auto calibrate teleoperator failed: {}", e),
+            );
+            e
+        })?;
+        let _ = LogService::write_app_log_line(
+            &app_handle,
+            "robot-actions.log",
+            Some("calibration"),
+            "Auto calibrate completed successfully",
+        );
         Ok(())
     }
 
     async fn auto_calibrate_robot(
+        app_handle: &AppHandle,
         db_connection: DatabaseConnection,
         robot_type: &str,
         nickname: &str,
@@ -150,6 +186,12 @@ impl CalibrationService {
             if let Some(pid_value) = pid {
                 ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
             }
+            let _ = LogService::write_app_log_line(
+                app_handle,
+                "robot-actions.log",
+                Some("calibration"),
+                &format!("Auto calibrate robot failed: {}", stderr),
+            );
             return Err(format!("Python script failed: {}", stderr));
         }
 
@@ -160,6 +202,7 @@ impl CalibrationService {
     }
 
     async fn auto_calibrate_teleoperator(
+        app_handle: &AppHandle,
         db_connection: DatabaseConnection,
         teleop_type: &str,
         nickname: &str,
@@ -218,6 +261,12 @@ impl CalibrationService {
             if let Some(pid_value) = pid {
                 ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
             }
+            let _ = LogService::write_app_log_line(
+                app_handle,
+                "robot-actions.log",
+                Some("calibration"),
+                &format!("Auto calibrate teleoperator failed: {}", stderr),
+            );
             return Err(format!("Python script failed: {}", stderr));
         }
 
@@ -228,11 +277,18 @@ impl CalibrationService {
     }
 
     pub async fn remote_auto_calibrate(
+        app_handle: AppHandle,
         db_connection: DatabaseConnection,
         nickname: &str,
         robot_type: &str,
         full_reset: bool,
     ) -> Result<(), String> {
+        let start_message = format!(
+            "Remote auto calibrate started: nickname={}, robot_type={}, full_reset={}",
+            nickname, robot_type, full_reset
+        );
+        let _ = LogService::write_app_log_line(&app_handle, "robot-actions.log", Some("calibration"), &start_message);
+
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
         let python_path = DirectoryService::get_python_path()?;
 
@@ -287,12 +343,24 @@ impl CalibrationService {
             if let Some(pid_value) = pid {
                 ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
             }
+            let _ = LogService::write_app_log_line(
+                &app_handle,
+                "robot-actions.log",
+                Some("calibration"),
+                &format!("Remote auto calibrate failed: {}", stderr),
+            );
             return Err(format!("Python script failed: {}", stderr));
         }
 
         if let Some(pid_value) = pid {
             ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
         }
+        let _ = LogService::write_app_log_line(
+            &app_handle,
+            "robot-actions.log",
+            Some("calibration"),
+            "Remote auto calibrate completed successfully",
+        );
         Ok(())
     }
 

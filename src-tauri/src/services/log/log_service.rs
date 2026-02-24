@@ -390,6 +390,51 @@ impl LogService {
         Ok(lines.into_iter().collect())
     }
 
+    pub fn write_app_log_line(
+        app_handle: &AppHandle,
+        file_name: &str,
+        format_prefix: Option<&str>,
+        line: &str,
+    ) -> Result<(), String> {
+        let base_dir = app_handle
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to resolve app data dir: {}", e))
+            .or_else(|_| std::env::current_dir().map_err(|e| format!("Failed to resolve cwd: {}", e)))?;
+        let log_dir = base_dir.join("logs");
+        std::fs::create_dir_all(&log_dir)
+            .map_err(|e| format!("Failed to create log dir: {}", e))?;
+        let log_path = log_dir.join(file_name);
+        Self::write_log_line(log_path.to_string_lossy().as_ref(), format_prefix, line);
+        Ok(())
+    }
+
+    pub fn clear_log_dir(log_dir: &Path) -> Result<usize, String> {
+        if !log_dir.exists() {
+            return Ok(0);
+        }
+
+        let mut removed = 0usize;
+        for entry in std::fs::read_dir(log_dir).map_err(|e| format!("Failed to read log dir: {}", e))? {
+            let entry = entry.map_err(|e| format!("Failed to read log dir entry: {}", e))?;
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+
+            let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+            if !file_name.ends_with(".log") && !file_name.contains(".log.") {
+                continue;
+            }
+
+            if std::fs::remove_file(&path).is_ok() {
+                removed += 1;
+            }
+        }
+
+        Ok(removed)
+    }
+
     pub fn read_log_tail_all(
         log_dir: &Path,
         max_lines_total: usize,

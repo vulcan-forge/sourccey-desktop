@@ -20,6 +20,7 @@ import clsx from 'clsx';
 import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
 import { useModalContext } from '@/hooks/Modals/context.hook';
 import { KIOSK_PAIRING_MODAL_ID } from '@/components/Elements/Modals/KioskRobotModals/PairingCodeModal';
+import Link from 'next/link';
 
 interface PiCredentials {
     username: string;
@@ -267,6 +268,21 @@ export default function KioskSettingsPage() {
                 <div className="">
                     <h1 className="text-3xl font-bold text-white">Kiosk Settings</h1>
                     <p className="mt-2 text-slate-300">Manage your robot&apos;s configuration and credentials</p>
+                </div>
+
+                <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
+                    <div className="mb-4">
+                        <h2 className="text-xl font-semibold text-white">Logs</h2>
+                        <p className="mt-1 text-sm text-slate-400">View recent kiosk logs for debugging.</p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <Link
+                            href="/kiosk/settings/logs"
+                            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
+                        >
+                            Open Logs
+                        </Link>
+                    </div>
                 </div>
 
                 {/* Credentials Section */}
