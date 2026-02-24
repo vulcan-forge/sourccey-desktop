@@ -147,7 +147,7 @@ export default function SetupPage() {
         void check();
     }, [markInstalled, router]);
 
-    const runSetup = async (action: 'update' | 'reset') => {
+    const runSetup = async (action: 'repair' | 'update') => {
         setIsRunning(true);
         setError(null);
         setLog([]);
@@ -157,20 +157,20 @@ export default function SetupPage() {
             Object.keys(reset).forEach((key) => {
                 reset[key] = 'pending';
             });
-            if (action === 'update' && isInstalled) {
+            if (action === 'repair' && isInstalled) {
                 reset['reset'] = 'success';
             }
             return reset;
         });
 
         try {
-            if (action === 'reset') {
+            if (action === 'update') {
                 await invoke('setup_reset');
             } else {
                 await invoke('setup_run', { force: isInstalled });
             }
             setIsRunning(false);
-            if (action === 'update' && isInstalled) {
+            if (action === 'repair' && isInstalled) {
                 setStepState((prev) => ({
                     ...prev,
                     reset: 'success',
@@ -249,7 +249,7 @@ export default function SetupPage() {
                             <div className="flex flex-wrap items-center justify-start gap-4">
                                 <button
                                     type="button"
-                                    onClick={() => runSetup('update')}
+                                    onClick={() => runSetup('repair')}
                                     disabled={isRunning}
                                     title={
                                         isInstalled
@@ -268,19 +268,21 @@ export default function SetupPage() {
                                         Running setup steps
                                     </div>
                                 )}
-                                <button
-                                    type="button"
-                                    onClick={() => runSetup('reset')}
-                                    disabled={isRunning || !isInstalled}
-                                    title={
-                                        isInstalled
-                                            ? 'Redownloads all files from scratch, perfect after a larger update.'
-                                            : 'Install modules before running a reset.'
-                                    }
-                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    Update modules
-                                </button>
+                                {isInstalled && (
+                                    <button
+                                        type="button"
+                                        onClick={() => runSetup('update')}
+                                        disabled={isRunning}
+                                        title={
+                                            isInstalled
+                                                ? 'Redownloads all files from scratch, perfect after a larger update.'
+                                                : 'Install modules before running a reset.'
+                                        }
+                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        Update modules
+                                    </button>
+                                )}
                             </div>
 
                             <div className="border-t border-slate-700/60 pt-4">

@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
+import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 export const DesktopTopNavbar = () => {
     const { data: lerobotStatus } = useLerobotUpdateStatus();
@@ -29,13 +30,13 @@ export const DesktopTopNavbar = () => {
                     <div className="grow" />
 
                     {needsUpdate && (
-                        <Link
+                        <LinkButton
                             href="/desktop/setup"
-                            title="Update available for lerobot-vulcan. Open setup to reset modules."
-                            className="inline-flex items-center justify-center rounded-lg border border-amber-400/70 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:border-amber-300 hover:text-amber-100"
+                            tooltip="Update available for lerobot-vulcan. Open setup to reset modules."
+                            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-400/70 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:border-amber-300 hover:text-amber-100"
                         >
                             Update Required
-                        </Link>
+                        </LinkButton>
                     )}
                 </div>
             </div>
