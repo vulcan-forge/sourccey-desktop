@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { FaDiscord } from 'react-icons/fa6';
 import { useRouter } from 'next/navigation';
+import { safeNavigate } from '@/utils/navigation';
 
 export default function HomePage() {
     const router = useRouter();
@@ -31,7 +32,7 @@ export default function HomePage() {
                                 <button
                                     type="button"
                                     onClick={() => {
-                                        router.push('/desktop/robot');
+                                        safeNavigate(router, '/desktop/robot');
                                     }}
                                     className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-gradient-to-r from-red-400/70 via-orange-400/70 to-yellow-400/70 px-5 py-3 text-sm font-semibold text-white shadow-lg transition-colors hover:from-red-500/70 hover:via-orange-500/70 hover:to-yellow-500/70"
                                 >

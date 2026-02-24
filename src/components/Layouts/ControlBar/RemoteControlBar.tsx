@@ -3,6 +3,7 @@
 import { RemoteRobotStatus, useGetRemoteRobotsState } from '@/hooks/Control/remote-control.hook';
 import { FaGamepad, FaRobot } from 'react-icons/fa';
 import { useRouter } from 'next/navigation';
+import { safeNavigate } from '@/utils/navigation';
 
 export const RemoteControlBar = () => {
     const router = useRouter();
@@ -34,7 +35,7 @@ export const RemoteControlBar = () => {
                                         type="button"
                                         key={key}
                                         onClick={() => {
-                                            router.push(robotId ? `/desktop/robot?id=${robotId}` : '/desktop/robot');
+                                            safeNavigate(router, robotId ? `/desktop/robot?id=${robotId}` : '/desktop/robot');
                                         }}
                                         className="group flex flex-shrink-0 cursor-pointer items-center gap-2 rounded-xl border border-slate-600/50 bg-slate-700/50 px-3 py-2 text-sm font-medium whitespace-nowrap text-slate-200 transition-all duration-200 hover:border-slate-500/50 hover:bg-slate-600/50 hover:text-white"
                                     >

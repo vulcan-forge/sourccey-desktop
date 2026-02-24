@@ -1,13 +1,12 @@
 'use client';
 import { usePathname } from 'next/navigation';
-import { useRouter } from 'next/navigation';
 import { HiHome } from 'react-icons/hi';
 import { FaCog, FaMicrochip, FaQuestion, FaRobot } from 'react-icons/fa';
 import Link from 'next/link';
+import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 export const SideNavbar = () => {
     const pathname = usePathname();
-    const router = useRouter();
 
     const mainNavItems = [
         {
@@ -61,17 +60,14 @@ export const SideNavbar = () => {
 
         if (item.navigationMethod === 'router') {
             return (
-                <button
+                <LinkButton
                     key={item.href}
-                    type="button"
-                    onClick={() => {
-                        router.push(item.href);
-                    }}
                     className={`${className} w-full cursor-pointer text-left`}
+                    href={item.href}
                 >
                     <Icon className="h-6 w-6 transition-transform duration-300" />
                     <span className="transition-all duration-200">{item.label}</span>
-                </button>
+                </LinkButton>
             );
         }
 

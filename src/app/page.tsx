@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { checkForUpdates } from '@/utils/updater/updater';
 import { invoke, isTauri } from '@tauri-apps/api/core';
+import { safeNavigate } from '@/utils/navigation';
 
 const HomePage = (): ReactElement => {
     const router = useRouter();
@@ -57,7 +58,7 @@ const HomePage = (): ReactElement => {
         if (isKioskMode) {
             console.log('Kiosk mode: pushing to /kiosk');
             setSetupCheckComplete(true);
-            router.push('/kiosk/');
+            safeNavigate(router, '/kiosk/');
         } else {
             const checkSetup = async () => {
                 try {
@@ -65,17 +66,17 @@ const HomePage = (): ReactElement => {
                         const status = (await invoke('setup_check')) as SetupStatus;
                         if (!status.installed) {
                             console.log('Desktop mode: setup required, pushing to /desktop/setup');
-                            router.push('/desktop/setup');
+                            safeNavigate(router, '/desktop/setup');
                         } else {
                             console.log('Desktop mode: pushing to /desktop');
-                            router.push('/desktop/');
+                            safeNavigate(router, '/desktop/');
                         }
                     } else {
-                        router.push('/desktop/');
+                        safeNavigate(router, '/desktop/');
                     }
                 } catch (error) {
                     console.error('Failed to check setup status:', error);
-                    router.push('/desktop/');
+                    safeNavigate(router, '/desktop/');
                 } finally {
                     setSetupCheckComplete(true);
                 }

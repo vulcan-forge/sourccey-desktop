@@ -18,6 +18,7 @@ import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { Spinner } from '@/components/Elements/Spinner';
 import { useRouter } from 'next/navigation';
+import { safeNavigate } from '@/utils/navigation';
 
 type DiscoveredRobot = {
     host: string;
@@ -557,7 +558,7 @@ const RobotCard = ({ robot, robotName, nickname, onUnpair, isUnpairing }: RobotC
             <button
                 type="button"
                 onClick={() => {
-                    router.push(`/desktop/robot?id=${robot.id}`);
+                    safeNavigate(router, `/desktop/robot?id=${robot.id}`);
                 }}
                 className="inline-flex w-full cursor-pointer items-center justify-center rounded-md bg-gradient-to-r from-red-400/50 via-orange-400/50 to-yellow-400/50 px-3 py-2 text-sm font-semibold text-white shadow-lg shadow-orange-500/20 transition-all duration-200 hover:from-red-500/70 hover:via-orange-500/70 hover:to-yellow-500/70"
             >
