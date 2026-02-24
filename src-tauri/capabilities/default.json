@@ -48,6 +48,8 @@
         "fs:allow-create",
         "fs:allow-remove",
         "fs:allow-rename",
+        "shell:allow-spawn",
+        "shell:allow-kill",
         "process:default",
         "process:allow-exit"
     ]

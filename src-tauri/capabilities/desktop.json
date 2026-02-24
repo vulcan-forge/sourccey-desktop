@@ -36,6 +36,8 @@
                     "path": "$APPLOCALDATA"
                 }
             ]
-        }
+        },
+        "shell:allow-spawn",
+        "shell:allow-kill"
     ]
 }
