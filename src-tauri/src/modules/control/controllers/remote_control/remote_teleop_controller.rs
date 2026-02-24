@@ -40,5 +40,5 @@ pub fn stop_remote_teleop(
 ) -> Result<String, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    RemoteTeleopService2::stop_teleop(db_connection, &state, nickname)
+    RemoteTeleopService2::stop_teleop(&app_handle, db_connection, &state, nickname)
 }

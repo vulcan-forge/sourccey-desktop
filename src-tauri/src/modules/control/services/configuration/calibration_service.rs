@@ -184,7 +184,7 @@ impl CalibrationService {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
+                ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
             }
             let _ = LogService::write_app_log_line(
                 app_handle,
@@ -196,7 +196,7 @@ impl CalibrationService {
         }
 
         if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
+            ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
         }
         Ok(())
     }
@@ -259,7 +259,7 @@ impl CalibrationService {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
+                ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
             }
             let _ = LogService::write_app_log_line(
                 app_handle,
@@ -271,7 +271,7 @@ impl CalibrationService {
         }
 
         if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
+            ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
         }
         Ok(())
     }
@@ -341,7 +341,7 @@ impl CalibrationService {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
+                ProcessService::on_process_shutdown(&app_handle, pid_value, db_connection, command_log_id);
             }
             let _ = LogService::write_app_log_line(
                 &app_handle,
@@ -353,7 +353,7 @@ impl CalibrationService {
         }
 
         if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
+            ProcessService::on_process_shutdown(&app_handle, pid_value, db_connection, command_log_id);
         }
         let _ = LogService::write_app_log_line(
             &app_handle,

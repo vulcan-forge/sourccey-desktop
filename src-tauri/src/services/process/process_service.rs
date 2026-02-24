@@ -6,29 +6,22 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
+use tauri_plugin_shell::process::CommandEvent;
+use tauri_plugin_shell::ShellExt;
 
 pub struct ProcessService;
 
 impl ProcessService {
     /// Check if a process with the given PID is still alive
-    pub fn is_process_alive(pid: u32) -> bool {
+    pub fn is_process_alive(app_handle: &AppHandle, pid: u32) -> bool {
         #[cfg(windows)]
         {
-            let output = Command::new("tasklist")
-                .args(&["/FI", &format!("PID eq {}", pid)])
-                .output();
-
-            match output {
-                Ok(output) => {
-                    let output_str = String::from_utf8_lossy(&output.stdout);
-                    output_str.contains(&pid.to_string())
-                }
-                Err(_) => false,
-            }
+            Self::is_process_alive_shell(app_handle, pid)
         }
 
         #[cfg(not(windows))]
         {
+            let _ = app_handle;
             let output = Command::new("ps").args(&["-p", &pid.to_string()]).output();
 
             match output {
@@ -41,39 +34,35 @@ impl ProcessService {
     /// Get the exit code of a process by PID (Windows only for now)
     /// Returns None if we can't determine the exit code
     #[cfg(windows)]
-    fn get_process_exit_code(pid: u32) -> Option<i32> {
-        // On Windows, we can use wmic to get process exit code
-        let output = Command::new("wmic")
-            .args(&[
+    fn get_process_exit_code(app_handle: &AppHandle, pid: u32) -> Option<i32> {
+        let output = Self::run_shell_command(
+            app_handle,
+            "wmic",
+            &[
                 "process",
                 "where",
                 &format!("ProcessId={}", pid),
                 "get",
                 "ExitStatus",
                 "/format:value",
-            ])
-            .output();
+            ],
+        )
+        .ok()?;
 
-        match output {
-            Ok(output) => {
-                let output_str = String::from_utf8_lossy(&output.stdout);
-                for line in output_str.lines() {
-                    if line.starts_with("ExitStatus=") {
-                        if let Some(exit_code_str) = line.strip_prefix("ExitStatus=") {
-                            if let Ok(exit_code) = exit_code_str.trim().parse::<i32>() {
-                                return Some(exit_code);
-                            }
-                        }
+        for line in output.lines() {
+            if line.starts_with("ExitStatus=") {
+                if let Some(exit_code_str) = line.strip_prefix("ExitStatus=") {
+                    if let Ok(exit_code) = exit_code_str.trim().parse::<i32>() {
+                        return Some(exit_code);
                     }
                 }
-                None
             }
-            Err(_) => None,
         }
+        None
     }
 
     #[cfg(not(windows))]
-    fn get_process_exit_code(_pid: u32) -> Option<i32> {
+    fn get_process_exit_code(_app_handle: &AppHandle, _pid: u32) -> Option<i32> {
         // On Unix systems, this is more complex and would require different approach
         // For now, return None to maintain compatibility
         None
@@ -86,12 +75,13 @@ impl ProcessService {
     /// * `command_log_id` - The command log ID to update
     /// * `db_connection` - Database connection for the command log service
     pub fn on_process_shutdown(
+        app_handle: &AppHandle,
         pid: u32,
         db_connection: DatabaseConnection,
         command_log_id: String,
     ) {
         let command_log_service = CommandLogService::new(db_connection);
-        let exit_code = Self::get_process_exit_code(pid);
+        let exit_code = Self::get_process_exit_code(app_handle, pid);
 
         let status = match exit_code {
             Some(0) => "success".to_string(),
@@ -153,9 +143,9 @@ impl ProcessService {
                 }
 
                 // Check if process is still running
-                if !Self::is_process_alive(pid) {
+                if !Self::is_process_alive(&app_handle, pid) {
                     // Process has died - get exit code and always emit event
-                    let exit_code = Self::get_process_exit_code(pid);
+                    let exit_code = Self::get_process_exit_code(&app_handle, pid);
 
                     // Update metadata with exit code (or null if we can't determine it)
                     if let Some(obj) = metadata.as_object_mut() {
@@ -185,6 +175,43 @@ impl ProcessService {
         });
     }
 
+    #[cfg(windows)]
+    fn is_process_alive_shell(app_handle: &AppHandle, pid: u32) -> bool {
+        let output = Self::run_shell_command(app_handle, "tasklist", &["/FI", &format!("PID eq {}", pid)]);
+        match output {
+            Ok(output) => output.contains(&pid.to_string()),
+            Err(_) => false,
+        }
+    }
+
+    #[cfg(windows)]
+    fn run_shell_command(
+        app_handle: &AppHandle,
+        program: &str,
+        args: &[&str],
+    ) -> Result<String, String> {
+        tauri::async_runtime::block_on(async move {
+            let cmd = app_handle.shell().command(program).args(args.iter());
+            let (mut rx, _child) = cmd.spawn().map_err(|e| e.to_string())?;
+            let mut output = String::new();
+
+            while let Some(event) = rx.recv().await {
+                match event {
+                    CommandEvent::Stdout(bytes) => {
+                        output.push_str(&String::from_utf8_lossy(&bytes));
+                    }
+                    CommandEvent::Stderr(bytes) => {
+                        output.push_str(&String::from_utf8_lossy(&bytes));
+                    }
+                    CommandEvent::Terminated(_) => break,
+                    _ => {}
+                }
+            }
+
+            Ok(output)
+        })
+    }
+
     /// Convenience method for starting process monitoring with common defaults
     /// Uses 15 second initial delay and 5 second check interval
     /// Automatically removes the process from the state HashMap when it dies
@@ -199,6 +226,7 @@ impl ProcessService {
         command_log_id: Option<String>,
         db_connection: Option<DatabaseConnection>,
     ) {
+        let app_handle_for_shutdown = app_handle.clone();
         Self::start_process_monitor(
             pid,
             app_handle,
@@ -210,10 +238,9 @@ impl ProcessService {
             Some(Box::new(move || {
                 let _ = state.lock().unwrap().remove(&process_key);
 
-                if let (Some(db_conn), Some(log_id)) =
-                    (db_connection.clone(), command_log_id.clone())
+                if let (Some(db_conn), Some(log_id)) = (db_connection.clone(), command_log_id.clone())
                 {
-                    Self::on_process_shutdown(pid, db_conn, log_id);
+                    Self::on_process_shutdown(&app_handle_for_shutdown, pid, db_conn, log_id);
                 } else {
                     eprintln!(
                         "Failed to update command log: No database connection or command log ID"

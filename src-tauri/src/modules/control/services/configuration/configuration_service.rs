@@ -105,6 +105,7 @@ impl ConfigurationService {
 
     /// Detect the configuration
     pub async fn detect_config(
+        app_handle: &tauri::AppHandle,
         db_connection: DatabaseConnection,
         config: ConfigConfig,
     ) -> Result<serde_json::Value, String> {
@@ -156,7 +157,7 @@ impl ConfigurationService {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
+                ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
             }
             return Err(format!("Python script failed: {}", stderr));
         }
@@ -167,7 +168,7 @@ impl ConfigurationService {
             .map_err(|e| format!("Failed to parse JSON output: {}", e))?;
 
         if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(pid_value, db_connection, command_log_id);
+            ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
         }
         Ok(com_ports)
     }

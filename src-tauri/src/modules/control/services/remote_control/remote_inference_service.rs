@@ -35,7 +35,7 @@ impl RemoteInferenceService {
                     "Process already exists for nickname: {}, stopping it first...",
                     config.nickname
                 );
-                match Self::stop_inference(db_connection.clone(), state, config.nickname.clone()) {
+                match Self::stop_inference(&app_handle, db_connection.clone(), state, config.nickname.clone()) {
                     Ok(_msg) => {
                         std::thread::sleep(std::time::Duration::from_millis(500));
                     }
@@ -159,6 +159,7 @@ impl RemoteInferenceService {
     }
 
     pub fn stop_inference(
+        app_handle: &AppHandle,
         db_connection: DatabaseConnection,
         state: &RemoteInferenceProcess,
         nickname: String,
@@ -168,7 +169,7 @@ impl RemoteInferenceService {
         {
             shutdown_flag.store(true, Ordering::Relaxed);
 
-            ProcessService::on_process_shutdown(child.id(), db_connection, command_log_id);
+            ProcessService::on_process_shutdown(app_handle, child.id(), db_connection, command_log_id);
 
             #[cfg(windows)]
             {

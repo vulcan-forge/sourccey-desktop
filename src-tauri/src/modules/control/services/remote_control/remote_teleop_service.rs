@@ -42,7 +42,7 @@ impl RemoteTeleopService {
                 // Unlock the mutex before calling stop_teleop (which needs to lock it)
                 drop(processes);
                 println!("Process already exists for nickname: {}, stopping it first...", config.nickname);
-                match Self::stop_teleop(db_connection.clone(), state, config.nickname.clone()) {
+                match Self::stop_teleop(&app_handle, db_connection.clone(), state, config.nickname.clone()) {
                     Ok(_msg) => {
                         // Give a small delay to ensure the process is fully stopped
                         std::thread::sleep(std::time::Duration::from_millis(500));
@@ -196,6 +196,7 @@ impl RemoteTeleopService {
     }
 
     pub fn stop_teleop(
+        app_handle: &AppHandle,
         db_connection: DatabaseConnection,
         state: &RemoteTeleopProcess,
         nickname: String,
@@ -207,7 +208,7 @@ impl RemoteTeleopService {
             shutdown_flag.store(true, Ordering::Relaxed);
 
             // Update command log on shutdown
-            ProcessService::on_process_shutdown(child.id(), db_connection, command_log_id);
+            ProcessService::on_process_shutdown(app_handle, child.id(), db_connection, command_log_id);
 
             // Kill the process
             #[cfg(windows)]

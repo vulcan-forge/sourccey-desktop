@@ -25,7 +25,7 @@ pub fn write_config(nickname: String, config: Config) -> Result<(), String> {
 pub async fn detect_config(app_handle: AppHandle, config: ConfigConfig) -> Result<Value, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    ConfigurationService::detect_config(db_connection, config).await
+    ConfigurationService::detect_config(&app_handle, db_connection, config).await
 }
 
 //----------------------------------------------------------//

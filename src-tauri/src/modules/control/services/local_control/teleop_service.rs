@@ -159,6 +159,7 @@ impl TeleopService {
     }
 
     pub fn stop_teleop(
+        app_handle: &AppHandle,
         db_connection: DatabaseConnection,
         state: &TeleopProcess,
         nickname: String,
@@ -170,7 +171,7 @@ impl TeleopService {
             shutdown_flag.store(true, Ordering::Relaxed);
 
             // Update command log on shutdown
-            ProcessService::on_process_shutdown(child.id(), db_connection, command_log_id);
+            ProcessService::on_process_shutdown(app_handle, child.id(), db_connection, command_log_id);
 
             // Kill the process
             #[cfg(windows)]

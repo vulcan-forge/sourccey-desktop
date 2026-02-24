@@ -192,7 +192,7 @@ impl KioskHostService {
             shutdown_flag.store(true, Ordering::Relaxed);
 
             // Update command log on shutdown
-            ProcessService::on_process_shutdown(pid, db_connection, command_log_id);
+            ProcessService::on_process_shutdown(&app_handle, pid, db_connection, command_log_id);
 
             // Try graceful termination first
             println!(
