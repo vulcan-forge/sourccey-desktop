@@ -12,9 +12,16 @@ interface CalibrationSectionProps {
     robotType?: string;
     calibration: Calibration | null;
     onCalibrationSuccess?: () => void;
+    refreshOnSuccess?: boolean;
 }
 
-export const RobotCalibration: React.FC<CalibrationSectionProps> = ({ nickname, robotType = 'sourccey', calibration, onCalibrationSuccess }) => {
+export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
+    nickname,
+    robotType = 'sourccey',
+    calibration,
+    onCalibrationSuccess,
+    refreshOnSuccess = true,
+}) => {
     const [isCalibrating, setIsCalibrating] = useState(false);
     const [calibrationType, setCalibrationType] = useState<'auto' | 'full' | null>(null);
     const canCalibrate = !!nickname && !!robotType;
@@ -38,6 +45,11 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({ nickname, 
                 ...toastSuccessDefaults,
             });
             onCalibrationSuccess?.();
+            if (refreshOnSuccess && typeof window !== 'undefined') {
+                window.setTimeout(() => {
+                    window.location.reload();
+                }, 600);
+            }
         } catch (error: any) {
             console.error('Calibration failed:', error);
             toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${error?.message || 'Unknown error'}`, {
