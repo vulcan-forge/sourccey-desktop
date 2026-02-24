@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
+import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
 
 const steps = [
     { id: 'reset', label: 'Reset modules' },
@@ -41,6 +42,7 @@ const statusColors: Record<StepStatus, string> = {
 
 export default function SetupPage() {
     const router = useRouter();
+    const { refetch: refetchLerobotStatus } = useLerobotUpdateStatus();
     const [isReady, setIsReady] = useState(false);
     const [isRunning, setIsRunning] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
@@ -166,6 +168,7 @@ export default function SetupPage() {
         try {
             if (action === 'update') {
                 await invoke('setup_reset');
+                await refetchLerobotStatus();
             } else {
                 await invoke('setup_run', { force: isInstalled });
             }

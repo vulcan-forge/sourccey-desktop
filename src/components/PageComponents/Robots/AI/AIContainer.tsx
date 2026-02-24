@@ -9,6 +9,7 @@ import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { DesktopExtrasGate } from '@/components/Elements/Setup/DesktopExtrasGate';
 import { Spinner } from '@/components/Elements/Spinner';
+import { DownloadModelButton } from '@/components/Elements/AIModel/DownloadModelButton';
 
 export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
     const pageSize = 20;
@@ -58,19 +59,22 @@ export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
                         <h2 className="text-lg font-semibold text-white">AI Models</h2>
                         <p className="text-xs text-slate-400">Synced from your local cache directory.</p>
                     </div>
-                    <button
-                        type="button"
-                        onClick={handleRefresh}
-                        disabled={isSyncing}
-                        className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition-colors ${
-                            isSyncing
-                                ? 'cursor-not-allowed border-slate-700 bg-slate-800/60 text-slate-400'
-                                : 'border-amber-500/50 bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-200 hover:border-amber-400/70 hover:text-amber-100'
-                        }`}
-                    >
-                        <FaSyncAlt className={isSyncing ? 'animate-spin' : ''} />
-                        {isSyncing ? 'Syncing...' : 'Refresh'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                        <DownloadModelButton onCompleteAction={() => void refetch()} />
+                        <button
+                            type="button"
+                            onClick={handleRefresh}
+                            disabled={isSyncing}
+                            className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition-colors ${
+                                isSyncing
+                                    ? 'cursor-not-allowed border-slate-700 bg-slate-800/60 text-slate-400'
+                                    : 'border-amber-500/50 bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-200 hover:border-amber-400/70 hover:text-amber-100'
+                            }`}
+                        >
+                            <FaSyncAlt className={isSyncing ? 'animate-spin' : ''} />
+                            {isSyncing ? 'Syncing...' : 'Refresh'}
+                        </button>
+                    </div>
                 </div>
 
                 <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
