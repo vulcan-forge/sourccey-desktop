@@ -1,17 +1,18 @@
 use crate::modules::control::controllers::remote_control::remote_inference_controller::RemoteInferenceConfig;
 use crate::modules::log::services::command_log_service::CommandLogService;
 use crate::services::directory::directory_service::DirectoryService;
-use crate::services::environment::env_service::EnvService;
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
-use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::AppHandle;
+use tauri::Emitter;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
 
-pub struct RemoteInferenceProcess(Arc<Mutex<HashMap<String, (Child, Arc<AtomicBool>, String)>>>);
+pub struct RemoteInferenceProcess(Arc<Mutex<HashMap<String, (CommandChild, Arc<AtomicBool>, String)>>>);
 
 pub struct RemoteInferenceService;
 
@@ -26,7 +27,6 @@ impl RemoteInferenceService {
         state: &RemoteInferenceProcess,
         config: RemoteInferenceConfig,
     ) -> Result<String, String> {
-        // Check if a process with this nickname is already running
         {
             let processes = state.0.lock().unwrap();
             if processes.contains_key(&config.nickname) {
@@ -66,28 +66,22 @@ impl RemoteInferenceService {
 
         let robot_type = "sourccey".to_string();
         let command_parts = Self::build_command_args(&config);
+        let envs = Self::build_envs()?;
 
-        let mut cmd = Command::new(&python_path);
-        for arg in &command_parts[1..] {
-            cmd.arg(arg);
-        }
+        let cmd = app_handle
+            .shell()
+            .command(python_path_str.clone())
+            .args(command_parts[1..].iter())
+            .current_dir(lerobot_dir_str.clone())
+            .envs(envs);
 
-        EnvService::add_python_env_vars(&mut cmd)?;
+        let (mut rx, child) = cmd.spawn().map_err(|e| {
+            format!(
+                "Failed to start inference (shell): {}. Python: {}, Working dir: {}",
+                e, python_path_str, lerobot_dir_str
+            )
+        })?;
 
-        let mut child = cmd
-            .current_dir(&lerobot_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                format!(
-                    "Failed to start inference: {}. Python: {}, Working dir: {}",
-                    e, python_path_str, lerobot_dir_str
-                )
-            })?;
-
-        let stdout = child.stdout.take();
-        let stderr = child.stderr.take();
         let shutdown_flag = Arc::new(AtomicBool::new(false));
 
         let command_string = command_parts.join(" ");
@@ -107,29 +101,58 @@ impl RemoteInferenceService {
             }
         };
 
-        let pid = child.id();
+        let pid = child.pid();
         let command_log_id = command_log.id.clone();
 
-        LogService::start_logger(
-            stdout,
-            &app_handle,
-            &shutdown_flag,
-            Some(&config.nickname),
-            Some("inference-log"),
-            None,
-            true,
-            false,
-        );
-        LogService::start_logger(
-            stderr,
-            &app_handle,
-            &shutdown_flag,
-            Some(&config.nickname),
-            Some("inference-log"),
-            None,
-            true,
-            true,
-        );
+        let nickname_for_logs = config.nickname.clone();
+        let app_handle_for_logs = app_handle.clone();
+        let shutdown_for_logs = shutdown_flag.clone();
+
+        tauri::async_runtime::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                if shutdown_for_logs.load(Ordering::Relaxed) {
+                    break;
+                }
+
+                match event {
+                    CommandEvent::Stdout(line_bytes) => {
+                        let line = String::from_utf8_lossy(&line_bytes);
+                        let line = line.trim_end();
+                        if !line.is_empty() {
+                            let formatted = format!("[{}] {}", nickname_for_logs, line);
+                            let _ = app_handle_for_logs.emit("inference-log", &formatted);
+                        }
+                    }
+                    CommandEvent::Stderr(line_bytes) => {
+                        let line = String::from_utf8_lossy(&line_bytes);
+                        let line = line.trim_end();
+                        if !line.is_empty() {
+                            let formatted = format!("[{}] {}", nickname_for_logs, line);
+                            let _ = app_handle_for_logs.emit("inference-log", &formatted);
+                        }
+                    }
+                    CommandEvent::Error(err) => {
+                        let message = format!("Inference shell error: {}", err);
+                        let _ = app_handle_for_logs.emit(
+                            "inference-log",
+                            &format!("[{}] {}", nickname_for_logs, message),
+                        );
+                    }
+                    CommandEvent::Terminated(payload) => {
+                        let message = format!(
+                            "Inference process terminated (code={:?}, signal={:?})",
+                            payload.code, payload.signal
+                        );
+                        let _ = app_handle_for_logs.emit(
+                            "inference-log",
+                            &format!("[{}] {}", nickname_for_logs, message),
+                        );
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        });
 
         state.0.lock().unwrap().insert(
             config.nickname.clone(),
@@ -169,14 +192,11 @@ impl RemoteInferenceService {
         {
             shutdown_flag.store(true, Ordering::Relaxed);
 
-            ProcessService::on_process_shutdown(app_handle, child.id(), db_connection, command_log_id);
+            ProcessService::on_process_shutdown(app_handle, child.pid(), db_connection, command_log_id);
 
-            #[cfg(windows)]
-            {
-                let pid = child.id();
-                let _ = Command::new("taskkill")
-                    .args(&["/F", "/T", "/PID", &pid.to_string()])
-                    .output();
+            if let Err(err) = child.kill() {
+                let message = format!("Failed to kill inference process: {}", err);
+                LogService::write_log_line("inference.log", Some("inference"), &message);
             }
 
             Ok(format!(
@@ -218,5 +238,27 @@ impl RemoteInferenceService {
         }
 
         command_parts
+    }
+
+    fn build_envs() -> Result<HashMap<String, String>, String> {
+        let mut envs: HashMap<String, String> = std::env::vars().collect();
+        let venv_path = DirectoryService::get_virtual_env_path()?;
+        envs.insert(
+            "VIRTUAL_ENV".to_string(),
+            venv_path.to_string_lossy().to_string(),
+        );
+
+        let venv_bin_path = DirectoryService::get_virtual_env_bin_path()?
+            .display()
+            .to_string();
+        let separator = if cfg!(windows) { ";" } else { ":" };
+        let base_path = std::env::var("PATH").unwrap_or_default();
+        envs.insert(
+            "PATH".to_string(),
+            format!("{}{}{}", venv_bin_path, separator, base_path),
+        );
+
+        envs.insert("DISPLAY".to_string(), ":0".to_string());
+        Ok(envs)
     }
 }

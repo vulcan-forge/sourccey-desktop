@@ -1,25 +1,20 @@
 use crate::modules::control::controllers::remote_control::remote_teleop_controller::RemoteTeleopConfig;
 use crate::modules::log::services::command_log_service::CommandLogService;
-use crate::services::camera::camera_service::CameraConfig;
 use crate::services::directory::directory_service::DirectoryService;
-use crate::services::environment::env_service::EnvService;
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
-use std::io::{BufRead, BufReader};
-use std::process::{Child, Command, Stdio};
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
 use tauri::AppHandle;
 use tauri::Emitter;
-use tauri::Manager;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
 
 // Create a struct to hold our processes, shutdown flags, and command log info
-pub struct RemoteTeleopProcess(Arc<Mutex<HashMap<String, (Child, Arc<AtomicBool>, String)>>>);
+pub struct RemoteTeleopProcess(Arc<Mutex<HashMap<String, (CommandChild, Arc<AtomicBool>, String)>>>);
 
 pub struct RemoteTeleopService;
 
@@ -34,22 +29,20 @@ impl RemoteTeleopService {
         state: &RemoteTeleopProcess,
         config: RemoteTeleopConfig,
     ) -> Result<String, String> {
-
         // Check if a process with this nickname is already running
         {
             let processes = state.0.lock().unwrap();
             if processes.contains_key(&config.nickname) {
-                // Unlock the mutex before calling stop_teleop (which needs to lock it)
                 drop(processes);
-                println!("Process already exists for nickname: {}, stopping it first...", config.nickname);
+                println!(
+                    "Process already exists for nickname: {}, stopping it first...",
+                    config.nickname
+                );
                 match Self::stop_teleop(&app_handle, db_connection.clone(), state, config.nickname.clone()) {
                     Ok(_msg) => {
-                        // Give a small delay to ensure the process is fully stopped
                         std::thread::sleep(std::time::Duration::from_millis(500));
                     }
-                    Err(_e) => {
-                        // Continue anyway - might have already stopped
-                    }
+                    Err(_e) => {}
                 }
             }
         }
@@ -57,7 +50,6 @@ impl RemoteTeleopService {
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
         let python_path = DirectoryService::get_python_path()?;
 
-        // Validate paths exist before trying to spawn
         if !lerobot_dir.exists() {
             let message = format!("LeRobot directory not found at: {:?}", lerobot_dir);
             Self::log_teleop_error(&message);
@@ -70,7 +62,6 @@ impl RemoteTeleopService {
             return Err(message);
         }
 
-        // Convert paths to strings for error messages (before moving them)
         let lerobot_dir_str = lerobot_dir.to_string_lossy().to_string();
         let python_path_str = python_path.to_string_lossy().to_string();
 
@@ -90,33 +81,24 @@ impl RemoteTeleopService {
         Self::log_teleop_info(&start_message);
         Self::emit_teleop_info(&app_handle, &config.nickname, &start_message);
 
-        // Now build the actual Command
-        let mut cmd = Command::new(&python_path);  // Use reference here
-        for arg in &command_parts[1..] {
-            cmd.arg(arg);
-        }
+        let envs = Self::build_envs()?;
 
-        // Inherit environment from parent process
-        EnvService::add_python_env_vars(&mut cmd)?;
+        let cmd = app_handle
+            .shell()
+            .command(python_path_str.clone())
+            .args(command_parts[1..].iter())
+            .current_dir(lerobot_dir_str.clone())
+            .envs(envs);
 
-        let mut child = cmd
-            .current_dir(&lerobot_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| {
-                let message = format!(
-                    "Failed to start teleop: {}. Python: {}, Working dir: {}",
-                    e,
-                    python_path_str,
-                    lerobot_dir_str
-                );
-                Self::log_teleop_error(&message);
-                message
-            })?;
+        let (mut rx, child) = cmd.spawn().map_err(|e| {
+            let message = format!(
+                "Failed to start teleop (shell): {}. Python: {}, Working dir: {}",
+                e, python_path_str, lerobot_dir_str
+            );
+            Self::log_teleop_error(&message);
+            message
+        })?;
 
-        let stdout = child.stdout.take();
-        let stderr = child.stderr.take();
         let shutdown_flag = Arc::new(AtomicBool::new(false));
 
         // Create command log service with the provided connection
@@ -139,40 +121,79 @@ impl RemoteTeleopService {
             }
         };
 
-        // Store the command log ID for later use
-        let pid = child.id();
+        let pid = child.pid();
         let command_log_id = command_log.id.clone();
 
-        // Start logging for stdout and stderr
-        LogService::start_logger(
-            stdout,
-            &app_handle,
-            &shutdown_flag,
-            Some(&config.nickname),
-            Some("teleop-log"),
-            None,
-            false,
-            false,
-        );
+        let nickname_for_logs = config.nickname.clone();
+        let app_handle_for_logs = app_handle.clone();
+        let shutdown_for_logs = shutdown_flag.clone();
+        let teleop_log_path = Self::teleop_log_path()
+            .ok()
+            .map(|p| p.to_string_lossy().to_string());
 
-        LogService::start_logger(
-            stderr,
-            &app_handle,
-            &shutdown_flag,
-            Some(&config.nickname),
-            Some("teleop-log"),
-            None,
-            false,
-            true,
-        );
+        tauri::async_runtime::spawn(async move {
+            while let Some(event) = rx.recv().await {
+                if shutdown_for_logs.load(Ordering::Relaxed) {
+                    break;
+                }
 
-        // Store the process with its nickname, command log ID, and db connection
+                match event {
+                    CommandEvent::Stdout(line_bytes) => {
+                        let line = String::from_utf8_lossy(&line_bytes);
+                        let line = line.trim_end();
+                        if !line.is_empty() {
+                            let formatted = format!("[{}] {}", nickname_for_logs, line);
+                            let _ = app_handle_for_logs.emit("teleop-log", &formatted);
+                            if let Some(path) = &teleop_log_path {
+                                LogService::write_log_line(path, Some("teleop"), line);
+                            }
+                        }
+                    }
+                    CommandEvent::Stderr(line_bytes) => {
+                        let line = String::from_utf8_lossy(&line_bytes);
+                        let line = line.trim_end();
+                        if !line.is_empty() {
+                            let formatted = format!("[{}] {}", nickname_for_logs, line);
+                            let _ = app_handle_for_logs.emit("teleop-log", &formatted);
+                            if let Some(path) = &teleop_log_path {
+                                LogService::write_log_line(path, Some("teleop"), line);
+                            }
+                        }
+                    }
+                    CommandEvent::Error(err) => {
+                        let message = format!("Teleop shell error: {}", err);
+                        let _ = app_handle_for_logs.emit(
+                            "teleop-log",
+                            &format!("[{}] {}", nickname_for_logs, message),
+                        );
+                        if let Some(path) = &teleop_log_path {
+                            LogService::write_log_line(path, Some("teleop"), &message);
+                        }
+                    }
+                    CommandEvent::Terminated(payload) => {
+                        let message = format!(
+                            "Teleop process terminated (code={:?}, signal={:?})",
+                            payload.code, payload.signal
+                        );
+                        let _ = app_handle_for_logs.emit(
+                            "teleop-log",
+                            &format!("[{}] {}", nickname_for_logs, message),
+                        );
+                        if let Some(path) = &teleop_log_path {
+                            LogService::write_log_line(path, Some("teleop"), &message);
+                        }
+                        break;
+                    }
+                    _ => {}
+                }
+            }
+        });
+
         state.0.lock().unwrap().insert(
             config.nickname.clone(),
             (child, shutdown_flag.clone(), command_log_id.clone()),
         );
 
-        // Start process monitoring with built-in delay
         ProcessService::start_process_monitor_with_defaults(
             pid,
             app_handle.clone(),
@@ -204,19 +225,13 @@ impl RemoteTeleopService {
         if let Some((child, shutdown_flag, command_log_id)) =
             state.0.lock().unwrap().remove(&nickname)
         {
-            // Signal threads to stop
             shutdown_flag.store(true, Ordering::Relaxed);
 
-            // Update command log on shutdown
-            ProcessService::on_process_shutdown(app_handle, child.id(), db_connection, command_log_id);
+            ProcessService::on_process_shutdown(app_handle, child.pid(), db_connection, command_log_id);
 
-            // Kill the process
-            #[cfg(windows)]
-            {
-                let pid = child.id();
-                let _ = Command::new("taskkill")
-                    .args(&["/F", "/T", "/PID", &pid.to_string()])
-                    .output();
+            if let Err(err) = child.kill() {
+                let message = format!("Failed to kill teleop process: {}", err);
+                Self::log_teleop_error(&message);
             }
 
             Ok(format!(
@@ -224,7 +239,10 @@ impl RemoteTeleopService {
                 nickname
             ))
         } else {
-            let message = format!("Teleop process not found. Stop command sent for nickname: {}", nickname);
+            let message = format!(
+                "Teleop process not found. Stop command sent for nickname: {}",
+                nickname
+            );
             Self::log_teleop_error(&message);
             Ok(message)
         }
@@ -242,8 +260,29 @@ impl RemoteTeleopService {
         command_parts.push(format!("--fps={}", config.fps));
         command_parts.push(format!("--reverse={}", "True"));
 
-
         command_parts
+    }
+
+    fn build_envs() -> Result<HashMap<String, String>, String> {
+        let mut envs: HashMap<String, String> = std::env::vars().collect();
+        let venv_path = DirectoryService::get_virtual_env_path()?;
+        envs.insert(
+            "VIRTUAL_ENV".to_string(),
+            venv_path.to_string_lossy().to_string(),
+        );
+
+        let venv_bin_path = DirectoryService::get_virtual_env_bin_path()?
+            .display()
+            .to_string();
+        let separator = if cfg!(windows) { ";" } else { ":" };
+        let base_path = std::env::var("PATH").unwrap_or_default();
+        envs.insert(
+            "PATH".to_string(),
+            format!("{}{}{}", venv_bin_path, separator, base_path),
+        );
+
+        envs.insert("DISPLAY".to_string(), ":0".to_string());
+        Ok(envs)
     }
 
     fn log_teleop_error(message: &str) {
