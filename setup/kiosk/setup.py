@@ -273,24 +273,30 @@ class KioskSetupScript:
         try:
             env = os.environ.copy()
             env["DEBIAN_FRONTEND"] = "noninteractive"
-            install_result = subprocess.run(
-                ["sudo", "apt-get", "install", "-y", "--no-install-recommends"] + packages,
+            apt_cmd = ["apt-get"]
+            if os.geteuid() != 0:
+                apt_cmd = ["sudo", "-n", "apt-get"]
+
+            subprocess.run(
+                apt_cmd
+                + [
+                    "install", "-y", "--no-install-recommends",
+                    "-o", "Dpkg::Options::=--force-confdef",
+                    "-o", "Dpkg::Options::=--force-confnew",
+                ]
+                + packages,
                 check=True,
-                capture_output=True,
-                text=True,
                 timeout=1800,
                 env=env,
             )
 
-            if install_result is None or install_result.returncode != 0:
-                self.print_error("Failed to install packages")
-                self.print_status(f"Install output: {install_result.stdout}")
-                self.print_error(f"Install error: {install_result.stderr}")
-                return False
-
             self.print_success("Packages installed successfully")
             return True
 
+        except subprocess.CalledProcessError as e:
+            self.print_error(f"Failed to install packages (exit code {e.returncode}).")
+            self.print_warning("If prompted for sudo, run the script with sudo.")
+            return False
         except subprocess.TimeoutExpired:
             self.print_error("Package installation timed out. You can re-run with --skip-system and install manually.")
             return False

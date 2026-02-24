@@ -23,30 +23,33 @@ class SystemPackageInstaller:
         env = os.environ.copy()
         env["DEBIAN_FRONTEND"] = "noninteractive"
 
-        update_cmd = ["sudo", "apt-get", "update"]
-        update_result = subprocess.run(
-            update_cmd,
-            capture_output=True,
-            text=True,
-            timeout=1200,
-            env=env,
-        )
-        if update_result is None or update_result.returncode != 0:
-            self.print_error("Failed to update package lists")
-            return False
+        apt_cmd = ["apt-get"]
+        if os.geteuid() != 0:
+            apt_cmd = ["sudo", "-n", "apt-get"]
 
-        upgrade_cmd = ["sudo", "apt-get", "upgrade", "-y", "--no-install-recommends"]
-        upgrade_result = subprocess.run(
-            upgrade_cmd,
-            capture_output=True,
-            text=True,
-            timeout=1800,
-            env=env,
-        )
-        if upgrade_result is None or upgrade_result.returncode != 0:
-            self.print_error("Failed to upgrade system")
-            self.print_status(f"Upgrade output: {upgrade_result.stdout}")
-            self.print_error(f"Upgrade error: {upgrade_result.stderr}")
+        try:
+            update_cmd = apt_cmd + ["update"]
+            subprocess.run(
+                update_cmd,
+                check=True,
+                timeout=1200,
+                env=env,
+            )
+
+            upgrade_cmd = apt_cmd + [
+                "upgrade", "-y", "--no-install-recommends",
+                "-o", "Dpkg::Options::=--force-confdef",
+                "-o", "Dpkg::Options::=--force-confnew",
+            ]
+            subprocess.run(
+                upgrade_cmd,
+                check=True,
+                timeout=1800,
+                env=env,
+            )
+        except subprocess.CalledProcessError as e:
+            self.print_error(f"System update failed (exit code {e.returncode}).")
+            self.print_warning("If prompted for sudo, run the script with sudo.")
             self.print_warning("Common fixes: run 'sudo dpkg --configure -a' and 'sudo apt-get -f install'.")
             return False
 
