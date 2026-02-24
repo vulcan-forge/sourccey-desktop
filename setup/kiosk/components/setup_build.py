@@ -276,16 +276,22 @@ class BuildManager:
             self.project_root / "src-tauri" / "target" / "release" / "bundle" / "deb"
         ]
 
-        product_pattern = f"{self.app_info['product_name'].replace(' ', '')}*.deb"
+        product_name = self.app_info['product_name']
+        product_patterns = [
+            f"{product_name}*.deb",
+            f"{product_name.replace(' ', '')}*.deb",
+            f"{product_name.replace(' ', '_')}*.deb",
+        ]
 
         for deb_dir in deb_locations:
             if deb_dir.exists():
-                debs = sorted(deb_dir.glob(product_pattern))
-                if debs:
-                    self.print_success(f"Found .deb at {deb_dir}")
-                    return debs[0]
+                for pattern in product_patterns:
+                    debs = sorted(deb_dir.glob(pattern))
+                    if debs:
+                        self.print_success(f"Found .deb at {deb_dir}")
+                        return debs[0]
 
-        self.print_error(f"No .deb found matching pattern: {product_pattern}")
+        self.print_error(f"No .deb found matching patterns: {', '.join(product_patterns)}")
         return None
 
     #################################################################
