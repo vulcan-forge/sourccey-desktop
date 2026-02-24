@@ -2,7 +2,7 @@ use std::fs;
 use std::io::{self};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
@@ -30,8 +30,38 @@ pub struct DesktopExtrasStatus {
     pub missing: Vec<String>,
 }
 
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LerobotUpdateStatus {
+    pub up_to_date: bool,
+    pub current_commit: Option<String>,
+    pub latest_commit: Option<String>,
+}
+
+#[derive(Clone, Deserialize)]
+struct UpdaterManifest {
+    pub modules: Option<ModulesManifest>,
+}
+
+#[derive(Clone, Deserialize)]
+struct ModulesManifest {
+    #[serde(rename = "lerobot-vulcan")]
+    pub lerobot_vulcan: Option<LerobotModuleManifest>,
+}
+
+#[derive(Clone, Deserialize)]
+struct LerobotModuleManifest {
+    pub commit: Option<String>,
+}
+
+#[derive(Clone, Serialize, Deserialize)]
+struct LerobotCommitMarker {
+    pub commit: String,
+}
+
 impl LocalSetupService {
     const DEFAULT_LEROBOT_ZIP_URL: &str = "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
+    const DEFAULT_UPDATER_URL: &str = "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/latest.json";
     #[allow(dead_code)]
     pub fn maybe_start(app_handle: AppHandle, kiosk: bool) {
         if kiosk || BuildService::is_dev_mode() {
@@ -145,6 +175,22 @@ impl LocalSetupService {
         Self::ensure_installed(app_handle, Some(&emit), false)
     }
 
+    pub fn check_lerobot_update(app_handle: &AppHandle) -> Result<LerobotUpdateStatus, String> {
+        let latest_commit = Self::fetch_latest_lerobot_commit()?;
+        let current_commit = Self::read_current_lerobot_commit(app_handle);
+        let up_to_date = match (&current_commit, &latest_commit) {
+            (Some(current), Some(latest)) => current == latest,
+            (None, Some(_)) => false,
+            _ => true,
+        };
+
+        Ok(LerobotUpdateStatus {
+            up_to_date,
+            current_commit,
+            latest_commit,
+        })
+    }
+
     pub fn reset_modules(app_handle: &AppHandle) -> Result<(), String> {
         let emit = |progress: SetupProgress| {
             let _ = app_handle.emit("setup:progress", progress);
@@ -157,6 +203,7 @@ impl LocalSetupService {
         let setup_dir = app_data_dir.join("setup");
         let marker_path = setup_dir.join("lerobot_vulcan_installed");
         let desktop_extras_marker = Self::desktop_extras_marker_path(&setup_dir);
+        let commit_marker = setup_dir.join("lerobot_vulcan_commit.json");
 
         let install_root = if BuildService::is_dev_mode() {
             DirectoryService::get_current_dir_dev()?.join("modules")
@@ -185,6 +232,10 @@ impl LocalSetupService {
         if desktop_extras_marker.exists() {
             fs::remove_file(&desktop_extras_marker)
                 .map_err(|e| format!("Failed to remove desktop extras marker: {}", e))?;
+        }
+        if commit_marker.exists() {
+            fs::remove_file(&commit_marker)
+                .map_err(|e| format!("Failed to remove commit marker: {}", e))?;
         }
 
         Self::emit_step(
@@ -454,6 +505,10 @@ impl LocalSetupService {
         fs::write(&marker_path, "ok")
             .map_err(|e| format!("Failed to write setup marker: {}", e))?;
 
+        if let Ok(Some(commit)) = Self::fetch_latest_lerobot_commit() {
+            let _ = Self::write_current_lerobot_commit(&setup_dir, &commit);
+        }
+
         DirectoryService::set_project_root_override(app_data_dir);
 
         if show_dialogs {
@@ -468,6 +523,43 @@ impl LocalSetupService {
         Self::emit_step(emit, "complete", "success", Some("Setup complete".to_string()));
 
         Ok(())
+    }
+
+    fn fetch_latest_lerobot_commit() -> Result<Option<String>, String> {
+        let url = std::env::var("SOURCCEY_UPDATER_URL")
+            .unwrap_or_else(|_| Self::DEFAULT_UPDATER_URL.to_string());
+        let response = reqwest::blocking::get(&url)
+            .map_err(|e| format!("Failed to download updater manifest: {}", e))?;
+        if !response.status().is_success() {
+            return Err(format!("Updater manifest download failed ({}): {}", response.status(), url));
+        }
+        let manifest: UpdaterManifest = response
+            .json()
+            .map_err(|e| format!("Invalid updater manifest JSON: {}", e))?;
+        Ok(manifest
+            .modules
+            .and_then(|modules| modules.lerobot_vulcan)
+            .and_then(|module| module.commit))
+    }
+
+    fn write_current_lerobot_commit(setup_dir: &Path, commit: &str) -> Result<(), String> {
+        let marker = LerobotCommitMarker {
+            commit: commit.to_string(),
+        };
+        let json = serde_json::to_string_pretty(&marker)
+            .map_err(|e| format!("Failed to serialize commit marker: {}", e))?;
+        let marker_path = setup_dir.join("lerobot_vulcan_commit.json");
+        fs::write(marker_path, json)
+            .map_err(|e| format!("Failed to write commit marker: {}", e))?;
+        Ok(())
+    }
+
+    fn read_current_lerobot_commit(app_handle: &AppHandle) -> Option<String> {
+        let app_data_dir = app_handle.path().app_data_dir().ok()?;
+        let marker_path = app_data_dir.join("setup").join("lerobot_vulcan_commit.json");
+        let contents = fs::read_to_string(marker_path).ok()?;
+        let marker: LerobotCommitMarker = serde_json::from_str(&contents).ok()?;
+        Some(marker.commit)
     }
 
     fn reinstall_dependencies(
@@ -567,6 +659,10 @@ impl LocalSetupService {
 
         fs::write(&marker_path, "ok")
             .map_err(|e| format!("Failed to write setup marker: {}", e))?;
+
+        if let Ok(Some(commit)) = Self::fetch_latest_lerobot_commit() {
+            let _ = Self::write_current_lerobot_commit(&setup_dir, &commit);
+        }
 
         DirectoryService::set_project_root_override(app_data_dir);
 

@@ -6,7 +6,7 @@
 mod database;
 use database::connection::DatabaseManager;
 use tauri::Manager;
-use services::setup::local_setup_service::{DesktopExtrasStatus, LocalSetupService, SetupStatus};
+use services::setup::local_setup_service::{DesktopExtrasStatus, LerobotUpdateStatus, LocalSetupService, SetupStatus};
 
 // Import modules from the services folder
 mod services;
@@ -238,6 +238,14 @@ async fn setup_desktop_extras_run(app: tauri::AppHandle) -> Result<(), String> {
         .map_err(|e| format!("Setup task failed: {}", e))?
 }
 
+#[tauri::command]
+async fn check_lerobot_update(app: tauri::AppHandle) -> Result<LerobotUpdateStatus, String> {
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || LocalSetupService::check_lerobot_update(&app_handle))
+        .await
+        .map_err(|e| format!("Setup task failed: {}", e))?
+}
+
 fn main() {
     // Default desktop; --kiosk enables kiosk mode
     let kiosk = is_kiosk_from_args();
@@ -398,6 +406,7 @@ fn main() {
             setup_reset,
             setup_desktop_extras_check,
             setup_desktop_extras_run,
+            check_lerobot_update,
 
             // Kiosk Host Functions
             start_kiosk_host,

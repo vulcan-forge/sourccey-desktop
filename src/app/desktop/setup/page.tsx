@@ -15,7 +15,7 @@ const steps = [
     { id: 'uv', label: 'Install uv runtime' },
     { id: 'venv', label: 'Create environment' },
     { id: 'deps', label: 'Install dependencies' },
-    { id: 'protobuf', label: 'Compile protobuf (if present)' },
+    { id: 'protobuf', label: 'Compile protobuf' },
     { id: 'complete', label: 'Finalize setup' },
 ];
 
@@ -157,6 +157,9 @@ export default function SetupPage() {
             Object.keys(reset).forEach((key) => {
                 reset[key] = 'pending';
             });
+            if (action === 'update' && isInstalled) {
+                reset['reset'] = 'success';
+            }
             return reset;
         });
 
@@ -167,6 +170,12 @@ export default function SetupPage() {
                 await invoke('setup_run', { force: isInstalled });
             }
             setIsRunning(false);
+            if (action === 'update' && isInstalled) {
+                setStepState((prev) => ({
+                    ...prev,
+                    reset: 'success',
+                }));
+            }
             markInstalled('Setup complete. Ready to continue.');
         } catch (err) {
             const message = err instanceof Error ? err.message : 'Setup failed.';
@@ -198,7 +207,6 @@ export default function SetupPage() {
                                     className="drop-shadow-logo"
                                 />
                                 <div>
-                                    <p className="text-xs font-semibold tracking-[0.3em] text-slate-400 uppercase">First Run Setup</p>
                                     <h1 className="text-3xl font-semibold text-white">Prepare the local robot runtime</h1>
                                 </div>
                             </div>
@@ -243,10 +251,14 @@ export default function SetupPage() {
                                     type="button"
                                     onClick={() => runSetup('update')}
                                     disabled={isRunning}
-                                    title="Updates the Python files to control the robot."
+                                    title={
+                                        isInstalled
+                                            ? 'Repairs the setup without deleting existing modules.'
+                                            : 'Install the robot runtime for the first time.'
+                                    }
                                     className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    {isRunning ? 'Setting up...' : 'Update modules'}
+                                    {isRunning ? 'Setting up...' : isInstalled ? 'Repair modules' : 'Install modules'}
                                 </button>
 
                                 <div className="grow"></div>
@@ -259,11 +271,15 @@ export default function SetupPage() {
                                 <button
                                     type="button"
                                     onClick={() => runSetup('reset')}
-                                    disabled={isRunning}
-                                    title="Redownloads all files from scratch, perfect after a larger update."
+                                    disabled={isRunning || !isInstalled}
+                                    title={
+                                        isInstalled
+                                            ? 'Redownloads all files from scratch, perfect after a larger update.'
+                                            : 'Install modules before running a reset.'
+                                    }
                                     className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    Reset modules
+                                    Update modules
                                 </button>
                             </div>
 
