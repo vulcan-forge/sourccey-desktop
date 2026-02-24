@@ -4,7 +4,7 @@
     "force": true,
     "platforms": {
         "windows-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQ3lJbEZmcmhiYnpnb3I1bUVSc09PalgrSzlBZ0p6VHlKY0NWOVptU3F6MHE1U3d6ckVMU0FuQVBObHlzWXJmdG5WR1dTelB4aGdWajB4SWpMUTJOc0FvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcxOTcyMDc3CWZpbGU6VnVsY2FuU3R1ZGlvXzAuMC42X3g2NC1zZXR1cC5leGUKNXNnYTBjL3VqMzVTdWUzK0RYZmNmT1VFZHJ0VUxleDYzVVNCREF2N1dzcVdpR3dYWFFyeFlGYWl4OEhvT1B0SFZJblBJT3JtamNpZDdlTG1weGlIQ2c9PQo=",
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzNkVjVET3RpaG52Z2xaSVFwK3lXb3VhSmJXM2FJWXUrWVd3THV6aXZPMERnVG84dzNiMFhjRERxUUJ6VVJNM2QxdzRNM0JpRGpTVXNOdDlpYVI4M3dzPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcxOTczOTg1CWZpbGU6VnVsY2FuU3R1ZGlvXzAuMC42X3g2NC1zZXR1cC5leGUKL1VndzFFclkxUTdaTzhFbjVIblIzOEx0cUJsWEE5eEJXZXhPVlkzeTZxc2dGL20zQ0lPMEc2Qk5naFErcFFvTlprMUowbXAxOUdjdi9KdlJQRzZSQVE9PQo=",
             "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/VulcanStudioInstaller.exe"
         }
     },
