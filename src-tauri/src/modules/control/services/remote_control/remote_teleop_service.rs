@@ -88,7 +88,7 @@ impl RemoteTeleopService {
         );
         println!("{}", start_message);
         Self::log_teleop_info(&start_message);
-        Self::emit_teleop_info(&app_handle, &start_message);
+        Self::emit_teleop_info(&app_handle, &config.nickname, &start_message);
 
         // Now build the actual Command
         let mut cmd = Command::new(&python_path);  // Use reference here
@@ -257,8 +257,8 @@ impl RemoteTeleopService {
         }
     }
 
-    fn emit_teleop_info(app_handle: &AppHandle, message: &str) {
-        let formatted = format!("[teleop] {}", message);
+    fn emit_teleop_info(app_handle: &AppHandle, nickname: &str, message: &str) {
+        let formatted = format!("[{}] {}", nickname, message);
         let _ = app_handle.emit("teleop-log", &formatted);
     }
 

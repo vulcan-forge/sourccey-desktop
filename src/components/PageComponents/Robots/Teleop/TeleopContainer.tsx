@@ -8,7 +8,9 @@ export const RemoteTeleopContainer = ({ ownedRobot }: { ownedRobot: any }) => {
     const { data: remoteRobotState }: any = useGetRemoteRobotState(nickname);
     const robotStatus = remoteRobotState?.status;
     const controlType = remoteRobotState?.controlType;
-    const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == RemoteControlType.TELEOP;
+    const isControlling =
+        (robotStatus == RemoteRobotStatus.STARTED || robotStatus == RemoteRobotStatus.STARTING) &&
+        controlType == RemoteControlType.TELEOP;
 
     return (
         <div className="flex flex-col gap-4">

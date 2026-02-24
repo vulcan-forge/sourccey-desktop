@@ -2,7 +2,6 @@
 
 import { RemoteRobotStatus, useGetRemoteRobotsState } from '@/hooks/Control/remote-control.hook';
 import { FaGamepad, FaRobot } from 'react-icons/fa';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 export const RemoteControlBar = () => {
@@ -16,8 +15,8 @@ export const RemoteControlBar = () => {
     return (
         <>
             {remoteRobots.length > 0 && (
-                <div className="fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
-                    <div className="flex items-center gap-2 rounded-xl border border-slate-600/50 bg-slate-800/90 px-4 py-3 shadow-2xl backdrop-blur-sm">
+                <div className="pointer-events-none fixed bottom-6 left-1/2 z-40 -translate-x-1/2">
+                    <div className="pointer-events-auto flex items-center gap-2 rounded-xl border border-slate-600/50 bg-slate-800/90 px-4 py-3 shadow-2xl backdrop-blur-sm">
                         <div className="flex items-center gap-2 text-slate-300">
                             <FaGamepad className="h-4 w-4" />
                             <span className="text-sm font-medium">Remote Controls</span>

@@ -78,6 +78,7 @@ export const RemoteTeleopAction = ({
             if (isControlling) {
                 await stopTeleop(normalizedNickname);
             } else {
+                setRemoteRobotState(nickname, RemoteRobotStatus.STARTING, RemoteControlType.TELEOP, ownedRobot);
                 await startTeleop(normalizedNickname);
             }
         } catch (error) {

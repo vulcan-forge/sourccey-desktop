@@ -348,6 +348,23 @@ impl LogService {
         format!("{}.{:03}", datetime.format("%Y-%m-%d %H:%M:%S"), millis)
     }
 
+    fn parse_timestamp_ms(line: &str) -> Option<i64> {
+        if line.len() < 23 {
+            return None;
+        }
+
+        let date_part = line.get(0..19)?;
+        let dot = line.get(19..20)?;
+        let millis_part = line.get(20..23)?;
+        if dot != "." {
+            return None;
+        }
+
+        let dt = chrono::NaiveDateTime::parse_from_str(date_part, "%Y-%m-%d %H:%M:%S").ok()?;
+        let millis: i64 = millis_part.parse::<i64>().ok()?;
+        Some(dt.and_utc().timestamp_millis() + millis)
+    }
+
     pub fn read_log_tail(file_path: &str, max_lines: usize) -> Result<Vec<String>, String> {
         if max_lines == 0 {
             return Ok(Vec::new());
@@ -371,5 +388,52 @@ impl LogService {
         }
 
         Ok(lines.into_iter().collect())
+    }
+
+    pub fn read_log_tail_all(
+        log_dir: &Path,
+        max_lines_total: usize,
+        max_lines_per_file: usize,
+    ) -> Result<Vec<String>, String> {
+        if max_lines_total == 0 || max_lines_per_file == 0 {
+            return Ok(Vec::new());
+        }
+
+        if !log_dir.exists() {
+            return Ok(Vec::new());
+        }
+
+        let mut entries: Vec<(i64, usize, String)> = Vec::new();
+        let mut order: usize = 0;
+
+        for entry in std::fs::read_dir(log_dir).map_err(|e| format!("Failed to read log dir: {}", e))? {
+            let entry = entry.map_err(|e| format!("Failed to read log dir entry: {}", e))?;
+            let path = entry.path();
+            if !path.is_file() {
+                continue;
+            }
+
+            let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+            if !file_name.contains(".log") {
+                continue;
+            }
+
+            let tail = Self::read_log_tail(path.to_string_lossy().as_ref(), max_lines_per_file)?;
+            for line in tail {
+                let ts = Self::parse_timestamp_ms(&line).unwrap_or(i64::MIN);
+                entries.push((ts, order, line));
+                order += 1;
+            }
+        }
+
+        entries.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+
+        let start = entries.len().saturating_sub(max_lines_total);
+        let mut combined = Vec::with_capacity(entries.len().saturating_sub(start));
+        for (_, _, line) in entries.into_iter().skip(start) {
+            combined.push(line);
+        }
+
+        Ok(combined)
     }
 }

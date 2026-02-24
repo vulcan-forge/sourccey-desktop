@@ -180,6 +180,18 @@ fn get_frontend_log_tail(app: tauri::AppHandle, max_lines: Option<usize>) -> Res
 }
 
 #[tauri::command]
+fn get_log_tail_all(
+    app: tauri::AppHandle,
+    max_lines: Option<usize>,
+    max_lines_per_file: Option<usize>,
+) -> Result<Vec<String>, String> {
+    let log_dir = resolve_log_dir(&app)?;
+    let limit = max_lines.unwrap_or(400).clamp(1, 2000);
+    let per_file = max_lines_per_file.unwrap_or(200).clamp(1, 1000);
+    LogService::read_log_tail_all(&log_dir, limit, per_file)
+}
+
+#[tauri::command]
 async fn setup_check(app: tauri::AppHandle) -> Result<SetupStatus, String> {
     let app_handle = app.clone();
     tauri::async_runtime::spawn_blocking(move || LocalSetupService::check_status(&app_handle))
@@ -366,6 +378,7 @@ fn main() {
             get_lerobot_vulcan_dir,
             write_frontend_log,
             get_frontend_log_tail,
+            get_log_tail_all,
             setup_check,
             setup_run,
             setup_desktop_extras_check,

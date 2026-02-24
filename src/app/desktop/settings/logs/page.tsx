@@ -8,9 +8,9 @@ import Link from 'next/link';
 export default function DesktopSettingsLogsPage() {
     const [logDir, setLogDir] = useState<string>('');
     const [error, setError] = useState<string>('');
-    const [frontendLogs, setFrontendLogs] = useState<string[]>([]);
-    const [frontendLogError, setFrontendLogError] = useState<string>('');
-    const [isLoadingFrontendLogs, setIsLoadingFrontendLogs] = useState<boolean>(false);
+    const [allLogs, setAllLogs] = useState<string[]>([]);
+    const [allLogError, setAllLogError] = useState<string>('');
+    const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(false);
 
     const getErrorMessage = (err: unknown) => {
         if (err instanceof Error) {
@@ -19,22 +19,22 @@ export default function DesktopSettingsLogsPage() {
         return String(err ?? 'Unknown error');
     };
 
-    const loadFrontendLogs = async () => {
+    const loadAllLogs = async () => {
         if (!isTauri()) {
-            setFrontendLogError('Frontend logs are only available in the desktop app.');
+            setAllLogError('Logs are only available in the desktop app.');
             return;
         }
 
-        setIsLoadingFrontendLogs(true);
-        setFrontendLogError('');
+        setIsLoadingLogs(true);
+        setAllLogError('');
 
         try {
-            const logs = (await invoke('get_frontend_log_tail', { max_lines: 200 })) as string[];
-            setFrontendLogs(logs);
+            const logs = (await invoke('get_log_tail_all', { max_lines: 400, max_lines_per_file: 200 })) as string[];
+            setAllLogs(logs);
         } catch (err) {
-            setFrontendLogError(`Failed to load frontend logs: ${getErrorMessage(err)}`);
+            setAllLogError(`Failed to load logs: ${getErrorMessage(err)}`);
         } finally {
-            setIsLoadingFrontendLogs(false);
+            setIsLoadingLogs(false);
         }
     };
 
@@ -54,7 +54,7 @@ export default function DesktopSettingsLogsPage() {
         };
 
         void loadPath();
-        void loadFrontendLogs();
+        void loadAllLogs();
     }, []);
 
     const handleOpenLogs = async () => {
@@ -83,7 +83,7 @@ export default function DesktopSettingsLogsPage() {
                         <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Settings</div>
                         <h1 className="text-3xl font-semibold text-white">Logs</h1>
                         <p className="text-sm text-slate-300">
-                            Review local log files and recent frontend console output.
+                            Review local log files and recent app output.
                         </p>
                         <div>
                             <Link
@@ -123,26 +123,26 @@ export default function DesktopSettingsLogsPage() {
                 <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
                     <div className="flex flex-col gap-4">
                         <div>
-                            <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">App Logs</div>
+                            <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">All Logs</div>
                             <p className="mt-2 text-sm text-slate-300">
-                                Recent frontend console output captured in production builds.
+                                Combined logs from the app data folder, sorted by timestamp.
                             </p>
                         </div>
                         <div className="flex flex-wrap gap-2">
                             <button
                                 type="button"
-                                onClick={loadFrontendLogs}
+                                onClick={loadAllLogs}
                                 className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
                             >
-                                {isLoadingFrontendLogs ? 'Loading...' : 'Refresh'}
+                                {isLoadingLogs ? 'Loading...' : 'Refresh'}
                             </button>
                         </div>
-                        {frontendLogError && <div className="text-sm text-red-300">{frontendLogError}</div>}
+                        {allLogError && <div className="text-sm text-red-300">{allLogError}</div>}
                         <div className="h-64 overflow-auto rounded-xl border border-slate-700/60 bg-slate-950/60 px-4 py-3 text-xs text-slate-200">
-                            {frontendLogs.length === 0 ? (
-                                <div className="text-slate-400">No frontend logs yet.</div>
+                            {allLogs.length === 0 ? (
+                                <div className="text-slate-400">No logs yet.</div>
                             ) : (
-                                frontendLogs.map((line, index) => <div key={`${line}-${index}`}>{line}</div>)
+                                allLogs.map((line, index) => <div key={`${line}-${index}`}>{line}</div>)
                             )}
                         </div>
                     </div>
