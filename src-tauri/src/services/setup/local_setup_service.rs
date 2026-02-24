@@ -145,6 +145,58 @@ impl LocalSetupService {
         Self::ensure_installed(app_handle, Some(&emit), false)
     }
 
+    pub fn reset_modules(app_handle: &AppHandle) -> Result<(), String> {
+        let emit = |progress: SetupProgress| {
+            let _ = app_handle.emit("setup:progress", progress);
+        };
+
+        let app_data_dir = app_handle
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+        let setup_dir = app_data_dir.join("setup");
+        let marker_path = setup_dir.join("lerobot_vulcan_installed");
+        let desktop_extras_marker = Self::desktop_extras_marker_path(&setup_dir);
+
+        let install_root = if BuildService::is_dev_mode() {
+            DirectoryService::get_current_dir_dev()?.join("modules")
+        } else {
+            app_data_dir.join("modules")
+        };
+        let lerobot_dir = install_root.join("lerobot-vulcan");
+
+        Self::emit_step(
+            Some(&emit),
+            "reset",
+            "started",
+            Some("Removing lerobot-vulcan runtime".to_string()),
+        );
+
+        if lerobot_dir.exists() {
+            fs::remove_dir_all(&lerobot_dir)
+                .map_err(|e| format!("Failed to remove lerobot-vulcan: {}", e))?;
+        }
+
+        if marker_path.exists() {
+            fs::remove_file(&marker_path)
+                .map_err(|e| format!("Failed to remove setup marker: {}", e))?;
+        }
+
+        if desktop_extras_marker.exists() {
+            fs::remove_file(&desktop_extras_marker)
+                .map_err(|e| format!("Failed to remove desktop extras marker: {}", e))?;
+        }
+
+        Self::emit_step(
+            Some(&emit),
+            "reset",
+            "success",
+            Some("Reset complete. Reinstalling modules.".to_string()),
+        );
+
+        Self::ensure_installed(app_handle, Some(&emit), false)
+    }
+
     pub fn run_desktop_extras(app_handle: &AppHandle) -> Result<(), String> {
         let emit = |progress: SetupProgress| {
             let _ = app_handle.emit("setup:desktop-extras-progress", progress);

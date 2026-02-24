@@ -9,6 +9,7 @@ import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 const steps = [
+    { id: 'reset', label: 'Reset modules' },
     { id: 'download', label: 'Download lerobot-vulcan' },
     { id: 'extract', label: 'Extract modules' },
     { id: 'uv', label: 'Install uv runtime' },
@@ -146,7 +147,7 @@ export default function SetupPage() {
         void check();
     }, [markInstalled, router]);
 
-    const startSetup = async () => {
+    const runSetup = async (action: 'update' | 'reset') => {
         setIsRunning(true);
         setError(null);
         setLog([]);
@@ -160,7 +161,11 @@ export default function SetupPage() {
         });
 
         try {
-            await invoke('setup_run', { force: isInstalled });
+            if (action === 'reset') {
+                await invoke('setup_reset');
+            } else {
+                await invoke('setup_run', { force: isInstalled });
+            }
             setIsRunning(false);
             markInstalled('Setup complete. Ready to continue.');
         } catch (err) {
@@ -233,27 +238,40 @@ export default function SetupPage() {
                                 <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>
                             )}
 
-                            <div className="flex flex-wrap items-center justify-between gap-4">
+                            <div className="flex flex-wrap items-center justify-start gap-4">
                                 <button
                                     type="button"
-                                    onClick={startSetup}
+                                    onClick={() => runSetup('update')}
                                     disabled={isRunning}
-                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-gradient-to-r from-red-500/70 via-orange-500/70 to-amber-400/70 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-red-500 hover:via-orange-500 hover:to-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+                                    title="Updates the Python files to control the robot."
+                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    {isRunning ? 'Setting up...' : isInstalled ? 'Update setup' : 'Start setup'}
+                                    {isRunning ? 'Setting up...' : 'Update modules'}
                                 </button>
 
+                                <div className="grow"></div>
                                 {isRunning && (
                                     <div className="flex items-center gap-2 text-sm text-slate-300">
                                         <Spinner color="yellow" width="w-4" height="h-4" />
                                         Running setup steps
                                     </div>
                                 )}
+                                <button
+                                    type="button"
+                                    onClick={() => runSetup('reset')}
+                                    disabled={isRunning}
+                                    title="Redownloads all files from scratch, perfect after a larger update."
+                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    Reset modules
+                                </button>
+                            </div>
 
+                            <div className="border-t border-slate-700/60 pt-4">
                                 {isComplete && !isRunning && (
                                     <LinkButton
                                         href="/desktop/"
-                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
+                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-gradient-to-r from-red-500/70 via-orange-500/70 to-amber-400/70 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-red-500 hover:via-orange-500 hover:to-amber-400"
                                     >
                                         Go to desktop
                                     </LinkButton>

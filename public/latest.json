@@ -8,5 +8,14 @@
             "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/VulcanStudioInstaller.exe"
         }
     },
+    "modules": {
+        "lerobot-vulcan": {
+            "commit": "922ae94f5bde77c74b2fe0e6b9599ff07a5087b7",
+            "git_url": "https://github.com/vulcan-forge/lerobot-vulcan.git",
+            "branch": "main",
+            "zip_url": "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip",
+            "notes": "Pinned lerobot-vulcan commit for this app release"
+        }
+    },
     "notes": "Initial release\n- Robot control\n- AI Control\n- Kiosk mode"
 }

@@ -215,6 +215,14 @@ async fn setup_run(app: tauri::AppHandle, force: Option<bool>) -> Result<(), Str
 }
 
 #[tauri::command]
+async fn setup_reset(app: tauri::AppHandle) -> Result<(), String> {
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || LocalSetupService::reset_modules(&app_handle))
+        .await
+        .map_err(|e| format!("Setup task failed: {}", e))?
+}
+
+#[tauri::command]
 async fn setup_desktop_extras_check(app: tauri::AppHandle) -> Result<DesktopExtrasStatus, String> {
     let app_handle = app.clone();
     tauri::async_runtime::spawn_blocking(move || LocalSetupService::check_desktop_extras(&app_handle))
@@ -387,6 +395,7 @@ fn main() {
             clear_log_dir,
             setup_check,
             setup_run,
+            setup_reset,
             setup_desktop_extras_check,
             setup_desktop_extras_run,
 
