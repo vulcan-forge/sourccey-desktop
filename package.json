@@ -1,6 +1,6 @@
 {
-    "name": "vulcan-robotics-desktop",
-    "version": "0.0.5",
+    "name": "vulcan-studio",
+    "version": "0.0.6",
     "private": true,
     "scripts": {
         "dev": "next dev",

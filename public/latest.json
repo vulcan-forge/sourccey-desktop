@@ -1,16 +1,16 @@
 {
-    "version": "0.0.5",
+    "version": "0.0.6",
     "date": "2026-02-23T12:00:00Z",
     "force": true,
     "platforms": {
         "windows-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzJYbys4YjI3dDkrckFISzlFSFVSWkcycjFBY0NEYnFsenlrSXUzaHRNaXNzdkVleXl3dFhFSW0reGozTVdCVjRqOU5ZMXEzVXd2NlNReVZlcm9CZ1FVPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcxOTE4NjE4CWZpbGU6VnVsY2FuU3R1ZGlvXzAuMC41X3g2NC1zZXR1cC5leGUKUEFndXpEbXg4aEVOUWJwOFVsZ2h3b0RQNUpXMlNVaXBtSW8wakR6b3VzdFpIbk1VY3NOVkZjWEV5TXA4ZGZEVDRuNkxSMFg2WnFOOXdCL0VQaG5KQnc9PQo=",
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzJ6ZWFXVWhQVVVQT3ViMWVEUnZFQlpvT2YxMHBTbU1VU003MDdCUTM3MVFiYWtRdlZIQVV6QkZYTWV2YnNxZU56WHpwOEFjL2ZHY1FhdVBza3JDTVFrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcxOTY4MTQ0CWZpbGU6VnVsY2FuU3R1ZGlvXzAuMC42X3g2NC1zZXR1cC5leGUKcnhReUh6bEFRQ3FsbnI3WjJuenJQUENXTnpwQ28wc1lOWm92VU1uUlZQcFZFbzdIeUZmNHYvT1dQOHhibkRqRHprL0hlWExERUYwblRTRzhrQmdCQXc9PQo=",
             "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/VulcanStudioInstaller.exe"
         }
     },
     "modules": {
         "lerobot-vulcan": {
-            "commit": "922ae94f5bde77c74b2fe0e6b9599ff07a5087b7",
+            "commit": "3d1fdc8ccba1286f680ef4825791af1623a3ab22",
             "git_url": "https://github.com/vulcan-forge/lerobot-vulcan.git",
             "branch": "main",
             "zip_url": "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip",
