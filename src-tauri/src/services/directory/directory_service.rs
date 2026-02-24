@@ -15,6 +15,10 @@ impl DirectoryService {
         let mut guard = PROJECT_ROOT_OVERRIDE.lock().unwrap();
         *guard = Some(root);
     }
+
+    fn is_valid_project_root(root: &PathBuf) -> bool {
+        root.join("modules").join("lerobot-vulcan").exists()
+    }
     //------------------------------------------------------------//
     // Standard Directory Functions
     //------------------------------------------------------------//
@@ -35,23 +39,38 @@ impl DirectoryService {
     }
 
     pub fn get_current_dir_production() -> Result<PathBuf, String> {
-        // Production build: prefer override (e.g., bundled resources)
-        let project_root = PROJECT_ROOT_OVERRIDE
-            .lock()
-            .unwrap()
-            .clone()
-            .unwrap_or_else(path_constants::get_project_root);
+        // Production build: prefer override (e.g., bundled resources), but fall back if invalid.
+        let mut tried: Vec<String> = Vec::new();
 
-        // Verify modules exist at expected location
-        if project_root.join("modules").join("lerobot-vulcan").exists() {
-            Ok(project_root)
-        } else {
-            Err(format!(
-                "Project root not found at expected location: {:?}. \
-                Please verify modules/lerobot-vulcan directory exists.",
-                project_root
-            ))
+        if let Some(override_root) = PROJECT_ROOT_OVERRIDE.lock().unwrap().clone() {
+            tried.push(override_root.to_string_lossy().to_string());
+            if Self::is_valid_project_root(&override_root) {
+                return Ok(override_root);
+            }
         }
+
+        if let Ok(env_root) = std::env::var("SOURCCEY_PROJECT_ROOT") {
+            let env_root = env_root.trim().to_string();
+            if !env_root.is_empty() {
+                let env_path = PathBuf::from(&env_root);
+                tried.push(env_root);
+                if Self::is_valid_project_root(&env_path) {
+                    return Ok(env_path);
+                }
+            }
+        }
+
+        let default_root = path_constants::get_project_root();
+        tried.push(default_root.to_string_lossy().to_string());
+        if Self::is_valid_project_root(&default_root) {
+            return Ok(default_root);
+        }
+
+        Err(format!(
+            "Project root not found. Expected modules/lerobot-vulcan in one of: {:?}. \
+            Set SOURCCEY_PROJECT_ROOT to override.",
+            tried
+        ))
     }
 
     pub fn get_lerobot_vulcan_dir() -> Result<PathBuf, String> {

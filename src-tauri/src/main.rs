@@ -243,15 +243,13 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
-            // Prefer bundled resources as project root when available
-            if let Ok(app_data_dir) = app.path().app_data_dir() {
-                if kiosk {
-                    if let Ok(resource_dir) = app.path().resource_dir() {
-                        DirectoryService::set_project_root_override(resource_dir);
-                    }
-                } else {
-                    DirectoryService::set_project_root_override(app_data_dir);
-                }
+            // Prefer fixed repo path for kiosk to avoid env vars on low-resource devices.
+            if kiosk {
+                DirectoryService::set_project_root_override(
+                    services::directory::path_constants::get_project_root(),
+                );
+            } else if let Ok(app_data_dir) = app.path().app_data_dir() {
+                DirectoryService::set_project_root_override(app_data_dir);
             }
             // Database initialization
             let app_handle = app.handle();
