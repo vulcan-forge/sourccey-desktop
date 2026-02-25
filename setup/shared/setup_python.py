@@ -11,7 +11,7 @@ import sys
 import importlib.util
 import shutil
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Optional
 
 from setup_helper import get_real_user_home, wrap_command
 
@@ -19,7 +19,7 @@ from setup_helper import get_real_user_home, wrap_command
 # Helper Functions
 #################################################################
 
-def find_user_binary(binary_name: str, search_dirs: list) -> Path | None:
+def find_user_binary(binary_name: str, search_dirs: list) -> Optional[Path]:
     """
     Find a binary executable, handling sudo scenarios on Linux.
 
@@ -269,4 +269,3 @@ def setup_python_environment(
         project_root, print_status, print_success, print_warning, print_error
     )
     return manager.setup_python_environment(desktop=desktop)
-
