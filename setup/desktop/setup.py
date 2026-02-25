@@ -188,6 +188,7 @@ class SetupScript:
             print()
             self.print_status("You can now start developing with:")
             self.print_status("  - Desktop app: bun tauri dev")
+            self.print_status("If Bun was just installed, reload your terminal or run: source ~/.zshrc")
             print()
 
     def run(self, use_https: bool = False) -> bool:

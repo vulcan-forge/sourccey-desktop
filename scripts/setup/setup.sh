@@ -46,6 +46,50 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+is_macos() {
+    [ "$(uname -s)" = "Darwin" ]
+}
+
+ensure_bun_path_macos() {
+    local bun_bin="$HOME/.bun/bin/bun"
+    local bun_install_line='export BUN_INSTALL="$HOME/.bun"'
+    local bun_path_line='export PATH="$BUN_INSTALL/bin:$PATH"'
+    local changed=0
+
+    if [ ! -x "$bun_bin" ]; then
+        return 1
+    fi
+
+    export BUN_INSTALL="$HOME/.bun"
+    case ":$PATH:" in
+        *":$BUN_INSTALL/bin:"*) ;;
+        *) export PATH="$BUN_INSTALL/bin:$PATH" ;;
+    esac
+
+    for profile in "$HOME/.zprofile" "$HOME/.zshrc"; do
+        if [ ! -f "$profile" ]; then
+            touch "$profile"
+        fi
+        if ! grep -Fq "$bun_install_line" "$profile"; then
+            printf '\n%s\n' "$bun_install_line" >> "$profile"
+            changed=1
+        fi
+        if ! grep -Fq "$bun_path_line" "$profile"; then
+            printf '%s\n' "$bun_path_line" >> "$profile"
+            changed=1
+        fi
+    done
+
+    if [ "$changed" -eq 1 ]; then
+        print_success "Added Bun PATH exports to ~/.zprofile and ~/.zshrc"
+        print_warning "Open a new terminal (or run: source ~/.zshrc) after setup"
+    else
+        print_status "Bun PATH exports already exist in ~/.zprofile or ~/.zshrc"
+    fi
+
+    return 0
+}
+
 # Main setup function
 main() {
     print_status "Starting Sourccey Desktop setup..."
@@ -65,7 +109,16 @@ main() {
     fi
 
     if ! command_exists bun; then
-        print_error "bun is not installed. Please install bun first: https://bun.sh/docs/installation"
+        if is_macos && ensure_bun_path_macos; then
+            print_warning "bun was not on PATH, but ~/.bun/bin/bun is available and has been configured"
+        else
+            print_error "bun is not installed. Please install bun first: https://bun.sh/docs/installation"
+            exit 1
+        fi
+    fi
+
+    if ! command_exists bun; then
+        print_error "bun is still unavailable in PATH for this setup shell"
         exit 1
     fi
 

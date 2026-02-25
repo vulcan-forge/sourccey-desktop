@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
+import { BunPathCommandCard } from '@/components/Elements/Setup/BunPathCommandCard';
 import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
 
 const steps = [
@@ -218,6 +219,8 @@ export default function SetupPage() {
                                 We will download lerobot-vulcan, create the Python environment, and configure the runtime tools. This can take
                                 several minutes depending on your connection and machine.
                             </p>
+
+                            <BunPathCommandCard />
 
                             <div className="rounded-2xl border border-slate-700/60 bg-slate-950/50 p-6">
                                 <div className="grid gap-3">

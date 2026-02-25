@@ -192,6 +192,65 @@ class JavaScriptSetupManager:
             self.print_error(f"Unexpected error checking bun version: {e}")
             return False
 
+    def _select_shell_rc_file(self, user_home: Path) -> Path:
+        shell = os.environ.get("SHELL", "")
+        shell_name = Path(shell).name if shell else ""
+
+        if shell_name == "zsh":
+            return user_home / ".zshrc"
+        if shell_name == "bash":
+            # macOS default bash login shell reads .bash_profile
+            return user_home / ".bash_profile"
+
+        for candidate in [".zshrc", ".bash_profile", ".profile"]:
+            candidate_path = user_home / candidate
+            if candidate_path.exists():
+                return candidate_path
+
+        return user_home / ".zshrc"
+
+    def ensure_bun_path_in_shell(self) -> None:
+        """Ensure Bun is on PATH for macOS shells by updating the user's rc file."""
+        if self.system != "Darwin":
+            return
+
+        user_home = Path(get_real_user_home())
+        bun_bin = user_home / ".bun" / "bin"
+        if not bun_bin.exists():
+            self.print_warning(
+                f"Bun bin directory not found at {bun_bin}; skipping shell PATH update."
+            )
+            return
+
+        rc_file = self._select_shell_rc_file(user_home)
+        marker_start = "# >>> sourccey bun setup >>>"
+        marker_end = "# <<< sourccey bun setup <<<"
+        snippet = (
+            f"\n{marker_start}\n"
+            'export BUN_INSTALL="$HOME/.bun"\n'
+            'export PATH="$BUN_INSTALL/bin:$PATH"\n'
+            f"{marker_end}\n"
+        )
+
+        try:
+            existing = rc_file.read_text() if rc_file.exists() else ""
+        except OSError as e:
+            self.print_warning(f"Could not read {rc_file}: {e}")
+            return
+
+        if marker_start in existing or "BUN_INSTALL" in existing or ".bun/bin" in existing:
+            self.print_status(f"Bun PATH already configured in {rc_file}")
+            return
+
+        try:
+            rc_file.parent.mkdir(parents=True, exist_ok=True)
+            with rc_file.open("a", encoding="utf-8") as handle:
+                handle.write(snippet)
+            self.print_success(f"Added Bun to PATH in {rc_file}")
+            self.print_status(f"Open a new terminal or run: source {rc_file}")
+        except OSError as e:
+            self.print_warning(f"Failed to update {rc_file}: {e}")
+
     #################################################################
     # Package Installation
     #################################################################
@@ -290,12 +349,16 @@ class JavaScriptSetupManager:
     def ensure_bun(self) -> bool:
         """Ensure Bun is installed, install if not"""
         if self.check_bun():
+            self.ensure_bun_path_in_shell()
             return True
 
         self.print_warning("Bun not found, attempting to install...")
         if not self.install_bun():
             return False
-        return self.check_bun()
+        if not self.check_bun():
+            return False
+        self.ensure_bun_path_in_shell()
+        return True
 
 #################################################################
 # Convenience Functions
@@ -361,4 +424,3 @@ def ensure_bun(
         project_root, print_status, print_success, print_warning, print_error
     )
     return manager.ensure_bun()
-

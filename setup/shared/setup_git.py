@@ -153,6 +153,7 @@ class GitSetupManager:
         self.print_success = print_success
         self.print_warning = print_warning
         self.print_error = print_error
+        self.submodule_changes_stashed = False
 
     #################################################################
     # Git Command Execution
@@ -661,8 +662,14 @@ class GitSetupManager:
 
             if status_result.returncode == 0 and status_result.stdout.strip():
                 # Stash any uncommitted changes
-                subprocess.run(["git", "stash"], cwd=submodule_path, check=True, env=self._get_git_env())
+                subprocess.run(
+                    ["git", "stash", "push", "-m", "Setup script stash"],
+                    cwd=submodule_path,
+                    check=True,
+                    env=self._get_git_env()
+                )
                 self.print_success("Changes stashed successfully")
+                self.submodule_changes_stashed = True
 
             return True
 
@@ -743,6 +750,46 @@ class GitSetupManager:
         except subprocess.CalledProcessError:
             # Ignore errors here, this is just a notification
             pass
+
+    def restore_stashed_changes(self):
+        """Restore submodule changes that were stashed by setup"""
+        if not self.submodule_changes_stashed:
+            return
+
+        submodule_path = self.project_root / "modules" / "lerobot-vulcan"
+        if not submodule_path.exists():
+            return
+
+        try:
+            stash_list = subprocess.run(
+                ["git", "stash", "list"],
+                cwd=submodule_path,
+                capture_output=True,
+                text=True
+            )
+
+            first_entry = stash_list.stdout.splitlines()[0] if stash_list.stdout else ""
+            if "Setup script stash" in first_entry:
+                pop_result = subprocess.run(
+                    ["git", "stash", "pop"],
+                    cwd=submodule_path,
+                    capture_output=True,
+                    text=True
+                )
+                if pop_result.returncode == 0:
+                    self.print_success("Restored stashed submodule changes")
+                else:
+                    self.print_warning(
+                        "Submodule changes were stashed but could not be auto-restored. "
+                        "Run 'git -C modules/lerobot-vulcan stash pop' manually."
+                    )
+            else:
+                self.print_warning(
+                    "Detected an existing non-setup stash at the top of stack. "
+                    "Leaving stashed changes untouched."
+                )
+        except Exception as e:
+            self.print_warning(f"Could not restore stashed submodule changes: {e}")
 
     #################################################################
     # HTTPS URL Conversion
@@ -891,10 +938,12 @@ class GitSetupManager:
             if use_https:
                 self.print_error("HTTPS submodule update failed. Running debug information...")
                 self.debug_submodule_config()
+            self.restore_stashed_changes()
             return False
 
         # Notify about stashed changes
         self.notify_stashed_changes()
+        self.restore_stashed_changes()
 
         # Restore original .gitmodules if we converted to HTTPS
         if use_https:
@@ -950,4 +999,3 @@ def ensure_git_lfs(
         project_root, print_status, print_success, print_warning, print_error
     )
     return manager.ensure_git_lfs()
-
