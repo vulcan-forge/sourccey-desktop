@@ -9,8 +9,12 @@ initializes project dependencies.
 
 import argparse
 import os
+import platform
+import shutil
+import subprocess
 import sys
 from pathlib import Path
+from typing import Optional, Tuple
 
 project_root = Path(__file__).parent.parent.parent
 shared_dir = Path(__file__).parent.parent / "shared"
@@ -46,6 +50,7 @@ class SetupScript:
         self.project_root = project_root
         self.errors = []
         self.warnings = []
+        self.system = platform.system()
 
         self.python_manager = PythonSetupManager(
             self.project_root,
@@ -151,6 +156,202 @@ class SetupScript:
         self.print_success("Project structure is correct")
         return True
 
+    def ensure_linux_tauri_prerequisites(self) -> bool:
+        """Ensure Linux-only system dependencies needed for Rust/Tauri builds are available."""
+        if self.system != "Linux":
+            return True
+
+        self.print_status("Checking Linux system dependencies for Tauri/Rust builds...")
+
+        pkg_config_path = shutil.which("pkg-config")
+        missing_dependencies = self.get_missing_linux_tauri_dependencies(pkg_config_path)
+
+        if not missing_dependencies:
+            self.print_success("Linux build dependencies are installed")
+            return True
+
+        self.print_warning(
+            f"Missing Linux build dependencies: {', '.join(missing_dependencies)}"
+        )
+
+        package_manager, packages = self.get_linux_package_install_target()
+        if not package_manager or not packages:
+            self.print_error("Unsupported Linux package manager for auto-install.")
+            self.print_error("Install these packages manually, then rerun setup:")
+            self.print_error("  - pkg-config")
+            self.print_error("  - OpenSSL development package (e.g., libssl-dev)")
+            self.print_error("  - GLib/GTK/WebKitGTK development packages")
+            return False
+
+        install_cmd = self.get_linux_install_command(package_manager, packages)
+        if not install_cmd:
+            self.print_error(f"Could not build install command for {package_manager}.")
+            return False
+
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            install_cmd = ["sudo"] + install_cmd
+
+        self.print_status(
+            f"Installing Linux dependencies with {package_manager}: {' '.join(packages)}"
+        )
+        try:
+            subprocess.run(install_cmd, check=True)
+        except subprocess.CalledProcessError as e:
+            self.print_error(f"Failed to install Linux dependencies (exit code {e.returncode}).")
+            self.print_error("Please install dependencies manually and rerun setup.")
+            self.print_error(
+                f"Suggested command: {' '.join(self.get_linux_install_command(package_manager, packages))}"
+            )
+            return False
+        except OSError as e:
+            self.print_error(f"Failed to execute install command: {e}")
+            return False
+
+        pkg_config_path = shutil.which("pkg-config")
+        missing_after_install = self.get_missing_linux_tauri_dependencies(pkg_config_path)
+        if missing_after_install:
+            self.print_error("Linux dependencies were installed, but some libraries are still missing.")
+            self.print_error(
+                f"Missing after install: {', '.join(missing_after_install)}"
+            )
+            self.print_error(
+                "Verify pkg-config output with: pkg-config --libs --cflags glib-2.0 gtk+-3.0 openssl"
+            )
+            return False
+
+        self.print_success("Linux dependencies installed successfully")
+        return True
+
+    def get_missing_linux_tauri_dependencies(self, pkg_config_path: Optional[str]) -> list:
+        """Return user-friendly missing dependency descriptions for Linux Tauri builds."""
+        missing_dependencies = []
+
+        if not pkg_config_path:
+            missing_dependencies.append("pkg-config")
+            # Without pkg-config we cannot reliably validate .pc-backed libraries.
+            return missing_dependencies
+
+        if not self.pkg_config_has_module(pkg_config_path, "openssl"):
+            missing_dependencies.append("OpenSSL development files")
+        if not self.pkg_config_has_module(pkg_config_path, "glib-2.0", min_version="2.70"):
+            missing_dependencies.append("GLib development files (glib-2.0 >= 2.70)")
+        if not self.pkg_config_has_module(pkg_config_path, "gtk+-3.0"):
+            missing_dependencies.append("GTK3 development files")
+        if not self.pkg_config_has_module(pkg_config_path, "webkit2gtk-4.1"):
+            missing_dependencies.append("WebKitGTK development files (webkit2gtk-4.1)")
+        if not self.pkg_config_has_module(pkg_config_path, "javascriptcoregtk-4.1"):
+            missing_dependencies.append("JavaScriptCoreGTK development files (javascriptcoregtk-4.1)")
+        if not self.pkg_config_has_module(pkg_config_path, "libsoup-3.0"):
+            missing_dependencies.append("libsoup3 development files")
+
+        return missing_dependencies
+
+    def pkg_config_has_module(
+        self,
+        pkg_config_path: str,
+        module_name: str,
+        min_version: Optional[str] = None,
+    ) -> bool:
+        """Check whether pkg-config can resolve a module (optionally with minimum version)."""
+        command = [pkg_config_path, "--exists"]
+        if min_version:
+            command.append(f"--atleast-version={min_version}")
+        command.append(module_name)
+        result = subprocess.run(
+            command,
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        return result.returncode == 0
+
+    def get_linux_package_install_target(self) -> Tuple[Optional[str], list]:
+        """Detect Linux package manager and return package names for Tauri Linux build requirements."""
+        if shutil.which("apt-get"):
+            return "apt-get", [
+                "build-essential",
+                "pkg-config",
+                "libssl-dev",
+                "libglib2.0-dev",
+                "libgtk-3-dev",
+                "libayatana-appindicator3-dev",
+                "libsoup-3.0-dev",
+                "librsvg2-dev",
+                "libwebkit2gtk-4.1-dev",
+                "patchelf",
+            ]
+        if shutil.which("dnf"):
+            return "dnf", [
+                "gcc",
+                "gcc-c++",
+                "make",
+                "pkgconf-pkg-config",
+                "openssl-devel",
+                "glib2-devel",
+                "gtk3-devel",
+                "libappindicator-gtk3-devel",
+                "libsoup3-devel",
+                "librsvg2-devel",
+                "webkit2gtk4.1-devel",
+                "patchelf",
+            ]
+        if shutil.which("yum"):
+            return "yum", [
+                "gcc",
+                "gcc-c++",
+                "make",
+                "pkgconf-pkg-config",
+                "openssl-devel",
+                "glib2-devel",
+                "gtk3-devel",
+                "libappindicator-gtk3-devel",
+                "libsoup3-devel",
+                "librsvg2-devel",
+                "webkit2gtk4.1-devel",
+                "patchelf",
+            ]
+        if shutil.which("pacman"):
+            return "pacman", [
+                "base-devel",
+                "pkgconf",
+                "openssl",
+                "glib2",
+                "gtk3",
+                "libappindicator-gtk3",
+                "libsoup3",
+                "librsvg",
+                "webkit2gtk-4.1",
+                "patchelf",
+            ]
+        if shutil.which("zypper"):
+            return "zypper", [
+                "gcc",
+                "gcc-c++",
+                "make",
+                "pkgconf-pkg-config",
+                "libopenssl-devel",
+                "glib2-devel",
+                "gtk3-devel",
+                "libayatana-appindicator3-devel",
+                "libsoup-3_0-devel",
+                "librsvg-devel",
+                "webkit2gtk3-devel",
+                "patchelf",
+            ]
+        return None, []
+
+    def get_linux_install_command(self, package_manager: str, packages: list) -> list:
+        """Build package-manager-specific install command."""
+        if package_manager == "apt-get":
+            return ["apt-get", "install", "-y"] + packages
+        if package_manager in {"dnf", "yum"}:
+            return [package_manager, "install", "-y"] + packages
+        if package_manager == "pacman":
+            return ["pacman", "-Sy", "--noconfirm", "--needed"] + packages
+        if package_manager == "zypper":
+            return ["zypper", "--non-interactive", "install", "--no-recommends"] + packages
+        return []
+
     #################################################################
     # Setup functions
     #################################################################
@@ -215,6 +416,10 @@ class SetupScript:
 
         if not self.ensure_rust():
             self.print_error("Rust setup failed.")
+            return False
+
+        if not self.ensure_linux_tauri_prerequisites():
+            self.print_error("Linux dependency setup failed.")
             return False
 
         self.print_header("SETTING UP PROJECT")
