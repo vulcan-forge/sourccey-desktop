@@ -100,14 +100,24 @@ class PythonSetupManager:
     # Python Version Check
     #################################################################
 
-    def check_python_version(self, min_major: int = 3, min_minor: int = 10) -> bool:
-        """Check if Python 3.10+ is installed"""
+    def check_python_version(
+        self, min_major: int = 3, min_minor: int = 10, min_micro: int = 16
+    ) -> bool:
+        """Check if Python 3.10.16+ is installed"""
         self.print_status("Checking Python version...")
 
         version = sys.version_info
-        if version.major < min_major or (version.major == min_major and version.minor < min_minor):
-            self.print_error(f"Python {min_major}.{min_minor}+ is required, but found {version.major}.{version.minor}")
-            self.print_error(f"Please install Python {min_major}.{min_minor} or higher from https://python.org")
+        current_version = (version.major, version.minor, version.micro)
+        minimum_version = (min_major, min_minor, min_micro)
+        if current_version < minimum_version:
+            self.print_error(
+                f"Python {min_major}.{min_minor}.{min_micro}+ is required, "
+                f"but found {version.major}.{version.minor}.{version.micro}"
+            )
+            self.print_error(
+                f"Please install Python {min_major}.{min_minor}.{min_micro} "
+                "or higher from https://python.org"
+            )
             return False
 
         self.print_success(f"Python {version.major}.{version.minor}.{version.micro} is installed")
@@ -224,13 +234,14 @@ def check_python_version(
     print_warning: Callable,
     print_error: Callable,
     min_major: int = 3,
-    min_minor: int = 10
+    min_minor: int = 10,
+    min_micro: int = 16,
 ) -> bool:
     """Convenience function for checking Python version"""
     manager = PythonSetupManager(
         project_root, print_status, print_success, print_warning, print_error
     )
-    return manager.check_python_version(min_major, min_minor)
+    return manager.check_python_version(min_major, min_minor, min_micro)
 
 def check_uv(
     project_root: Path,
