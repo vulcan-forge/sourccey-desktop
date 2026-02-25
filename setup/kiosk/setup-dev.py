@@ -13,7 +13,7 @@ It handles:
 - Running the dev kiosk command
 
 Requirements:
-- Python 3.10.16+
+- Python 3.10+
 - Raspberry Pi OS (or similar Debian-based system)
 - Internet connection
 - Bun (JavaScript runtime)
@@ -143,7 +143,7 @@ class DevKioskSetupScript:
         return self.rust_manager.check_rust()
 
     def check_python_version(self) -> bool:
-        """Check if Python 3.10.16+ is installed"""
+        """Check if Python 3.10+ is installed"""
         return self.python_manager.check_python_version()
 
     def check_git(self) -> bool:

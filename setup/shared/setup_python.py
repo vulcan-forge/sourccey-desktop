@@ -101,9 +101,9 @@ class PythonSetupManager:
     #################################################################
 
     def check_python_version(
-        self, min_major: int = 3, min_minor: int = 10, min_micro: int = 16
+        self, min_major: int = 3, min_minor: int = 10, min_micro: int = 0
     ) -> bool:
-        """Check if Python 3.10.16+ is installed"""
+        """Check if Python 3.10+ is installed"""
         self.print_status("Checking Python version...")
 
         version = sys.version_info
@@ -235,7 +235,7 @@ def check_python_version(
     print_error: Callable,
     min_major: int = 3,
     min_minor: int = 10,
-    min_micro: int = 16,
+    min_micro: int = 0,
 ) -> bool:
     """Convenience function for checking Python version"""
     manager = PythonSetupManager(

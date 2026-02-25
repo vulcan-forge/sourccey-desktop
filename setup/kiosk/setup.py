@@ -11,7 +11,7 @@ It handles:
 - Session files for kiosk mode
 
 Requirements:
-- Python 3.10.16+
+- Python 3.10+
 - Raspberry Pi OS (or similar Debian-based system)
 - Root/sudo access
 - Internet connection
@@ -252,7 +252,7 @@ class KioskSetupScript:
         return self.rust_manager.check_rust()
 
     def check_python_version(self) -> bool:
-        """Check if Python 3.10.16+ is installed"""
+        """Check if Python 3.10+ is installed"""
         return self.python_manager.check_python_version()
 
     def check_git(self) -> bool:
