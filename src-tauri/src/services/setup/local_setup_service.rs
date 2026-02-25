@@ -818,6 +818,46 @@ impl LocalSetupService {
         Ok(())
     }
 
+    #[cfg(target_os = "macos")]
+    fn install_uv_macos(install_dir: &Path) -> Result<PathBuf, String> {
+        fs::create_dir_all(install_dir)
+            .map_err(|e| format!("Failed to create uv install directory: {}", e))?;
+        let output = Command::new("bash")
+            .arg("-lc")
+            .arg("curl -LsSf https://astral.sh/uv/install.sh | sh")
+            .env("UV_INSTALL_DIR", install_dir)
+            .env("UV_NO_PROMPT", "1")
+            .output()
+            .map_err(|e| format!("Failed to run uv installer: {}", e))?;
+
+        if !output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let mut details = String::new();
+            if !stdout.trim().is_empty() {
+                details.push_str(&format!("\nstdout: {}", stdout.trim()));
+            }
+            if !stderr.trim().is_empty() {
+                details.push_str(&format!("\nstderr: {}", stderr.trim()));
+            }
+            return Err(format!("uv installer failed with status: {}{}", output.status, details));
+        }
+
+        let uv_path = install_dir.join("uv");
+        if !uv_path.exists() {
+            if let Some(path) = Self::find_binary_in_path("uv") {
+                return Ok(path);
+            }
+            return Err(format!(
+                "uv installer did not produce an executable at {}",
+                uv_path.display()
+            ));
+        }
+
+        Self::ensure_executable(&uv_path)?;
+        Ok(uv_path)
+    }
+
     fn ensure_uv_binary(app_handle: &AppHandle, app_data_dir: &Path) -> Result<PathBuf, String> {
         let uv_target_dir = app_data_dir.join("bin");
         if cfg!(target_os = "linux") {
@@ -848,17 +888,24 @@ impl LocalSetupService {
             }
             return Err("Linux setup requires a native `uv` binary. Install uv and retry: https://docs.astral.sh/uv/getting-started/installation/".to_string());
         }
+        #[cfg(windows)]
         let existing = [uv_target_dir.join("uv.exe"), uv_target_dir.join("uv")]
+            .into_iter()
+            .find(|path| path.exists());
+
+        #[cfg(not(windows))]
+        let existing = [uv_target_dir.join("uv")]
             .into_iter()
             .find(|path| path.exists());
         if let Some(path) = existing {
             #[cfg(unix)]
             {
-                if !Self::is_executable(&path) {
-                    Self::set_executable(&path)?;
-                }
+                Self::ensure_executable(&path)?;
             }
-            return Ok(path);
+            if Self::is_command_usable(&path, &["--version"]) {
+                return Ok(path);
+            }
+            return Err(format!("Existing uv binary is not usable: {}", path.display()));
         }
 
         let resource_dir = app_handle
@@ -879,14 +926,16 @@ impl LocalSetupService {
 
             #[cfg(unix)]
             {
-                Self::set_executable(&uv_target)?;
+                Self::ensure_executable(&uv_target)?;
             }
 
             return Ok(uv_target);
         }
 
-        if let Some(uv_path) = Self::find_uv_in_path() {
-            return Ok(uv_path);
+        if let Some(uv_path) = Self::find_binary_in_path("uv") {
+            if Self::is_command_usable(&uv_path, &["--version"]) {
+                return Ok(uv_path);
+            }
         }
 
         #[cfg(target_os = "macos")]
