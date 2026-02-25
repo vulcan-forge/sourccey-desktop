@@ -854,9 +854,7 @@ impl LocalSetupService {
         if let Some(path) = existing {
             #[cfg(unix)]
             {
-                if !Self::is_executable(&path) {
-                    Self::set_executable(&path)?;
-                }
+                Self::ensure_executable(&path)?;
             }
             return Ok(path);
         }
@@ -879,13 +877,13 @@ impl LocalSetupService {
 
             #[cfg(unix)]
             {
-                Self::set_executable(&uv_target)?;
+                Self::ensure_executable(&uv_target)?;
             }
 
             return Ok(uv_target);
         }
 
-        if let Some(uv_path) = Self::find_uv_in_path() {
+        if let Some(uv_path) = Self::find_binary_in_path("uv") {
             return Ok(uv_path);
         }
 
