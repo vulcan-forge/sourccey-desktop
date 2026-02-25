@@ -1,7 +1,18 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { FaWifi, FaInfoCircle, FaBatteryFull, FaBatteryHalf, FaBatteryQuarter, FaBolt, FaWindowClose, FaBatteryEmpty, FaBatteryThreeQuarters, FaSyncAlt } from 'react-icons/fa';
+import {
+    FaWifi,
+    FaInfoCircle,
+    FaBatteryFull,
+    FaBatteryHalf,
+    FaBatteryQuarter,
+    FaBolt,
+    FaWindowClose,
+    FaBatteryEmpty,
+    FaBatteryThreeQuarters,
+    FaSyncAlt,
+} from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
 import { useRobotStatus } from '@/context/robot-status-context';
@@ -21,7 +32,7 @@ export const KioskTopNavbar = () => {
     const [piCredentials, setPiCredentials] = useState({ username: '...', password: '...' });
 
     const { data: systemInfo }: any = useGetSystemInfo();
-    
+
     // Fetch Raspberry Pi credentials when opening the modal
     const handleOpenCreds = async () => {
         setIsCredsModalOpen(true);
@@ -90,7 +101,7 @@ export const KioskTopNavbar = () => {
 
     const batteryPercent = systemInfo.batteryData.percent >= 0 ? systemInfo.batteryData.percent : 0;
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
-    
+
     const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
@@ -126,6 +137,15 @@ export const KioskTopNavbar = () => {
                             </button>
                         )}
 
+                        <LinkButton
+                            href="/kiosk/setup"
+                            className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-500/20 hover:text-amber-100"
+                            tooltip="Open kiosk update and repair"
+                        >
+                            <FaSyncAlt className="h-5 w-5" />
+                            <span className="hidden sm:inline">Update</span>
+                        </LinkButton>
+
                         {/* Connect Details button - kiosk mode */}
                         <button
                             onClick={handleOpenCreds}
@@ -135,15 +155,6 @@ export const KioskTopNavbar = () => {
                             <FaInfoCircle className="h-5 w-5" />
                             <span className="hidden sm:inline">Device</span>
                         </button>
-
-                        <LinkButton
-                            href="/kiosk/setup"
-                            className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-500/20 hover:text-amber-100"
-                            tooltip="Open kiosk update and repair"
-                        >
-                            <FaSyncAlt className="h-5 w-5" />
-                            <span className="hidden sm:inline">Update</span>
-                        </LinkButton>
 
                         {/* Battery Life and Robot Status button - kiosk mode */}
                         <button
@@ -156,9 +167,7 @@ export const KioskTopNavbar = () => {
                             title={isStatusModalOpen ? 'Close Robot Status' : 'View Robot Status'}
                         >
                             {getBatteryIcon(batteryPercent, systemInfo.batteryData.charging)}
-                            <span className="font-semibold">
-                                {batteryPercentString}
-                            </span>
+                            <span className="font-semibold">{batteryPercentString}</span>
                         </button>
 
                         {/* WiFi button - show in kiosk mode */}
@@ -170,7 +179,10 @@ export const KioskTopNavbar = () => {
                             <FaWifi className="h-5 w-5" />
                             <span className="hidden sm:inline">WiFi</span>
                             <span className="text-xs text-slate-400">
-                                {systemInfo.ipAddress && systemInfo.ipAddress.trim() !== '' && systemInfo.ipAddress.toLowerCase() !== 'unknown' && systemInfo.ipAddress !== '...'
+                                {systemInfo.ipAddress &&
+                                systemInfo.ipAddress.trim() !== '' &&
+                                systemInfo.ipAddress.toLowerCase() !== 'unknown' &&
+                                systemInfo.ipAddress !== '...'
                                     ? systemInfo.ipAddress
                                     : 'Disconnected'}
                             </span>
