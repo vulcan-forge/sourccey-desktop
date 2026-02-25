@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FaSyncAlt, FaCube, FaCopy, FaRobot, FaFolderOpen } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
+import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useGetAiModelCachePath, useGetAiModelsInfinite, useSyncAiModelsFromCache } from '@/hooks/Models/AIModel/ai-model.hook';
 import { useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { SelectedModelPanel } from '@/components/PageComponents/Robots/AI/SelectedModelPanel';
