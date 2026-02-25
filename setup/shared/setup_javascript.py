@@ -57,14 +57,17 @@ def find_bun_with_sudo_support() -> Optional[Path]:
             Path("/usr/local/bin/bun"),
             Path("/usr/bin/bun"),
         ])
+    else:
+        search_paths.append(Path.home() / ".bun" / "bin" / "bun.exe")
 
     # Find first existing path
     for path in search_paths:
         if path.exists():
             # Add to PATH if not already there
             bin_dir = str(path.parent)
-            if bin_dir not in os.environ.get("PATH", ""):
-                os.environ["PATH"] = f"{bin_dir}:{os.environ.get('PATH', '')}"
+            current_path = os.environ.get("PATH", "")
+            if bin_dir not in current_path:
+                os.environ["PATH"] = f"{bin_dir}{os.pathsep}{current_path}" if current_path else bin_dir
             return path
 
     return None
@@ -90,16 +93,21 @@ def find_user_binary(binary_name: str, search_dirs: list) -> Optional[Path]:
 
     # Potential binary locations
     search_paths = []
+    binary_candidates = [binary_name]
+    if os.name == "nt" and not binary_name.lower().endswith(".exe"):
+        binary_candidates.append(f"{binary_name}.exe")
 
     # Check user's home directory subdirectories
     if user_home:
         for search_dir in search_dirs:
-            search_paths.append(Path(user_home) / search_dir / binary_name)
+            for candidate in binary_candidates:
+                search_paths.append(Path(user_home) / search_dir / candidate)
 
     # Check current user's home
     current_home = Path.home()
     for search_dir in search_dirs:
-        search_paths.append(current_home / search_dir / binary_name)
+        for candidate in binary_candidates:
+            search_paths.append(current_home / search_dir / candidate)
 
     # Check common system locations
     if platform.system() != "Windows":
@@ -115,7 +123,7 @@ def find_user_binary(binary_name: str, search_dirs: list) -> Optional[Path]:
             bin_dir = str(path.parent)
             current_path = os.environ.get("PATH", "")
             if bin_dir not in current_path:
-                os.environ["PATH"] = f"{bin_dir}:{current_path}"
+                os.environ["PATH"] = f"{bin_dir}{os.pathsep}{current_path}" if current_path else bin_dir
             return path
 
     return None
@@ -170,7 +178,9 @@ class JavaScriptSetupManager:
             )
 
             if version_result and version_result.returncode == 0:
-                self.print_success(f"Bun is installed at {bun_path}")
+                version = version_result.stdout.strip()
+                version_text = f" ({version})" if version else ""
+                self.print_success(f"Bun is installed at {bun_path}{version_text}")
                 return True
             else:
                 self.print_error("Failed to check bun version")
@@ -178,7 +188,7 @@ class JavaScriptSetupManager:
                 self.print_error(f"Version error: {version_result.stderr}")
                 return False
 
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             self.print_error(f"Unexpected error checking bun version: {e}")
             return False
 
@@ -228,71 +238,52 @@ class JavaScriptSetupManager:
         self.print_status("Installing Bun...")
 
         try:
-            # Determine if we need to install as a specific user
-            if hasattr(os, 'geteuid') and os.geteuid() == 0:
-                # Get the real user's home directory
-                real_home = get_real_user_home()
-                real_user = os.environ.get('SUDO_USER', 'root')
-
-                # Install Bun for the real user, not root
-                install_cmd = f"sudo -u {real_user} bash -c 'curl -fsSL https://bun.sh/install | bash'"
+            if self.system == "Windows":
+                self.print_status("Running Bun PowerShell installer...")
+                powershell = shutil.which("powershell") or shutil.which("pwsh")
+                if not powershell:
+                    self.print_error("PowerShell not found; cannot install Bun automatically")
+                    self.print_error("Install Bun manually from https://bun.sh/docs/installation")
+                    return False
 
                 install_result = subprocess.run(
-                    install_cmd,
-                    shell=True,
+                    [
+                        powershell,
+                        "-NoProfile",
+                        "-ExecutionPolicy",
+                        "Bypass",
+                        "-Command",
+                        "irm https://bun.sh/install.ps1 | iex",
+                    ],
                     check=True,
                     capture_output=True,
                     text=True,
                 )
-                if install_result is None or install_result.returncode != 0:
+                if install_result.returncode != 0:
+                    self.print_error("Failed to install Bun")
+                    self.print_status(f"Install output: {install_result.stdout}")
+                    self.print_error(f"Install error: {install_result.stderr}")
+                    return False
+            else:
+                install_cmd = ["bash", "-lc", "curl -fsSL https://bun.sh/install | bash"]
+                wrapped_cmd, actual_cwd = wrap_command(install_cmd, Path(get_real_user_home()))
+                install_result = subprocess.run(
+                    wrapped_cmd,
+                    cwd=actual_cwd,
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                if install_result.returncode != 0:
                     self.print_error("Failed to install Bun")
                     self.print_status(f"Install output: {install_result.stdout}")
                     self.print_error(f"Install error: {install_result.stderr}")
                     return False
 
-                # Add Bun to PATH in the real user's bashrc
-                bashrc_path = os.path.join(real_home, ".bashrc")
-                path_export = 'export PATH="$HOME/.bun/bin:$PATH"'
-
-                try:
-                    with open(bashrc_path, "r") as f:
-                        content = f.read()
-
-                    if path_export not in content:
-                        with open(bashrc_path, "a") as f:
-                            f.write(f"\n{path_export}\n")
-                        self.print_status("Added Bun to PATH in ~/.bashrc")
-                except Exception as e:
-                    self.print_warning(f"Error updating ~/.bashrc: {e}")
-
-                self.print_success("Bun installed successfully")
-                return True
-            else:
-                # Windows/Mac or not root
-                if self.system == "Windows":
-                    self.print_error("Automatic Bun installation on Windows is not supported")
-                    self.print_error("Please install Bun manually from https://bun.sh/docs/installation")
-                    return False
-                else:
-                    # Mac or Linux non-root
-                    install_cmd = "bash -c 'curl -fsSL https://bun.sh/install | bash'"
-                    install_result = subprocess.run(
-                        install_cmd,
-                        shell=True,
-                        check=True,
-                        capture_output=True,
-                        text=True,
-                    )
-                    if install_result is None or install_result.returncode != 0:
-                        self.print_error("Failed to install Bun")
-                        self.print_status(f"Install output: {install_result.stdout}")
-                        self.print_error(f"Install error: {install_result.stderr}")
-                        return False
-
             self.print_success("Bun installed successfully")
             return True
 
-        except Exception as e:
+        except (subprocess.SubprocessError, OSError) as e:
             self.print_error(f"Unexpected error installing Bun: {e}")
             return False
 
@@ -302,7 +293,9 @@ class JavaScriptSetupManager:
             return True
 
         self.print_warning("Bun not found, attempting to install...")
-        return self.install_bun()
+        if not self.install_bun():
+            return False
+        return self.check_bun()
 
 #################################################################
 # Convenience Functions

@@ -40,16 +40,21 @@ def find_user_binary(binary_name: str, search_dirs: list) -> Path | None:
 
     # Potential binary locations
     search_paths = []
+    binary_candidates = [binary_name]
+    if os.name == "nt" and not binary_name.lower().endswith(".exe"):
+        binary_candidates.append(f"{binary_name}.exe")
 
     # Check user's home directory subdirectories
     if user_home:
         for search_dir in search_dirs:
-            search_paths.append(Path(user_home) / search_dir / binary_name)
+            for candidate in binary_candidates:
+                search_paths.append(Path(user_home) / search_dir / candidate)
 
     # Check current user's home
     current_home = Path.home()
     for search_dir in search_dirs:
-        search_paths.append(current_home / search_dir / binary_name)
+        for candidate in binary_candidates:
+            search_paths.append(current_home / search_dir / candidate)
 
     # Check common system locations
     if os.name != 'nt':  # Not Windows
@@ -65,7 +70,7 @@ def find_user_binary(binary_name: str, search_dirs: list) -> Path | None:
             bin_dir = str(path.parent)
             current_path = os.environ.get("PATH", "")
             if bin_dir not in current_path:
-                os.environ["PATH"] = f"{bin_dir}:{current_path}"
+                os.environ["PATH"] = f"{bin_dir}{os.pathsep}{current_path}" if current_path else bin_dir
             return path
 
     return None

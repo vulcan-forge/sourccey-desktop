@@ -6,6 +6,8 @@ Shared utility functions for Raspberry Pi setup modules.
 
 import os
 import subprocess
+import shutil
+import shlex
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -39,11 +41,7 @@ def get_real_user_home() -> str:
 
 def check_command_exists(command: str) -> bool:
     """Check if a command exists in the system"""
-    try:
-        result = subprocess.run(f"which {command}", shell=True, capture_output=True, text=True)
-        return result.returncode == 0
-    except:
-        return False
+    return shutil.which(command) is not None
 
 def should_run_as_user() -> Tuple[bool, Optional[str]]:
     """Check if we should run commands as the original user (when running with sudo)
@@ -68,9 +66,10 @@ def wrap_command(command: list, cwd: Path) -> Tuple[list, Path]:
     """
     should_run, sudo_user = should_run_as_user()
 
-    if should_run:
-        # Wrap in sudo -u to run as the original user
-        cmd_str = ' '.join(str(arg) for arg in command)
-        return ['sudo', '-u', sudo_user, '-H', 'bash', '-c', f'cd {cwd} && {cmd_str}'], Path('/')
+    if should_run and os.name != "nt":
+        # Wrap in sudo -u to run as the original user with safe argument quoting.
+        cmd_str = " ".join(shlex.quote(str(arg)) for arg in command)
+        cwd_str = shlex.quote(str(cwd))
+        return ["sudo", "-u", sudo_user, "-H", "bash", "-lc", f"cd {cwd_str} && {cmd_str}"], Path("/")
 
     return command, cwd
