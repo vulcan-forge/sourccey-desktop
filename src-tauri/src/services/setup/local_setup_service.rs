@@ -442,16 +442,36 @@ impl LocalSetupService {
         Self::emit_step(emit, "venv", "success", None);
 
         Self::emit_step(emit, "deps", "started", Some("Installing dependencies".to_string()));
-        Self::run_command(
+        if let Err(err) = Self::run_command(
             &uv_target,
             &["pip", "install", "-e", ".[sourccey]"],
             &lerobot_dir,
             "uv pip install",
-        )
-        .map_err(|e| {
-            Self::emit_step(emit, "deps", "error", Some(e.clone()));
-            e
-        })?;
+        ) {
+            let lower = err.to_lowercase();
+            let is_macos_or_windows = cfg!(target_os = "macos") || cfg!(target_os = "windows");
+            if is_macos_or_windows && (lower.contains("vosk") || lower.contains("no solution found")) {
+                Self::emit_step(
+                    emit,
+                    "deps",
+                    "started",
+                    Some("vosk not available on this platform; installing core dependencies".to_string()),
+                );
+                Self::run_command(
+                    &uv_target,
+                    &["pip", "install", "-e", "."],
+                    &lerobot_dir,
+                    "uv pip install (core)",
+                )
+                .map_err(|e| {
+                    Self::emit_step(emit, "deps", "error", Some(e.clone()));
+                    e
+                })?;
+            } else {
+                Self::emit_step(emit, "deps", "error", Some(err.clone()));
+                return Err(err);
+            }
+        }
         Self::emit_step(emit, "deps", "success", None);
 
         let compile_script = lerobot_dir
@@ -597,16 +617,36 @@ impl LocalSetupService {
         );
 
         Self::emit_step(emit, "deps", "started", Some("Reinstalling dependencies".to_string()));
-        Self::run_command(
+        if let Err(err) = Self::run_command(
             &uv_target,
             &["pip", "install", "-e", ".[sourccey]"],
             &lerobot_dir,
             "uv pip install",
-        )
-        .map_err(|e| {
-            Self::emit_step(emit, "deps", "error", Some(e.clone()));
-            e
-        })?;
+        ) {
+            let lower = err.to_lowercase();
+            let is_macos_or_windows = cfg!(target_os = "macos") || cfg!(target_os = "windows");
+            if is_macos_or_windows && (lower.contains("vosk") || lower.contains("no solution found")) {
+                Self::emit_step(
+                    emit,
+                    "deps",
+                    "started",
+                    Some("vosk not available on this platform; installing core dependencies".to_string()),
+                );
+                Self::run_command(
+                    &uv_target,
+                    &["pip", "install", "-e", "."],
+                    &lerobot_dir,
+                    "uv pip install (core)",
+                )
+                .map_err(|e| {
+                    Self::emit_step(emit, "deps", "error", Some(e.clone()));
+                    e
+                })?;
+            } else {
+                Self::emit_step(emit, "deps", "error", Some(err.clone()));
+                return Err(err);
+            }
+        }
         Self::emit_step(emit, "deps", "success", None);
 
         let compile_script = lerobot_dir
