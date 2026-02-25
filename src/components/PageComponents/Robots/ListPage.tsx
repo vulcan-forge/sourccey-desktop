@@ -56,6 +56,7 @@ export const RobotListPage = () => {
     const [unpairingId, setUnpairingId] = useState<string | null>(null);
     const [pairingCode, setPairingCode] = useState('');
     const [pairModalTarget, setPairModalTarget] = useState<PairModalTarget | null>(null);
+    const [pairingError, setPairingError] = useState<string | null>(null);
 
     const normalizeNickname = (nickname: string) => (nickname.startsWith('@') ? nickname.slice(1) : nickname);
 
@@ -144,6 +145,7 @@ export const RobotListPage = () => {
 
     const openPairModal = (target: PairModalTarget) => {
         setPairingCode('');
+        setPairingError(null);
         setPairModalTarget(target);
     };
 
@@ -174,6 +176,7 @@ export const RobotListPage = () => {
         }
 
         setIsPairing(true);
+        setPairingError(null);
         try {
             const result = await invoke<PairResult>('pair_with_kiosk_robot', {
                 host: target.host,
@@ -229,7 +232,17 @@ export const RobotListPage = () => {
             setPairingCode('');
         } catch (error: any) {
             console.log('error', error);
-            toast.error(error?.message || 'Failed to pair robot.', { ...toastErrorDefaults });
+            const rawMessage = `${error?.message || ''}`.trim();
+            const normalized = rawMessage.toLowerCase();
+            const isInvalidCode =
+                normalized.includes('invalid pairing code') ||
+                normalized.includes('invalid code') ||
+                normalized.includes('pairing code');
+            const friendlyMessage = isInvalidCode ? 'Incorrect pin code.' : rawMessage || 'Failed to pair robot.';
+            if (isInvalidCode) {
+                setPairingError(friendlyMessage);
+            }
+            toast.error(friendlyMessage, { ...toastErrorDefaults });
         } finally {
             setIsPairing(false);
         }
@@ -362,10 +375,16 @@ export const RobotListPage = () => {
 
                         <input
                             value={pairingCode}
-                            onChange={(event) => setPairingCode(event.target.value)}
+                            onChange={(event) => {
+                                setPairingCode(event.target.value);
+                                if (pairingError) {
+                                    setPairingError(null);
+                                }
+                            }}
                             placeholder="Enter 6-digit pairing code"
                             className="mt-4 w-full rounded-lg border border-slate-600 bg-slate-800/60 px-3 py-2 text-white placeholder-slate-500 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/30 focus:outline-none"
                         />
+                        {pairingError && <p className="mt-2 text-sm text-red-300">{pairingError}</p>}
 
                         <div className="mt-4 flex justify-end gap-2">
                             <button
