@@ -23,7 +23,7 @@ pub struct KioskUpdateStatus {
 }
 
 impl KioskUpdateService {
-    pub fn check_updates(app_handle: &AppHandle) -> Result<KioskUpdateStatus, String> {
+    pub fn check_updates(_app_handle: &AppHandle) -> Result<KioskUpdateStatus, String> {
         let repo_root = DirectoryService::get_current_dir()?;
         let update_ref = std::env::var("SOURCCEY_KIOSK_UPDATE_REF")
             .unwrap_or_else(|_| "origin/main".to_string())

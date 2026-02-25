@@ -141,7 +141,7 @@ export default function KioskSetupPage() {
     };
 
     return (
-        <div className="flex min-h-screen w-full overflow-y-auto bg-linear-to-br from-slate-950 via-slate-900 to-slate-800">
+        <div className="flex min-h-full w-full flex-col bg-linear-to-br from-slate-950 via-slate-900 to-slate-800">
             <div className="container mx-auto flex min-h-full flex-col items-center justify-start px-6 py-12">
                 <div className="relative w-full max-w-3xl">
                     <div className="absolute -top-20 -left-16 h-32 w-32 rounded-full bg-red-500/20 blur-3xl" />
