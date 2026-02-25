@@ -21,6 +21,7 @@ import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/Syste
 import { useModalContext } from '@/hooks/Modals/context.hook';
 import { KIOSK_PAIRING_MODAL_ID } from '@/components/Elements/Modals/KioskRobotModals/PairingCodeModal';
 import Link from 'next/link';
+import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 interface PiCredentials {
     username: string;
@@ -516,6 +517,24 @@ export default function KioskSettingsPage() {
                         >
                             Open Logs
                         </Link>
+                    </div>
+                </div>
+
+                {/* Kiosk Update Section */}
+                <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
+                    <div className="mb-4">
+                        <h2 className="text-xl font-semibold text-white">Kiosk Updates</h2>
+                        <p className="mt-1 text-sm text-slate-400">
+                            Repair the robot runtime or pull the latest kiosk code and run the full setup.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <LinkButton
+                            href="/kiosk/setup"
+                            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-500/50 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70"
+                        >
+                            Open Kiosk Update
+                        </LinkButton>
                     </div>
                 </div>
             </div>

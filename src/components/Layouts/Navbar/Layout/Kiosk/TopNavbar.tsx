@@ -1,7 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import { FaWifi, FaInfoCircle, FaBatteryFull, FaBatteryHalf, FaBatteryQuarter, FaBolt, FaWindowClose, FaBatteryEmpty, FaBatteryThreeQuarters } from 'react-icons/fa';
+import { FaWifi, FaInfoCircle, FaBatteryFull, FaBatteryHalf, FaBatteryQuarter, FaBolt, FaWindowClose, FaBatteryEmpty, FaBatteryThreeQuarters, FaSyncAlt } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
 import { useRobotStatus } from '@/context/robot-status-context';
@@ -10,6 +10,7 @@ import { RobotStatusModal } from '@/components/Elements/Modals/KioskRobotModals/
 import { type BatteryData } from '@/hooks/System/system-info.hook';
 import { exit } from '@tauri-apps/plugin-process';
 import { setSystemInfo, useGetSystemInfo } from '@/hooks/System/system-info.hook';
+import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 export const KioskTopNavbar = () => {
     const { isRobotStarted } = useRobotStatus();
@@ -134,6 +135,15 @@ export const KioskTopNavbar = () => {
                             <FaInfoCircle className="h-5 w-5" />
                             <span className="hidden sm:inline">Device</span>
                         </button>
+
+                        <LinkButton
+                            href="/kiosk/setup"
+                            className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-500/20 hover:text-amber-100"
+                            tooltip="Open kiosk update and repair"
+                        >
+                            <FaSyncAlt className="h-5 w-5" />
+                            <span className="hidden sm:inline">Update</span>
+                        </LinkButton>
 
                         {/* Battery Life and Robot Status button - kiosk mode */}
                         <button
