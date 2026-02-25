@@ -440,6 +440,14 @@ class SetupScript:
                 self.print_error("Check your internet connection and try again.")
             return False
 
+        # Always move lerobot-vulcan to main for desktop setup
+        if not self.git_manager.checkout_submodule_branch(
+            submodule_relative_path="modules/lerobot-vulcan",
+            branch="main",
+        ):
+            self.print_error("Failed to checkout main in modules/lerobot-vulcan.")
+            return False
+
         setup_steps = [
             self.setup_python_environment(),
             self.setup_bun_packages(),

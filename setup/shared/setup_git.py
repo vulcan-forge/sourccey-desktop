@@ -728,6 +728,67 @@ class GitSetupManager:
             self.print_error(f"Failed to update git submodules: {e}")
             return False
 
+    def checkout_submodule_branch(
+        self,
+        submodule_relative_path: str = "modules/lerobot-vulcan",
+        branch: str = "main",
+    ) -> bool:
+        """Checkout a specific branch inside a submodule."""
+        submodule_path = self.project_root / submodule_relative_path
+        if not submodule_path.exists():
+            self.print_error(f"Submodule path does not exist: {submodule_relative_path}")
+            return False
+
+        # Ensure it's a git repo
+        repo_check = self._run_git_command(
+            ["git", "rev-parse", "--git-dir"],
+            submodule_path,
+            capture_output=True,
+            text=True,
+        )
+        if repo_check.returncode != 0:
+            self.print_error(f"Not a git repository: {submodule_relative_path}")
+            return False
+
+        # Avoid discarding local changes
+        status = self._run_git_command(
+            ["git", "status", "--porcelain"],
+            submodule_path,
+            capture_output=True,
+            text=True,
+        )
+        if status.stdout.strip():
+            self.print_warning(
+                f"Submodule {submodule_relative_path} has local changes. "
+                f"Skipping checkout of {branch} to avoid data loss."
+            )
+            return False
+
+        self.print_status(f"Checking out {branch} in {submodule_relative_path}...")
+
+        fetch = self._run_git_command(
+            ["git", "fetch", "origin", branch],
+            submodule_path,
+            capture_output=True,
+            text=True,
+        )
+        if fetch.returncode != 0:
+            self.print_error(f"Failed to fetch origin/{branch}: {fetch.stderr.strip()}")
+            return False
+
+        checkout = self._run_git_command(
+            ["git", "checkout", "-B", branch, f"origin/{branch}"],
+            submodule_path,
+            capture_output=True,
+            text=True,
+        )
+        if checkout.returncode != 0:
+            self.print_error(f"Failed to checkout {branch}: {checkout.stderr.strip()}")
+            return False
+
+        self.print_success(f"Submodule {submodule_relative_path} checked out {branch}.")
+        return True
+
     def notify_stashed_changes(self):
         """Notify user about any stashed changes"""
         submodule_path = self.project_root / "modules" / "lerobot-vulcan"
