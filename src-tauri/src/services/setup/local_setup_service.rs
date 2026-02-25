@@ -376,11 +376,6 @@ impl LocalSetupService {
                 .show(|_| {});
         }
 
-        let resource_dir = app_handle
-            .path()
-            .resource_dir()
-            .map_err(|e| format!("Failed to get resource directory: {}", e))?;
-
         fs::create_dir_all(&setup_dir)
             .map_err(|e| format!("Failed to create setup directory: {}", e))?;
 
@@ -433,22 +428,10 @@ impl LocalSetupService {
         }
 
         Self::emit_step(emit, "uv", "started", Some("Installing uv runtime".to_string()));
-        let uv_source = Self::find_uv_binary(&resource_dir).ok_or_else(|| {
-            let message = "Bundled uv binary not found. Place uv in src-tauri/resources/uv.".to_string();
-            Self::emit_step(emit, "uv", "error", Some(message.clone()));
-            message
+        let uv_target = Self::ensure_uv_binary(app_handle, &app_data_dir).map_err(|e| {
+            Self::emit_step(emit, "uv", "error", Some(e.clone()));
+            e
         })?;
-        let uv_target_dir = app_data_dir.join("bin");
-        fs::create_dir_all(&uv_target_dir)
-            .map_err(|e| format!("Failed to create bin directory: {}", e))?;
-        let uv_file_name = uv_source
-            .file_name()
-            .ok_or_else(|| "Bundled uv binary has no filename".to_string())?;
-        let uv_target = uv_target_dir.join(uv_file_name);
-        if !uv_target.exists() {
-            fs::copy(&uv_source, &uv_target)
-                .map_err(|e| format!("Failed to copy uv binary: {}", e))?;
-        }
         Self::emit_step(emit, "uv", "success", None);
 
         Self::emit_step(emit, "venv", "started", Some("Creating virtual environment".to_string()));
@@ -681,14 +664,26 @@ impl LocalSetupService {
             return Err(format!("{} executable not found at: {:?}", label, exe));
         }
 
-        let status = Command::new(exe)
+        let output = Command::new(exe)
             .args(args)
             .current_dir(working_dir)
-            .status()
+            .output()
             .map_err(|e| format!("Failed to run {}: {}", label, e))?;
 
-        if !status.success() {
-            return Err(format!("{} failed with status: {}", label, status));
+        if !output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let mut details = String::new();
+            if !stdout.trim().is_empty() {
+                details.push_str(&format!("\nstdout: {}", stdout.trim()));
+            }
+            if !stderr.trim().is_empty() {
+                details.push_str(&format!("\nstderr: {}", stderr.trim()));
+            }
+            return Err(format!(
+                "{} failed with status: {}{}",
+                label, output.status, details
+            ));
         }
 
         Ok(())
@@ -757,13 +752,104 @@ impl LocalSetupService {
     }
 
     fn find_uv_binary(resource_dir: &Path) -> Option<PathBuf> {
+        #[cfg(windows)]
         let candidates = [
             resource_dir.join("resources").join("uv").join("uv.exe"),
-            resource_dir.join("resources").join("uv").join("uv"),
             resource_dir.join("uv").join("uv.exe"),
+        ];
+
+        #[cfg(not(windows))]
+        let candidates = [
+            resource_dir.join("resources").join("uv").join("uv"),
             resource_dir.join("uv").join("uv"),
         ];
         candidates.into_iter().find(|path| path.exists())
+    }
+
+    fn find_uv_in_path() -> Option<PathBuf> {
+        let exe_name = if cfg!(windows) { "uv.exe" } else { "uv" };
+        let path_var = std::env::var_os("PATH")?;
+        for dir in std::env::split_paths(&path_var) {
+            let candidate = dir.join(exe_name);
+            if candidate.exists() && Self::is_executable(&candidate) {
+                return Some(candidate);
+            }
+        }
+        None
+    }
+
+    #[cfg(target_os = "macos")]
+    fn install_uv_macos(install_dir: &Path) -> Result<PathBuf, String> {
+        fs::create_dir_all(install_dir)
+            .map_err(|e| format!("Failed to create uv install directory: {}", e))?;
+        let output = Command::new("bash")
+            .arg("-lc")
+            .arg("curl -LsSf https://astral.sh/uv/install.sh | sh")
+            .env("UV_INSTALL_DIR", install_dir)
+            .env("UV_NO_PROMPT", "1")
+            .output()
+            .map_err(|e| format!("Failed to run uv installer: {}", e))?;
+
+        if !output.status.success() {
+            let stdout = String::from_utf8_lossy(&output.stdout);
+            let stderr = String::from_utf8_lossy(&output.stderr);
+            let mut details = String::new();
+            if !stdout.trim().is_empty() {
+                details.push_str(&format!("\nstdout: {}", stdout.trim()));
+            }
+            if !stderr.trim().is_empty() {
+                details.push_str(&format!("\nstderr: {}", stderr.trim()));
+            }
+            return Err(format!("uv installer failed with status: {}{}", output.status, details));
+        }
+
+        let uv_path = install_dir.join("uv");
+        if !uv_path.exists() {
+            if let Some(path) = Self::find_uv_in_path() {
+                return Ok(path);
+            }
+            return Err(format!(
+                "uv installer did not produce an executable at {}",
+                uv_path.display()
+            ));
+        }
+
+        #[cfg(unix)]
+        {
+            Self::set_executable(&uv_path)?;
+        }
+
+        Ok(uv_path)
+    }
+
+    #[cfg(unix)]
+    fn set_executable(path: &Path) -> Result<(), String> {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(path)
+            .map_err(|e| format!("Failed to read permissions for {}: {}", path.display(), e))?
+            .permissions();
+        perms.set_mode(0o755);
+        fs::set_permissions(path, perms)
+            .map_err(|e| format!("Failed to set executable permissions for {}: {}", path.display(), e))?;
+        Ok(())
+    }
+
+    fn is_executable(path: &Path) -> bool {
+        if !path.is_file() {
+            return false;
+        }
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            if let Ok(metadata) = fs::metadata(path) {
+                return metadata.permissions().mode() & 0o111 != 0;
+            }
+            false
+        }
+        #[cfg(not(unix))]
+        {
+            true
+        }
     }
 
     fn ensure_uv_binary(app_handle: &AppHandle, app_data_dir: &Path) -> Result<PathBuf, String> {
@@ -772,6 +858,12 @@ impl LocalSetupService {
             .into_iter()
             .find(|path| path.exists());
         if let Some(path) = existing {
+            #[cfg(unix)]
+            {
+                if !Self::is_executable(&path) {
+                    Self::set_executable(&path)?;
+                }
+            }
             return Ok(path);
         }
 
@@ -779,20 +871,38 @@ impl LocalSetupService {
             .path()
             .resource_dir()
             .map_err(|e| format!("Failed to get resource directory: {}", e))?;
-        let uv_source = Self::find_uv_binary(&resource_dir)
-            .ok_or_else(|| "Bundled uv binary not found. Place uv in src-tauri/resources/uv.".to_string())?;
+        if let Some(uv_source) = Self::find_uv_binary(&resource_dir) {
+            let uv_file_name = uv_source
+                .file_name()
+                .ok_or_else(|| "Bundled uv binary has no filename".to_string())?;
+            let uv_target = uv_target_dir.join(uv_file_name);
+            fs::create_dir_all(&uv_target_dir)
+                .map_err(|e| format!("Failed to create bin directory: {}", e))?;
+            if !uv_target.exists() {
+                fs::copy(&uv_source, &uv_target)
+                    .map_err(|e| format!("Failed to copy uv binary: {}", e))?;
+            }
 
-        fs::create_dir_all(&uv_target_dir)
-            .map_err(|e| format!("Failed to create bin directory: {}", e))?;
-        let uv_file_name = uv_source
-            .file_name()
-            .ok_or_else(|| "Bundled uv binary has no filename".to_string())?;
-        let uv_target = uv_target_dir.join(uv_file_name);
-        if !uv_target.exists() {
-            fs::copy(&uv_source, &uv_target)
-                .map_err(|e| format!("Failed to copy uv binary: {}", e))?;
+            #[cfg(unix)]
+            {
+                Self::set_executable(&uv_target)?;
+            }
+
+            return Ok(uv_target);
         }
-        Ok(uv_target)
+
+        if let Some(uv_path) = Self::find_uv_in_path() {
+            return Ok(uv_path);
+        }
+
+        #[cfg(target_os = "macos")]
+        {
+            if let Ok(uv_path) = Self::install_uv_macos(&uv_target_dir) {
+                return Ok(uv_path);
+            }
+        }
+
+        Err("Bundled uv binary not found for this platform. Install uv or add it to src-tauri/resources/uv.".to_string())
     }
 
     fn desktop_extras_marker_path(setup_dir: &Path) -> PathBuf {

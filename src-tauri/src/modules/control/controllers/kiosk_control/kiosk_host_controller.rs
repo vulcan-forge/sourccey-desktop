@@ -123,6 +123,7 @@ fn get_ip_address() -> String {
     "Disconnected".to_string()
 }
 
+#[cfg(any(target_os = "linux", target_os = "windows"))]
 fn is_private_ip(ip: &str) -> bool {
     // Check if IP is in private ranges:
     // 192.168.0.0/16 (192.168.0.0 - 192.168.255.255)
