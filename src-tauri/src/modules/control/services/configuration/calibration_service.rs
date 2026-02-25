@@ -38,10 +38,21 @@ impl CalibrationService {
         }
 
         // Read and parse the existing calibration file
-        let calibration_str = fs::read_to_string(calibration_path).map_err(|e| e.to_string())?;
-        let calibration: Calibration = serde_json::from_str(&calibration_str)
-            .map_err(|e| format!("Failed to parse calibration file: {}", e))?;
-        Ok((calibration, true))
+        let calibration_str = fs::read_to_string(&calibration_path).map_err(|e| e.to_string())?;
+        if calibration_str.trim().is_empty() {
+            let default_calibration = Self::create_default_calibration(robot_type, nickname);
+            Self::write_calibration(robot_type, nickname, default_calibration.clone())?;
+            return Ok((default_calibration, true));
+        }
+
+        match serde_json::from_str::<Calibration>(&calibration_str) {
+            Ok(calibration) => Ok((calibration, true)),
+            Err(_) => {
+                let default_calibration = Self::create_default_calibration(robot_type, nickname);
+                Self::write_calibration(robot_type, nickname, default_calibration.clone())?;
+                Ok((default_calibration, true))
+            }
+        }
     }
 
     pub fn write_calibration(robot_type: &str, nickname: &str, calibration: Calibration) -> Result<(), String> {

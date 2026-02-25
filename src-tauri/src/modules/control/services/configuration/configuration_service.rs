@@ -43,13 +43,22 @@ impl ConfigurationService {
         }
 
         // Read and parse the existing config file
-        let config_str = fs::read_to_string(config_path).map_err(|e| e.to_string())?;
+        let config_str = fs::read_to_string(&config_path).map_err(|e| e.to_string())?;
+        if config_str.trim().is_empty() {
+            let default_config = Self::create_default_config();
+            Self::write_config(nickname, default_config.clone())?;
+            return Ok(default_config);
+        }
 
         // Parse the JSON string into our Config struct
-        let config: Config = serde_json::from_str(&config_str)
-            .map_err(|e| format!("Failed to parse config file: {}", e))?;
-
-        Ok(config)
+        match serde_json::from_str::<Config>(&config_str) {
+            Ok(config) => Ok(config),
+            Err(_) => {
+                let default_config = Self::create_default_config();
+                Self::write_config(nickname, default_config.clone())?;
+                Ok(default_config)
+            }
+        }
     }
 
     /// Write configuration to file
@@ -192,13 +201,22 @@ impl ConfigurationService {
         }
 
         // Read and parse the existing config file
-        let config_str = fs::read_to_string(config_path).map_err(|e| e.to_string())?;
+        let config_str = fs::read_to_string(&config_path).map_err(|e| e.to_string())?;
+        if config_str.trim().is_empty() {
+            let default_config = Self::create_default_remote_config();
+            Self::write_remote_config(nickname, default_config.clone())?;
+            return Ok(default_config);
+        }
 
         // Parse the JSON string into our Config struct
-        let config: RemoteConfig = serde_json::from_str(&config_str)
-            .map_err(|e| format!("Failed to parse config file: {}", e))?;
-
-        Ok(config)
+        match serde_json::from_str::<RemoteConfig>(&config_str) {
+            Ok(config) => Ok(config),
+            Err(_) => {
+                let default_config = Self::create_default_remote_config();
+                Self::write_remote_config(nickname, default_config.clone())?;
+                Ok(default_config)
+            }
+        }
     }
 
     pub fn write_remote_config(nickname: &str, config: RemoteConfig) -> Result<(), String> {
