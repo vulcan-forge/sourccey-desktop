@@ -973,13 +973,9 @@ impl LocalSetupService {
         }
 
         if let Some(uv_path) = Self::find_binary_in_path("uv") {
-<<<<<<< HEAD
             if Self::is_command_usable(&uv_path, &["--version"]) {
                 return Ok(uv_path);
             }
-=======
-            return Ok(uv_path);
->>>>>>> c72a26e79f6432172d7fc28618edaa1e87ce5bc7
         }
 
         #[cfg(target_os = "macos")]
