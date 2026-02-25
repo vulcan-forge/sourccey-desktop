@@ -766,94 +766,88 @@ impl LocalSetupService {
         candidates.into_iter().find(|path| path.exists())
     }
 
-    fn find_uv_in_path() -> Option<PathBuf> {
-        let exe_name = if cfg!(windows) { "uv.exe" } else { "uv" };
-        let path_var = std::env::var_os("PATH")?;
-        for dir in std::env::split_paths(&path_var) {
-            let candidate = dir.join(exe_name);
-            if candidate.exists() && Self::is_executable(&candidate) {
-                return Some(candidate);
-            }
-        }
-        None
+    fn find_linux_uv_binary(resource_dir: &Path) -> Option<PathBuf> {
+        let candidates = [
+            resource_dir.join("resources").join("uv").join("uv"),
+            resource_dir.join("uv").join("uv"),
+        ];
+        candidates.into_iter().find(|path| path.exists())
     }
 
-    #[cfg(target_os = "macos")]
-    fn install_uv_macos(install_dir: &Path) -> Result<PathBuf, String> {
-        fs::create_dir_all(install_dir)
-            .map_err(|e| format!("Failed to create uv install directory: {}", e))?;
-        let output = Command::new("bash")
-            .arg("-lc")
-            .arg("curl -LsSf https://astral.sh/uv/install.sh | sh")
-            .env("UV_INSTALL_DIR", install_dir)
-            .env("UV_NO_PROMPT", "1")
-            .output()
-            .map_err(|e| format!("Failed to run uv installer: {}", e))?;
-
-        if !output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let mut details = String::new();
-            if !stdout.trim().is_empty() {
-                details.push_str(&format!("\nstdout: {}", stdout.trim()));
-            }
-            if !stderr.trim().is_empty() {
-                details.push_str(&format!("\nstderr: {}", stderr.trim()));
-            }
-            return Err(format!("uv installer failed with status: {}{}", output.status, details));
+    fn find_binary_in_path(binary_name: &str) -> Option<PathBuf> {
+        let mut candidates: Vec<PathBuf> = Vec::new();
+        if let Some(path_var) = std::env::var_os("PATH") {
+            candidates.extend(std::env::split_paths(&path_var).map(|dir| dir.join(binary_name)));
         }
-
-        let uv_path = install_dir.join("uv");
-        if !uv_path.exists() {
-            if let Some(path) = Self::find_uv_in_path() {
-                return Ok(path);
-            }
-            return Err(format!(
-                "uv installer did not produce an executable at {}",
-                uv_path.display()
-            ));
+        if let Some(home) = std::env::var_os("HOME") {
+            let home_path = PathBuf::from(home);
+            candidates.push(home_path.join(".local").join("bin").join(binary_name));
+            candidates.push(home_path.join(".cargo").join("bin").join(binary_name));
         }
+        candidates.push(PathBuf::from("/usr/local/bin").join(binary_name));
+        candidates.push(PathBuf::from("/usr/bin").join(binary_name));
+        candidates.into_iter().find(|path| path.exists() && path.is_file())
+    }
 
-        #[cfg(unix)]
-        {
-            Self::set_executable(&uv_path)?;
+    fn is_command_usable(exe: &Path, args: &[&str]) -> bool {
+        if !exe.exists() {
+            return false;
         }
-
-        Ok(uv_path)
+        Command::new(exe)
+            .args(args)
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
     }
 
     #[cfg(unix)]
-    fn set_executable(path: &Path) -> Result<(), String> {
+    fn ensure_executable(path: &Path) -> Result<(), String> {
         use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(path)
-            .map_err(|e| format!("Failed to read permissions for {}: {}", path.display(), e))?
-            .permissions();
-        perms.set_mode(0o755);
-        fs::set_permissions(path, perms)
-            .map_err(|e| format!("Failed to set executable permissions for {}: {}", path.display(), e))?;
+        let metadata = fs::metadata(path).map_err(|e| format!("Failed to read uv binary permissions: {}", e))?;
+        let mut perms = metadata.permissions();
+        let mode = perms.mode();
+        if mode & 0o111 == 0 {
+            perms.set_mode(mode | 0o755);
+            fs::set_permissions(path, perms).map_err(|e| format!("Failed to set uv binary executable bit: {}", e))?;
+        }
         Ok(())
     }
 
-    fn is_executable(path: &Path) -> bool {
-        if !path.is_file() {
-            return false;
-        }
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            if let Ok(metadata) = fs::metadata(path) {
-                return metadata.permissions().mode() & 0o111 != 0;
-            }
-            false
-        }
-        #[cfg(not(unix))]
-        {
-            true
-        }
+    #[cfg(not(unix))]
+    fn ensure_executable(_path: &Path) -> Result<(), String> {
+        Ok(())
     }
 
     fn ensure_uv_binary(app_handle: &AppHandle, app_data_dir: &Path) -> Result<PathBuf, String> {
         let uv_target_dir = app_data_dir.join("bin");
+        if cfg!(target_os = "linux") {
+            let linux_uv_target = uv_target_dir.join("uv");
+            if Self::is_command_usable(&linux_uv_target, &["--version"]) {
+                return Ok(linux_uv_target);
+            }
+            if let Some(system_uv) = Self::find_binary_in_path("uv") {
+                if Self::is_command_usable(&system_uv, &["--version"]) {
+                    return Ok(system_uv);
+                }
+            }
+            let resource_dir = app_handle
+                .path()
+                .resource_dir()
+                .map_err(|e| format!("Failed to get resource directory: {}", e))?;
+            if let Some(uv_source) = Self::find_linux_uv_binary(&resource_dir) {
+                fs::create_dir_all(&uv_target_dir)
+                    .map_err(|e| format!("Failed to create bin directory: {}", e))?;
+                if !linux_uv_target.exists() {
+                    fs::copy(&uv_source, &linux_uv_target)
+                        .map_err(|e| format!("Failed to copy uv binary: {}", e))?;
+                }
+                Self::ensure_executable(&linux_uv_target)?;
+                if Self::is_command_usable(&linux_uv_target, &["--version"]) {
+                    return Ok(linux_uv_target);
+                }
+            }
+            return Err("Linux setup requires a native `uv` binary. Install uv and retry: https://docs.astral.sh/uv/getting-started/installation/".to_string());
+        }
         let existing = [uv_target_dir.join("uv.exe"), uv_target_dir.join("uv")]
             .into_iter()
             .find(|path| path.exists());
