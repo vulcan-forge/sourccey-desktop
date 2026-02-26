@@ -19,14 +19,29 @@ else:
 gpg = gnupg.GPG()
 
 # Generate new GPG key
-input_data = gpg.gen_key_input(
-    key_type="RSA",
-    key_length=4096,
-    name_real=name,
-    name_email=email,
-    passphrase=passphrase
-)
+gen_kwargs = {
+    "key_type": "RSA",
+    "key_length": 4096,
+    "name_real": name,
+    "name_email": email,
+    "passphrase": passphrase,
+}
+if passphrase == "":
+    # Required for batch mode when no passphrase is provided
+    gen_kwargs["no_protection"] = True
+
+input_data = gpg.gen_key_input(**gen_kwargs)
 key = gpg.gen_key(input_data)
+
+if not key.fingerprint:
+    print("Failed to generate GPG key.")
+    if hasattr(key, "status") and key.status:
+        print(f"Status: {key.status}")
+    if hasattr(key, "stderr") and key.stderr:
+        print(f"Stderr: {key.stderr}")
+    if hasattr(key, "exit_status") and key.exit_status is not None:
+        print(f"Exit status: {key.exit_status}")
+    sys.exit(1)
 
 # Get the directory of the Python script
 dir_path = os.path.abspath(os.path.dirname(__file__))
