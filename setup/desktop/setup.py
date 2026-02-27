@@ -117,6 +117,9 @@ class SetupScript:
     def check_uv(self) -> bool:
         return self.python_manager.check_uv()
 
+    def ensure_uv(self) -> bool:
+        return self.python_manager.ensure_uv()
+
     def ensure_bun(self) -> bool:
         return self.javascript_manager.ensure_bun()
 
@@ -403,11 +406,14 @@ class SetupScript:
             self.check_git(),
         ]
 
-        # Optional tool, do not fail setup if missing.
-        self.check_uv()
-
         if not all(required_checks):
             self.print_error("System requirements check failed.")
+            return False
+
+        if not self.ensure_uv():
+            self.print_error("uv is required for Sourccey desktop setup.")
+            self.print_error("Install uv from https://docs.astral.sh/uv/getting-started/installation/")
+            self.print_error("Then run this script again.")
             return False
 
         if not self.ensure_bun():
@@ -448,11 +454,11 @@ class SetupScript:
             self.print_error("Failed to checkout main in modules/lerobot-vulcan.")
             return False
 
-        setup_steps = [
-            self.setup_python_environment(),
-            self.setup_bun_packages(),
-        ]
-        if not all(setup_steps):
+        if not self.setup_python_environment():
+            self.print_error("Project setup failed.")
+            return False
+
+        if not self.setup_bun_packages():
             self.print_error("Project setup failed.")
             return False
 

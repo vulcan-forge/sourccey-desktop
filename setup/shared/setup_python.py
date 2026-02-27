@@ -6,6 +6,7 @@ This module contains Python-specific setup functions used by both desktop and ki
 """
 
 import os
+import platform
 import subprocess
 import sys
 import importlib.util
@@ -127,15 +128,188 @@ class PythonSetupManager:
     # UV Package Manager Check
     #################################################################
 
+    def _select_linux_shell_rc_file(self, user_home: Path) -> Path:
+        """Choose the most appropriate Linux shell startup file for PATH updates."""
+        shell_name = ""
+
+        if os.name != "nt":
+            sudo_user = os.environ.get("SUDO_USER")
+            if sudo_user and hasattr(os, "geteuid") and os.geteuid() == 0:
+                try:
+                    import pwd
+
+                    shell_name = Path(pwd.getpwnam(sudo_user).pw_shell).name
+                except Exception:
+                    shell_name = ""
+
+        if not shell_name:
+            shell = os.environ.get("SHELL", "")
+            shell_name = Path(shell).name if shell else ""
+
+        if shell_name == "zsh":
+            ordered_candidates = [".zshrc", ".profile", ".bashrc"]
+        elif shell_name == "bash":
+            ordered_candidates = [".bashrc", ".profile", ".zshrc"]
+        else:
+            ordered_candidates = [".profile", ".bashrc", ".zshrc"]
+
+        for candidate in ordered_candidates:
+            candidate_path = user_home / candidate
+            if candidate_path.exists():
+                return candidate_path
+
+        return user_home / ordered_candidates[0]
+
+    def _persist_linux_path_entry(self, path_dir: Path) -> None:
+        """Persist a PATH entry in the Linux user's shell startup file."""
+        if platform.system() != "Linux":
+            return
+
+        user_home = Path(get_real_user_home())
+        rc_file = self._select_linux_shell_rc_file(user_home)
+
+        try:
+            path_dir = path_dir.resolve()
+        except Exception:
+            pass
+
+        try:
+            relative_path = path_dir.relative_to(user_home)
+            if str(relative_path) == ".":
+                path_expr = "$HOME"
+            else:
+                path_expr = f"$HOME/{relative_path.as_posix()}"
+        except ValueError:
+            path_expr = str(path_dir)
+
+        marker_start = "# >>> sourccey uv path >>>"
+        marker_end = "# <<< sourccey uv path <<<"
+        snippet = (
+            f"\n{marker_start}\n"
+            f'export PATH="{path_expr}:$PATH"\n'
+            f"{marker_end}\n"
+        )
+
+        try:
+            existing = rc_file.read_text(encoding="utf-8") if rc_file.exists() else ""
+        except OSError as e:
+            self.print_warning(f"Could not read {rc_file}: {e}")
+            return
+
+        if marker_start in existing or f'export PATH="{path_expr}:$PATH"' in existing:
+            self.print_status(f"uv PATH already configured in {rc_file}")
+            return
+
+        file_existed = rc_file.exists()
+
+        try:
+            rc_file.parent.mkdir(parents=True, exist_ok=True)
+            with rc_file.open("a", encoding="utf-8") as handle:
+                handle.write(snippet)
+
+            # Keep file ownership with the real user when setup is executed via sudo.
+            if (
+                not file_existed
+                and os.name != "nt"
+                and hasattr(os, "geteuid")
+                and os.geteuid() == 0
+                and os.environ.get("SUDO_USER")
+            ):
+                try:
+                    import pwd
+
+                    sudo_user = os.environ["SUDO_USER"]
+                    user_info = pwd.getpwnam(sudo_user)
+                    os.chown(rc_file, user_info.pw_uid, user_info.pw_gid)
+                except Exception as chown_error:
+                    self.print_warning(
+                        f"Added PATH config but could not update ownership for {rc_file}: {chown_error}"
+                    )
+
+            self.print_success(f"Persisted uv PATH in {rc_file}")
+            self.print_status(f"Open a new terminal or run: source {rc_file}")
+        except OSError as e:
+            self.print_warning(f"Failed to update {rc_file}: {e}")
+
+    def install_uv(self) -> bool:
+        """Install uv using a platform-appropriate flow."""
+        self.print_status("Installing uv...")
+        original_path_entries = set(filter(None, os.environ.get("PATH", "").split(os.pathsep)))
+
+        pipx_path = find_user_binary("pipx", [".local/bin"])
+        is_linux = platform.system() == "Linux"
+        has_apt = shutil.which("apt-get") is not None
+
+        try:
+            if is_linux and has_apt and not pipx_path:
+                self.print_status("pipx not found. Installing Debian prerequisites for uv...")
+                install_cmd = ["apt-get", "install", "-y", "python3-full", "python3-pip", "pipx"]
+                if hasattr(os, "geteuid") and os.geteuid() != 0:
+                    install_cmd = ["sudo"] + install_cmd
+                subprocess.run(install_cmd, check=True)
+                pipx_path = find_user_binary("pipx", [".local/bin"])
+
+            if pipx_path:
+                # Ensure user-level paths are registered, then install uv for the invoking user.
+                ensurepath_cmd, ensurepath_cwd = wrap_command([str(pipx_path), "ensurepath"], Path.cwd())
+                subprocess.run(
+                    ensurepath_cmd,
+                    cwd=ensurepath_cwd,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                )
+
+                install_cmd, install_cwd = wrap_command(
+                    [str(pipx_path), "install", "--force", "uv"],
+                    Path.cwd(),
+                )
+                subprocess.run(install_cmd, cwd=install_cwd, check=True)
+            else:
+                self.print_status("pipx not found. Falling back to pip user install for uv...")
+                subprocess.run([sys.executable, "-m", "pip", "install", "--user", "uv"], check=True)
+
+            uv_path = find_user_binary("uv", [".cargo/bin", ".local/bin"])
+            if uv_path:
+                self.print_success(f"uv installed successfully at {uv_path}")
+                if str(uv_path.parent) not in original_path_entries:
+                    self._persist_linux_path_entry(uv_path.parent)
+                    self.print_warning(
+                        f"uv is in {uv_path.parent}. PATH has been persisted for future shells."
+                    )
+                    self.print_warning(
+                        f"Run now in this shell: export PATH=\"{uv_path.parent}:$PATH\""
+                    )
+                return True
+
+            self.print_error("uv installation finished but uv binary was not found in PATH.")
+            self.print_error("Try reopening the terminal and rerunning setup.")
+            return False
+        except subprocess.CalledProcessError as e:
+            self.print_error(f"Error installing uv: {e}")
+            return False
+
+    def ensure_uv(self) -> bool:
+        """Ensure uv is available; install it automatically when missing."""
+        if self.check_uv():
+            return True
+
+        self.print_status("uv not found, attempting to install automatically...")
+        if not self.install_uv():
+            return False
+
+        return self.check_uv()
+
     def check_uv(self) -> bool:
-        """Check if uv is installed (optional but recommended)"""
-        self.print_status("Checking uv installation (optional)...")
+        """Check if uv is installed."""
+        self.print_status("Checking uv installation...")
+        uv_in_path = shutil.which("uv")
 
         # Use helper to find uv
         uv_path = find_user_binary("uv", [".cargo/bin", ".local/bin"])
 
         if not uv_path:
-            self.print_warning("uv is not installed (optional but recommended)")
+            self.print_warning("uv is not installed")
             self.print_warning("Install uv from https://docs.astral.sh/uv/getting-started/installation/")
             return False
 
@@ -155,6 +329,15 @@ class PythonSetupManager:
                 self.print_success(f"uv is installed at {uv_path}")
         except Exception as e:
             self.print_success(f"uv is installed at {uv_path}")
+
+        if uv_path and not uv_in_path:
+            self._persist_linux_path_entry(uv_path.parent)
+            self.print_warning(
+                f"uv was found at {uv_path}, but it is not on your current shell PATH."
+            )
+            self.print_warning(
+                f"Run now in this shell: export PATH=\"{uv_path.parent}:$PATH\""
+            )
 
         self.clean_uv_cache()
 
@@ -255,6 +438,19 @@ def check_uv(
         project_root, print_status, print_success, print_warning, print_error
     )
     return manager.check_uv()
+
+def ensure_uv(
+    project_root: Path,
+    print_status: Callable,
+    print_success: Callable,
+    print_warning: Callable,
+    print_error: Callable
+) -> bool:
+    """Convenience function for ensuring uv is installed."""
+    manager = PythonSetupManager(
+        project_root, print_status, print_success, print_warning, print_error
+    )
+    return manager.ensure_uv()
 
 def setup_python_environment(
     project_root: Path,

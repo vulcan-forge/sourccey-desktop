@@ -758,9 +758,30 @@ class GitSetupManager:
             text=True,
         )
         if status.stdout.strip():
+            branch_result = self._run_git_command(
+                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
+                submodule_path,
+                capture_output=True,
+                text=True,
+            )
+            current_branch = (
+                branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+            )
+
+            if current_branch == branch:
+                self.print_warning(
+                    f"Submodule {submodule_relative_path} has local changes and is already on "
+                    f"{branch}. Skipping checkout to avoid data loss."
+                )
+                return True
+
             self.print_warning(
                 f"Submodule {submodule_relative_path} has local changes. "
-                f"Skipping checkout of {branch} to avoid data loss."
+                f"Cannot switch to {branch} without risking data loss."
+            )
+            self.print_error(
+                f"Current branch is '{current_branch or 'unknown'}'. "
+                f"Commit/stash/discard changes in {submodule_relative_path}, then rerun setup."
             )
             return False
 
