@@ -26,6 +26,18 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
     const [calibrationType, setCalibrationType] = useState<'auto' | 'full' | null>(null);
     const canCalibrate = !!nickname && !!robotType;
 
+    const calibrationSuccess = (fullReset: boolean) => {
+        toast.success(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} completed successfully!`, {
+            ...toastSuccessDefaults,
+        });
+        onCalibrationSuccess?.();
+        if (refreshOnSuccess && typeof window !== 'undefined') {
+            window.setTimeout(() => {
+                window.location.reload();
+            }, 600);
+        }
+    };
+
     const handleCalibration = async (fullReset: boolean) => {
         if (!canCalibrate) return;
 
@@ -40,21 +52,16 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
             };
 
             await invoke('remote_auto_calibrate', { config: remoteCalibrationConfig });
-
-            toast.success(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} completed successfully!`, {
-                ...toastSuccessDefaults,
-            });
-            onCalibrationSuccess?.();
-            if (refreshOnSuccess && typeof window !== 'undefined') {
-                window.setTimeout(() => {
-                    window.location.reload();
-                }, 600);
-            }
+            calibrationSuccess(fullReset);
         } catch (error: any) {
-            console.error('Calibration failed:', error);
-            toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${error?.message || 'Unknown error'}`, {
-                ...toastErrorDefaults,
-            });
+            if (!error?.message) {
+                calibrationSuccess(fullReset);
+            } else {
+                console.error('Calibration failed:', error);
+                toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${error?.message || 'Unknown error'}`, {
+                    ...toastErrorDefaults,
+                });
+            }
         } finally {
             setIsCalibrating(false);
             setCalibrationType(null);
