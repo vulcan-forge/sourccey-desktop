@@ -50,6 +50,7 @@
         "fs:allow-rename",
         "shell:allow-spawn",
         "shell:allow-kill",
+        "shell:default",
         "process:default",
         "process:allow-exit"
     ]

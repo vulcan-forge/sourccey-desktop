@@ -4,10 +4,19 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
+import { useAuthSession } from '@/hooks/Auth/auth-session.hook';
+import { usePathname } from 'next/navigation';
 
 export const DesktopTopNavbar = () => {
     const { data: lerobotStatus } = useLerobotUpdateStatus();
+    const { data: authSession } = useAuthSession();
+    const pathname = usePathname();
+
     const needsUpdate = lerobotStatus ? !lerobotStatus.upToDate : false;
+    const isAuthenticated = Boolean(authSession?.isAuthenticated && authSession?.accountId);
+    const isAccountPage = pathname?.startsWith('/desktop/account');
+    const subscriptionLabel = authSession?.subscriptionTier ? `Plan: ${authSession.subscriptionTier}` : 'Plan: Pending';
+    const tokenLabel = authSession?.tokenBalance != null ? `Tokens: ${authSession.tokenBalance.toLocaleString()}` : 'Tokens: Pending';
 
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
@@ -38,6 +47,30 @@ export const DesktopTopNavbar = () => {
                             Update Required
                         </LinkButton>
                     )}
+
+                    <div className="ml-3 flex items-center gap-2">
+                        {isAuthenticated && (
+                            <>
+                                <span className="hidden rounded-lg border border-slate-600 bg-slate-900/60 px-2 py-1 text-xs text-slate-300 xl:inline-flex">
+                                    {subscriptionLabel}
+                                </span>
+                                <span className="hidden rounded-lg border border-slate-600 bg-slate-900/60 px-2 py-1 text-xs text-slate-300 xl:inline-flex">
+                                    {tokenLabel}
+                                </span>
+                            </>
+                        )}
+
+                        <LinkButton
+                            href="/desktop/account"
+                            className={`inline-flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition ${
+                                isAccountPage
+                                    ? 'border-orange-300 bg-orange-400/20 text-orange-100'
+                                    : 'border-slate-600 text-slate-100 hover:border-orange-300 hover:bg-orange-400/10 hover:text-orange-100'
+                            }`}
+                        >
+                            {isAuthenticated ? 'Account' : 'Log In'}
+                        </LinkButton>
+                    </div>
                 </div>
             </div>
         </nav>

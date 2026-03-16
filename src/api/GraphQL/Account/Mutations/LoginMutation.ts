@@ -15,10 +15,18 @@ export const mutateLogin = async (input: LoginInput) => {
                 login(input: $input) {
                     account {
                         id
+                        email
+                        email_id
+                        google_id
+                        github_id
+                        role
+                        is_email_login_confirmed
                     }
                     created
                     error {
                         message
+                        code
+                        link
                     }
                 }
             }

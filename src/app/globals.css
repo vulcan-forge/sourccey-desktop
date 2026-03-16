@@ -75,4 +75,25 @@
     .scrollbar-left > * {
         direction: ltr;
     }
+
+    /* Make browser password reveal controls more visible on dark backgrounds */
+    .auth-password-input::-ms-reveal,
+    .auth-password-input::-ms-clear {
+        display: none;
+        filter: invert(1) brightness(2);
+    }
+
+    .auth-password-input::-webkit-credentials-auto-fill-button {
+        visibility: hidden;
+        pointer-events: none;
+        position: absolute;
+        right: 0;
+    }
+
+    /* Hide the floating Google reCAPTCHA badge */
+    .grecaptcha-badge {
+        opacity: 0 !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+    }
 }

@@ -13,6 +13,7 @@ import { SELECTED_ROBOT_KEY } from '@/hooks/Robot/selected-robot.hook';
 import { SELECTED_MODEL_KEY } from '@/hooks/AI/selected-model.hook';
 import { PAIRED_ROBOT_CONNECTIONS_KEY } from '@/hooks/Robot/paired-robot-connection.hook';
 import { DESKTOP_EXTRAS_KEY } from '@/hooks/System/setup-desktop-extras.hook';
+import { AUTH_SESSION_KEY } from '@/hooks/Auth/auth-session.hook';
 
 // SSH password status is now persisted via file system (not React Query)
 const persistQueries: QueryKey[] = [
@@ -24,6 +25,7 @@ const persistQueries: QueryKey[] = [
     SELECTED_MODEL_KEY,
     PAIRED_ROBOT_CONNECTIONS_KEY,
     DESKTOP_EXTRAS_KEY,
+    AUTH_SESSION_KEY,
 ];
 const dehydrateOptions: DehydrateOptions = {
     shouldDehydrateQuery: ({ queryKey }) => {
