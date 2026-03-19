@@ -64,6 +64,23 @@ export default function SetupPage() {
         setLog((prev) => [...prev, message]);
     }, []);
 
+    const getErrorMessage = useCallback((err: unknown) => {
+        if (typeof err === 'string') {
+            return err;
+        }
+        if (err instanceof Error) {
+            return err.message;
+        }
+        if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
+            return err.message;
+        }
+        try {
+            return JSON.stringify(err, null, 2);
+        } catch {
+            return 'Setup failed.';
+        }
+    }, []);
+
     const updateStep = useCallback(
         (step: string, status: StepStatus, message?: string | null) => {
             setStepState((prev) => ({
@@ -181,7 +198,7 @@ export default function SetupPage() {
             }
             markInstalled('Setup complete. Ready to continue.');
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Setup failed.';
+            const message = getErrorMessage(err);
             setError(message);
             setIsRunning(false);
             appendLog(message);
@@ -246,7 +263,9 @@ export default function SetupPage() {
                             </div>
 
                             {error && (
-                                <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>
+                                <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                                    <pre className="overflow-x-auto whitespace-pre-wrap break-words font-sans">{error}</pre>
+                                </div>
                             )}
 
                             <div className="flex flex-wrap items-center justify-start gap-4">
@@ -308,7 +327,7 @@ export default function SetupPage() {
                                                 key={`${line}-${index}`}
                                                 className="rounded-md border border-slate-800/80 bg-slate-950/70 px-3 py-2 text-slate-200"
                                             >
-                                                {line}
+                                                <pre className="whitespace-pre-wrap break-words font-sans">{line}</pre>
                                             </div>
                                         ))}
                                     </div>
