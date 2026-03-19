@@ -182,7 +182,7 @@ impl LocalSetupService {
 
     pub fn check_lerobot_update(app_handle: &AppHandle) -> Result<LerobotUpdateStatus, String> {
         let latest_commit = Self::fetch_latest_lerobot_commit()?;
-        let current_commit = Self::read_current_lerobot_commit(app_handle);
+        let current_commit = Self::resolve_current_lerobot_commit(app_handle);
         let up_to_date = match (&current_commit, &latest_commit) {
             (Some(current), Some(latest)) => current == latest,
             (None, Some(_)) => false,
@@ -567,12 +567,46 @@ impl LocalSetupService {
         Ok(())
     }
 
-    fn read_current_lerobot_commit(app_handle: &AppHandle) -> Option<String> {
+    fn resolve_current_lerobot_commit(app_handle: &AppHandle) -> Option<String> {
+        Self::read_current_lerobot_git_commit(app_handle)
+            .or_else(|| Self::read_current_lerobot_commit_marker(app_handle))
+    }
+
+    fn read_current_lerobot_commit_marker(app_handle: &AppHandle) -> Option<String> {
         let app_data_dir = app_handle.path().app_data_dir().ok()?;
         let marker_path = app_data_dir.join("setup").join("lerobot_vulcan_commit.json");
         let contents = fs::read_to_string(marker_path).ok()?;
         let marker: LerobotCommitMarker = serde_json::from_str(&contents).ok()?;
         Some(marker.commit)
+    }
+
+    fn read_current_lerobot_git_commit(app_handle: &AppHandle) -> Option<String> {
+        let lerobot_dir = if BuildService::is_dev_mode() {
+            DirectoryService::get_current_dir_dev().ok()?.join("modules").join("lerobot-vulcan")
+        } else {
+            let app_data_dir = app_handle.path().app_data_dir().ok()?;
+            app_data_dir.join("modules").join("lerobot-vulcan")
+        };
+
+        if !lerobot_dir.exists() {
+            return None;
+        }
+
+        let output = Command::new("git")
+            .args(["rev-parse", "HEAD"])
+            .current_dir(&lerobot_dir)
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+
+        let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if commit.is_empty() {
+            None
+        } else {
+            Some(commit)
+        }
     }
 
     fn reinstall_dependencies(

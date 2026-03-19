@@ -54,11 +54,8 @@ impl KioskUpdateService {
         let mut lerobot_update_available = false;
 
         if lerobot_dir.exists() {
-            let branch = Self::submodule_branch(&repo_root, "modules/lerobot-vulcan").unwrap_or_else(|| "main".to_string());
-            let remote_ref = format!("origin/{}", branch);
-            let _ = Self::run_command("git", &["fetch", "--prune"], &lerobot_dir, "git fetch (lerobot)");
             lerobot_current = Self::run_command_output("git", &["rev-parse", "HEAD"], &lerobot_dir).ok();
-            lerobot_remote = Self::run_command_output("git", &["rev-parse", remote_ref.as_str()], &lerobot_dir).ok();
+            lerobot_remote = Self::resolve_target_submodule_commit(&repo_root, update_ref.as_str(), "modules/lerobot-vulcan");
             lerobot_update_available = match (&lerobot_current, &lerobot_remote) {
                 (Some(current), Some(remote)) => current != remote,
                 _ => false,
@@ -270,22 +267,9 @@ impl KioskUpdateService {
         Ok(value)
     }
 
-    fn submodule_branch(repo_root: &Path, submodule_path: &str) -> Option<String> {
-        let key = format!("submodule.{}.branch", submodule_path);
-        let output = Command::new("git")
-            .args(["config", "-f", ".gitmodules", "--get", key.as_str()])
-            .current_dir(repo_root)
-            .output()
-            .ok()?;
-        if !output.status.success() {
-            return None;
-        }
-        let value = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        if value.is_empty() {
-            None
-        } else {
-            Some(value)
-        }
+    fn resolve_target_submodule_commit(repo_root: &Path, update_ref: &str, submodule_path: &str) -> Option<String> {
+        let rev_spec = format!("{}:{}", update_ref, submodule_path);
+        Self::run_command_output("git", &["rev-parse", rev_spec.as_str()], repo_root).ok()
     }
 
     fn emit_step(emit: Option<&dyn Fn(SetupProgress)>, step: &str, status: &str, message: Option<String>) {
