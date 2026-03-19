@@ -18,9 +18,8 @@ import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiMod
 import { useRobotStatus } from '@/context/robot-status-context';
 import { CredentialsModal } from '@/components/Elements/Modals/KioskRobotModals/CredentialsModal';
 import { RobotStatusModal } from '@/components/Elements/Modals/KioskRobotModals/RobotStatusModal';
-import { type BatteryData } from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
 import { exit } from '@tauri-apps/plugin-process';
-import { setSystemInfo, useGetSystemInfo } from '@/hooks/System/system-info.hook';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
 
@@ -101,8 +100,8 @@ export const KioskTopNavbar = () => {
         }
     };
 
-    const batteryPercent = systemInfo.batteryData.state_of_charge >= 0 ? systemInfo.batteryData.state_of_charge : 0;
-    const batteryPercentString = systemInfo.batteryData.state_of_charge >= 0 ? `${batteryPercent}%` : 'Off';
+    const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
+    const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
     const isCharging = systemInfo.batteryData.current_a > 0.05;
 
     const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';

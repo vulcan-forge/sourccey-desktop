@@ -14,7 +14,7 @@ import {
     FaBatteryEmpty,
     FaBatteryThreeQuarters,
 } from 'react-icons/fa';
-import type { SystemInfo } from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, type SystemInfo } from '@/hooks/System/system-info.hook';
 interface RobotStatusModalProps {
     isOpen: boolean;
     onClose: () => void;
@@ -85,8 +85,8 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
         }
     };
 
-    const batteryPercent = systemInfo.batteryData.state_of_charge >= 0 ? systemInfo.batteryData.state_of_charge : 0;
-    const batteryPercentString = systemInfo.batteryData.state_of_charge >= 0 ? `${batteryPercent}%` : 'Off';
+    const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
+    const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
     const isCharging = systemInfo.batteryData.current_a > 0.05;
 
     return (

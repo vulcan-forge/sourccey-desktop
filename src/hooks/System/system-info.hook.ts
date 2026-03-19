@@ -17,8 +17,40 @@ export interface BatteryData {
     remaining_capacity_ah: number;
     max_capacity_ah: number;
     state_of_charge: number;
+    max_error: number;
     error?: string | null;
 }
+
+const BATTERY_VOLTAGE_MIN = 11.5;
+const BATTERY_VOLTAGE_MAX = 13.6;
+const MAX_ERROR_VOLTAGE_FALLBACK_THRESHOLD = 80;
+
+const clampBatteryPercent = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
+
+const calculateVoltageScaledPercent = (voltage: number) => {
+    const scaled = ((voltage - BATTERY_VOLTAGE_MIN) / (BATTERY_VOLTAGE_MAX - BATTERY_VOLTAGE_MIN)) * 100;
+    return clampBatteryPercent(scaled);
+};
+
+export const calculateBatteryPercent = (batteryData: BatteryData): number => {
+    const hasVoltage = Number.isFinite(batteryData.voltage) && batteryData.voltage >= 0;
+    const hasSoc = Number.isFinite(batteryData.state_of_charge) && batteryData.state_of_charge >= 0;
+    const hasMaxError = Number.isFinite(batteryData.max_error) && batteryData.max_error >= 0;
+
+    if (hasMaxError && batteryData.max_error > MAX_ERROR_VOLTAGE_FALLBACK_THRESHOLD && hasVoltage) {
+        return calculateVoltageScaledPercent(batteryData.voltage);
+    }
+
+    if (hasSoc) {
+        return clampBatteryPercent(batteryData.state_of_charge);
+    }
+
+    if (hasVoltage) {
+        return calculateVoltageScaledPercent(batteryData.voltage);
+    }
+
+    return -1;
+};
 
 //---------------------------------------------------------------------------------------------------//
 // System Info Functions
@@ -39,6 +71,7 @@ const DEFAULT_BATTERY_DATA: BatteryData = {
     remaining_capacity_ah: -1,
     max_capacity_ah: -1,
     state_of_charge: -1,
+    max_error: -1,
     error: null,
 };
 

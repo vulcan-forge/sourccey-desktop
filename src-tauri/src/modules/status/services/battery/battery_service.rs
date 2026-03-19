@@ -18,6 +18,8 @@ pub struct BatteryData {
     pub max_capacity_ah: f64,
     pub state_of_charge: i32,
     #[serde(default)]
+    pub max_error: i32,
+    #[serde(default)]
     pub error: Option<String>,
 }
 
