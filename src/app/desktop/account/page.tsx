@@ -8,7 +8,7 @@ import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/u
 import { getReCaptchaSiteKey, getReCaptchaToken } from '@/utils/recaptcha';
 import { useMutation } from '@tanstack/react-query';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import { FaEye, FaEyeSlash, FaGithub, FaGoogle, FaSignOutAlt } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { ClientError } from 'graphql-request';
@@ -68,7 +68,7 @@ const getReadableGraphQLError = (error: unknown) => {
     return 'Login failed.';
 };
 
-export default function AccountPage() {
+function AccountPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { data: authSession } = useAuthSession();
@@ -366,5 +366,24 @@ export default function AccountPage() {
                 )}
             </div>
         </div>
+    );
+}
+
+const AccountPageFallback = () => (
+    <div className="min-h-screen bg-slate-900/30">
+        <div className="container mx-auto flex max-w-5xl flex-col gap-8 px-8 py-10">
+            <div className="rounded-2xl border border-slate-700 bg-slate-900 p-7 shadow-2xl">
+                <div className="h-6 w-56 animate-pulse rounded bg-slate-700" />
+                <div className="mt-3 h-4 w-72 animate-pulse rounded bg-slate-800" />
+            </div>
+        </div>
+    </div>
+);
+
+export default function AccountPage() {
+    return (
+        <Suspense fallback={<AccountPageFallback />}>
+            <AccountPageContent />
+        </Suspense>
     );
 }
