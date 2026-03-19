@@ -11,7 +11,7 @@ import {
     FaNetworkWired,
     FaBatteryThreeQuarters,
 } from 'react-icons/fa';
-import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
 
 export const HomeWelcome = () => {
     const nickname = 'sourccey';
@@ -57,10 +57,10 @@ export const HomeWelcome = () => {
         return 'text-red-400';
     };
 
-    const batteryPercent = systemInfo.batteryData.state_of_charge >= 0 ? systemInfo.batteryData.state_of_charge : 0;
+    const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
     const BatteryIcon = getBatteryIcon(batteryPercent);
     const BatteryColor = getBatteryColor(batteryPercent);
-    const batteryPercentString = systemInfo.batteryData.state_of_charge >= 0 ? `${batteryPercent}%` : 'Off';
+    const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
 
     return (
         <>
