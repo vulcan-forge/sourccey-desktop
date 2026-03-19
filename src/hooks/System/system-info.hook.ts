@@ -21,6 +21,8 @@ export interface BatteryData {
     error?: string | null;
 }
 
+export type BatteryLevelStep = 0 | 25 | 50 | 75 | 100;
+
 const BATTERY_VOLTAGE_MIN = 11.5;
 const BATTERY_VOLTAGE_MAX = 13.6;
 const MAX_ERROR_VOLTAGE_FALLBACK_THRESHOLD = 80;
@@ -50,6 +52,26 @@ export const calculateBatteryPercent = (batteryData: BatteryData): number => {
     }
 
     return -1;
+};
+
+export const getBatteryLevelStep = (percent: number): BatteryLevelStep => {
+    if (!Number.isFinite(percent) || percent < 10) {
+        return 0;
+    }
+
+    if (percent < 25) {
+        return 25;
+    }
+
+    if (percent < 50) {
+        return 50;
+    }
+
+    if (percent < 75) {
+        return 75;
+    }
+
+    return 100;
 };
 
 //---------------------------------------------------------------------------------------------------//

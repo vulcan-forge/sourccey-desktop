@@ -11,7 +11,7 @@ import {
     FaNetworkWired,
     FaBatteryThreeQuarters,
 } from 'react-icons/fa';
-import { calculateBatteryPercent, setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, getBatteryLevelStep, setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
 
 export const HomeWelcome = () => {
     const nickname = 'sourccey';
@@ -43,17 +43,17 @@ export const HomeWelcome = () => {
 
     // Get battery icon based on percentage
     const getBatteryIcon = (percent: number) => {
-        if (percent >= 75) return FaBatteryFull;
-        if (percent >= 50) return FaBatteryThreeQuarters;
-        if (percent >= 25) return FaBatteryHalf;
-        if (percent >= 5) return FaBatteryQuarter;
+        const level = getBatteryLevelStep(percent);
+        if (level === 100) return FaBatteryFull;
+        if (level === 75) return FaBatteryThreeQuarters;
+        if (level === 50) return FaBatteryHalf;
+        if (level === 25) return FaBatteryQuarter;
         return FaBatteryEmpty;
     };
 
     const getBatteryColor = (percent: number) => {
         if (percent > 75) return 'text-green-400';
-        if (percent > 25) return 'text-slate-300';
-        if (percent > 10) return 'text-yellow-400';
+        if (percent >= 10) return 'text-white';
         return 'text-red-400';
     };
 
