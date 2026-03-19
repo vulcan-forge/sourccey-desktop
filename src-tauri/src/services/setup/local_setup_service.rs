@@ -8,6 +8,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::services::directory::directory_service::DirectoryService;
 use crate::services::environment::build_service::BuildService;
+use crate::services::log::log_service::LogService;
 
 pub struct LocalSetupService;
 
@@ -62,6 +63,7 @@ struct LerobotCommitMarker {
 impl LocalSetupService {
     const DEFAULT_LEROBOT_ZIP_URL: &str = "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
     const DEFAULT_UPDATER_URL: &str = "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/latest.json";
+    const REQUIRED_PYTHON_VERSION: &str = "3.12";
     #[allow(dead_code)]
     pub fn maybe_start(app_handle: AppHandle, kiosk: bool) {
         if kiosk || BuildService::is_dev_mode() {
@@ -172,7 +174,11 @@ impl LocalSetupService {
                 return Self::reinstall_dependencies(app_handle, Some(&emit));
             }
         }
-        Self::ensure_installed(app_handle, Some(&emit), false)
+        if let Err(error) = Self::ensure_installed(app_handle, Some(&emit), false) {
+            Self::write_setup_log(app_handle, &error);
+            return Err(error);
+        }
+        Ok(())
     }
 
     pub fn check_lerobot_update(app_handle: &AppHandle) -> Result<LerobotUpdateStatus, String> {
@@ -245,7 +251,11 @@ impl LocalSetupService {
             Some("Reset complete. Reinstalling modules.".to_string()),
         );
 
-        Self::ensure_installed(app_handle, Some(&emit), false)
+        if let Err(error) = Self::ensure_installed(app_handle, Some(&emit), false) {
+            Self::write_setup_log(app_handle, &error);
+            return Err(error);
+        }
+        Ok(())
     }
 
     pub fn run_desktop_extras(app_handle: &AppHandle) -> Result<(), String> {
@@ -434,8 +444,16 @@ impl LocalSetupService {
         })?;
         Self::emit_step(emit, "uv", "success", None);
 
-        Self::emit_step(emit, "venv", "started", Some("Creating virtual environment".to_string()));
-        Self::run_command(&uv_target, &["venv", "--clear"], &lerobot_dir, "uv venv").map_err(|e| {
+        Self::emit_step(
+            emit,
+            "venv",
+            "started",
+            Some(format!(
+                "Creating virtual environment with Python {}",
+                Self::REQUIRED_PYTHON_VERSION
+            )),
+        );
+        Self::run_python_venv_command(&uv_target, &lerobot_dir).map_err(|e| {
             Self::emit_step(emit, "venv", "error", Some(e.clone()));
             e
         })?;
@@ -492,8 +510,9 @@ impl LocalSetupService {
                 "compile protobuf",
             )
             .map_err(|e| {
-                Self::emit_step(emit, "protobuf", "error", Some(e.clone()));
-                e
+                let formatted = Self::format_protobuf_error(&e);
+                Self::emit_step(emit, "protobuf", "error", Some(formatted.clone()));
+                formatted
             })?;
             Self::emit_step(emit, "protobuf", "success", None);
         } else {
@@ -613,7 +632,10 @@ impl LocalSetupService {
             emit,
             "venv",
             "success",
-            Some("Using existing virtual environment".to_string()),
+            Some(format!(
+                "Using existing virtual environment (Python {})",
+                Self::REQUIRED_PYTHON_VERSION
+            )),
         );
 
         Self::emit_step(emit, "deps", "started", Some("Reinstalling dependencies".to_string()));
@@ -667,8 +689,9 @@ impl LocalSetupService {
                 "compile protobuf",
             )
             .map_err(|e| {
-                Self::emit_step(emit, "protobuf", "error", Some(e.clone()));
-                e
+                let formatted = Self::format_protobuf_error(&e);
+                Self::emit_step(emit, "protobuf", "error", Some(formatted.clone()));
+                formatted
             })?;
             Self::emit_step(emit, "protobuf", "success", None);
         } else {
@@ -707,6 +730,8 @@ impl LocalSetupService {
         let output = Command::new(exe)
             .args(args)
             .current_dir(working_dir)
+            .env("PYTHONIOENCODING", "utf-8")
+            .env("PYTHONUTF8", "1")
             .output()
             .map_err(|e| format!("Failed to run {}: {}", label, e))?;
 
@@ -727,6 +752,38 @@ impl LocalSetupService {
         }
 
         Ok(())
+    }
+
+    fn run_python_venv_command(uv_target: &Path, working_dir: &Path) -> Result<(), String> {
+        Self::run_command(
+            uv_target,
+            &["venv", "--python", Self::REQUIRED_PYTHON_VERSION, "--clear"],
+            working_dir,
+            "uv venv",
+        )
+        .map_err(|e| {
+            if e.contains("No interpreter found")
+                || e.contains("No Python")
+                || e.contains("Failed to find")
+                || e.contains("not found")
+            {
+                format!(
+                    "Creating the runtime environment requires Python {}. Install Python {} and rerun setup.\n\n{}",
+                    Self::REQUIRED_PYTHON_VERSION,
+                    Self::REQUIRED_PYTHON_VERSION,
+                    e
+                )
+            } else {
+                e
+            }
+        })
+    }
+
+    fn format_protobuf_error(error: &str) -> String {
+        format!(
+            "Compile protobuf failed.\n\nCompiler output:\n{}",
+            error.trim()
+        )
     }
 
     fn python_can_import(python_path: &Path, module: &str) -> bool {
@@ -1010,6 +1067,16 @@ impl LocalSetupService {
                 status: status.to_string(),
                 message,
             });
+        }
+    }
+
+    fn write_setup_log(app_handle: &AppHandle, message: &str) {
+        if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+            let log_dir = app_data_dir.join("logs");
+            if fs::create_dir_all(&log_dir).is_ok() {
+                let log_path = log_dir.join("setup.log");
+                LogService::write_log_line(log_path.to_string_lossy().as_ref(), Some("setup"), message);
+            }
         }
     }
 }
