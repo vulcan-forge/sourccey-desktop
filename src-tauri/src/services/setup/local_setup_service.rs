@@ -63,7 +63,6 @@ struct LerobotCommitMarker {
 impl LocalSetupService {
     const DEFAULT_LEROBOT_ZIP_URL: &str = "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
     const DEFAULT_UPDATER_URL: &str = "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/latest.json";
-    const REQUIRED_PYTHON_VERSION: &str = "3.12";
     #[allow(dead_code)]
     pub fn maybe_start(app_handle: AppHandle, kiosk: bool) {
         if kiosk || BuildService::is_dev_mode() {
@@ -444,16 +443,8 @@ impl LocalSetupService {
         })?;
         Self::emit_step(emit, "uv", "success", None);
 
-        Self::emit_step(
-            emit,
-            "venv",
-            "started",
-            Some(format!(
-                "Creating virtual environment with Python {}",
-                Self::REQUIRED_PYTHON_VERSION
-            )),
-        );
-        Self::run_python_venv_command(&uv_target, &lerobot_dir).map_err(|e| {
+        Self::emit_step(emit, "venv", "started", Some("Creating virtual environment".to_string()));
+        Self::run_command(&uv_target, &["venv", "--clear"], &lerobot_dir, "uv venv").map_err(|e| {
             Self::emit_step(emit, "venv", "error", Some(e.clone()));
             e
         })?;
@@ -632,10 +623,7 @@ impl LocalSetupService {
             emit,
             "venv",
             "success",
-            Some(format!(
-                "Using existing virtual environment (Python {})",
-                Self::REQUIRED_PYTHON_VERSION
-            )),
+            Some("Using existing virtual environment".to_string()),
         );
 
         Self::emit_step(emit, "deps", "started", Some("Reinstalling dependencies".to_string()));
@@ -752,31 +740,6 @@ impl LocalSetupService {
         }
 
         Ok(())
-    }
-
-    fn run_python_venv_command(uv_target: &Path, working_dir: &Path) -> Result<(), String> {
-        Self::run_command(
-            uv_target,
-            &["venv", "--python", Self::REQUIRED_PYTHON_VERSION, "--clear"],
-            working_dir,
-            "uv venv",
-        )
-        .map_err(|e| {
-            if e.contains("No interpreter found")
-                || e.contains("No Python")
-                || e.contains("Failed to find")
-                || e.contains("not found")
-            {
-                format!(
-                    "Creating the runtime environment requires Python {}. Install Python {} and rerun setup.\n\n{}",
-                    Self::REQUIRED_PYTHON_VERSION,
-                    Self::REQUIRED_PYTHON_VERSION,
-                    e
-                )
-            } else {
-                e
-            }
-        })
     }
 
     fn format_protobuf_error(error: &str) -> String {
