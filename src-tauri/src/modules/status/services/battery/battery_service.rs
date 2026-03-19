@@ -10,9 +10,15 @@ use crate::services::environment::env_service::EnvService;
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct BatteryData {
     pub voltage: f64,
-    pub percent: i32,
     #[serde(default)]
-    pub charging: bool,
+    pub current_a: f64,
+    #[serde(default)]
+    pub remaining_capacity_ah: f64,
+    #[serde(default)]
+    pub max_capacity_ah: f64,
+    pub state_of_charge: i32,
+    #[serde(default)]
+    pub error: Option<String>,
 }
 
 pub struct BatteryService;

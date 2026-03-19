@@ -68,8 +68,8 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
         }
     };
 
-    const getBatteryIcon = (percent: number, charging?: boolean) => {
-        if (charging) {
+    const getBatteryIcon = (percent: number, isCharging: boolean) => {
+        if (isCharging) {
             return <FaBolt className="h-5 w-5" />;
         }
         if (percent > 75) {
@@ -85,8 +85,9 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
         }
     };
 
-    const batteryPercent = systemInfo.batteryData.percent >= 0 ? systemInfo.batteryData.percent : 0;
-    const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
+    const batteryPercent = systemInfo.batteryData.state_of_charge >= 0 ? systemInfo.batteryData.state_of_charge : 0;
+    const batteryPercentString = systemInfo.batteryData.state_of_charge >= 0 ? `${batteryPercent}%` : 'Off';
+    const isCharging = systemInfo.batteryData.current_a > 0.05;
 
     return (
         typeof window !== 'undefined' &&
@@ -146,7 +147,7 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
 
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                             <div className="flex items-center gap-3">
-                                <div className="text-slate-400">{getBatteryIcon(batteryPercent, systemInfo.batteryData.charging)}</div>
+                                <div className="text-slate-400">{getBatteryIcon(batteryPercent, isCharging)}</div>
                                 <span className="text-sm font-medium text-slate-300">Battery Life</span>
                             </div>
                             <div className="flex flex-col items-end gap-1">

@@ -13,8 +13,11 @@ export interface SystemInfo {
 
 export interface BatteryData {
     voltage: number;
-    percent: number;
-    charging: boolean;
+    current_a: number;
+    remaining_capacity_ah: number;
+    max_capacity_ah: number;
+    state_of_charge: number;
+    error?: string | null;
 }
 
 //---------------------------------------------------------------------------------------------------//
@@ -32,8 +35,11 @@ export const useGetSystemInfo = () =>
 
 const DEFAULT_BATTERY_DATA: BatteryData = {
     voltage: -1,
-    percent: -1,
-    charging: false,
+    current_a: -1,
+    remaining_capacity_ah: -1,
+    max_capacity_ah: -1,
+    state_of_charge: -1,
+    error: null,
 };
 
 const DEFAULT_SYSTEM_INFO: SystemInfo = {
