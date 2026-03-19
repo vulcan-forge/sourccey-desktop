@@ -57,10 +57,10 @@ export const HomeWelcome = () => {
         return 'text-red-400';
     };
 
-    const BatteryIcon = getBatteryIcon(systemInfo.batteryData.percent);
-    const BatteryColor = getBatteryColor(systemInfo.batteryData.percent);
-    const batteryPercent = systemInfo.batteryData.percent >= 0 ? systemInfo.batteryData.percent : 0;
-    const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
+    const batteryPercent = systemInfo.batteryData.state_of_charge >= 0 ? systemInfo.batteryData.state_of_charge : 0;
+    const BatteryIcon = getBatteryIcon(batteryPercent);
+    const BatteryColor = getBatteryColor(batteryPercent);
+    const batteryPercentString = systemInfo.batteryData.state_of_charge >= 0 ? `${batteryPercent}%` : 'Off';
 
     return (
         <>

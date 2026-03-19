@@ -83,8 +83,8 @@ export const KioskTopNavbar = () => {
         }
     };
 
-    const getBatteryIcon = (percent: number, charging?: boolean) => {
-        if (charging) {
+    const getBatteryIcon = (percent: number, isCharging: boolean) => {
+        if (isCharging) {
             return <FaBolt className="h-5 w-5" />;
         }
 
@@ -101,8 +101,9 @@ export const KioskTopNavbar = () => {
         }
     };
 
-    const batteryPercent = systemInfo.batteryData.percent >= 0 ? systemInfo.batteryData.percent : 0;
-    const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
+    const batteryPercent = systemInfo.batteryData.state_of_charge >= 0 ? systemInfo.batteryData.state_of_charge : 0;
+    const batteryPercentString = systemInfo.batteryData.state_of_charge >= 0 ? `${batteryPercent}%` : 'Off';
+    const isCharging = systemInfo.batteryData.current_a > 0.05;
 
     const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
     return (
@@ -170,7 +171,7 @@ export const KioskTopNavbar = () => {
                             }`}
                             title={isStatusModalOpen ? 'Close Robot Status' : 'View Robot Status'}
                         >
-                            {getBatteryIcon(batteryPercent, systemInfo.batteryData.charging)}
+                            {getBatteryIcon(batteryPercent, isCharging)}
                             <span className="font-semibold">{batteryPercentString}</span>
                         </button>
 
