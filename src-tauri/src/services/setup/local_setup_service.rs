@@ -8,6 +8,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
 use crate::services::directory::directory_service::DirectoryService;
 use crate::services::environment::build_service::BuildService;
+use crate::services::log::log_service::LogService;
 
 pub struct LocalSetupService;
 
@@ -172,7 +173,11 @@ impl LocalSetupService {
                 return Self::reinstall_dependencies(app_handle, Some(&emit));
             }
         }
-        Self::ensure_installed(app_handle, Some(&emit), false)
+        if let Err(error) = Self::ensure_installed(app_handle, Some(&emit), false) {
+            Self::write_setup_log(app_handle, &error);
+            return Err(error);
+        }
+        Ok(())
     }
 
     pub fn check_lerobot_update(app_handle: &AppHandle) -> Result<LerobotUpdateStatus, String> {
@@ -245,7 +250,11 @@ impl LocalSetupService {
             Some("Reset complete. Reinstalling modules.".to_string()),
         );
 
-        Self::ensure_installed(app_handle, Some(&emit), false)
+        if let Err(error) = Self::ensure_installed(app_handle, Some(&emit), false) {
+            Self::write_setup_log(app_handle, &error);
+            return Err(error);
+        }
+        Ok(())
     }
 
     pub fn run_desktop_extras(app_handle: &AppHandle) -> Result<(), String> {
@@ -492,8 +501,9 @@ impl LocalSetupService {
                 "compile protobuf",
             )
             .map_err(|e| {
-                Self::emit_step(emit, "protobuf", "error", Some(e.clone()));
-                e
+                let formatted = Self::format_protobuf_error(&e);
+                Self::emit_step(emit, "protobuf", "error", Some(formatted.clone()));
+                formatted
             })?;
             Self::emit_step(emit, "protobuf", "success", None);
         } else {
@@ -667,8 +677,9 @@ impl LocalSetupService {
                 "compile protobuf",
             )
             .map_err(|e| {
-                Self::emit_step(emit, "protobuf", "error", Some(e.clone()));
-                e
+                let formatted = Self::format_protobuf_error(&e);
+                Self::emit_step(emit, "protobuf", "error", Some(formatted.clone()));
+                formatted
             })?;
             Self::emit_step(emit, "protobuf", "success", None);
         } else {
@@ -707,6 +718,8 @@ impl LocalSetupService {
         let output = Command::new(exe)
             .args(args)
             .current_dir(working_dir)
+            .env("PYTHONIOENCODING", "utf-8")
+            .env("PYTHONUTF8", "1")
             .output()
             .map_err(|e| format!("Failed to run {}: {}", label, e))?;
 
@@ -727,6 +740,13 @@ impl LocalSetupService {
         }
 
         Ok(())
+    }
+
+    fn format_protobuf_error(error: &str) -> String {
+        format!(
+            "Compile protobuf failed.\n\nCompiler output:\n{}",
+            error.trim()
+        )
     }
 
     fn python_can_import(python_path: &Path, module: &str) -> bool {
@@ -1010,6 +1030,16 @@ impl LocalSetupService {
                 status: status.to_string(),
                 message,
             });
+        }
+    }
+
+    fn write_setup_log(app_handle: &AppHandle, message: &str) {
+        if let Ok(app_data_dir) = app_handle.path().app_data_dir() {
+            let log_dir = app_data_dir.join("logs");
+            if fs::create_dir_all(&log_dir).is_ok() {
+                let log_path = log_dir.join("setup.log");
+                LogService::write_log_line(log_path.to_string_lossy().as_ref(), Some("setup"), message);
+            }
         }
     }
 }
