@@ -7,7 +7,6 @@ import {
     FaBatteryFull,
     FaBatteryHalf,
     FaBatteryQuarter,
-    FaBolt,
     FaWindowClose,
     FaBatteryEmpty,
     FaBatteryThreeQuarters,
@@ -18,7 +17,7 @@ import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiMod
 import { useRobotStatus } from '@/context/robot-status-context';
 import { CredentialsModal } from '@/components/Elements/Modals/KioskRobotModals/CredentialsModal';
 import { RobotStatusModal } from '@/components/Elements/Modals/KioskRobotModals/RobotStatusModal';
-import { calculateBatteryPercent, setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, getBatteryLevelStep, setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
 import { exit } from '@tauri-apps/plugin-process';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
@@ -73,36 +72,24 @@ export const KioskTopNavbar = () => {
     const getBatteryStyles = (percent: number) => {
         if (percent > 75) {
             return 'bg-slate-600/60 text-green-400 hover:bg-slate-600/80 hover:text-green-300';
-        } else if (percent > 25) {
-            return 'bg-slate-600/60 text-slate-300 hover:bg-slate-600/80 hover:text-white';
-        } else if (percent > 10) {
-            return 'bg-slate-600/60 text-yellow-400 hover:bg-slate-600/80 hover:text-yellow-300';
+        } else if (percent >= 10) {
+            return 'bg-slate-600/60 text-white hover:bg-slate-600/80 hover:text-white';
         } else {
             return 'bg-slate-600/60 text-red-400 hover:bg-slate-600/80 hover:text-red-300';
         }
     };
 
-    const getBatteryIcon = (percent: number, isCharging: boolean) => {
-        if (isCharging) {
-            return <FaBolt className="h-5 w-5" />;
-        }
-
-        if (percent > 75) {
-            return <FaBatteryFull className="h-5 w-5" />;
-        } else if (percent > 50) {
-            return <FaBatteryThreeQuarters className="h-5 w-5" />;
-        } else if (percent > 25) {
-            return <FaBatteryHalf className="h-5 w-5" />;
-        } else if (percent > 5) {
-            return <FaBatteryQuarter className="h-5 w-5" />;
-        } else {
-            return <FaBatteryEmpty className="h-5 w-5" />;
-        }
+    const getBatteryIcon = (percent: number) => {
+        const level = getBatteryLevelStep(percent);
+        if (level === 100) return <FaBatteryFull className="h-5 w-5" />;
+        if (level === 75) return <FaBatteryThreeQuarters className="h-5 w-5" />;
+        if (level === 50) return <FaBatteryHalf className="h-5 w-5" />;
+        if (level === 25) return <FaBatteryQuarter className="h-5 w-5" />;
+        return <FaBatteryEmpty className="h-5 w-5" />;
     };
 
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
-    const isCharging = systemInfo.batteryData.current_a > 0.05;
 
     const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
     return (
@@ -170,7 +157,7 @@ export const KioskTopNavbar = () => {
                             }`}
                             title={isStatusModalOpen ? 'Close Robot Status' : 'View Robot Status'}
                         >
-                            {getBatteryIcon(batteryPercent, isCharging)}
+                            {getBatteryIcon(batteryPercent)}
                             <span className="font-semibold">{batteryPercentString}</span>
                         </button>
 
