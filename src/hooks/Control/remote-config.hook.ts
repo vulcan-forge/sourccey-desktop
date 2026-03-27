@@ -1,4 +1,4 @@
-import type { RemoteConfig } from '@/components/PageComponents/Robots/Config/RemoteRobotConfig';
+import type { RemoteConfig } from '@/types/remote-config';
 import { queryClient } from '@/hooks/default';
 import { getPairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
 import { useQuery } from '@tanstack/react-query';

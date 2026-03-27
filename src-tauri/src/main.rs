@@ -31,16 +31,6 @@ use modules::robot::controllers::owned_robot_controller::{
 use modules::robot::controllers::robot_controller::{get_all_robots, get_robot_by_id, upsert_robot_template};
 
 // Import Robotics Control Modules
-use modules::control::controllers::communication::ssh_controller::{
-    init_ssh,
-    init_robot_processes,
-    connect,
-    disconnect,
-    is_connected,
-    start_robot,
-    stop_robot,
-    is_robot_started
-};
 use modules::control::controllers::configuration::configuration_controller::{
     detect_config, read_config, read_remote_config, write_config, write_remote_config,
 };
@@ -346,8 +336,6 @@ fn main() {
             }
         })
         // Initialize all services
-        .manage(init_ssh())
-        .manage(init_robot_processes())
         .manage(init_teleop())
         .manage(init_remote_teleop())
         .manage(init_remote_inference())
@@ -383,14 +371,6 @@ fn main() {
             //----------------------------------------------------------//
             // Control Functionality
             //----------------------------------------------------------//
-
-            // Control API SSH
-            connect,
-            disconnect,
-            is_connected,
-            start_robot,
-            stop_robot,
-            is_robot_started,
 
             // Configuration
             read_config,
