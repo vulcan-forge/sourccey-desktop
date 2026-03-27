@@ -20,6 +20,12 @@ export type KioskStopRobotErrorPayload = {
   error: string;
 };
 
+export type KioskManualDriveShutdownPayload = {
+  nickname: string;
+  exit_code: number | null;
+  message: string;
+};
+
 type Unlisten = () => void;
 
 class KioskEventManager {
@@ -29,6 +35,7 @@ class KioskEventManager {
   private listenStartRobotHandlers = new Set<(p: KioskStartRobotSuccessPayload) => void>();
   private listenStopRobotHandlers = new Set<(p: KioskStopRobotSuccessPayload) => void>();
   private listenStopRobotErrorHandlers = new Set<(p: KioskStopRobotErrorPayload) => void>();
+  private manualDriveShutdownHandlers = new Set<(p: KioskManualDriveShutdownPayload) => void>();
   private hostLogHandlers = new Set<(line: string) => void>();
 
   constructor() {
@@ -55,12 +62,16 @@ class KioskEventManager {
         for (const h of this.listenStopRobotErrorHandlers) h(event.payload);
       });
 
+      const unlistenManualDriveShutdown = await listen<KioskManualDriveShutdownPayload>('kiosk-manual-drive-shutdown', (event) => {
+        for (const h of this.manualDriveShutdownHandlers) h(event.payload);
+      });
+
       const unlistenLog = await listen<string>('kiosk-host-log', (event) => {
         const line = typeof event.payload === 'string' ? event.payload : String(event.payload);
         for (const h of this.hostLogHandlers) h(line);
       });
 
-      this.unlistenFns.push(unlistenStartRobot, unlistenStopRobot, unlistenStopRobotError, unlistenLog);
+      this.unlistenFns.push(unlistenStartRobot, unlistenStopRobot, unlistenStopRobotError, unlistenManualDriveShutdown, unlistenLog);
     } catch (e) {
       // If listeners fail, allow retry by reloading; keep simple for now
       console.error('Failed to setup kiosk event listeners:', e);
@@ -92,6 +103,11 @@ class KioskEventManager {
   listenStopRobotError(handler: (p: KioskStopRobotErrorPayload) => void): Unlisten {
     this.listenStopRobotErrorHandlers.add(handler);
     return () => this.listenStopRobotErrorHandlers.delete(handler);
+  }
+
+  listenManualDriveShutdown(handler: (p: KioskManualDriveShutdownPayload) => void): Unlisten {
+    this.manualDriveShutdownHandlers.add(handler);
+    return () => this.manualDriveShutdownHandlers.delete(handler);
   }
 
   listenHostLog(handler: (line: string) => void): Unlisten {
