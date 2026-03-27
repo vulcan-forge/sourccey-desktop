@@ -1,8 +1,9 @@
 use std::fs;
-use std::io::{self};
+use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
@@ -62,6 +63,8 @@ struct LerobotCommitMarker {
 
 impl LocalSetupService {
     const DEFAULT_LEROBOT_ZIP_URL: &str = "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
+    const DEFAULT_LEROBOT_ZIP_SHA256_URL: &str =
+        "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip.sha256";
     const DEFAULT_UPDATER_URL: &str = "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/latest.json";
     #[allow(dead_code)]
     pub fn maybe_start(app_handle: AppHandle, kiosk: bool) {
@@ -406,6 +409,22 @@ impl LocalSetupService {
                 e
             })?;
             Self::emit_step(emit, "download", "success", None);
+
+            Self::emit_step(
+                emit,
+                "verify",
+                "started",
+                Some("Verifying lerobot-vulcan archive integrity".to_string()),
+            );
+            let expected_sha256 = Self::resolve_lerobot_zip_sha256(&zip_url).map_err(|e| {
+                Self::emit_step(emit, "verify", "error", Some(e.clone()));
+                e
+            })?;
+            Self::verify_file_sha256(&zip_path, &expected_sha256).map_err(|e| {
+                Self::emit_step(emit, "verify", "error", Some(e.clone()));
+                e
+            })?;
+            Self::emit_step(emit, "verify", "success", None);
 
             Self::emit_step(emit, "extract", "started", Some("Extracting lerobot-vulcan".to_string()));
             Self::extract_zip(&zip_path, &install_root).map_err(|e| {
@@ -808,6 +827,76 @@ impl LocalSetupService {
         let mut content = io::BufReader::new(response);
         io::copy(&mut content, &mut file)
             .map_err(|e| format!("Failed to write download to {:?}: {}", dest, e))?;
+        Ok(())
+    }
+
+    fn resolve_lerobot_zip_sha256(zip_url: &str) -> Result<String, String> {
+        if let Ok(sha_from_env) = std::env::var("SOURCCEY_LEROBOT_ZIP_SHA256") {
+            let trimmed = sha_from_env.trim();
+            if !trimmed.is_empty() {
+                return Self::normalize_sha256(trimmed);
+            }
+        }
+
+        let sha_url = std::env::var("SOURCCEY_LEROBOT_ZIP_SHA256_URL").unwrap_or_else(|_| {
+            if zip_url == Self::DEFAULT_LEROBOT_ZIP_URL {
+                Self::DEFAULT_LEROBOT_ZIP_SHA256_URL.to_string()
+            } else {
+                format!("{}.sha256", zip_url)
+            }
+        });
+
+        let response = reqwest::blocking::get(&sha_url)
+            .map_err(|e| format!("Failed to download zip checksum {}: {}", sha_url, e))?;
+        if !response.status().is_success() {
+            return Err(format!(
+                "Checksum download failed ({}): {}. Set SOURCCEY_LEROBOT_ZIP_SHA256 or provide a valid SOURCCEY_LEROBOT_ZIP_SHA256_URL.",
+                response.status(),
+                sha_url
+            ));
+        }
+
+        let body = response
+            .text()
+            .map_err(|e| format!("Failed to read checksum payload {}: {}", sha_url, e))?;
+        let checksum = body
+            .split_whitespace()
+            .next()
+            .ok_or_else(|| format!("Checksum payload is empty: {}", sha_url))?;
+        Self::normalize_sha256(checksum)
+    }
+
+    fn normalize_sha256(value: &str) -> Result<String, String> {
+        let normalized = value.trim().to_ascii_lowercase();
+        if normalized.len() != 64 || !normalized.chars().all(|c| c.is_ascii_hexdigit()) {
+            return Err(format!("Invalid SHA-256 checksum format: {}", value));
+        }
+        Ok(normalized)
+    }
+
+    fn verify_file_sha256(file_path: &Path, expected_sha256: &str) -> Result<(), String> {
+        let normalized_expected = Self::normalize_sha256(expected_sha256)?;
+        let file = fs::File::open(file_path)
+            .map_err(|e| format!("Failed to open {:?} for checksum verification: {}", file_path, e))?;
+        let mut reader = io::BufReader::new(file);
+        let mut hasher = Sha256::new();
+        let mut buf = [0u8; 8192];
+        loop {
+            let bytes_read = reader
+                .read(&mut buf)
+                .map_err(|e| format!("Failed to read {:?} during checksum verification: {}", file_path, e))?;
+            if bytes_read == 0 {
+                break;
+            }
+            hasher.update(&buf[..bytes_read]);
+        }
+        let actual_sha256 = format!("{:x}", hasher.finalize());
+        if actual_sha256 != normalized_expected {
+            return Err(format!(
+                "Checksum verification failed for {:?}: expected {}, got {}",
+                file_path, normalized_expected, actual_sha256
+            ));
+        }
         Ok(())
     }
 
