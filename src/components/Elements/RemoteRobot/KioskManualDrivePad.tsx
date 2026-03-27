@@ -4,12 +4,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
 import { FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight, FaArrowsAltH } from 'react-icons/fa';
-import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
+import { toastErrorDefaults } from '@/utils/toast/toast-utils';
 import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
 import {
     createEmptyManualDriveSourceMap,
     getPressedManualDriveKeys,
-    normalizeManualDriveKey,
     pressManualDriveKeys,
     releaseManualDriveKeys,
     type ManualDriveKey,
@@ -50,6 +49,15 @@ const Z_BUTTONS: DriveButtonConfig[] = [
     { id: 'z-down', label: 'Lift Down (E)', keys: ['e'], icon: <FaArrowDown className="h-4 w-4" /> },
 ];
 
+const ALL_BUTTONS: DriveButtonConfig[] = [...DIRECTION_BUTTONS, ...TURN_BUTTONS, ...Z_BUTTONS];
+const BUTTON_BY_ID: Record<string, DriveButtonConfig> = ALL_BUTTONS.reduce(
+    (acc, button) => {
+        acc[button.id] = button;
+        return acc;
+    },
+    {} as Record<string, DriveButtonConfig>
+);
+
 const MAX_TOAST_CHARS = 140;
 const compactError = (error: unknown): string => {
     const base =
@@ -76,6 +84,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
     const holdPointerDownRef = useRef(false);
     const holdPointerIdRef = useRef<number | null>(null);
+    const activeHoldButtonIdRef = useRef<string | null>(null);
 
     const sendPressedKeys = async (keys: ManualDriveKey[]) => {
         try {
@@ -153,36 +162,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     }, [bridgeReady, pressedKeys]);
 
     useEffect(() => {
-        const releaseAll = () => setSourceMap(createEmptyManualDriveSourceMap());
-        const onKeyDown = (event: KeyboardEvent) => {
-            const key = normalizeManualDriveKey(event.key);
-            if (!key) {
-                return;
-            }
-            event.preventDefault();
-            setSourceMap((prev) => pressManualDriveKeys(prev, `kbd:${key}`, [key]));
-        };
-
-        const onKeyUp = (event: KeyboardEvent) => {
-            const key = normalizeManualDriveKey(event.key);
-            if (!key) {
-                return;
-            }
-            event.preventDefault();
-            setSourceMap((prev) => releaseManualDriveKeys(prev, `kbd:${key}`, [key]));
-        };
-
-        window.addEventListener('keydown', onKeyDown);
-        window.addEventListener('keyup', onKeyUp);
-        window.addEventListener('blur', releaseAll);
-        return () => {
-            window.removeEventListener('keydown', onKeyDown);
-            window.removeEventListener('keyup', onKeyUp);
-            window.removeEventListener('blur', releaseAll);
-        };
-    }, []);
-
-    useEffect(() => {
         const unlistenShutdown = kioskEventManager.listenManualDriveShutdown((payload) => {
             if (payload.nickname !== nickname) {
                 return;
@@ -209,10 +188,42 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         e: current.e.filter((source) => !source.startsWith('btn:')),
     });
 
-    useEffect(() => {
+    const setHoldActiveButton = (buttonId: string | null) => {
+        if (activeHoldButtonIdRef.current === buttonId) {
+            return;
+        }
+
+        activeHoldButtonIdRef.current = buttonId;
+        setSourceMap((prev) => {
+            const cleared = clearButtonSources(prev);
+            if (!buttonId) {
+                return cleared;
+            }
+            const button = BUTTON_BY_ID[buttonId];
+            if (!button) {
+                return cleared;
+            }
+            return pressManualDriveKeys(cleared, `btn:${button.id}`, button.keys);
+        });
+    };
+
+    const releaseHoldState = () => {
         holdPointerDownRef.current = false;
         holdPointerIdRef.current = null;
-        setSourceMap((prev) => clearButtonSources(prev));
+        setHoldActiveButton(null);
+    };
+
+    const resolveButtonIdFromPoint = (x: number, y: number): string | null => {
+        const element = document.elementFromPoint(x, y);
+        if (!element) {
+            return null;
+        }
+        const buttonElement = element.closest<HTMLElement>('[data-manual-button-id]');
+        return buttonElement?.dataset.manualButtonId || null;
+    };
+
+    useEffect(() => {
+        releaseHoldState();
     }, [drivePadMode]);
 
     useEffect(() => {
@@ -220,20 +231,31 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             return;
         }
 
-        const releaseAllHoldButtons = () => {
-            holdPointerDownRef.current = false;
-            holdPointerIdRef.current = null;
-            setSourceMap((prev) => clearButtonSources(prev));
+        const onPointerMove = (event: PointerEvent) => {
+            if (!holdPointerDownRef.current) {
+                return;
+            }
+            if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
+                return;
+            }
+            const nextButtonId = resolveButtonIdFromPoint(event.clientX, event.clientY);
+            setHoldActiveButton(nextButtonId);
         };
 
-        window.addEventListener('pointerup', releaseAllHoldButtons);
-        window.addEventListener('touchend', releaseAllHoldButtons);
-        window.addEventListener('touchcancel', releaseAllHoldButtons);
+        window.addEventListener('pointermove', onPointerMove, { passive: true });
+        window.addEventListener('pointerup', releaseHoldState);
+        window.addEventListener('pointercancel', releaseHoldState);
+        window.addEventListener('touchend', releaseHoldState);
+        window.addEventListener('touchcancel', releaseHoldState);
+        window.addEventListener('blur', releaseHoldState);
 
         return () => {
-            window.removeEventListener('pointerup', releaseAllHoldButtons);
-            window.removeEventListener('touchend', releaseAllHoldButtons);
-            window.removeEventListener('touchcancel', releaseAllHoldButtons);
+            window.removeEventListener('pointermove', onPointerMove);
+            window.removeEventListener('pointerup', releaseHoldState);
+            window.removeEventListener('pointercancel', releaseHoldState);
+            window.removeEventListener('touchend', releaseHoldState);
+            window.removeEventListener('touchcancel', releaseHoldState);
+            window.removeEventListener('blur', releaseHoldState);
         };
     }, [drivePadMode]);
 
@@ -256,28 +278,19 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         });
     };
 
-    const setHoldButtonPressed = (buttonId: string, keys: ManualDriveKey[], pressed: boolean) => {
-        const sourceId = `btn:${buttonId}`;
-        setSourceMap((prev) => {
-            if (pressed) {
-                const cleared = clearButtonSources(prev);
-                return pressManualDriveKeys(cleared, sourceId, keys);
-            }
-            return releaseManualDriveKeys(prev, sourceId, keys);
-        });
-    };
-
     const renderButton = (button: DriveButtonConfig) => (
         <button
             key={button.id}
+            data-manual-button-id={button.id}
             type="button"
             onClick={drivePadMode === 'tap' ? () => toggleTapButton(button.id, button.keys) : undefined}
             onPointerDown={
                 drivePadMode === 'hold'
                     ? (event) => {
+                          event.preventDefault();
                           holdPointerDownRef.current = true;
                           holdPointerIdRef.current = event.pointerId;
-                          setHoldButtonPressed(button.id, button.keys, true);
+                          setHoldActiveButton(button.id);
                       }
                     : undefined
             }
@@ -290,7 +303,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                           if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
                               return;
                           }
-                          setHoldButtonPressed(button.id, button.keys, true);
+                          setHoldActiveButton(button.id);
                       }
                     : undefined
             }
@@ -300,7 +313,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                           if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
                               return;
                           }
-                          setHoldButtonPressed(button.id, button.keys, false);
+                          setHoldActiveButton(null);
                       }
                     : undefined
             }
@@ -310,9 +323,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                           if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
                               return;
                           }
-                          holdPointerDownRef.current = false;
-                          holdPointerIdRef.current = null;
-                          setSourceMap((prev) => clearButtonSources(prev));
+                          releaseHoldState();
                       }
                     : undefined
             }
@@ -322,9 +333,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                           if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
                               return;
                           }
-                          holdPointerDownRef.current = false;
-                          holdPointerIdRef.current = null;
-                          setSourceMap((prev) => clearButtonSources(prev));
+                          releaseHoldState();
                       }
                     : undefined
             }
