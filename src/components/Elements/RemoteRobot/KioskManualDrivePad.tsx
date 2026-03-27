@@ -213,15 +213,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         setHoldActiveButton(null);
     };
 
-    const resolveButtonIdFromPoint = (x: number, y: number): string | null => {
-        const element = document.elementFromPoint(x, y);
-        if (!element) {
-            return null;
-        }
-        const buttonElement = element.closest<HTMLElement>('[data-manual-button-id]');
-        return buttonElement?.dataset.manualButtonId || null;
-    };
-
     useEffect(() => {
         releaseHoldState();
     }, [drivePadMode]);
@@ -230,19 +221,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         if (drivePadMode !== 'hold') {
             return;
         }
-
-        const onPointerMove = (event: PointerEvent) => {
-            if (!holdPointerDownRef.current) {
-                return;
-            }
-            if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
-                return;
-            }
-            const nextButtonId = resolveButtonIdFromPoint(event.clientX, event.clientY);
-            setHoldActiveButton(nextButtonId);
-        };
-
-        window.addEventListener('pointermove', onPointerMove, { passive: true });
         window.addEventListener('pointerup', releaseHoldState);
         window.addEventListener('pointercancel', releaseHoldState);
         window.addEventListener('touchend', releaseHoldState);
@@ -250,7 +228,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         window.addEventListener('blur', releaseHoldState);
 
         return () => {
-            window.removeEventListener('pointermove', onPointerMove);
             window.removeEventListener('pointerup', releaseHoldState);
             window.removeEventListener('pointercancel', releaseHoldState);
             window.removeEventListener('touchend', releaseHoldState);
@@ -291,29 +268,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                           holdPointerDownRef.current = true;
                           holdPointerIdRef.current = event.pointerId;
                           setHoldActiveButton(button.id);
-                      }
-                    : undefined
-            }
-            onPointerEnter={
-                drivePadMode === 'hold'
-                    ? (event) => {
-                          if (!holdPointerDownRef.current) {
-                              return;
-                          }
-                          if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
-                              return;
-                          }
-                          setHoldActiveButton(button.id);
-                      }
-                    : undefined
-            }
-            onPointerLeave={
-                drivePadMode === 'hold'
-                    ? (event) => {
-                          if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
-                              return;
-                          }
-                          setHoldActiveButton(null);
                       }
                     : undefined
             }
