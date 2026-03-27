@@ -244,13 +244,10 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         setSpeedLevel(nextLevel);
     };
 
-    const toggleArmsTorque = (targetUntorqued: boolean) => {
-        if (targetUntorqued === armsUntorqued) {
-            return;
-        }
+    const setArmsTorqueMode = (targetUntorqued: boolean) => {
         const stamp = Date.now();
-        pulseKeys(['n'], `torque:n:${stamp}`);
-        pulseKeys(['m'], `torque:m:${stamp}`);
+        const key: ManualDriveKey = targetUntorqued ? 'n' : 'm';
+        pulseKeys([key], `torque:${key}:${stamp}`);
         setArmsUntorqued(targetUntorqued);
     };
 
@@ -279,7 +276,9 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
                     <h3 className="text-lg font-semibold text-white">Manual Control</h3>
-                    <p className="mt-1 text-sm text-slate-300">Tap to move in latch mode. Tap the same button again to stop.</p>
+                    <p className="mt-1 text-sm text-slate-300">
+                        Tap a direction to latch movement. Tap the same button again to stop.
+                    </p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
@@ -293,8 +292,10 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 {renderButton(DIRECTION_BUTTONS[1]!)}
                 {renderButton(DIRECTION_BUTTONS[2]!)}
                 {renderButton(DIRECTION_BUTTONS[3]!)}
-                <div className="rounded-lg border-2 border-slate-700 bg-slate-900">
-                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500">Tap o Latch</span>
+                <div className="flex items-center justify-center rounded-lg border-2 border-slate-600 bg-slate-900/80 px-2 text-center">
+                    <span className="rounded-full border border-indigo-500/40 bg-indigo-500/15 px-3 py-1 text-xs font-semibold tracking-wide text-indigo-100">
+                        Tap to Latch
+                    </span>
                 </div>
                 {renderButton(DIRECTION_BUTTONS[4]!)}
                 {renderButton(DIRECTION_BUTTONS[5]!)}
@@ -306,7 +307,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
 
             <div className="mt-3 grid grid-cols-2 gap-2">{Z_BUTTONS.map(renderButton)}</div>
 
-            <div className="mt-4 grid grid-cols-3 gap-2">
+            <div className="mt-6 grid grid-cols-3 gap-2">
                 {SPEED_OPTIONS.map((option) => (
                     <button
                         key={option.id}
@@ -323,28 +324,28 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 ))}
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                     type="button"
-                    onClick={() => toggleArmsTorque(false)}
+                    onClick={() => setArmsTorqueMode(false)}
                     className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
                         !armsUntorqued
                             ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
                             : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
                     }`}
                 >
-                    Torque Arms
+                    Torque Arms (M)
                 </button>
                 <button
                     type="button"
-                    onClick={() => toggleArmsTorque(true)}
+                    onClick={() => setArmsTorqueMode(true)}
                     className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
                         armsUntorqued
                             ? 'border-amber-400 bg-amber-500/20 text-amber-100'
                             : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
                     }`}
                 >
-                    Untorque Arms
+                    Untorque Arms (N)
                 </button>
             </div>
         </div>
