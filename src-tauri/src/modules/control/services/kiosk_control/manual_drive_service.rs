@@ -303,6 +303,15 @@ impl KioskManualDriveService {
     }
 
     fn find_available_udp_port() -> Result<u16, String> {
+        // Prefer the historical fixed port when available so local tooling remains predictable.
+        if let Ok(socket) = UdpSocket::bind(("127.0.0.1", MANUAL_DRIVE_UDP_PORT)) {
+            return socket
+                .local_addr()
+                .map(|addr| addr.port())
+                .map_err(|e| format!("Failed to read reserved UDP port for manual drive: {}", e));
+        }
+
+        // Fall back to an ephemeral port when the default is already occupied.
         let socket = UdpSocket::bind("127.0.0.1:0")
             .map_err(|e| format!("Failed to reserve UDP port for manual drive: {}", e))?;
         socket
