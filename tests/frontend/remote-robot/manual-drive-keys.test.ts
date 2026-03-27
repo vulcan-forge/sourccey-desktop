@@ -15,6 +15,10 @@ describe('manual drive key normalization', () => {
         expect(normalizeManualDriveKey('W')).toBe('w');
         expect(normalizeManualDriveKey('  q  ')).toBe('q');
         expect(normalizeManualDriveKey('x')).toBe('x');
+        expect(normalizeManualDriveKey('R')).toBe('r');
+        expect(normalizeManualDriveKey(' f ')).toBe('f');
+        expect(normalizeManualDriveKey('N')).toBe('n');
+        expect(normalizeManualDriveKey('m')).toBe('m');
         expect(normalizeManualDriveKey('space')).toBe(null);
     });
 });
@@ -60,6 +64,15 @@ describe('manual drive source map', () => {
         state = pressManualDriveKeys(state, 'btn:combo', ['x', 'a', 'q']);
         expect(getPressedManualDriveKeys(state)).toEqual(
             MANUAL_DRIVE_KEYS.filter((key) => ['x', 'a', 'q'].includes(key))
+        );
+    });
+
+    it('supports speed and arm-torque keys in the same source map', () => {
+        let state = createEmptyManualDriveSourceMap();
+        state = pressManualDriveKeys(state, 'btn:speed', ['r', 'f']);
+        state = pressManualDriveKeys(state, 'btn:torque', ['n', 'm']);
+        expect(getPressedManualDriveKeys(state)).toEqual(
+            MANUAL_DRIVE_KEYS.filter((key) => ['r', 'f', 'n', 'm'].includes(key))
         );
     });
 });
