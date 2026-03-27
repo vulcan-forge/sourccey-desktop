@@ -58,6 +58,7 @@ const SPEED_OPTIONS: SpeedOption[] = [
     { id: 'medium', label: 'Medium', level: 1 },
     { id: 'fast', label: 'Fast', level: 2 },
 ];
+const CONTINUOUS_DRIVE_KEYS: ReadonlySet<ManualDriveKey> = new Set(['w', 'a', 's', 'd', 'z', 'x', 'q', 'e']);
 
 const MAX_TOAST_CHARS = 140;
 const compactError = (error: unknown): string => {
@@ -81,7 +82,8 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const [bridgeStarting, setBridgeStarting] = useState(false);
     const [toastErrorMessage, setToastErrorMessage] = useState<string | null>(null);
     const [speedLevel, setSpeedLevel] = useState<0 | 1 | 2>(1);
-    const [armsUntorqued, setArmsUntorqued] = useState(false);
+    const [leftArmUntorqued, setLeftArmUntorqued] = useState(false);
+    const [rightArmUntorqued, setRightArmUntorqued] = useState(false);
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
     const pulseTimeoutsRef = useRef<number[]>([]);
@@ -156,6 +158,11 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             return;
         }
 
+        const hasContinuousKey = pressedKeys.some((key) => CONTINUOUS_DRIVE_KEYS.has(key));
+        if (!hasContinuousKey) {
+            return;
+        }
+
         const interval = window.setInterval(() => {
             void sendPressedKeys(pressedKeysRef.current);
         }, 100);
@@ -172,6 +179,8 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             }
             setBridgeReady(false);
             setSourceMap(createEmptyManualDriveSourceMap());
+            setLeftArmUntorqued(false);
+            setRightArmUntorqued(false);
             toast.error(`Manual drive process stopped: ${compactError(payload.message || 'Unknown failure')}`, {
                 ...toastErrorDefaults,
             });
@@ -244,11 +253,16 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         setSpeedLevel(nextLevel);
     };
 
-    const setArmsTorqueMode = (targetUntorqued: boolean) => {
+    const toggleLeftArmTorque = () => {
         const stamp = Date.now();
-        const key: ManualDriveKey = targetUntorqued ? 'n' : 'm';
-        pulseKeys([key], `torque:${key}:${stamp}`, 320);
-        setArmsUntorqued(targetUntorqued);
+        pulseKeys(['n'], `torque:left:${stamp}`, 140);
+        setLeftArmUntorqued((current) => !current);
+    };
+
+    const toggleRightArmTorque = () => {
+        const stamp = Date.now();
+        pulseKeys(['m'], `torque:right:${stamp}`, 140);
+        setRightArmUntorqued((current) => !current);
     };
 
     const renderButton = (button: DriveButtonConfig) => (
@@ -291,7 +305,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 {renderButton(DIRECTION_BUTTONS[2]!)}
                 {renderButton(DIRECTION_BUTTONS[3]!)}
                 <div className="flex items-center justify-center rounded-lg border-2 border-slate-700 bg-slate-900 px-2 text-center">
-                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-300">Tap to Latch</span>
+                    <span className="text-xs font-semibold tracking-wide text-slate-300 uppercase">Tap to Latch</span>
                 </div>
                 {renderButton(DIRECTION_BUTTONS[4]!)}
                 {renderButton(DIRECTION_BUTTONS[5]!)}
@@ -323,25 +337,25 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             <div className="mt-4 grid grid-cols-2 gap-2">
                 <button
                     type="button"
-                    onClick={() => setArmsTorqueMode(false)}
+                    onClick={toggleLeftArmTorque}
                     className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
-                        !armsUntorqued
-                            ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
-                            : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
-                    }`}
-                >
-                    Torque Arms (M)
-                </button>
-                <button
-                    type="button"
-                    onClick={() => setArmsTorqueMode(true)}
-                    className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
-                        armsUntorqued
+                        leftArmUntorqued
                             ? 'border-amber-400 bg-amber-500/20 text-amber-100'
                             : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
                     }`}
                 >
-                    Untorque Arms (N)
+                    Toggle Left Arm Torque
+                </button>
+                <button
+                    type="button"
+                    onClick={toggleRightArmTorque}
+                    className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
+                        rightArmUntorqued
+                            ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                            : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
+                    }`}
+                >
+                    Toggle Right Arm Torque
                 </button>
             </div>
         </div>
