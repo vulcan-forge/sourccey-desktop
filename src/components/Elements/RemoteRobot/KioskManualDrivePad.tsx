@@ -192,43 +192,28 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         };
     }, [nickname]);
 
-    const setButtonPressed = (buttonId: string, keys: ManualDriveKey[], pressed: boolean) => {
+    const isButtonLatched = (buttonId: string, keys: ManualDriveKey[]) => {
         const sourceId = `btn:${buttonId}`;
-        setSourceMap((prev) =>
-            pressed ? pressManualDriveKeys(prev, sourceId, keys) : releaseManualDriveKeys(prev, sourceId, keys)
-        );
+        return keys.every((key) => sourceMap[key].includes(sourceId));
     };
 
-    const bindButtonEvents = (buttonId: string, keys: ManualDriveKey[]) => ({
-        onMouseDown: (event: React.MouseEvent) => {
-            event.preventDefault();
-            setButtonPressed(buttonId, keys, true);
-        },
-        onMouseUp: (event: React.MouseEvent) => {
-            event.preventDefault();
-            setButtonPressed(buttonId, keys, false);
-        },
-        onMouseLeave: () => setButtonPressed(buttonId, keys, false),
-        onTouchStart: (event: React.TouchEvent) => {
-            event.preventDefault();
-            setButtonPressed(buttonId, keys, true);
-        },
-        onTouchEnd: (event: React.TouchEvent) => {
-            event.preventDefault();
-            setButtonPressed(buttonId, keys, false);
-        },
-        onTouchCancel: () => setButtonPressed(buttonId, keys, false),
-    });
-
-    const isButtonActive = (keys: ManualDriveKey[]) => keys.every((key) => sourceMap[key].length > 0);
+    const toggleButton = (buttonId: string, keys: ManualDriveKey[]) => {
+        const sourceId = `btn:${buttonId}`;
+        setSourceMap((prev) => {
+            const engaged = keys.every((key) => prev[key].includes(sourceId));
+            return engaged
+                ? releaseManualDriveKeys(prev, sourceId, keys)
+                : pressManualDriveKeys(prev, sourceId, keys);
+        });
+    };
 
     const renderButton = (button: DriveButtonConfig) => (
         <button
             key={button.id}
             type="button"
-            {...bindButtonEvents(button.id, button.keys)}
+            onClick={() => toggleButton(button.id, button.keys)}
             className={`flex h-16 select-none items-center justify-center rounded-lg border-2 text-sm font-semibold transition-colors ${
-                isButtonActive(button.keys)
+                isButtonLatched(button.id, button.keys)
                     ? 'border-yellow-400 bg-yellow-500/20 text-yellow-100'
                     : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
             }`}
@@ -246,7 +231,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 <div>
                     <h3 className="text-lg font-semibold text-white">Manual Wheel Control</h3>
                     <p className="mt-1 text-sm text-slate-300">
-                        Hold buttons or use keyboard (WASD, Z/X, Q/E). Release to stop.
+                        Tap a button to latch motion, tap again to release. Keyboard still uses hold behavior (WASD, Z/X, Q/E).
                     </p>
                 </div>
                 <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
@@ -260,7 +245,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 {renderButton(DIRECTION_BUTTONS[2])}
                 {renderButton(DIRECTION_BUTTONS[3])}
                 <div className="flex items-center justify-center rounded-lg border-2 border-slate-700 bg-slate-900 text-xs text-slate-400">
-                    DEADMAN
+                    TAP TO LATCH
                 </div>
                 {renderButton(DIRECTION_BUTTONS[4])}
                 {renderButton(DIRECTION_BUTTONS[5])}
