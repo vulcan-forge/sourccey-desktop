@@ -7,7 +7,6 @@ import { useGetCalibration } from '@/hooks/Control/config.hook';
 import { useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { useRobotStatus } from '@/context/robot-status-context';
-import type { Calibration } from '@/components/PageComponents/Robots/Config/RobotConfig';
 
 export const KioskRobotDetailsPage: React.FC = () => {
     const { isKioskMode } = useAppMode();
@@ -25,24 +24,24 @@ export const KioskRobotDetailsPage: React.FC = () => {
     const { data: leftArmCalibration }: any = useGetCalibration(followerType, leftArmNickname, !!followerType && !!leftArmNickname);
     const { data: singleCalibration }: any = useGetCalibration(robotType, nickname, !!robotType && !!nickname);
 
-    let combinedCalibration: Calibration | null = null;
+    let combinedCalibration: any | null = null;
 
     if (leftArmCalibration?.[0] || rightArmCalibration?.[0]) {
-        combinedCalibration = {} as Calibration;
+        combinedCalibration = {} as any;
 
         if (leftArmCalibration?.[0]) {
-            for (const [key, value] of Object.entries(leftArmCalibration[0] as Calibration)) {
+            for (const [key, value] of Object.entries(leftArmCalibration[0] as any)) {
                 combinedCalibration[`left_${key}`] = value;
             }
         }
 
         if (rightArmCalibration?.[0]) {
-            for (const [key, value] of Object.entries(rightArmCalibration[0] as Calibration)) {
+            for (const [key, value] of Object.entries(rightArmCalibration[0] as any)) {
                 combinedCalibration[`right_${key}`] = value;
             }
         }
     } else if (singleCalibration?.[0]) {
-        combinedCalibration = singleCalibration[0] as Calibration;
+        combinedCalibration = singleCalibration[0] as any;
     }
 
     return (
