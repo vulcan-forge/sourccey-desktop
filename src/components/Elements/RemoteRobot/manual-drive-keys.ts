@@ -1,4 +1,4 @@
-export const MANUAL_DRIVE_KEYS = ['w', 'a', 's', 'd', 'z', 'x', 'q', 'e'] as const;
+export const MANUAL_DRIVE_KEYS = ['w', 'a', 's', 'd', 'z', 'x', 'q', 'e', 'r', 'f', 'n', 'm'] as const;
 
 export type ManualDriveKey = (typeof MANUAL_DRIVE_KEYS)[number];
 export type ManualDriveSourceMap = Record<ManualDriveKey, string[]>;
@@ -14,6 +14,10 @@ export const createEmptyManualDriveSourceMap = (): ManualDriveSourceMap => ({
     x: [],
     q: [],
     e: [],
+    r: [],
+    f: [],
+    n: [],
+    m: [],
 });
 
 export const normalizeManualDriveKey = (value: string): ManualDriveKey | null => {

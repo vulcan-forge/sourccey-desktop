@@ -26,6 +26,12 @@ type DriveButtonConfig = {
     icon?: React.ReactNode;
 };
 
+type SpeedOption = {
+    id: 'slow' | 'medium' | 'fast';
+    label: string;
+    level: 0 | 1 | 2;
+};
+
 const DIRECTION_BUTTONS: DriveButtonConfig[] = [
     { id: 'nw', label: 'NW', keys: ['w', 'a'] },
     { id: 'n', label: 'N', keys: ['w'], icon: <FaArrowUp className="h-4 w-4" /> },
@@ -45,6 +51,12 @@ const TURN_BUTTONS: DriveButtonConfig[] = [
 const Z_BUTTONS: DriveButtonConfig[] = [
     { id: 'z-up', label: 'Lift Up (Q)', keys: ['q'], icon: <FaArrowUp className="h-4 w-4" /> },
     { id: 'z-down', label: 'Lift Down (E)', keys: ['e'], icon: <FaArrowDown className="h-4 w-4" /> },
+];
+
+const SPEED_OPTIONS: SpeedOption[] = [
+    { id: 'slow', label: 'Slow', level: 0 },
+    { id: 'medium', label: 'Medium', level: 1 },
+    { id: 'fast', label: 'Fast', level: 2 },
 ];
 
 const MAX_TOAST_CHARS = 140;
@@ -68,8 +80,11 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const [bridgeReady, setBridgeReady] = useState(false);
     const [bridgeStarting, setBridgeStarting] = useState(false);
     const [toastErrorMessage, setToastErrorMessage] = useState<string | null>(null);
+    const [speedLevel, setSpeedLevel] = useState<0 | 1 | 2>(1);
+    const [armsUntorqued, setArmsUntorqued] = useState(false);
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
+    const pulseTimeoutsRef = useRef<number[]>([]);
 
     const sendPressedKeys = async (keys: ManualDriveKey[]) => {
         try {
@@ -122,6 +137,10 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
 
         return () => {
             cancelled = true;
+            for (const timeoutId of pulseTimeoutsRef.current) {
+                window.clearTimeout(timeoutId);
+            }
+            pulseTimeoutsRef.current = [];
             void invoke<string>('stop_kiosk_manual_drive', { nickname }).catch(() => {});
         };
     }, [nickname]);
@@ -171,6 +190,10 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         x: current.x.filter((source) => !source.startsWith('btn:')),
         q: current.q.filter((source) => !source.startsWith('btn:')),
         e: current.e.filter((source) => !source.startsWith('btn:')),
+        r: current.r.filter((source) => !source.startsWith('btn:')),
+        f: current.f.filter((source) => !source.startsWith('btn:')),
+        n: current.n.filter((source) => !source.startsWith('btn:')),
+        m: current.m.filter((source) => !source.startsWith('btn:')),
     });
 
     const isButtonActive = (buttonId: string, keys: ManualDriveKey[]) => {
@@ -190,6 +213,45 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             const cleared = clearButtonSources(prev);
             return pressManualDriveKeys(cleared, sourceId, keys);
         });
+    };
+
+    const pulseKeys = (keys: ManualDriveKey[], sourceId: string, holdMs = 90) => {
+        setSourceMap((prev) => pressManualDriveKeys(prev, sourceId, keys));
+        const timeoutId = window.setTimeout(() => {
+            setSourceMap((prev) => releaseManualDriveKeys(prev, sourceId, keys));
+        }, holdMs);
+        pulseTimeoutsRef.current.push(timeoutId);
+    };
+
+    const queuePulse = (keys: ManualDriveKey[], sourceId: string, delayMs: number) => {
+        const timeoutId = window.setTimeout(() => {
+            pulseKeys(keys, sourceId);
+        }, delayMs);
+        pulseTimeoutsRef.current.push(timeoutId);
+    };
+
+    const setSpeedByLevel = (nextLevel: 0 | 1 | 2) => {
+        if (nextLevel === speedLevel) {
+            return;
+        }
+
+        const diff = nextLevel - speedLevel;
+        const key: ManualDriveKey = diff > 0 ? 'r' : 'f';
+        const steps = Math.abs(diff);
+        for (let i = 0; i < steps; i += 1) {
+            queuePulse([key], `spd:${nextLevel}:${i}:${Date.now()}`, i * 140);
+        }
+        setSpeedLevel(nextLevel);
+    };
+
+    const toggleArmsTorque = (targetUntorqued: boolean) => {
+        if (targetUntorqued === armsUntorqued) {
+            return;
+        }
+        const stamp = Date.now();
+        pulseKeys(['n'], `torque:n:${stamp}`);
+        pulseKeys(['m'], `torque:m:${stamp}`);
+        setArmsUntorqued(targetUntorqued);
     };
 
     const renderButton = (button: DriveButtonConfig) => (
@@ -243,6 +305,48 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             <div className="mt-3 grid grid-cols-2 gap-2">{TURN_BUTTONS.map(renderButton)}</div>
 
             <div className="mt-3 grid grid-cols-2 gap-2">{Z_BUTTONS.map(renderButton)}</div>
+
+            <div className="mt-4 grid grid-cols-3 gap-2">
+                {SPEED_OPTIONS.map((option) => (
+                    <button
+                        key={option.id}
+                        type="button"
+                        onClick={() => setSpeedByLevel(option.level)}
+                        className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
+                            speedLevel === option.level
+                                ? 'border-cyan-400 bg-cyan-500/20 text-cyan-100'
+                                : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
+                        }`}
+                    >
+                        {option.label}
+                    </button>
+                ))}
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+                <button
+                    type="button"
+                    onClick={() => toggleArmsTorque(false)}
+                    className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
+                        !armsUntorqued
+                            ? 'border-emerald-400 bg-emerald-500/20 text-emerald-100'
+                            : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
+                    }`}
+                >
+                    Torque Arms (N+M)
+                </button>
+                <button
+                    type="button"
+                    onClick={() => toggleArmsTorque(true)}
+                    className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
+                        armsUntorqued
+                            ? 'border-amber-400 bg-amber-500/20 text-amber-100'
+                            : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
+                    }`}
+                >
+                    Untorque Arms (N+M)
+                </button>
+            </div>
         </div>
     );
 };
