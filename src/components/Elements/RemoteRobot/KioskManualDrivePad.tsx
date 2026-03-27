@@ -74,6 +74,8 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const [drivePadMode, setDrivePadMode] = useState<DrivePadMode>('hold');
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
+    const holdPointerDownRef = useRef(false);
+    const holdPointerIdRef = useRef<number | null>(null);
 
     const sendPressedKeys = async (keys: ManualDriveKey[]) => {
         try {
@@ -208,6 +210,8 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     });
 
     useEffect(() => {
+        holdPointerDownRef.current = false;
+        holdPointerIdRef.current = null;
         setSourceMap((prev) => clearButtonSources(prev));
     }, [drivePadMode]);
 
@@ -217,6 +221,8 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         }
 
         const releaseAllHoldButtons = () => {
+            holdPointerDownRef.current = false;
+            holdPointerIdRef.current = null;
             setSourceMap((prev) => clearButtonSources(prev));
         };
 
@@ -269,55 +275,56 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             onPointerDown={
                 drivePadMode === 'hold'
                     ? (event) => {
-                          event.preventDefault();
-                          event.currentTarget.setPointerCapture(event.pointerId);
+                          holdPointerDownRef.current = true;
+                          holdPointerIdRef.current = event.pointerId;
                           setHoldButtonPressed(button.id, button.keys, true);
+                      }
+                    : undefined
+            }
+            onPointerEnter={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                          if (!holdPointerDownRef.current) {
+                              return;
+                          }
+                          if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
+                              return;
+                          }
+                          setHoldButtonPressed(button.id, button.keys, true);
+                      }
+                    : undefined
+            }
+            onPointerLeave={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                          if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
+                              return;
+                          }
+                          setHoldButtonPressed(button.id, button.keys, false);
                       }
                     : undefined
             }
             onPointerUp={
                 drivePadMode === 'hold'
                     ? (event) => {
-                          event.preventDefault();
-                          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                              event.currentTarget.releasePointerCapture(event.pointerId);
+                          if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
+                              return;
                           }
-                          setHoldButtonPressed(button.id, button.keys, false);
+                          holdPointerDownRef.current = false;
+                          holdPointerIdRef.current = null;
+                          setSourceMap((prev) => clearButtonSources(prev));
                       }
                     : undefined
             }
             onPointerCancel={
                 drivePadMode === 'hold'
                     ? (event) => {
-                          event.preventDefault();
-                          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                              event.currentTarget.releasePointerCapture(event.pointerId);
+                          if (holdPointerIdRef.current !== null && holdPointerIdRef.current !== event.pointerId) {
+                              return;
                           }
-                          setHoldButtonPressed(button.id, button.keys, false);
-                      }
-                    : undefined
-            }
-            onTouchStart={
-                drivePadMode === 'hold'
-                    ? (event) => {
-                          event.preventDefault();
-                          setHoldButtonPressed(button.id, button.keys, true);
-                      }
-                    : undefined
-            }
-            onTouchEnd={
-                drivePadMode === 'hold'
-                    ? (event) => {
-                          event.preventDefault();
-                          setHoldButtonPressed(button.id, button.keys, false);
-                      }
-                    : undefined
-            }
-            onTouchCancel={
-                drivePadMode === 'hold'
-                    ? (event) => {
-                          event.preventDefault();
-                          setHoldButtonPressed(button.id, button.keys, false);
+                          holdPointerDownRef.current = false;
+                          holdPointerIdRef.current = null;
+                          setSourceMap((prev) => clearButtonSources(prev));
                       }
                     : undefined
             }
