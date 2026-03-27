@@ -247,7 +247,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const setArmsTorqueMode = (targetUntorqued: boolean) => {
         const stamp = Date.now();
         const key: ManualDriveKey = targetUntorqued ? 'n' : 'm';
-        pulseKeys([key], `torque:${key}:${stamp}`);
+        pulseKeys([key], `torque:${key}:${stamp}`, 320);
         setArmsUntorqued(targetUntorqued);
     };
 
@@ -276,9 +276,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
                     <h3 className="text-lg font-semibold text-white">Manual Control</h3>
-                    <p className="mt-1 text-sm text-slate-300">
-                        Tap a direction to latch movement. Tap the same button again to stop.
-                    </p>
+                    <p className="mt-1 text-sm text-slate-300">Tap a direction to latch movement. Tap the same button again to stop.</p>
                 </div>
                 <div className="flex items-center gap-3">
                     <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
@@ -292,10 +290,8 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 {renderButton(DIRECTION_BUTTONS[1]!)}
                 {renderButton(DIRECTION_BUTTONS[2]!)}
                 {renderButton(DIRECTION_BUTTONS[3]!)}
-                <div className="flex items-center justify-center rounded-lg border-2 border-slate-600 bg-slate-900/80 px-2 text-center">
-                    <span className="rounded-full border border-indigo-500/40 bg-indigo-500/15 px-3 py-1 text-xs font-semibold tracking-wide text-indigo-100">
-                        Tap to Latch
-                    </span>
+                <div className="flex items-center justify-center rounded-lg border-2 border-slate-700 bg-slate-900 px-2 text-center">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-slate-300">Tap to Latch</span>
                 </div>
                 {renderButton(DIRECTION_BUTTONS[4]!)}
                 {renderButton(DIRECTION_BUTTONS[5]!)}
@@ -307,7 +303,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
 
             <div className="mt-3 grid grid-cols-2 gap-2">{Z_BUTTONS.map(renderButton)}</div>
 
-            <div className="mt-6 grid grid-cols-3 gap-2">
+            <div className="mt-8 grid grid-cols-3 gap-2">
                 {SPEED_OPTIONS.map((option) => (
                     <button
                         key={option.id}
