@@ -263,6 +263,7 @@ impl KioskManualDriveService {
     fn build_command_args(nickname: &str) -> Vec<String> {
         vec![
             "python".to_string(),
+            "-u".to_string(),
             "src/lerobot/control/sourccey/sourccey/manual_drive_bridge.py".to_string(),
             format!("--id={}", nickname),
             "--remote_ip=127.0.0.1".to_string(),
@@ -288,6 +289,7 @@ impl KioskManualDriveService {
             "PATH".to_string(),
             format!("{}{}{}", venv_bin_path, separator, base_path),
         );
+        envs.insert("PYTHONUNBUFFERED".to_string(), "1".to_string());
         envs.insert("DISPLAY".to_string(), ":0".to_string());
         Ok(envs)
     }
