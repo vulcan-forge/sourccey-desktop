@@ -233,9 +233,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 {renderButton(DIRECTION_BUTTONS[1]!)}
                 {renderButton(DIRECTION_BUTTONS[2]!)}
                 {renderButton(DIRECTION_BUTTONS[3]!)}
-                <div className="flex items-center justify-center rounded-lg border-2 border-slate-700 bg-slate-900 text-xs text-slate-400">
-                    TAP TO LATCH
-                </div>
+                <div className="rounded-lg border-2 border-slate-700 bg-slate-900" />
                 {renderButton(DIRECTION_BUTTONS[4]!)}
                 {renderButton(DIRECTION_BUTTONS[5]!)}
                 {renderButton(DIRECTION_BUTTONS[6]!)}
