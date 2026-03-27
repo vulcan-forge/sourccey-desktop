@@ -20,6 +20,8 @@ type KioskManualDrivePadProps = {
     nickname: string;
 };
 
+type DrivePadMode = 'hold' | 'tap';
+
 type DriveButtonConfig = {
     id: string;
     label: string;
@@ -68,6 +70,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const [bridgeReady, setBridgeReady] = useState(false);
     const [bridgeStarting, setBridgeStarting] = useState(false);
     const [toastErrorMessage, setToastErrorMessage] = useState<string | null>(null);
+    const [drivePadMode, setDrivePadMode] = useState<DrivePadMode>('hold');
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
 
@@ -192,12 +195,27 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         };
     }, [nickname]);
 
-    const isButtonLatched = (buttonId: string, keys: ManualDriveKey[]) => {
+    const clearButtonSources = (current: ManualDriveSourceMap): ManualDriveSourceMap => ({
+        w: current.w.filter((source) => !source.startsWith('btn:')),
+        a: current.a.filter((source) => !source.startsWith('btn:')),
+        s: current.s.filter((source) => !source.startsWith('btn:')),
+        d: current.d.filter((source) => !source.startsWith('btn:')),
+        z: current.z.filter((source) => !source.startsWith('btn:')),
+        x: current.x.filter((source) => !source.startsWith('btn:')),
+        q: current.q.filter((source) => !source.startsWith('btn:')),
+        e: current.e.filter((source) => !source.startsWith('btn:')),
+    });
+
+    useEffect(() => {
+        setSourceMap((prev) => clearButtonSources(prev));
+    }, [drivePadMode]);
+
+    const isButtonActive = (buttonId: string, keys: ManualDriveKey[]) => {
         const sourceId = `btn:${buttonId}`;
         return keys.every((key) => sourceMap[key].includes(sourceId));
     };
 
-    const toggleButton = (buttonId: string, keys: ManualDriveKey[]) => {
+    const toggleTapButton = (buttonId: string, keys: ManualDriveKey[]) => {
         const sourceId = `btn:${buttonId}`;
         setSourceMap((prev) => {
             const engaged = keys.every((key) => prev[key].includes(sourceId));
@@ -206,18 +224,19 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             }
 
             // Button latch is mutually exclusive: selecting one button clears any other latched button.
-            const cleared: ManualDriveSourceMap = {
-                w: prev.w.filter((source) => !source.startsWith('btn:')),
-                a: prev.a.filter((source) => !source.startsWith('btn:')),
-                s: prev.s.filter((source) => !source.startsWith('btn:')),
-                d: prev.d.filter((source) => !source.startsWith('btn:')),
-                z: prev.z.filter((source) => !source.startsWith('btn:')),
-                x: prev.x.filter((source) => !source.startsWith('btn:')),
-                q: prev.q.filter((source) => !source.startsWith('btn:')),
-                e: prev.e.filter((source) => !source.startsWith('btn:')),
-            };
-
+            const cleared = clearButtonSources(prev);
             return pressManualDriveKeys(cleared, sourceId, keys);
+        });
+    };
+
+    const setHoldButtonPressed = (buttonId: string, keys: ManualDriveKey[], pressed: boolean) => {
+        const sourceId = `btn:${buttonId}`;
+        setSourceMap((prev) => {
+            if (pressed) {
+                const cleared = clearButtonSources(prev);
+                return pressManualDriveKeys(cleared, sourceId, keys);
+            }
+            return releaseManualDriveKeys(prev, sourceId, keys);
         });
     };
 
@@ -225,9 +244,43 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         <button
             key={button.id}
             type="button"
-            onClick={() => toggleButton(button.id, button.keys)}
+            onClick={drivePadMode === 'tap' ? () => toggleTapButton(button.id, button.keys) : undefined}
+            onMouseDown={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                        event.preventDefault();
+                        setHoldButtonPressed(button.id, button.keys, true);
+                    }
+                    : undefined
+            }
+            onMouseUp={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                        event.preventDefault();
+                        setHoldButtonPressed(button.id, button.keys, false);
+                    }
+                    : undefined
+            }
+            onMouseLeave={drivePadMode === 'hold' ? () => setHoldButtonPressed(button.id, button.keys, false) : undefined}
+            onTouchStart={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                        event.preventDefault();
+                        setHoldButtonPressed(button.id, button.keys, true);
+                    }
+                    : undefined
+            }
+            onTouchEnd={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                        event.preventDefault();
+                        setHoldButtonPressed(button.id, button.keys, false);
+                    }
+                    : undefined
+            }
+            onTouchCancel={drivePadMode === 'hold' ? () => setHoldButtonPressed(button.id, button.keys, false) : undefined}
             className={`flex h-16 select-none items-center justify-center rounded-lg border-2 text-sm font-semibold transition-colors ${
-                isButtonLatched(button.id, button.keys)
+                isButtonActive(button.id, button.keys)
                     ? 'border-yellow-400 bg-yellow-500/20 text-yellow-100'
                     : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
             }`}
@@ -245,26 +298,55 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 <div>
                     <h3 className="text-lg font-semibold text-white">Manual Wheel Control</h3>
                     <p className="mt-1 text-sm text-slate-300">
-                        Tap a button to latch motion, tap again to release. Keyboard still uses hold behavior (WASD, Z/X, Q/E).
+                        {drivePadMode === 'hold'
+                            ? 'Hold mode: press and hold buttons to move, release to stop.'
+                            : 'Tap mode: tap once to latch motion, tap again to release.'}{' '}
+                        Keyboard always uses hold behavior (WASD, Z/X, Q/E).
                     </p>
                 </div>
-                <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-                    {bridgeStarting ? 'Starting...' : bridgeReady ? 'Ready' : 'Offline'}
+                <div className="flex items-center gap-3">
+                    <div className="inline-flex overflow-hidden rounded-lg border border-slate-600 bg-slate-800">
+                        <button
+                            type="button"
+                            onClick={() => setDrivePadMode('hold')}
+                            className={`px-3 py-1 text-xs font-semibold transition-colors ${
+                                drivePadMode === 'hold'
+                                    ? 'bg-yellow-500/20 text-yellow-100'
+                                    : 'text-slate-300 hover:bg-slate-700'
+                            }`}
+                        >
+                            Hold
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setDrivePadMode('tap')}
+                            className={`px-3 py-1 text-xs font-semibold transition-colors ${
+                                drivePadMode === 'tap'
+                                    ? 'bg-yellow-500/20 text-yellow-100'
+                                    : 'text-slate-300 hover:bg-slate-700'
+                            }`}
+                        >
+                            Tap/Untap
+                        </button>
+                    </div>
+                    <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
+                        {bridgeStarting ? 'Starting...' : bridgeReady ? 'Ready' : 'Offline'}
+                    </div>
                 </div>
             </div>
 
             <div className="grid grid-cols-3 gap-2">
-                {renderButton(DIRECTION_BUTTONS[0])}
-                {renderButton(DIRECTION_BUTTONS[1])}
-                {renderButton(DIRECTION_BUTTONS[2])}
-                {renderButton(DIRECTION_BUTTONS[3])}
+                {renderButton(DIRECTION_BUTTONS[0]!)}
+                {renderButton(DIRECTION_BUTTONS[1]!)}
+                {renderButton(DIRECTION_BUTTONS[2]!)}
+                {renderButton(DIRECTION_BUTTONS[3]!)}
                 <div className="flex items-center justify-center rounded-lg border-2 border-slate-700 bg-slate-900 text-xs text-slate-400">
-                    TAP TO LATCH
+                    {drivePadMode === 'hold' ? 'HOLD TO MOVE' : 'TAP TO LATCH'}
                 </div>
-                {renderButton(DIRECTION_BUTTONS[4])}
-                {renderButton(DIRECTION_BUTTONS[5])}
-                {renderButton(DIRECTION_BUTTONS[6])}
-                {renderButton(DIRECTION_BUTTONS[7])}
+                {renderButton(DIRECTION_BUTTONS[4]!)}
+                {renderButton(DIRECTION_BUTTONS[5]!)}
+                {renderButton(DIRECTION_BUTTONS[6]!)}
+                {renderButton(DIRECTION_BUTTONS[7]!)}
             </div>
 
             <div className="mt-3 grid grid-cols-2 gap-2">
