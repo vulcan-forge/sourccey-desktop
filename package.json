@@ -7,6 +7,7 @@
         "build": "next build",
         "export": "next export -o out",
         "start": "next start",
+        "test": "bun test tests",
         "lint": "next lint",
         "tauri": "bun scripts/build/tauri-env.js",
         "tauri:build": "bun scripts/build/tauri-env.js build",
