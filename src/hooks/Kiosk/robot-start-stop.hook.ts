@@ -95,7 +95,8 @@ export const useKioskRobotStartStop = (nickname: string) => {
             suppressAutoStartingRef.current = false;
             setIsStarting(true);
             setIsStopping(false);
-            setIsRobotStarted(true);
+            setIsRobotStarted(false);
+            hasConfirmedStartRef.current = false;
         });
 
         const unlistenStopRobot = kioskEventManager.listenStopRobot((payload) => {
@@ -132,34 +133,33 @@ export const useKioskRobotStartStop = (nickname: string) => {
             lastToastMessageRef.current = status.message;
 
             if (status.type === 'success') {
-                if (isStarting) {
-                    hasConfirmedStartRef.current = true;
-                    setIsRobotStarted(true);
-                    setIsStarting(false);
-                    setIsStopping(false);
-                }
+                hasConfirmedStartRef.current = true;
+                setIsRobotStarted(true);
+                setIsStarting(false);
+                setIsStopping(false);
                 toast.success(status.message, { ...toastSuccessDefaults });
             } else {
-                if (isStarting) {
+                if (!hasConfirmedStartRef.current) {
                     suppressAutoStartingRef.current = true;
                     setIsRobotStarted(false);
                     setIsStarting(false);
-                }
-                console.error('Robot start error log:', line);
-                toast.error(status.message, { ...toastErrorDefaults });
 
-                if (isStarting && !hasConfirmedStartRef.current && nickname) {
-                    stopActionLockRef.current = true;
-                    setIsStopping(true);
+                    console.error('Robot start error log:', line);
+                    toast.error(status.message, { ...toastErrorDefaults });
 
-                    void invoke<string>('stop_kiosk_host', { nickname })
-                        .catch((error) => {
-                            console.error('Failed to auto-stop robot after start error:', error);
-                        })
-                        .finally(() => {
-                            stopActionLockRef.current = false;
-                            setIsStopping(false);
-                        });
+                    if (nickname) {
+                        stopActionLockRef.current = true;
+                        setIsStopping(true);
+
+                        void invoke<string>('stop_kiosk_host', { nickname })
+                            .catch((error) => {
+                                console.error('Failed to auto-stop robot after start error:', error);
+                            })
+                            .finally(() => {
+                                stopActionLockRef.current = false;
+                                setIsStopping(false);
+                            });
+                    }
                 }
             }
         });
@@ -167,7 +167,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
         return () => {
             unlistenHostLog();
         };
-    }, [nickname, setIsRobotStarted, isStarting]);
+    }, [nickname, setIsRobotStarted]);
 
     useEffect(() => {
         let interval: any;
