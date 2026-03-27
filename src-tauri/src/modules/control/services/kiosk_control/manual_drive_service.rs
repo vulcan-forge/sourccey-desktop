@@ -13,7 +13,7 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 pub const MANUAL_DRIVE_UDP_PORT: u16 = 5561;
-const ALLOWED_KEYS: [&str; 12] = ["a", "d", "e", "f", "m", "n", "q", "r", "s", "w", "x", "z"];
+const ALLOWED_KEYS: [&str; 10] = ["a", "d", "e", "f", "q", "r", "s", "w", "x", "z"];
 
 struct ManualDriveProcessEntry {
     child: CommandChild,
