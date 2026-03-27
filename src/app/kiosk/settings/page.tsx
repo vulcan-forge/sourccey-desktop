@@ -7,6 +7,7 @@ import { markPasswordAsChanged } from '@/hooks/Components/SSH/ssh.hook';
 import { toast } from 'react-toastify';
 import type { RemoteConfig } from '@/types/remote-config';
 import {
+    saveAccessPointCredentials,
     setAccessPointEnabled,
     setAccessPointPassword,
     setAccessPointSSID,
@@ -182,8 +183,7 @@ export default function KioskSettingsPage() {
 
         setIsSavingAccessPoint(true);
         try {
-            setAccessPointSSID(accessPointSSID);
-            setAccessPointPassword(accessPointPassword as string);
+            await saveAccessPointCredentials(accessPointSSID as string, accessPointPassword as string);
             toast.success('Access point configured successfully', { ...toastSuccessDefaults });
         } catch (error) {
             console.error('Failed to save access point values:', error);
@@ -224,6 +224,7 @@ export default function KioskSettingsPage() {
 
         setIsTogglingAccessPoint(true);
         try {
+            await saveAccessPointCredentials(accessPointSSID as string, accessPointPassword as string);
             const result = await invoke('set_access_point', {
                 ssid: accessPointSSID,
                 password: accessPointPassword,

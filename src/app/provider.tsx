@@ -7,7 +7,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import React from 'react';
 import { RobotStatusProvider } from '@/context/robot-status-context';
 import { VirtualKeyboardProvider } from '@/context/virtual-keyboard-context';
-import { ACCESS_POINT_ENABLED_KEY, ACCESS_POINT_SSID_KEY, ACCESS_POINT_PASSWORD_KEY } from '@/hooks/WIFI/access-point.hook';
+import { ACCESS_POINT_ENABLED_KEY, ACCESS_POINT_PASSWORD_KEY, ACCESS_POINT_SSID_KEY } from '@/hooks/WIFI/access-point.hook';
 import { SAVED_WIFI_SSIDS_KEY } from '@/hooks/WIFI/wifi.hook';
 import { SELECTED_ROBOT_KEY } from '@/hooks/Robot/selected-robot.hook';
 import { SELECTED_MODEL_KEY } from '@/hooks/AI/selected-model.hook';
@@ -20,10 +20,8 @@ const persistQueries: QueryKey[] = [
     SAVED_WIFI_SSIDS_KEY,
     ACCESS_POINT_ENABLED_KEY,
     ACCESS_POINT_SSID_KEY,
-    ACCESS_POINT_PASSWORD_KEY,
     SELECTED_ROBOT_KEY,
     SELECTED_MODEL_KEY,
-    PAIRED_ROBOT_CONNECTIONS_KEY,
     DESKTOP_EXTRAS_KEY,
     AUTH_SESSION_KEY,
 ];
@@ -41,7 +39,44 @@ const persistOptions = {
     dehydrateOptions: dehydrateOptions,
 };
 
+const REACT_QUERY_STORAGE_KEY = 'REACT_QUERY_OFFLINE_CACHE';
+const sensitiveQueryKeys: QueryKey[] = [ACCESS_POINT_PASSWORD_KEY, PAIRED_ROBOT_CONNECTIONS_KEY];
+
+const scrubSensitivePersistedQueries = () => {
+    if (typeof window === 'undefined') return;
+
+    try {
+        const raw = window.localStorage.getItem(REACT_QUERY_STORAGE_KEY);
+        if (!raw) return;
+
+        const parsed = JSON.parse(raw) as {
+            clientState?: { queries?: Array<{ queryKey?: QueryKey }> };
+        };
+
+        const queries = parsed?.clientState?.queries;
+        if (!Array.isArray(queries)) return;
+
+        const filtered = queries.filter(
+            (query) => !sensitiveQueryKeys.some((key) => AreKeysEqual(query?.queryKey, key))
+        );
+
+        if (filtered.length !== queries.length) {
+            parsed.clientState!.queries = filtered;
+            window.localStorage.setItem(REACT_QUERY_STORAGE_KEY, JSON.stringify(parsed));
+        }
+    } catch {
+        // Best-effort scrub only; ignore malformed cache payloads.
+    }
+};
+
 export default function Provider({ children }: { children: React.ReactNode }) {
+    React.useEffect(() => {
+        scrubSensitivePersistedQueries();
+        for (const key of sensitiveQueryKeys) {
+            queryClient.removeQueries({ queryKey: key, exact: true });
+        }
+    }, []);
+
     return (
         <PersistQueryClientProvider client={queryClient} persistOptions={persistOptions}>
             <RobotStatusProvider>
