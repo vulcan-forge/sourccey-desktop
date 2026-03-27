@@ -65,7 +65,7 @@ fn normalize_nickname_rejects_invalid_values() {
 
 #[test]
 fn build_command_args_contains_expected_defaults() {
-    let args = Service::build_command_args("sourccey");
+    let args = Service::build_command_args("sourccey", super::MANUAL_DRIVE_UDP_PORT);
     assert_eq!(args[1], "-u".to_string());
     assert_eq!(
         args[2],

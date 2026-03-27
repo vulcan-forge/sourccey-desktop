@@ -15,9 +15,15 @@ use tauri_plugin_shell::ShellExt;
 pub const MANUAL_DRIVE_UDP_PORT: u16 = 5561;
 const ALLOWED_KEYS: [&str; 12] = ["a", "d", "e", "f", "m", "n", "q", "r", "s", "w", "x", "z"];
 
+struct ManualDriveProcessEntry {
+    child: CommandChild,
+    shutdown_flag: Arc<AtomicBool>,
+    udp_port: u16,
+}
+
 #[derive(Clone)]
 pub struct KioskManualDriveProcess(
-    pub Arc<Mutex<HashMap<String, (CommandChild, Arc<AtomicBool>)>>>,
+    Arc<Mutex<HashMap<String, ManualDriveProcessEntry>>>,
 );
 
 pub struct KioskManualDriveService;
@@ -67,7 +73,8 @@ impl KioskManualDriveService {
             ));
         }
 
-        let command_parts = Self::build_command_args(&normalized_nickname);
+        let udp_port = Self::find_available_udp_port()?;
+        let command_parts = Self::build_command_args(&normalized_nickname, udp_port);
         let envs = Self::build_envs()?;
         let lerobot_dir_str = lerobot_dir.to_string_lossy().to_string();
         let python_path_str = python_path.to_string_lossy().to_string();
@@ -131,11 +138,32 @@ impl KioskManualDriveService {
             }
         });
 
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        if !ProcessService::is_process_alive(&app_handle, pid) {
+            shutdown_flag.store(true, Ordering::Relaxed);
+            let hint = Self::manual_drive_log_path()
+                .ok()
+                .map(|p| p.to_string_lossy().to_string())
+                .map(|p| format!(" Check logs at {}", p))
+                .unwrap_or_default();
+            return Err(format!(
+                "Manual drive bridge exited immediately after start.{}",
+                hint
+            ));
+        }
+
         state
             .0
             .lock()
             .unwrap()
-            .insert(normalized_nickname.clone(), (child, shutdown_flag.clone()));
+            .insert(
+                normalized_nickname.clone(),
+                ManualDriveProcessEntry {
+                    child,
+                    shutdown_flag: shutdown_flag.clone(),
+                    udp_port,
+                },
+            );
 
         let state_for_shutdown = state.0.clone();
         let process_key = normalized_nickname.clone();
@@ -162,7 +190,7 @@ impl KioskManualDriveService {
             })),
         );
 
-        Self::send_control_packet(&normalized_nickname, Vec::new())?;
+        Self::send_control_packet(&normalized_nickname, Vec::new(), udp_port)?;
 
         Ok(format!(
             "Manual drive bridge started for nickname: {}",
@@ -178,18 +206,20 @@ impl KioskManualDriveService {
         let normalized_nickname = Self::normalize_nickname(&nickname)?;
         let sanitized_keys = Self::sanitize_pressed_keys(keys);
 
-        let is_running = {
+        let running_port = {
             let processes = state.0.lock().unwrap();
-            processes.contains_key(&normalized_nickname)
+            processes
+                .get(&normalized_nickname)
+                .map(|entry| entry.udp_port)
         };
-        if !is_running {
-            return Err(format!(
+        let udp_port = running_port.ok_or_else(|| {
+            format!(
                 "Manual drive bridge is not running for nickname: {}",
                 normalized_nickname
-            ));
-        }
+            )
+        })?;
 
-        Self::send_control_packet(&normalized_nickname, sanitized_keys)
+        Self::send_control_packet(&normalized_nickname, sanitized_keys, udp_port)
     }
 
     pub fn stop_kiosk_manual_drive(
@@ -197,11 +227,11 @@ impl KioskManualDriveService {
         nickname: String,
     ) -> Result<String, String> {
         let normalized_nickname = Self::normalize_nickname(&nickname)?;
-        let _ = Self::send_control_packet(&normalized_nickname, Vec::new());
 
-        if let Some((child, shutdown_flag)) = state.0.lock().unwrap().remove(&normalized_nickname) {
-            shutdown_flag.store(true, Ordering::Relaxed);
-            let _ = child.kill();
+        if let Some(entry) = state.0.lock().unwrap().remove(&normalized_nickname) {
+            let _ = Self::send_control_packet(&normalized_nickname, Vec::new(), entry.udp_port);
+            entry.shutdown_flag.store(true, Ordering::Relaxed);
+            let _ = entry.child.kill();
             Ok(format!(
                 "Manual drive bridge stopped for nickname: {}",
                 normalized_nickname
@@ -250,26 +280,35 @@ impl KioskManualDriveService {
         serde_json::to_string(&packet).map_err(|e| format!("Failed to encode manual drive payload: {}", e))
     }
 
-    fn send_control_packet(nickname: &str, keys: Vec<String>) -> Result<(), String> {
+    fn send_control_packet(nickname: &str, keys: Vec<String>, udp_port: u16) -> Result<(), String> {
         let payload = Self::build_control_payload(nickname, keys)?;
         let socket = UdpSocket::bind("127.0.0.1:0")
             .map_err(|e| format!("Failed to open UDP socket: {}", e))?;
         socket
-            .send_to(payload.as_bytes(), ("127.0.0.1", MANUAL_DRIVE_UDP_PORT))
+            .send_to(payload.as_bytes(), ("127.0.0.1", udp_port))
             .map_err(|e| format!("Failed to send manual drive packet: {}", e))?;
         Ok(())
     }
 
-    fn build_command_args(nickname: &str) -> Vec<String> {
+    fn build_command_args(nickname: &str, udp_port: u16) -> Vec<String> {
         vec![
             "python".to_string(),
             "-u".to_string(),
             "src/lerobot/control/sourccey/sourccey/manual_drive_bridge.py".to_string(),
             format!("--id={}", nickname),
             "--remote_ip=127.0.0.1".to_string(),
-            format!("--udp_port={}", MANUAL_DRIVE_UDP_PORT),
+            format!("--udp_port={}", udp_port),
             "--fps=30".to_string(),
         ]
+    }
+
+    fn find_available_udp_port() -> Result<u16, String> {
+        let socket = UdpSocket::bind("127.0.0.1:0")
+            .map_err(|e| format!("Failed to reserve UDP port for manual drive: {}", e))?;
+        socket
+            .local_addr()
+            .map(|addr| addr.port())
+            .map_err(|e| format!("Failed to read reserved UDP port for manual drive: {}", e))
     }
 
     fn build_envs() -> Result<HashMap<String, String>, String> {

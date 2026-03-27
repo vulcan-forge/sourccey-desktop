@@ -282,9 +282,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                     <p className="mt-1 text-sm text-slate-300">Tap to move in latch mode. Tap the same button again to stop.</p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="rounded-full border border-indigo-600 bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-100">
-                        Mode: Tap / Latch
-                    </div>
                     <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
                         {bridgeStarting ? 'Starting...' : bridgeReady ? 'Ready' : 'Offline'}
                     </div>
@@ -296,7 +293,9 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 {renderButton(DIRECTION_BUTTONS[1]!)}
                 {renderButton(DIRECTION_BUTTONS[2]!)}
                 {renderButton(DIRECTION_BUTTONS[3]!)}
-                <div className="rounded-lg border-2 border-slate-700 bg-slate-900" />
+                <div className="rounded-lg border-2 border-slate-700 bg-slate-900">
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500">Tap o Latch</span>
+                </div>
                 {renderButton(DIRECTION_BUTTONS[4]!)}
                 {renderButton(DIRECTION_BUTTONS[5]!)}
                 {renderButton(DIRECTION_BUTTONS[6]!)}
