@@ -95,6 +95,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
             suppressAutoStartingRef.current = false;
             setIsStarting(true);
             setIsStopping(false);
+            setIsRobotStarted(true);
         });
 
         const unlistenStopRobot = kioskEventManager.listenStopRobot((payload) => {
