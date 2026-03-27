@@ -5,7 +5,7 @@ import { FaTools, FaCheckCircle } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import { getCalibrationErrorMessage } from '@/components/Elements/RemoteRobot/calibration-error';
+import { getCalibrationErrorMessage, getCalibrationToastErrorMessage } from '@/components/Elements/RemoteRobot/calibration-error';
 
 interface CalibrationSectionProps {
     nickname: string;
@@ -55,9 +55,18 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
             calibrationSuccess(fullReset);
         } catch (error: unknown) {
             const errorMessage = getCalibrationErrorMessage(error);
+            const toastErrorMessage = getCalibrationToastErrorMessage(error);
             console.error('Calibration failed:', error);
-            toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${errorMessage}`, {
+            console.error('Calibration failure details:', errorMessage);
+            toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${toastErrorMessage}`, {
                 ...toastErrorDefaults,
+                style: {
+                    ...(toastErrorDefaults.style || {}),
+                    maxWidth: '420px',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                },
             });
         } finally {
             setIsCalibrating(false);
