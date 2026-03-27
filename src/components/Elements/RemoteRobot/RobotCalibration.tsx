@@ -162,7 +162,7 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
     );
 };
 
-export const CurrentCalibration: React.FC<{ calibration: Calibration | null }> = ({ calibration }) => {
+export const CurrentCalibration: React.FC<{ calibration: any | null }> = ({ calibration }) => {
     return (
         <div>
             {calibration && Object.keys(calibration).length > 0 ? (
