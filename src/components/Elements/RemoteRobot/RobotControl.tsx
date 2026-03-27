@@ -5,12 +5,11 @@ import { FaTools } from 'react-icons/fa';
 import { RobotCalibration } from '@/components/Elements/RemoteRobot/RobotCalibration';
 import { RobotStartSection } from '@/components/Elements/RemoteRobot/RobotStart';
 import { useKioskRobotStartStop } from '@/hooks/Kiosk/robot-start-stop.hook';
-import type { Calibration } from '@/components/PageComponents/Robots/Config/RobotConfig';
 
 interface RobotControlProps {
     nickname: string;
     robotType?: string;
-    calibration: Calibration | null;
+    calibration: any | null;
 }
 
 export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType = 'sourccey', calibration }) => {
