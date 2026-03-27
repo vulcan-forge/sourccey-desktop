@@ -12,7 +12,7 @@ type RobotKioskLogsProps = {
 
 export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps) => {
     const [controlLogs, setControlLogs] = useState<string[]>([]);
-    const [isExpanded, setIsExpanded] = useState(isControlling);
+    const [isExpanded, setIsExpanded] = useState(false);
     const logsRef = useRef<string[]>([]);
 
     const appendLog = useCallback(
@@ -29,9 +29,8 @@ export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps)
         [nickname]
     );
 
-    // Update internal state when external prop changes
+    // Reset buffered logs when host is inactive.
     useEffect(() => {
-        setIsExpanded(isControlling);
         if (!isControlling) {
             logsRef.current = [];
             setControlLogs([]);

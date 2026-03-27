@@ -201,9 +201,23 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         const sourceId = `btn:${buttonId}`;
         setSourceMap((prev) => {
             const engaged = keys.every((key) => prev[key].includes(sourceId));
-            return engaged
-                ? releaseManualDriveKeys(prev, sourceId, keys)
-                : pressManualDriveKeys(prev, sourceId, keys);
+            if (engaged) {
+                return releaseManualDriveKeys(prev, sourceId, keys);
+            }
+
+            // Button latch is mutually exclusive: selecting one button clears any other latched button.
+            const cleared: ManualDriveSourceMap = {
+                w: prev.w.filter((source) => !source.startsWith('btn:')),
+                a: prev.a.filter((source) => !source.startsWith('btn:')),
+                s: prev.s.filter((source) => !source.startsWith('btn:')),
+                d: prev.d.filter((source) => !source.startsWith('btn:')),
+                z: prev.z.filter((source) => !source.startsWith('btn:')),
+                x: prev.x.filter((source) => !source.startsWith('btn:')),
+                q: prev.q.filter((source) => !source.startsWith('btn:')),
+                e: prev.e.filter((source) => !source.startsWith('btn:')),
+            };
+
+            return pressManualDriveKeys(cleared, sourceId, keys);
         });
     };
 
