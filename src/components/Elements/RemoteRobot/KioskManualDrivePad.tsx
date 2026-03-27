@@ -19,8 +19,6 @@ type KioskManualDrivePadProps = {
     nickname: string;
 };
 
-type DrivePadMode = 'hold' | 'tap';
-
 type DriveButtonConfig = {
     id: string;
     label: string;
@@ -49,15 +47,6 @@ const Z_BUTTONS: DriveButtonConfig[] = [
     { id: 'z-down', label: 'Lift Down (E)', keys: ['e'], icon: <FaArrowDown className="h-4 w-4" /> },
 ];
 
-const ALL_BUTTONS: DriveButtonConfig[] = [...DIRECTION_BUTTONS, ...TURN_BUTTONS, ...Z_BUTTONS];
-const BUTTON_BY_ID: Record<string, DriveButtonConfig> = ALL_BUTTONS.reduce(
-    (acc, button) => {
-        acc[button.id] = button;
-        return acc;
-    },
-    {} as Record<string, DriveButtonConfig>
-);
-
 const MAX_TOAST_CHARS = 140;
 const compactError = (error: unknown): string => {
     const base =
@@ -79,10 +68,8 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const [bridgeReady, setBridgeReady] = useState(false);
     const [bridgeStarting, setBridgeStarting] = useState(false);
     const [toastErrorMessage, setToastErrorMessage] = useState<string | null>(null);
-    const [drivePadMode, setDrivePadMode] = useState<DrivePadMode>('hold');
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
-    const activeHoldButtonIdRef = useRef<string | null>(null);
 
     const sendPressedKeys = async (keys: ManualDriveKey[]) => {
         try {
@@ -186,52 +173,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         e: current.e.filter((source) => !source.startsWith('btn:')),
     });
 
-    const setHoldActiveButton = (buttonId: string | null) => {
-        if (activeHoldButtonIdRef.current === buttonId) {
-            return;
-        }
-
-        activeHoldButtonIdRef.current = buttonId;
-        setSourceMap((prev) => {
-            const cleared = clearButtonSources(prev);
-            if (!buttonId) {
-                return cleared;
-            }
-            const button = BUTTON_BY_ID[buttonId];
-            if (!button) {
-                return cleared;
-            }
-            return pressManualDriveKeys(cleared, `btn:${button.id}`, button.keys);
-        });
-    };
-
-    const releaseHoldState = () => {
-        setHoldActiveButton(null);
-    };
-
-    useEffect(() => {
-        releaseHoldState();
-    }, [drivePadMode]);
-
-    useEffect(() => {
-        if (drivePadMode !== 'hold') {
-            return;
-        }
-        window.addEventListener('pointerup', releaseHoldState);
-        window.addEventListener('mouseup', releaseHoldState);
-        window.addEventListener('touchend', releaseHoldState);
-        window.addEventListener('touchcancel', releaseHoldState);
-        window.addEventListener('blur', releaseHoldState);
-
-        return () => {
-            window.removeEventListener('pointerup', releaseHoldState);
-            window.removeEventListener('mouseup', releaseHoldState);
-            window.removeEventListener('touchend', releaseHoldState);
-            window.removeEventListener('touchcancel', releaseHoldState);
-            window.removeEventListener('blur', releaseHoldState);
-        };
-    }, [drivePadMode]);
-
     const isButtonActive = (buttonId: string, keys: ManualDriveKey[]) => {
         const sourceId = `btn:${buttonId}`;
         return keys.every((key) => sourceMap[key].includes(sourceId));
@@ -254,29 +195,8 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const renderButton = (button: DriveButtonConfig) => (
         <button
             key={button.id}
-            data-manual-button-id={button.id}
             type="button"
-            onClick={drivePadMode === 'tap' ? () => toggleTapButton(button.id, button.keys) : undefined}
-            onTouchStart={
-                drivePadMode === 'hold'
-                    ? (event) => {
-                          event.preventDefault();
-                          setHoldActiveButton(button.id);
-                      }
-                    : undefined
-            }
-            onTouchEnd={drivePadMode === 'hold' ? releaseHoldState : undefined}
-            onTouchCancel={drivePadMode === 'hold' ? releaseHoldState : undefined}
-            onMouseDown={
-                drivePadMode === 'hold'
-                    ? (event) => {
-                          event.preventDefault();
-                          setHoldActiveButton(button.id);
-                      }
-                    : undefined
-            }
-            onMouseUp={drivePadMode === 'hold' ? releaseHoldState : undefined}
-            onMouseLeave={drivePadMode === 'hold' ? releaseHoldState : undefined}
+            onClick={() => toggleTapButton(button.id, button.keys)}
             onDragStart={(event) => event.preventDefault()}
             onContextMenu={(event) => event.preventDefault()}
             className={`flex h-16 items-center justify-center rounded-lg border-2 text-sm font-semibold transition-colors select-none ${
@@ -284,7 +204,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                     ? 'border-yellow-400 bg-yellow-500/20 text-yellow-100'
                     : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
             }`}
-            style={drivePadMode === 'hold' ? { touchAction: 'none' } : undefined}
         >
             <span className="inline-flex items-center gap-2">
                 {button.icon}
@@ -299,32 +218,10 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 <div>
                     <h3 className="text-lg font-semibold text-white">Manual Control</h3>
                     <p className="mt-1 text-sm text-slate-300">
-                        {drivePadMode === 'hold'
-                            ? 'Hold mode: press and hold buttons to move, release to stop.'
-                            : 'Tap mode: tap once to latch motion, tap again to release.'}
+                        Tap a button to start movement, tap it again to stop.
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
-                    <div className="inline-flex overflow-hidden rounded-lg border border-slate-600 bg-slate-800">
-                        <button
-                            type="button"
-                            onClick={() => setDrivePadMode('hold')}
-                            className={`px-3 py-1 text-xs font-semibold transition-colors ${
-                                drivePadMode === 'hold' ? 'bg-yellow-500/20 text-yellow-100' : 'text-slate-300 hover:bg-slate-700'
-                            }`}
-                        >
-                            Hold
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setDrivePadMode('tap')}
-                            className={`px-3 py-1 text-xs font-semibold transition-colors ${
-                                drivePadMode === 'tap' ? 'bg-yellow-500/20 text-yellow-100' : 'text-slate-300 hover:bg-slate-700'
-                            }`}
-                        >
-                            Tap/Untap
-                        </button>
-                    </div>
                     <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
                         {bridgeStarting ? 'Starting...' : bridgeReady ? 'Ready' : 'Offline'}
                     </div>
@@ -337,7 +234,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 {renderButton(DIRECTION_BUTTONS[2]!)}
                 {renderButton(DIRECTION_BUTTONS[3]!)}
                 <div className="flex items-center justify-center rounded-lg border-2 border-slate-700 bg-slate-900 text-xs text-slate-400">
-                    {drivePadMode === 'hold' ? 'HOLD TO MOVE' : 'TAP TO LATCH'}
+                    TAP TO LATCH
                 </div>
                 {renderButton(DIRECTION_BUTTONS[4]!)}
                 {renderButton(DIRECTION_BUTTONS[5]!)}
