@@ -215,7 +215,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         });
     };
 
-    const pulseKeys = (keys: ManualDriveKey[], sourceId: string, holdMs = 90) => {
+    const pulseKeys = (keys: ManualDriveKey[], sourceId: string, holdMs = 180) => {
         setSourceMap((prev) => pressManualDriveKeys(prev, sourceId, keys));
         const timeoutId = window.setTimeout(() => {
             setSourceMap((prev) => releaseManualDriveKeys(prev, sourceId, keys));
@@ -279,11 +279,12 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
                     <h3 className="text-lg font-semibold text-white">Manual Control</h3>
-                    <p className="mt-1 text-sm text-slate-300">
-                        Tap a button to start movement, tap it again to stop.
-                    </p>
+                    <p className="mt-1 text-sm text-slate-300">Tap to move in latch mode. Tap the same button again to stop.</p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <div className="rounded-full border border-indigo-600 bg-indigo-500/15 px-3 py-1 text-xs font-semibold text-indigo-100">
+                        Mode: Tap / Latch
+                    </div>
                     <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
                         {bridgeStarting ? 'Starting...' : bridgeReady ? 'Ready' : 'Offline'}
                     </div>
@@ -333,7 +334,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                             : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
                     }`}
                 >
-                    Torque Arms (N+M)
+                    Torque Arms
                 </button>
                 <button
                     type="button"
@@ -344,7 +345,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                             : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
                     }`}
                 >
-                    Untorque Arms (N+M)
+                    Untorque Arms
                 </button>
             </div>
         </div>
