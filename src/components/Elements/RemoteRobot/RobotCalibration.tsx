@@ -5,12 +5,12 @@ import { FaTools, FaCheckCircle } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import type { Calibration } from '@/components/PageComponents/Robots/Config/RobotConfig';
+import { getCalibrationErrorMessage } from '@/components/Elements/RemoteRobot/calibration-error';
 
 interface CalibrationSectionProps {
     nickname: string;
     robotType?: string;
-    calibration: Calibration | null;
+    calibration: any;
     onCalibrationSuccess?: () => void;
     refreshOnSuccess?: boolean;
 }
@@ -53,15 +53,12 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
 
             await invoke('remote_auto_calibrate', { config: remoteCalibrationConfig });
             calibrationSuccess(fullReset);
-        } catch (error: any) {
-            if (!error?.message) {
-                calibrationSuccess(fullReset);
-            } else {
-                console.error('Calibration failed:', error);
-                toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${error?.message || 'Unknown error'}`, {
-                    ...toastErrorDefaults,
-                });
-            }
+        } catch (error: unknown) {
+            const errorMessage = getCalibrationErrorMessage(error);
+            console.error('Calibration failed:', error);
+            toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${errorMessage}`, {
+                ...toastErrorDefaults,
+            });
         } finally {
             setIsCalibrating(false);
             setCalibrationType(null);

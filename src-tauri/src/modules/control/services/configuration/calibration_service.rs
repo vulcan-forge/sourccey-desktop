@@ -8,9 +8,7 @@ use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
-use std::env;
 use std::fs;
-use std::path::PathBuf;
 use std::process::Stdio;
 use tauri::AppHandle;
 use tokio::process::Command;
@@ -71,6 +69,63 @@ impl CalibrationService {
             .map_err(|e| e.to_string())?;
 
         Ok(Some(since_epoch.as_millis() as u64))
+    }
+
+    fn decode_output_text(output: &std::process::Output) -> (String, String) {
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        (stdout, stderr)
+    }
+
+    fn no_op_auto_calibration_reason(stdout: &str, stderr: &str) -> Option<String> {
+        let combined = format!("{stdout}\n{stderr}").to_lowercase();
+        if combined.contains("does not support auto-calibration") {
+            return Some(
+                "Calibration script reported that this device does not support auto-calibration."
+                    .to_string(),
+            );
+        }
+        None
+    }
+
+    fn validate_calibration_command_output(output: &std::process::Output) -> Result<(), String> {
+        let (stdout, stderr) = Self::decode_output_text(output);
+        if !output.status.success() {
+            let details = if !stderr.is_empty() {
+                stderr
+            } else if !stdout.is_empty() {
+                stdout
+            } else {
+                format!("exit status {}", output.status)
+            };
+            return Err(format!("Python script failed: {}", details));
+        }
+
+        if let Some(no_op_reason) = Self::no_op_auto_calibration_reason(&stdout, &stderr) {
+            return Err(no_op_reason);
+        }
+
+        Ok(())
+    }
+
+    fn write_process_output_logs(app_handle: &AppHandle, context: &str, output: &std::process::Output) {
+        let (stdout, stderr) = Self::decode_output_text(output);
+        if !stdout.is_empty() {
+            let _ = LogService::write_app_log_line(
+                app_handle,
+                "robot-actions.log",
+                Some("calibration"),
+                &format!("{} stdout: {}", context, stdout),
+            );
+        }
+        if !stderr.is_empty() {
+            let _ = LogService::write_app_log_line(
+                app_handle,
+                "robot-actions.log",
+                Some("calibration"),
+                &format!("{} stderr: {}", context, stderr),
+            );
+        }
     }
 
     pub async fn auto_calibrate(
@@ -179,10 +234,9 @@ impl CalibrationService {
             .wait_with_output()
             .await
             .map_err(|e| format!("Failed to get output: {}", e))?;
+        Self::write_process_output_logs(app_handle, "Auto calibrate robot", &output);
 
-        // Check if the process was successful
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
             if let Some(pid_value) = pid {
                 ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
             }
@@ -190,9 +244,9 @@ impl CalibrationService {
                 app_handle,
                 "robot-actions.log",
                 Some("calibration"),
-                &format!("Auto calibrate robot failed: {}", stderr),
+                &format!("Auto calibrate robot failed: {}", validation_error),
             );
-            return Err(format!("Python script failed: {}", stderr));
+            return Err(validation_error);
         }
 
         if let Some(pid_value) = pid {
@@ -254,10 +308,9 @@ impl CalibrationService {
             .wait_with_output()
             .await
             .map_err(|e| format!("Failed to get output: {}", e))?;
+        Self::write_process_output_logs(app_handle, "Auto calibrate teleoperator", &output);
 
-        // Check if the process was successful
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
             if let Some(pid_value) = pid {
                 ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
             }
@@ -265,9 +318,9 @@ impl CalibrationService {
                 app_handle,
                 "robot-actions.log",
                 Some("calibration"),
-                &format!("Auto calibrate teleoperator failed: {}", stderr),
+                &format!("Auto calibrate teleoperator failed: {}", validation_error),
             );
-            return Err(format!("Python script failed: {}", stderr));
+            return Err(validation_error);
         }
 
         if let Some(pid_value) = pid {
@@ -336,10 +389,9 @@ impl CalibrationService {
             .wait_with_output()
             .await
             .map_err(|e| format!("Failed to get output: {}", e))?;
+        Self::write_process_output_logs(&app_handle, "Remote auto calibrate", &output);
 
-        // Check if the process was successful
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
+        if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
             if let Some(pid_value) = pid {
                 ProcessService::on_process_shutdown(&app_handle, pid_value, db_connection, command_log_id);
             }
@@ -347,9 +399,9 @@ impl CalibrationService {
                 &app_handle,
                 "robot-actions.log",
                 Some("calibration"),
-                &format!("Remote auto calibrate failed: {}", stderr),
+                &format!("Remote auto calibrate failed: {}", validation_error),
             );
-            return Err(format!("Python script failed: {}", stderr));
+            return Err(validation_error);
         }
 
         if let Some(pid_value) = pid {
@@ -461,3 +513,7 @@ impl CalibrationService {
         Calibration { motors }
     }
 }
+
+#[cfg(test)]
+#[path = "tests/calibration_service_tests.rs"]
+mod calibration_service_tests;
