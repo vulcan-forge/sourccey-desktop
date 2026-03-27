@@ -82,8 +82,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const [bridgeStarting, setBridgeStarting] = useState(false);
     const [toastErrorMessage, setToastErrorMessage] = useState<string | null>(null);
     const [speedLevel, setSpeedLevel] = useState<0 | 1 | 2>(1);
-    const [leftArmUntorqued, setLeftArmUntorqued] = useState(false);
-    const [rightArmUntorqued, setRightArmUntorqued] = useState(false);
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
     const pulseTimeoutsRef = useRef<number[]>([]);
@@ -179,8 +177,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             }
             setBridgeReady(false);
             setSourceMap(createEmptyManualDriveSourceMap());
-            setLeftArmUntorqued(false);
-            setRightArmUntorqued(false);
             toast.error(`Manual drive process stopped: ${compactError(payload.message || 'Unknown failure')}`, {
                 ...toastErrorDefaults,
             });
@@ -201,8 +197,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         e: current.e.filter((source) => !source.startsWith('btn:')),
         r: current.r.filter((source) => !source.startsWith('btn:')),
         f: current.f.filter((source) => !source.startsWith('btn:')),
-        n: current.n.filter((source) => !source.startsWith('btn:')),
-        m: current.m.filter((source) => !source.startsWith('btn:')),
     });
 
     const isButtonActive = (buttonId: string, keys: ManualDriveKey[]) => {
@@ -251,18 +245,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             queuePulse([key], `spd:${nextLevel}:${i}:${Date.now()}`, i * 140);
         }
         setSpeedLevel(nextLevel);
-    };
-
-    const toggleLeftArmTorque = () => {
-        const stamp = Date.now();
-        pulseKeys(['n'], `torque:left:${stamp}`, 140);
-        setLeftArmUntorqued((current) => !current);
-    };
-
-    const toggleRightArmTorque = () => {
-        const stamp = Date.now();
-        pulseKeys(['m'], `torque:right:${stamp}`, 140);
-        setRightArmUntorqued((current) => !current);
     };
 
     const renderButton = (button: DriveButtonConfig) => (
@@ -332,31 +314,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                         {option.label}
                     </button>
                 ))}
-            </div>
-
-            <div className="mt-4 grid grid-cols-2 gap-2">
-                <button
-                    type="button"
-                    onClick={toggleLeftArmTorque}
-                    className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
-                        leftArmUntorqued
-                            ? 'border-amber-400 bg-amber-500/20 text-amber-100'
-                            : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
-                    }`}
-                >
-                    Toggle Left Arm Torque
-                </button>
-                <button
-                    type="button"
-                    onClick={toggleRightArmTorque}
-                    className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
-                        rightArmUntorqued
-                            ? 'border-amber-400 bg-amber-500/20 text-amber-100'
-                            : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
-                    }`}
-                >
-                    Toggle Right Arm Torque
-                </button>
             </div>
         </div>
     );

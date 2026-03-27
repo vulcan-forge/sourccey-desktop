@@ -12,8 +12,6 @@ fn sanitize_pressed_keys_filters_unknown_dedupes_and_sorts() {
         "q".to_string(),
         "R".to_string(),
         "f".to_string(),
-        "N".to_string(),
-        "m".to_string(),
     ];
 
     let sanitized = Service::sanitize_pressed_keys(keys);
@@ -22,8 +20,6 @@ fn sanitize_pressed_keys_filters_unknown_dedupes_and_sorts() {
         vec![
             "a".to_string(),
             "f".to_string(),
-            "m".to_string(),
-            "n".to_string(),
             "q".to_string(),
             "r".to_string(),
             "w".to_string(),
