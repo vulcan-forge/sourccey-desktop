@@ -79,19 +79,6 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
         };
 
         const setupListeners = async () => {
-            await register('ssh-connection-success', 'SSH', (p) => `Connected: ${p.message ?? ''}`);
-            await register('ssh-connection-error', 'SSH', (p) => `Connection error: ${p.error ?? ''}`);
-            await register('ssh-is-connected', 'SSH', (p) => `Status: ${p.message ?? ''}`);
-            await register('ssh-is-connected-error', 'SSH', (p) => `Status error: ${p.error ?? ''}`);
-            await register('robot-start-success', 'SSH', (p) => `Start: ${p.message ?? ''}`);
-            await register('robot-start-error', 'SSH', (p) => `Start error: ${p.error ?? ''}`);
-            await register('robot-stop-success', 'SSH', (p) => `Stop: ${p.message ?? ''}`);
-            await register('robot-stop-error', 'SSH', (p) => `Stop error: ${p.error ?? ''}`);
-            await register('robot-is-started-success', 'SSH', (p) => {
-                const output = p.output ? ` (${p.output})` : '';
-                return `Running: ${p.message ?? ''}${output}`;
-            });
-            await register('robot-is-started-error', 'SSH', (p) => `Running error: ${p.error ?? ''}`);
             const unlistenTeleop = await listen<string>('teleop-log', (event) => {
                 if (!isActive) return;
                 appendLog(event.payload);
