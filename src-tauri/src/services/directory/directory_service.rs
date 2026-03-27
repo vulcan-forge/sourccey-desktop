@@ -11,6 +11,26 @@ lazy_static! {
 pub struct DirectoryService;
 
 impl DirectoryService {
+    fn validate_path_segment<'a>(segment: &'a str, field_name: &str) -> Result<&'a str, String> {
+        let value = segment.trim();
+        if value.is_empty() {
+            return Err(format!("{} cannot be empty", field_name));
+        }
+        if value == "." || value == ".." {
+            return Err(format!("Invalid {}: relative path segment is not allowed", field_name));
+        }
+        if value.contains('/') || value.contains('\\') || value.contains('\0') {
+            return Err(format!(
+                "Invalid {}: path separators and null bytes are not allowed",
+                field_name
+            ));
+        }
+        if cfg!(windows) && value.contains(':') {
+            return Err(format!("Invalid {}: ':' is not allowed in path segments", field_name));
+        }
+        Ok(value)
+    }
+
     pub fn set_project_root_override(root: PathBuf) {
         let mut guard = PROJECT_ROOT_OVERRIDE.lock().unwrap();
         *guard = Some(root);
@@ -111,21 +131,31 @@ impl DirectoryService {
     // Calibration Directory Functions
     //------------------------------------------------------------//
     pub fn get_robot_calibration_path(robot_type: &str, filename: &str) -> Result<PathBuf, String> {
+        let safe_robot_type = Self::validate_path_segment(robot_type, "robot_type")?;
+        let safe_filename = Self::validate_path_segment(filename, "filename")?;
         let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
-        Ok(lerobot_cache_dir.join("calibration").join("robots").join(robot_type).join(filename))
+        Ok(
+            lerobot_cache_dir
+                .join("calibration")
+                .join("robots")
+                .join(safe_robot_type)
+                .join(safe_filename),
+        )
     }
 
     //------------------------------------------------------------//
     // Configuration Directory Functions
     //------------------------------------------------------------//
     pub fn get_robot_config_path(nickname: &str) -> Result<PathBuf, String> {
+        let safe_nickname = Self::validate_path_segment(nickname, "nickname")?;
         let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
-        Ok(lerobot_cache_dir.join(nickname).join("config.json"))
+        Ok(lerobot_cache_dir.join(safe_nickname).join("config.json"))
     }
 
     pub fn get_remote_config_path(nickname: &str) -> Result<PathBuf, String> {
+        let safe_nickname = Self::validate_path_segment(nickname, "nickname")?;
         let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
-        Ok(lerobot_cache_dir.join(nickname).join("remote_config.json"))
+        Ok(lerobot_cache_dir.join(safe_nickname).join("remote_config.json"))
     }
     //------------------------------------------------------------//
     // AI Models Directory Functions
@@ -143,11 +173,13 @@ impl DirectoryService {
             .next_back()
             .unwrap_or(repo_id)
             .trim();
-        Ok(lerobot_cache_dir.join(repo_folder_name))
+        let safe_repo_folder_name = Self::validate_path_segment(repo_folder_name, "repo_id")?;
+        Ok(lerobot_cache_dir.join(safe_repo_folder_name))
     }
 
     pub fn get_lerobot_ai_model_path(repo_id: &str, name: &str) -> Result<PathBuf, String> {
+        let safe_name = Self::validate_path_segment(name, "model_name")?;
         let lerobot_cache_dir = Self::get_lerobot_ai_model_repository_path(repo_id)?;
-        Ok(lerobot_cache_dir.join(name))
+        Ok(lerobot_cache_dir.join(safe_name))
     }
 }
