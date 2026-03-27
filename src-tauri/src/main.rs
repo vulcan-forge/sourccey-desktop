@@ -42,6 +42,10 @@ use modules::control::controllers::kiosk_control::kiosk_host_controller::{
     get_system_info, init_kiosk_host, is_kiosk_host_active, set_pi_password,
     set_ssh_password_changed_status, start_kiosk_host, stop_kiosk_host,
 };
+use modules::control::controllers::kiosk_control::manual_drive_controller::{
+    init_kiosk_manual_drive, set_kiosk_manual_drive_keys, start_kiosk_manual_drive,
+    stop_kiosk_manual_drive,
+};
 use modules::control::controllers::kiosk_control::pairing_controller::{
     check_kiosk_robot_connection,
     get_kiosk_robot_status,
@@ -341,6 +345,7 @@ fn main() {
         .manage(init_remote_teleop())
         .manage(init_remote_inference())
         .manage(init_kiosk_host())
+        .manage(init_kiosk_manual_drive())
         .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![
             //----------------------------------------------------------//
@@ -421,6 +426,9 @@ fn main() {
             start_kiosk_host,
             stop_kiosk_host,
             is_kiosk_host_active,
+            start_kiosk_manual_drive,
+            set_kiosk_manual_drive_keys,
+            stop_kiosk_manual_drive,
             get_system_info,
             get_pi_username,
             set_pi_password,
