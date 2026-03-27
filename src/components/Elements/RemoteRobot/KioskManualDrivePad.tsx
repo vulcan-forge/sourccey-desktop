@@ -245,45 +245,45 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             key={button.id}
             type="button"
             onClick={drivePadMode === 'tap' ? () => toggleTapButton(button.id, button.keys) : undefined}
-            onMouseDown={
+            onPointerDown={
                 drivePadMode === 'hold'
                     ? (event) => {
                         event.preventDefault();
+                        event.currentTarget.setPointerCapture(event.pointerId);
                         setHoldButtonPressed(button.id, button.keys, true);
                     }
                     : undefined
             }
-            onMouseUp={
+            onPointerUp={
                 drivePadMode === 'hold'
                     ? (event) => {
                         event.preventDefault();
+                        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                            event.currentTarget.releasePointerCapture(event.pointerId);
+                        }
                         setHoldButtonPressed(button.id, button.keys, false);
                     }
                     : undefined
             }
-            onMouseLeave={drivePadMode === 'hold' ? () => setHoldButtonPressed(button.id, button.keys, false) : undefined}
-            onTouchStart={
+            onPointerCancel={
                 drivePadMode === 'hold'
                     ? (event) => {
                         event.preventDefault();
-                        setHoldButtonPressed(button.id, button.keys, true);
-                    }
-                    : undefined
-            }
-            onTouchEnd={
-                drivePadMode === 'hold'
-                    ? (event) => {
-                        event.preventDefault();
+                        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                            event.currentTarget.releasePointerCapture(event.pointerId);
+                        }
                         setHoldButtonPressed(button.id, button.keys, false);
                     }
                     : undefined
             }
-            onTouchCancel={drivePadMode === 'hold' ? () => setHoldButtonPressed(button.id, button.keys, false) : undefined}
+            onPointerLeave={drivePadMode === 'hold' ? () => setHoldButtonPressed(button.id, button.keys, false) : undefined}
+            onContextMenu={(event) => event.preventDefault()}
             className={`flex h-16 select-none items-center justify-center rounded-lg border-2 text-sm font-semibold transition-colors ${
                 isButtonActive(button.id, button.keys)
                     ? 'border-yellow-400 bg-yellow-500/20 text-yellow-100'
                     : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
             }`}
+            style={drivePadMode === 'hold' ? { touchAction: 'none' } : undefined}
         >
             <span className="inline-flex items-center gap-2">
                 {button.icon}
