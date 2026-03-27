@@ -82,7 +82,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const [drivePadMode, setDrivePadMode] = useState<DrivePadMode>('hold');
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
-    const holdPointerDownRef = useRef(false);
     const holdPointerIdRef = useRef<number | null>(null);
     const activeHoldButtonIdRef = useRef<string | null>(null);
 
@@ -208,7 +207,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     };
 
     const releaseHoldState = () => {
-        holdPointerDownRef.current = false;
         holdPointerIdRef.current = null;
         setHoldActiveButton(null);
     };
@@ -265,7 +263,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 drivePadMode === 'hold'
                     ? (event) => {
                           event.preventDefault();
-                          holdPointerDownRef.current = true;
                           holdPointerIdRef.current = event.pointerId;
                           setHoldActiveButton(button.id);
                       }
@@ -291,6 +288,26 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                       }
                     : undefined
             }
+            onTouchStart={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                          event.preventDefault();
+                          setHoldActiveButton(button.id);
+                      }
+                    : undefined
+            }
+            onTouchEnd={drivePadMode === 'hold' ? releaseHoldState : undefined}
+            onTouchCancel={drivePadMode === 'hold' ? releaseHoldState : undefined}
+            onMouseDown={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                          event.preventDefault();
+                          setHoldActiveButton(button.id);
+                      }
+                    : undefined
+            }
+            onMouseUp={drivePadMode === 'hold' ? releaseHoldState : undefined}
+            onMouseLeave={drivePadMode === 'hold' ? releaseHoldState : undefined}
             onContextMenu={(event) => event.preventDefault()}
             className={`flex h-16 items-center justify-center rounded-lg border-2 text-sm font-semibold transition-colors select-none ${
                 isButtonActive(button.id, button.keys)
