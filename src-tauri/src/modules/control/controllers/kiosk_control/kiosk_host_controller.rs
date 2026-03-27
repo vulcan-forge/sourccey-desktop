@@ -215,6 +215,58 @@ pub fn get_pi_username() -> Result<String, String> {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn validate_single_line_field(value: &str, field_name: &str) -> Result<(), String> {
+    if value.contains('\n') || value.contains('\r') || value.contains('\0') {
+        return Err(format!(
+            "{} cannot contain newlines or null bytes",
+            field_name
+        ));
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn validate_chpasswd_username(username: &str) -> Result<(), String> {
+    let user = username.trim();
+    if user.is_empty() {
+        return Err("Username cannot be empty".to_string());
+    }
+    validate_single_line_field(user, "Username")?;
+    if user.contains(':') {
+        return Err("Username cannot contain ':'".to_string());
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn validate_chpasswd_password(password: &str) -> Result<(), String> {
+    validate_single_line_field(password, "Password")?;
+    if password.contains(':') {
+        return Err("Password cannot contain ':' for system password updates".to_string());
+    }
+    Ok(())
+}
+
+#[cfg(target_os = "linux")]
+fn get_current_linux_username() -> Result<String, String> {
+    let user = String::from_utf8(
+        Command::new("whoami")
+            .output()
+            .map_err(|e| format!("Failed to run whoami: {}", e))?
+            .stdout,
+    )
+    .map_err(|e| format!("Failed to parse whoami output: {}", e))?
+    .trim()
+    .to_string();
+
+    if user.is_empty() {
+        return Err("Unable to determine target username".to_string());
+    }
+
+    Ok(user)
+}
+
 #[command]
 #[allow(unused_variables)] // username is used on Linux but unused on other platforms
 pub fn set_pi_password(username: Option<String>, password: String) -> Result<String, String> {
@@ -228,33 +280,20 @@ pub fn set_pi_password(username: Option<String>, password: String) -> Result<Str
     #[cfg(target_os = "linux")]
     {
         // Determine target user
-        let user = if let Some(u) = username {
-            let trimmed = u.trim();
-            if trimmed.is_empty() {
-                // fallback to whoami
-                String::from_utf8(
-                    Command::new("whoami")
-                        .output()
-                        .map_err(|e| format!("Failed to run whoami: {}", e))?
-                        .stdout,
-                )
-                .unwrap_or_default()
-                .trim()
-                .to_string()
-            } else {
-                trimmed.to_string()
+        let user = match username {
+            Some(u) => {
+                let trimmed = u.trim();
+                if trimmed.is_empty() {
+                    get_current_linux_username()?
+                } else {
+                    trimmed.to_string()
+                }
             }
-        } else {
-            String::from_utf8(
-                Command::new("whoami")
-                    .output()
-                    .map_err(|e| format!("Failed to run whoami: {}", e))?
-                    .stdout,
-            )
-            .unwrap_or_default()
-            .trim()
-            .to_string()
+            None => get_current_linux_username()?,
         };
+
+        validate_chpasswd_username(&user)?;
+        validate_chpasswd_password(&password)?;
 
         // Use chpasswd for non-interactive password update: echo "user:pass" | sudo chpasswd
         let input = format!("{}:{}\n", user, password);

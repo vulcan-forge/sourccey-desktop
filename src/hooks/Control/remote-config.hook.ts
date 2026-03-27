@@ -1,6 +1,6 @@
 import type { RemoteConfig } from '@/types/remote-config';
 import { queryClient } from '@/hooks/default';
-import { getPairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
+import { getPairedRobotConnections, hydratePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
 import { useQuery } from '@tanstack/react-query';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
@@ -14,8 +14,6 @@ export const REMOTE_CONFIG_KEY = (nickname: string) => [BASE_REMOTE_CONTROL_CONF
 export const defaultRemoteConfig: RemoteConfig = {
     remote_ip: '',
     remote_port: '22',
-    username: 'sourccey',
-    password: 'vulcan',
     left_arm_port: 'COM3',
     right_arm_port: 'COM8',
     keyboard: 'keyboard',
@@ -50,6 +48,7 @@ export const useGetRemoteConfig = (nickname: string) =>
             }
 
             try {
+                await hydratePairedRobotConnections();
                 const config = await invoke<RemoteConfig>('read_remote_config', { nickname });
                 const pairedHost = getPairedHost(nickname);
                 const resolvedConfig = pairedHost ? { ...config, remote_ip: pairedHost } : config;

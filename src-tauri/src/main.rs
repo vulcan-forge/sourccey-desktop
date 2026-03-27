@@ -47,6 +47,7 @@ use modules::control::controllers::kiosk_control::pairing_controller::{
     get_kiosk_robot_status,
     discover_pairable_robots, get_kiosk_pairing_info, init_kiosk_pairing, pair_with_kiosk_robot,
     request_kiosk_pairing_modal, send_model_to_kiosk_robot, start_kiosk_robot, stop_kiosk_robot,
+    get_saved_paired_robot_connections, upsert_paired_robot_connection, remove_paired_robot_connection,
 };
 use modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
@@ -69,7 +70,7 @@ use modules::settings::controllers::wifi::wifi_controller::{
     set_wifi,
 };
 use modules::settings::controllers::access_point::access_point_controller::{
-    set_access_point,
+    get_access_point_credentials, save_access_point_credentials, set_access_point,
     is_access_point_active,
 };
 use modules::status::controllers::battery::battery_controller::get_battery_data;
@@ -436,6 +437,9 @@ fn main() {
             start_kiosk_robot,
             stop_kiosk_robot,
             get_kiosk_robot_status,
+            get_saved_paired_robot_connections,
+            upsert_paired_robot_connection,
+            remove_paired_robot_connection,
 
             // WiFi API
             scan_wifi_networks,
@@ -445,6 +449,8 @@ fn main() {
             set_wifi,
             set_access_point,
             is_access_point_active,
+            get_access_point_credentials,
+            save_access_point_credentials,
 
             // Battery API
             get_battery_data,

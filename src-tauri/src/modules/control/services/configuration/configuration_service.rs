@@ -217,8 +217,6 @@ impl ConfigurationService {
         RemoteConfig {
             remote_ip: "".to_string(),
             remote_port: "22".to_string(),
-            username: "sourccey".to_string(),
-            password: "vulcan".to_string(),
             left_arm_port: "COM3".to_string(),
             right_arm_port: "COM8".to_string(),
             keyboard: "keyboard".to_string(),

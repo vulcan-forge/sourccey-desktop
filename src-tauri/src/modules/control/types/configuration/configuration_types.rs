@@ -34,8 +34,6 @@ pub struct Config {
 pub struct RemoteConfig {
     pub remote_ip: String,
     pub remote_port: String,
-    pub username: String,
-    pub password: String,
     pub left_arm_port: String,
     pub right_arm_port: String,
     pub keyboard: String,

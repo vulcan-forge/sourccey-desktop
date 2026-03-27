@@ -1,7 +1,17 @@
+use crate::services::directory::directory_service::DirectoryService;
 use crate::services::directory::remote_directory_service::RemoteDirectoryService;
+use serde::{Deserialize, Serialize};
+use std::fs;
+use std::path::PathBuf;
 use std::process::Command;
 
 pub struct AccessPointService;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AccessPointCredentials {
+    pub ssid: String,
+    pub password: String,
+}
 
 impl AccessPointService {
     /// Set the robot to access point mode (broadcast WiFi)
@@ -108,5 +118,74 @@ impl AccessPointService {
         let stdout = String::from_utf8_lossy(&output.stdout);
         let is_active = stdout.contains("Hotspot");
         Ok(is_active)
+    }
+
+    pub fn get_saved_access_point_credentials() -> Result<Option<AccessPointCredentials>, String> {
+        let path = Self::credentials_file_path()?;
+        if !path.exists() {
+            return Ok(None);
+        }
+
+        let content = fs::read_to_string(&path)
+            .map_err(|e| format!("Failed to read access point credentials {:?}: {}", path, e))?;
+        let parsed = serde_json::from_str::<AccessPointCredentials>(&content)
+            .map_err(|e| format!("Failed to parse access point credentials {:?}: {}", path, e))?;
+
+        Self::validate_credentials(&parsed.ssid, &parsed.password)?;
+        Ok(Some(parsed))
+    }
+
+    pub fn save_access_point_credentials(ssid: String, password: String) -> Result<(), String> {
+        Self::validate_credentials(&ssid, &password)?;
+        let path = Self::credentials_file_path()?;
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create access point credentials directory {:?}: {}", parent, e))?;
+        }
+
+        let payload = AccessPointCredentials {
+            ssid: ssid.trim().to_string(),
+            password,
+        };
+
+        let serialized = serde_json::to_string_pretty(&payload)
+            .map_err(|e| format!("Failed to encode access point credentials: {}", e))?;
+        fs::write(&path, serialized)
+            .map_err(|e| format!("Failed to write access point credentials {:?}: {}", path, e))?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = fs::Permissions::from_mode(0o600);
+            fs::set_permissions(&path, perms)
+                .map_err(|e| format!("Failed to secure access point credentials file {:?}: {}", path, e))?;
+        }
+
+        Ok(())
+    }
+
+    fn validate_credentials(ssid: &str, password: &str) -> Result<(), String> {
+        let trimmed_ssid = ssid.trim();
+        if trimmed_ssid.is_empty() {
+            return Err("SSID is required".to_string());
+        }
+        if password.is_empty() {
+            return Err("Password is required".to_string());
+        }
+        if trimmed_ssid.contains('\n')
+            || trimmed_ssid.contains('\r')
+            || trimmed_ssid.contains('\0')
+            || password.contains('\n')
+            || password.contains('\r')
+            || password.contains('\0')
+        {
+            return Err("SSID/password cannot contain control characters".to_string());
+        }
+        Ok(())
+    }
+
+    fn credentials_file_path() -> Result<PathBuf, String> {
+        let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
+        Ok(cache_dir.join("settings").join("access_point_credentials.json"))
     }
 }

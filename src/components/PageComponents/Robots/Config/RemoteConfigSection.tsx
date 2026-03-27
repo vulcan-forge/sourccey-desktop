@@ -94,23 +94,6 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
                             />
                         </label>
                         <label className="flex flex-col gap-1 text-xs text-slate-300">
-                            Username
-                            <input
-                                value={draftConfig.username ?? ''}
-                                onChange={(event) => updateDraft('username', event.target.value)}
-                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-300">
-                            Password
-                            <input
-                                type="password"
-                                value={draftConfig.password ?? ''}
-                                onChange={(event) => updateDraft('password', event.target.value)}
-                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-300">
                             Left Arm Port
                             <input
                                 value={draftConfig.left_arm_port ?? ''}

@@ -396,7 +396,10 @@ fn connect_wifi_windows(ssid: String, password: String, security: Option<String>
         ssid, ssid, password
     );
 
-    println!("Connecting to WiFi: {} with password: {} and security: {:?}", ssid, password, security);
+    println!(
+        "Connecting to WiFi: {} with password: [REDACTED] and security: {:?}",
+        ssid, security
+    );
 
     // Write profile to temp file
     let profile_path = format!("C:\\temp_wifi_profile_{}.xml", ssid);
@@ -561,7 +564,10 @@ fn scan_wifi_macos() -> Result<Vec<WiFiNetwork>, String> {
 #[cfg(target_os = "macos")]
 fn connect_wifi_macos(ssid: String, password: String, security: Option<String>) -> Result<String, String> {
     // Use networksetup to connect
-    println!("Connecting to WiFi: {} with password: {} and security: {:?}", ssid, password, security);
+    println!(
+        "Connecting to WiFi: {} with password: [REDACTED] and security: {:?}",
+        ssid, security
+    );
     let output = Command::new("networksetup")
         .args(&["-setairportnetwork", "en0", &ssid, &password])
         .output()
