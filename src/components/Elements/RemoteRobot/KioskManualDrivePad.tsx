@@ -52,11 +52,12 @@ const Z_BUTTONS: DriveButtonConfig[] = [
 
 const MAX_TOAST_CHARS = 140;
 const compactError = (error: unknown): string => {
-    const base = typeof error === 'string'
-        ? error
-        : error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string'
-          ? ((error as { message: string }).message)
-          : 'Unknown error';
+    const base =
+        typeof error === 'string'
+            ? error
+            : error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string'
+              ? (error as { message: string }).message
+              : 'Unknown error';
     const firstLine = base.split(/\r?\n/, 1)[0]?.trim() || 'Unknown error';
     const compact = firstLine.replace(/\s+/g, ' ').trim();
     if (compact.length <= MAX_TOAST_CHARS) {
@@ -210,6 +211,26 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         setSourceMap((prev) => clearButtonSources(prev));
     }, [drivePadMode]);
 
+    useEffect(() => {
+        if (drivePadMode !== 'hold') {
+            return;
+        }
+
+        const releaseAllHoldButtons = () => {
+            setSourceMap((prev) => clearButtonSources(prev));
+        };
+
+        window.addEventListener('pointerup', releaseAllHoldButtons);
+        window.addEventListener('touchend', releaseAllHoldButtons);
+        window.addEventListener('touchcancel', releaseAllHoldButtons);
+
+        return () => {
+            window.removeEventListener('pointerup', releaseAllHoldButtons);
+            window.removeEventListener('touchend', releaseAllHoldButtons);
+            window.removeEventListener('touchcancel', releaseAllHoldButtons);
+        };
+    }, [drivePadMode]);
+
     const isButtonActive = (buttonId: string, keys: ManualDriveKey[]) => {
         const sourceId = `btn:${buttonId}`;
         return keys.every((key) => sourceMap[key].includes(sourceId));
@@ -248,37 +269,60 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             onPointerDown={
                 drivePadMode === 'hold'
                     ? (event) => {
-                        event.preventDefault();
-                        event.currentTarget.setPointerCapture(event.pointerId);
-                        setHoldButtonPressed(button.id, button.keys, true);
-                    }
+                          event.preventDefault();
+                          event.currentTarget.setPointerCapture(event.pointerId);
+                          setHoldButtonPressed(button.id, button.keys, true);
+                      }
                     : undefined
             }
             onPointerUp={
                 drivePadMode === 'hold'
                     ? (event) => {
-                        event.preventDefault();
-                        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                            event.currentTarget.releasePointerCapture(event.pointerId);
-                        }
-                        setHoldButtonPressed(button.id, button.keys, false);
-                    }
+                          event.preventDefault();
+                          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                              event.currentTarget.releasePointerCapture(event.pointerId);
+                          }
+                          setHoldButtonPressed(button.id, button.keys, false);
+                      }
                     : undefined
             }
             onPointerCancel={
                 drivePadMode === 'hold'
                     ? (event) => {
-                        event.preventDefault();
-                        if (event.currentTarget.hasPointerCapture(event.pointerId)) {
-                            event.currentTarget.releasePointerCapture(event.pointerId);
-                        }
-                        setHoldButtonPressed(button.id, button.keys, false);
-                    }
+                          event.preventDefault();
+                          if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                              event.currentTarget.releasePointerCapture(event.pointerId);
+                          }
+                          setHoldButtonPressed(button.id, button.keys, false);
+                      }
                     : undefined
             }
-            onPointerLeave={drivePadMode === 'hold' ? () => setHoldButtonPressed(button.id, button.keys, false) : undefined}
+            onTouchStart={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                          event.preventDefault();
+                          setHoldButtonPressed(button.id, button.keys, true);
+                      }
+                    : undefined
+            }
+            onTouchEnd={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                          event.preventDefault();
+                          setHoldButtonPressed(button.id, button.keys, false);
+                      }
+                    : undefined
+            }
+            onTouchCancel={
+                drivePadMode === 'hold'
+                    ? (event) => {
+                          event.preventDefault();
+                          setHoldButtonPressed(button.id, button.keys, false);
+                      }
+                    : undefined
+            }
             onContextMenu={(event) => event.preventDefault()}
-            className={`flex h-16 select-none items-center justify-center rounded-lg border-2 text-sm font-semibold transition-colors ${
+            className={`flex h-16 items-center justify-center rounded-lg border-2 text-sm font-semibold transition-colors select-none ${
                 isButtonActive(button.id, button.keys)
                     ? 'border-yellow-400 bg-yellow-500/20 text-yellow-100'
                     : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
@@ -296,12 +340,11 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         <div className="mt-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
             <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
-                    <h3 className="text-lg font-semibold text-white">Manual Wheel Control</h3>
+                    <h3 className="text-lg font-semibold text-white">Manual Control</h3>
                     <p className="mt-1 text-sm text-slate-300">
                         {drivePadMode === 'hold'
                             ? 'Hold mode: press and hold buttons to move, release to stop.'
-                            : 'Tap mode: tap once to latch motion, tap again to release.'}{' '}
-                        Keyboard always uses hold behavior (WASD, Z/X, Q/E).
+                            : 'Tap mode: tap once to latch motion, tap again to release.'}
                     </p>
                 </div>
                 <div className="flex items-center gap-3">
@@ -310,9 +353,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                             type="button"
                             onClick={() => setDrivePadMode('hold')}
                             className={`px-3 py-1 text-xs font-semibold transition-colors ${
-                                drivePadMode === 'hold'
-                                    ? 'bg-yellow-500/20 text-yellow-100'
-                                    : 'text-slate-300 hover:bg-slate-700'
+                                drivePadMode === 'hold' ? 'bg-yellow-500/20 text-yellow-100' : 'text-slate-300 hover:bg-slate-700'
                             }`}
                         >
                             Hold
@@ -321,9 +362,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                             type="button"
                             onClick={() => setDrivePadMode('tap')}
                             className={`px-3 py-1 text-xs font-semibold transition-colors ${
-                                drivePadMode === 'tap'
-                                    ? 'bg-yellow-500/20 text-yellow-100'
-                                    : 'text-slate-300 hover:bg-slate-700'
+                                drivePadMode === 'tap' ? 'bg-yellow-500/20 text-yellow-100' : 'text-slate-300 hover:bg-slate-700'
                             }`}
                         >
                             Tap/Untap
@@ -349,14 +388,9 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 {renderButton(DIRECTION_BUTTONS[7]!)}
             </div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
-                {TURN_BUTTONS.map(renderButton)}
-            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">{TURN_BUTTONS.map(renderButton)}</div>
 
-            <div className="mt-3 grid grid-cols-2 gap-2">
-                {Z_BUTTONS.map(renderButton)}
-            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">{Z_BUTTONS.map(renderButton)}</div>
         </div>
     );
 };
-
