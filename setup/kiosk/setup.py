@@ -40,6 +40,9 @@ from setup_javascript import JavaScriptSetupManager  # type: ignore
 from setup_rust import RustSetupManager  # type: ignore
 from setup_git import GitSetupManager  # type: ignore
 
+LEROBOT_VULCAN_SUBMODULE_PATH = "modules/lerobot-vulcan"
+LEROBOT_VULCAN_TAG = "vulcan/0.1.0"
+
 class Colors:
     """ANSI color codes for terminal output"""
     # Check if colors are supported
@@ -549,6 +552,16 @@ class KioskSetupScript:
             else:
                 self.print_error("Git submodule setup failed even with HTTPS.")
                 self.print_error("Please check your internet connection and try again.")
+            return False
+
+        if not self.git_manager.checkout_submodule_tag(
+            submodule_relative_path=LEROBOT_VULCAN_SUBMODULE_PATH,
+            tag=LEROBOT_VULCAN_TAG,
+        ):
+            self.print_error(
+                f"Failed to checkout tag {LEROBOT_VULCAN_TAG} in "
+                f"{LEROBOT_VULCAN_SUBMODULE_PATH}."
+            )
             return False
 
         if not self.setup_python_environment():
