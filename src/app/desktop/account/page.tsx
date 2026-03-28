@@ -19,6 +19,7 @@ const AUTH_PROVIDER_IDS = {
     google: 1,
     github: 2,
 } as const;
+type OAuthProvider = 'google' | 'github';
 
 const readFirstValue = (params: URLSearchParams, keys: string[]) => {
     for (const key of keys) {
@@ -59,6 +60,41 @@ const buildOAuthUrl = (template: string) => {
     return `${template}${separator}redirect_uri=${encodeURIComponent(redirectUri)}`;
 };
 
+const getOAuthUrlCandidates = (oauthUrl: string) => {
+    const candidates = [oauthUrl];
+    try {
+        const parsed = new URL(oauthUrl);
+        const variants = [
+            parsed.pathname.replace(/^\/api\/v1\/auth\//, '/v1/auth/'),
+            parsed.pathname.replace(/^\/v1\/auth\//, '/api/v1/auth/'),
+        ];
+
+        for (const pathname of variants) {
+            if (pathname === parsed.pathname) continue;
+            const variantUrl = new URL(oauthUrl);
+            variantUrl.pathname = pathname;
+            candidates.push(variantUrl.toString());
+        }
+    } catch {
+        // Keep original URL only.
+    }
+    return Array.from(new Set(candidates));
+};
+
+const probeOAuthEndpoint = async (oauthUrl: string): Promise<'reachable' | 'not_found' | 'unknown'> => {
+    try {
+        const response = await fetch(oauthUrl, {
+            method: 'HEAD',
+            redirect: 'manual',
+            credentials: 'include',
+        });
+        if (response.status === 404) return 'not_found';
+        return 'reachable';
+    } catch {
+        return 'unknown';
+    }
+};
+
 const getReadableGraphQLError = (error: unknown) => {
     if (error instanceof ClientError) {
         const firstError = error.response?.errors?.[0];
@@ -76,6 +112,7 @@ function AccountPageContent() {
     const [email, setEmail] = useState(authSession?.email ?? '');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [oauthPendingProvider, setOauthPendingProvider] = useState<OAuthProvider | null>(null);
 
     const isAuthenticated = Boolean(authSession?.isAuthenticated && authSession?.accountId);
     const accountId = authSession?.accountId ?? null;
@@ -126,8 +163,13 @@ function AccountPageContent() {
 
     const credentialsLogin = useMutation({
         mutationFn: async ({ email, password }: { email: string; password: string }) => {
+            const recaptchaSiteKey = getReCaptchaSiteKey();
+            if (!recaptchaSiteKey) {
+                throw new Error('reCAPTCHA is not configured. Set NEXT_PUBLIC_GOOGLE_V3_RECAPTCHA_SITE_KEY in sourccey-desktop .env.');
+            }
+
             const recaptcha = await getReCaptchaToken('login');
-            if (getReCaptchaSiteKey() && !recaptcha) {
+            if (!recaptcha) {
                 throw new Error('reCAPTCHA validation failed. Please try again.');
             }
 
@@ -208,7 +250,8 @@ function AccountPageContent() {
         credentialsLogin.mutate({ email: normalizedEmail, password });
     };
 
-    const beginOAuth = (provider: 'google' | 'github') => {
+    const beginOAuth = async (provider: OAuthProvider) => {
+        if (oauthPendingProvider) return;
         const endpoint = provider === 'google' ? googleLoginUrl : githubLoginUrl;
         if (!endpoint) {
             toast.error(`Set NEXT_PUBLIC_AUTH_${provider.toUpperCase()}_URL in your env file before using ${provider} login.`, {
@@ -216,7 +259,34 @@ function AccountPageContent() {
             });
             return;
         }
-        window.location.assign(buildOAuthUrl(endpoint));
+
+        setOauthPendingProvider(provider);
+
+        const oauthUrl = buildOAuthUrl(endpoint);
+        const candidates = getOAuthUrlCandidates(oauthUrl);
+
+        let hadUnknownProbe = false;
+        for (const candidate of candidates) {
+            const status = await probeOAuthEndpoint(candidate);
+            if (status === 'reachable') {
+                window.location.assign(candidate);
+                return;
+            }
+            if (status === 'unknown') {
+                hadUnknownProbe = true;
+            }
+        }
+
+        if (hadUnknownProbe) {
+            window.location.assign(oauthUrl);
+            return;
+        }
+
+        toast.error(
+            `Could not find a working ${provider} auth endpoint. Checked: ${candidates.join(' , ')}`,
+            { ...toastErrorDefaults }
+        );
+        setOauthPendingProvider(null);
     };
 
     const handleSignOut = () => {
@@ -280,18 +350,20 @@ function AccountPageContent() {
                             <button
                                 type="button"
                                 onClick={() => beginOAuth('google')}
-                                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10"
+                                disabled={oauthPendingProvider !== null}
+                                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 <FaGoogle className="h-4 w-4" />
-                                Continue with Google
+                                {oauthPendingProvider === 'google' ? 'Opening Google...' : 'Continue with Google'}
                             </button>
                             <button
                                 type="button"
                                 onClick={() => beginOAuth('github')}
-                                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10"
+                                disabled={oauthPendingProvider !== null}
+                                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10 disabled:cursor-not-allowed disabled:opacity-60"
                             >
                                 <FaGithub className="h-4 w-4" />
-                                Continue with GitHub
+                                {oauthPendingProvider === 'github' ? 'Opening GitHub...' : 'Continue with GitHub'}
                             </button>
                         </div>
 
