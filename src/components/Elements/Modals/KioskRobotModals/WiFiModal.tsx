@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { FaWifi, FaTimes, FaLock, FaLockOpen, FaSpinner, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
@@ -19,12 +19,13 @@ interface WiFiModalProps {
     systemInfo: SystemInfo;
 }
 
+const NETWORKS_PAGE_SIZE = 20;
+const NETWORKS_SCROLL_THRESHOLD_PX = 120;
+
 export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInfo }) => {
     const [mounted, setMounted] = useState(false);
-    useEffect(() => {
-        setMounted(true);
-    }, []);
     const [networks, setNetworks] = useState<WiFiNetwork[]>([]);
+    const [visibleCount, setVisibleCount] = useState(NETWORKS_PAGE_SIZE);
     const [selectedNetwork, setSelectedNetwork] = useState<WiFiNetwork | null>(null);
     const [currentConnection, setCurrentConnection] = useState<WiFiNetwork | null>(null);
     const [password, setPassword] = useState('');
@@ -34,15 +35,9 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
 
-    const getCurrentConnection = async () => {
-        try {
-            const result = await invoke<WiFiNetwork | null>('get_current_wifi_connection');
-            setCurrentConnection(result);
-        } catch (err) {
-            console.error('Failed to get current connection:', err);
-            setCurrentConnection(null);
-        }
-    };
+    useEffect(() => {
+        setMounted(true);
+    }, []);
 
     const scanNetworks = async () => {
         setIsScanning(true);
@@ -53,13 +48,11 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                 invoke<WiFiNetwork | null>('get_current_wifi_connection'),
             ]);
 
-            // Deduplicate networks by SSID, keeping the one with strongest signal
             const uniqueNetworks = networksResult.reduce((acc, network) => {
                 const existing = acc.find((n) => n.ssid === network.ssid);
                 if (!existing) {
                     acc.push(network);
                 } else if (network.signal_strength > existing.signal_strength) {
-                    // Replace with stronger signal
                     const index = acc.indexOf(existing);
                     acc[index] = network;
                 }
@@ -67,6 +60,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
             }, [] as WiFiNetwork[]);
 
             setNetworks(uniqueNetworks);
+            setVisibleCount(NETWORKS_PAGE_SIZE);
             setCurrentConnection(currentResult);
         } catch (err) {
             const errorMsg = String(err);
@@ -99,7 +93,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
         try {
             const result = await invoke<string>('connect_to_wifi', {
                 ssid: selectedNetwork.ssid,
-                password: password,
+                password,
                 security: selectedNetwork.security,
             });
             setSuccess(result);
@@ -107,7 +101,6 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
 
             setPassword('');
             setSelectedNetwork(null);
-            // Refresh network list and current connection after connection
             setTimeout(() => {
                 scanNetworks();
                 setSuccess(null);
@@ -138,7 +131,6 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
             removeSavedWiFiSSID(currentConnection?.ssid ?? '');
 
             setCurrentConnection(null);
-            // Refresh network list after disconnection
             setTimeout(() => {
                 scanNetworks();
                 setSuccess(null);
@@ -158,68 +150,101 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
         }
     };
 
-    const getSignalIcon = (strength: number) => {
-        if (strength >= 75) return '▂▄▆█';
-        if (strength >= 50) return '▂▄▆';
-        if (strength >= 25) return '▂▄';
-        return '▂';
+    const handleNetworksScroll = (e: React.UIEvent<HTMLDivElement>) => {
+        if (isScanning) return;
+        const element = e.currentTarget;
+        const distanceFromBottom = element.scrollHeight - element.scrollTop - element.clientHeight;
+
+        if (distanceFromBottom <= NETWORKS_SCROLL_THRESHOLD_PX && visibleCount < networks.length) {
+            setVisibleCount((prev) => Math.min(prev + NETWORKS_PAGE_SIZE, networks.length));
+        }
     };
 
-    const isSecure = (security: string) => {
-        return security !== 'Open' && security !== '';
+    const getSignalLevel = (strength: number) => {
+        if (strength >= 75) return 4;
+        if (strength >= 50) return 3;
+        if (strength >= 25) return 2;
+        return 1;
     };
+
+    const getSignalColorClass = (strength: number) => {
+        if (strength >= 75) return 'bg-emerald-400';
+        if (strength >= 50) return 'bg-lime-400';
+        if (strength >= 25) return 'bg-amber-400';
+        return 'bg-rose-400';
+    };
+
+    const renderSignalBars = (strength: number) => {
+        const level = getSignalLevel(strength);
+        const activeColor = getSignalColorClass(strength);
+        const heights = ['h-2', 'h-3', 'h-4', 'h-5'];
+
+        return (
+            <span className="inline-flex items-end gap-0.5" aria-label={`Signal ${strength}%`}>
+                {heights.map((height, idx) => (
+                    <span
+                        key={`${height}-${idx}`}
+                        className={`block w-1 rounded-sm ${height} ${idx + 1 <= level ? activeColor : 'bg-slate-600/70'}`}
+                    />
+                ))}
+            </span>
+        );
+    };
+
+    const isSecure = (security: string) => security !== 'Open' && security !== '';
+    const sortedNetworks = [...networks].sort((a, b) => {
+        if (a.signal_strength !== b.signal_strength) {
+            return b.signal_strength - a.signal_strength;
+        }
+        return a.ssid.localeCompare(b.ssid);
+    });
+    const visibleNetworks = sortedNetworks.slice(0, visibleCount);
+    const hasMoreNetworks = visibleCount < sortedNetworks.length;
 
     if (!isOpen) return null;
-
-    // Ensure this only runs on the client
-    if (!mounted || typeof window === 'undefined') {
-        return null;
-    }
+    if (!mounted || typeof window === 'undefined') return null;
 
     return createPortal(
-        <div
-            className="fixed inset-0 z-[2000] flex cursor-pointer items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-            onClick={onClose}
-        >
+        <div className="fixed inset-0 z-[2000] flex items-start justify-center bg-black/55 p-4 pt-8 backdrop-blur-sm" onClick={onClose}>
             <div
-                className="flex max-h-[85vh] w-full max-w-2xl cursor-default flex-col overflow-hidden rounded-xl border border-slate-600 bg-slate-800 shadow-2xl"
+                className="mt-4 flex max-h-[82vh] w-full max-w-3xl cursor-default flex-col overflow-hidden rounded-2xl border border-slate-600/70 bg-slate-850 shadow-[0_20px_55px_rgba(2,6,23,0.65)]"
                 onClick={(e) => e.stopPropagation()}
             >
-                {/* Header */}
-                <div className="flex items-center justify-between border-b border-slate-700 p-4">
+                <div className="flex items-center justify-between border-b border-slate-700/80 px-5 py-4">
                     <div className="flex items-center gap-3">
-                        <FaWifi className="h-5 w-5 text-blue-400" />
-                        <h2 className="text-xl font-bold text-white">WiFi Networks </h2>
-                        <span className="text-sm text-slate-400">{systemInfo.ipAddress ?? 'Disconnected'}</span>
+                        <div className="rounded-lg bg-blue-500/15 p-2 text-blue-300">
+                            <FaWifi className="h-4 w-4" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold tracking-tight text-white">WiFi Networks</h2>
+                            <span className="text-xs text-slate-400">{systemInfo.ipAddress ?? 'Disconnected'}</span>
+                        </div>
                     </div>
                     <button
                         onClick={onClose}
-                        className="mt-1 cursor-pointer rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-700 hover:text-white"
+                        className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-700/70 hover:text-white"
                     >
                         <FaTimes className="h-5 w-5" />
                     </button>
                 </div>
 
-                {/* Content */}
-                <div className="flex-1 p-4 flex flex-col gap-4">
-                    {/* Status Messages */}
+                <div className="flex flex-1 flex-col gap-4 p-5">
                     {error && (
-                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-red-400">
+                        <div className="mb-1 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">
                             <FaExclamationTriangle className="h-5 w-5" />
                             <span>{error}</span>
                         </div>
                     )}
 
                     {success && (
-                        <div className="mb-4 flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-4 text-green-400">
+                        <div className="mb-1 flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/10 p-3 text-sm text-green-300">
                             <FaCheck className="h-5 w-5" />
                             <span>{success}</span>
                         </div>
                     )}
 
-                    {/* Current Connection Status */}
                     {currentConnection && (
-                        <div className="rounded-lg border border-green-500/20 bg-green-500/10 p-4">
+                        <div className="rounded-lg border border-green-500/25 bg-green-500/10 p-4">
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-3">
                                     <div className="flex h-3 w-3 items-center justify-center">
@@ -227,18 +252,16 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                                     </div>
                                     <div>
                                         <div className="font-semibold text-green-400">Connected to {currentConnection.ssid}</div>
-                                        <div className="text-sm text-green-300">
-                                            Signal: {currentConnection.signal_strength}%
-                                            {currentConnection.signal_strength > 0 && (
-                                                <span className="ml-2 font-mono">{getSignalIcon(currentConnection.signal_strength)}</span>
-                                            )}
+                                        <div className="flex items-center gap-2 text-sm text-green-300">
+                                            <span>Signal: {currentConnection.signal_strength}%</span>
+                                            {currentConnection.signal_strength > 0 && renderSignalBars(currentConnection.signal_strength)}
                                         </div>
                                     </div>
                                 </div>
                                 <button
                                     onClick={handleDisconnect}
                                     disabled={isDisconnecting}
-                                    className="flex items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                    className="flex cursor-pointer items-center gap-2 rounded-lg bg-red-500 px-3 py-2 text-sm font-medium text-white transition-colors hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     {isDisconnecting ? (
                                         <>
@@ -256,15 +279,14 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                         </div>
                     )}
 
-                    {/* Scan Button */}
-                    <div className="mb-4 flex items-center justify-between">
+                    <div className="mb-1 flex items-center justify-between gap-3">
                         <p className="text-sm text-slate-400">
                             {networks.length} network{networks.length !== 1 ? 's' : ''} found
                         </p>
                         <button
                             onClick={scanNetworks}
                             disabled={isScanning}
-                            className="flex items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-white transition-colors hover:bg-blue-600 disabled:opacity-50"
+                            className="flex cursor-pointer items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             {isScanning ? (
                                 <>
@@ -280,12 +302,9 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                         </button>
                     </div>
 
-                    {/* Connection Form (compact, stays at top) - hidden when already connected to any network */}
                     {selectedNetwork && !currentConnection && (
-                        <div className="rounded-lg border border-slate-700 bg-slate-900 p-4">
-                            <h3 className="mb-3 text-base font-semibold text-white">
-                                {`Connect to "${selectedNetwork.ssid}"`}
-                            </h3>
+                        <div className="rounded-lg border border-slate-700/80 bg-slate-900/70 p-4">
+                            <h3 className="mb-3 text-sm font-semibold text-white">{`Connect to "${selectedNetwork.ssid}"`}</h3>
 
                             {isSecure(selectedNetwork.security) ? (
                                 <div className="mb-3">
@@ -314,11 +333,8 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                             <div className="flex gap-3">
                                 <button
                                     onClick={handleConnect}
-                                    disabled={
-                                        isConnecting ||
-                                        (isSecure(selectedNetwork.security) && !password)
-                                    }
-                                    className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-green-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
+                                    disabled={isConnecting || (isSecure(selectedNetwork.security) && !password)}
+                                    className="flex flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg bg-green-500 px-4 py-3 font-semibold text-white transition-colors hover:bg-green-600 disabled:cursor-not-allowed disabled:opacity-50"
                                 >
                                     {isConnecting ? (
                                         <>
@@ -338,7 +354,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                                         setPassword('');
                                         setError(null);
                                     }}
-                                    className="rounded-lg bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
+                                    className="cursor-pointer rounded-lg bg-slate-700 px-4 py-3 font-semibold text-white transition-colors hover:bg-slate-600"
                                 >
                                     Clear
                                 </button>
@@ -346,14 +362,11 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                         </div>
                     )}
 
-                    {/* Network List (scrollable only) */}
-                    <div className="flex-1 min-h-0 overflow-y-auto rounded-lg border border-slate-700">
-                        {networks.length === 0 && !isScanning ? (
-                            <div className="p-8 text-center text-slate-400">
-                                No networks found. Click “Scan” to search for WiFi networks.
-                            </div>
+                    <div onScroll={handleNetworksScroll} className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-slate-700/90">
+                        {sortedNetworks.length === 0 && !isScanning ? (
+                            <div className="p-8 text-center text-slate-400">No networks found. Click "Scan" to search for WiFi networks.</div>
                         ) : (
-                            networks.map((network) => {
+                            visibleNetworks.map((network) => {
                                 const isConnected = currentConnection?.ssid === network.ssid;
                                 const isSelected = selectedNetwork?.ssid === network.ssid;
 
@@ -366,7 +379,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                                             setError(null);
                                             setSuccess(null);
                                         }}
-                                        className={`flex w-full items-center justify-between border-b border-slate-700 p-4 text-left transition-colors last:border-b-0 ${
+                                        className={`flex w-full cursor-pointer items-center justify-between border-b border-slate-700/80 p-4 text-left transition-colors last:border-b-0 ${
                                             isConnected
                                                 ? 'border-green-500/30 bg-green-500/20'
                                                 : isSelected
@@ -397,12 +410,18 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                                             </div>
                                         </div>
                                         <div className="flex items-center gap-2 text-slate-400">
-                                            <span className="font-mono text-sm">{getSignalIcon(network.signal_strength)}</span>
+                                            {renderSignalBars(network.signal_strength)}
                                             <span className="text-xs">{network.signal_strength}%</span>
                                         </div>
                                     </button>
                                 );
                             })
+                        )}
+
+                        {hasMoreNetworks && !isScanning && (
+                            <div className="flex items-center justify-center border-t border-slate-700/70 px-4 py-3 text-xs text-slate-400">
+                                Showing {visibleNetworks.length} of {sortedNetworks.length}. Scroll to load more.
+                            </div>
                         )}
                     </div>
                 </div>
