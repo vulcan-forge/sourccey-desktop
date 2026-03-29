@@ -410,12 +410,22 @@ class KioskSetupScript:
         from components.file_utils import write_file_as_root
         return write_file_as_root(path, content, mode, executable)
 
+    def get_session_name(self) -> str:
+        """Build a stable, LightDM-safe session name."""
+        package_name = self.app_info.get("package_name", "") or self.app_info.get("binary_name", "sourccey")
+        sanitized = "".join(ch.lower() if ch.isalnum() else "-" for ch in package_name).strip("-")
+        if not sanitized:
+            sanitized = "sourccey"
+        return f"{sanitized}-openbox"
+
     def setup_session_files(self) -> bool:
         """Create desktop session and launcher files"""
         from components.setup_session import setup_session_files
 
         return setup_session_files(
             self.app_info['binary_name'],
+            self.app_info.get('package_name', self.app_info['binary_name']),
+            self.get_session_name(),
             self.print_status,
             self.print_success,
             self.print_error,
@@ -428,7 +438,7 @@ class KioskSetupScript:
 
         return configure_lightdm(
             user,
-            self.app_info['binary_name'],
+            self.get_session_name(),
             self.print_status,
             self.print_success,
             self.print_warning,
@@ -436,12 +446,13 @@ class KioskSetupScript:
             self.write_file_as_root
         )
 
-    def configure_openbox(self) -> bool:
+    def configure_openbox(self, user: str) -> bool:
         """Configure Openbox for fullscreen kiosk mode"""
         from components.setup_openbox import configure_openbox
 
         return configure_openbox(
             self.app_info['binary_name'],
+            user,
             self.print_status,
             self.print_success,
             self.print_error,
@@ -588,7 +599,7 @@ class KioskSetupScript:
             self.print_error("LightDM configuration failed")
             return False
 
-        if not self.configure_openbox():
+        if not self.configure_openbox(user):
             self.print_error("Openbox configuration failed")
             return False
 

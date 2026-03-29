@@ -15,11 +15,14 @@ class OpenboxConfigurator:
         self.print_success = print_success
         self.print_error = print_error
 
-    def create_config(self, binary_name: str) -> bool:
+    def create_config(self, binary_name: str, user: str) -> bool:
         """Create Openbox configuration for fullscreen kiosk mode"""
         self.print_status("Configuring Openbox...")
 
-        cfg_dir = Path.home() / ".config" / "openbox"
+        user_home = Path(f"/home/{user}")
+        if not user_home.exists():
+            user_home = Path.home()
+        cfg_dir = user_home / ".config" / "openbox"
 
         try:
             cfg_dir.mkdir(parents=True, exist_ok=True)
@@ -37,7 +40,9 @@ class OpenboxConfigurator:
 </openbox_config>
 """
 
-            (cfg_dir / "rc.xml").write_text(rc_xml_content)
+            rc_path = cfg_dir / "rc.xml"
+            rc_path.write_text(rc_xml_content)
+            subprocess.run(["chown", f"{user}:{user}", str(rc_path)], check=False)
 
             # Try to reconfigure openbox if it's running, but don't fail if it's not
             reconfigure_cmd = "openbox --reconfigure"
@@ -61,9 +66,9 @@ class OpenboxConfigurator:
             self.print_error(f"Failed to configure Openbox: {e}")
             return False
 
-def configure_openbox(binary_name: str, print_status, print_success, print_error) -> bool:
+def configure_openbox(binary_name: str, user: str, print_status, print_success, print_error) -> bool:
     """Convenience function for configuring Openbox"""
     configurator = OpenboxConfigurator(
         print_status, print_success, print_error
     )
-    return configurator.create_config(binary_name)
+    return configurator.create_config(binary_name, user)

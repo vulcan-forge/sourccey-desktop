@@ -78,7 +78,7 @@ class LightDMConfigurator:
             self.print_status("Existing LightDM settings not found, skipping cleanup.")
             return True
 
-    def configure_main_config(self, user: str, binary_name: str) -> bool:
+    def configure_main_config(self, user: str, session_name: str) -> bool:
         """Set up LightDM autologin in a clean, modern way."""
         self.print_status("Configuring LightDM autologin...")
 
@@ -87,8 +87,8 @@ class LightDMConfigurator:
             f"[Seat:*]\n"
             f"autologin-user={user}\n"
             "autologin-user-timeout=0\n"
-            f"autologin-session={binary_name}-openbox\n"
-            f"user-session={binary_name}-openbox\n"
+            f"autologin-session={session_name}\n"
+            f"user-session={session_name}\n"
             "allow-guest=false\n"
         )
 
@@ -108,7 +108,7 @@ class LightDMConfigurator:
         self.print_status("✅ LightDM autologin configured successfully.")
         return True
 
-    def create_dropin_config(self, user: str, binary_name: str) -> bool:
+    def create_dropin_config(self, user: str, session_name: str) -> bool:
         """Create drop-in configuration file"""
         self.print_status("Creating LightDM drop-in config...")
 
@@ -128,14 +128,14 @@ class LightDMConfigurator:
         dropdin_content = f"""[Seat:*]
 autologin-user={user}
 autologin-user-timeout=0
-autologin-session={binary_name}-openbox
-user-session={binary_name}-openbox
+autologin-session={session_name}
+user-session={session_name}
 allow-guest=false
 greeter-hide-users=false
 """
 
         if not self.write_file_as_root(
-            f"/etc/lightdm/lightdm.conf.d/99-{binary_name}-kiosk.conf",
+            f"/etc/lightdm/lightdm.conf.d/99-{session_name}-kiosk.conf",
             dropdin_content,
             mode=0o644
         ):
@@ -144,7 +144,7 @@ greeter-hide-users=false
         self.print_success("Drop-in config created")
         return True
 
-    def configure_accounts_service(self, user: str, binary_name: str) -> bool:
+    def configure_accounts_service(self, user: str, session_name: str) -> bool:
         """Configure AccountsService for the user"""
         self.print_status("Configuring AccountsService...")
 
@@ -161,7 +161,7 @@ greeter-hide-users=false
             return False
 
         accounts_content = f"""[User]
-XSession={binary_name}-openbox
+XSession={session_name}
 SystemAccount=false
 """
 
@@ -175,7 +175,7 @@ SystemAccount=false
         self.print_success("AccountsService configured")
         return True
 
-    def configure(self, user: str, binary_name: str) -> bool:
+    def configure(self, user: str, session_name: str) -> bool:
         """Main configuration method"""
         self.print_status("Configuring LightDM autologin...")
 
@@ -186,15 +186,15 @@ SystemAccount=false
             self.print_error("Failed to clear existing settings")
             return False
 
-        if not self.configure_main_config(user, binary_name):
+        if not self.configure_main_config(user, session_name):
             self.print_error("Failed to configure main config")
             return False
 
-        if not self.create_dropin_config(user, binary_name):
+        if not self.create_dropin_config(user, session_name):
             self.print_error("Failed to create drop-in config")
             return False
 
-        if not self.configure_accounts_service(user, binary_name):
+        if not self.configure_accounts_service(user, session_name):
             self.print_error("Failed to configure AccountsService")
             return False
 
@@ -220,14 +220,14 @@ SystemAccount=false
         self.print_success("LightDM restarted - kiosk mode activated")
         return True
 
-def configure_lightdm(user: str, binary_name: str,
+def configure_lightdm(user: str, session_name: str,
                      print_status, print_success, print_warning, print_error, write_file_as_root) -> bool:
     """Convenience function for configuring LightDM"""
     configurator = LightDMConfigurator(
         print_status, print_success, print_warning, print_error,
         write_file_as_root
     )
-    return configurator.configure(user, binary_name)
+    return configurator.configure(user, session_name)
 
 
 def restart_lightdm(print_status, print_success) -> bool:
