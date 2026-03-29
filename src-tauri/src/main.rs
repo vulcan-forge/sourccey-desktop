@@ -37,6 +37,7 @@ use modules::control::controllers::configuration::configuration_controller::{
 };
 use modules::control::controllers::configuration::calibration_controller::{
     read_calibration, write_calibration, get_calibration_modified_at, auto_calibrate, remote_auto_calibrate,
+    desktop_get_teleop_calibration_status, desktop_auto_calibrate_teleoperator,
 };
 use modules::control::controllers::kiosk_control::kiosk_host_controller::{
     get_pi_username, get_ssh_password_changed_status,
@@ -549,6 +550,8 @@ fn main() {
             get_calibration_modified_at,
             auto_calibrate,
             remote_auto_calibrate,
+            desktop_get_teleop_calibration_status,
+            desktop_auto_calibrate_teleoperator,
 
             // Teleoperation Functions
             start_teleop,

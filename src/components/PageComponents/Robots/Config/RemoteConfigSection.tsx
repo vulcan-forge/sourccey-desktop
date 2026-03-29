@@ -7,6 +7,7 @@ import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-ut
 import { useGetRemoteConfig, setRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
 import type { RemoteConfig } from '@/types/remote-config';
+import { DesktopTeleopCalibration } from '@/components/PageComponents/Robots/Calibration/DesktopTeleopCalibration';
 
 type RemoteConfigSectionProps = {
     ownedRobot: any;
@@ -71,76 +72,82 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
 
     const isConfigsVisible = isOpen ?? true;
     return (
-        <div className={'flex flex-col gap-3 rounded-xl border-2 border-slate-700/60 bg-slate-900/20 p-4'}>
-            {showHeader && !embedded && <h3 className="text-lg font-semibold text-white">Remote Config</h3>}
+        <div className="flex flex-col gap-4">
+            <div className={'flex flex-col gap-3 rounded-xl border-2 border-slate-700/60 bg-slate-900/50 p-4'}>
+                {showHeader && !embedded && <h3 className="text-lg font-semibold text-white">Remote Config</h3>}
 
-            {isConfigsVisible && draftConfig && (
-                <div className="mt-2 rounded-lg p-4">
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                        <label className="flex flex-col gap-1 text-xs text-slate-300">
-                            Host
-                            <input
-                                value={draftConfig.remote_ip ?? ''}
-                                onChange={(event) => updateDraft('remote_ip', event.target.value)}
-                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-300">
-                            Port
-                            <input
-                                value={draftConfig.remote_port ?? ''}
-                                onChange={(event) => updateDraft('remote_port', event.target.value)}
-                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-300">
-                            Left Arm Port
-                            <input
-                                value={draftConfig.left_arm_port ?? ''}
-                                onChange={(event) => updateDraft('left_arm_port', event.target.value)}
-                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-300">
-                            Right Arm Port
-                            <input
-                                value={draftConfig.right_arm_port ?? ''}
-                                onChange={(event) => updateDraft('right_arm_port', event.target.value)}
-                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-300">
-                            Keyboard
-                            <input
-                                value={draftConfig.keyboard ?? ''}
-                                onChange={(event) => updateDraft('keyboard', event.target.value)}
-                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs text-slate-300">
-                            FPS
-                            <input
-                                type="number"
-                                value={draftConfig.fps ?? 0}
-                                onChange={(event) => updateDraft('fps', Number(event.target.value || 0))}
-                                className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
-                            />
-                        </label>
+                {isConfigsVisible && draftConfig && (
+                    <div className="mt-2 rounded-lg p-4">
+                        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                            <label className="flex flex-col gap-1 text-xs text-slate-300">
+                                Host
+                                <input
+                                    value={draftConfig.remote_ip ?? ''}
+                                    onChange={(event) => updateDraft('remote_ip', event.target.value)}
+                                    className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-slate-300">
+                                Port
+                                <input
+                                    value={draftConfig.remote_port ?? ''}
+                                    onChange={(event) => updateDraft('remote_port', event.target.value)}
+                                    className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-slate-300">
+                                Left Arm Port
+                                <input
+                                    value={draftConfig.left_arm_port ?? ''}
+                                    onChange={(event) => updateDraft('left_arm_port', event.target.value)}
+                                    className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-slate-300">
+                                Right Arm Port
+                                <input
+                                    value={draftConfig.right_arm_port ?? ''}
+                                    onChange={(event) => updateDraft('right_arm_port', event.target.value)}
+                                    className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-slate-300">
+                                Keyboard
+                                <input
+                                    value={draftConfig.keyboard ?? ''}
+                                    onChange={(event) => updateDraft('keyboard', event.target.value)}
+                                    className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
+                                />
+                            </label>
+                            <label className="flex flex-col gap-1 text-xs text-slate-300">
+                                FPS
+                                <input
+                                    type="number"
+                                    value={draftConfig.fps ?? 0}
+                                    onChange={(event) => updateDraft('fps', Number(event.target.value || 0))}
+                                    className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
+                                />
+                            </label>
+                        </div>
+                        <div className="mt-4 flex justify-end">
+                            <button
+                                type="button"
+                                onClick={saveConfig}
+                                disabled={isSavingConfig}
+                                className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                                    isSavingConfig
+                                        ? 'cursor-not-allowed bg-slate-700 text-slate-400'
+                                        : 'bg-blue-500 text-white hover:bg-blue-600'
+                                }`}
+                            >
+                                {isSavingConfig ? 'Saving...' : 'Save Config'}
+                            </button>
+                        </div>
                     </div>
-                    <div className="mt-4 flex justify-end">
-                        <button
-                            type="button"
-                            onClick={saveConfig}
-                            disabled={isSavingConfig}
-                            className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                                isSavingConfig ? 'cursor-not-allowed bg-slate-700 text-slate-400' : 'bg-blue-500 text-white hover:bg-blue-600'
-                            }`}
-                        >
-                            {isSavingConfig ? 'Saving...' : 'Save Config'}
-                        </button>
-                    </div>
-                </div>
-            )}
+                )}
+            </div>
+
+            {isConfigsVisible && <DesktopTeleopCalibration ownedRobot={ownedRobot} embedded={true} />}
         </div>
     );
 };

@@ -25,6 +25,31 @@ pub struct RemoteCalibrationConfig {
     pub full_reset: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DesktopTeleopCalibrationConfig {
+    pub nickname: String,
+    pub teleop_type: String,
+    pub left_arm_port: String,
+    pub right_arm_port: String,
+    pub full_reset: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DesktopTeleopCalibrationStatusConfig {
+    pub nickname: String,
+    pub teleop_type: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopTeleopCalibrationStatus {
+    pub is_calibrated: bool,
+    pub left_calibrated: bool,
+    pub right_calibrated: bool,
+    pub modified_at: Option<u64>,
+    pub calibration_path: Option<String>,
+}
+
 #[tauri::command]
 pub fn read_calibration(robot_type: String, nickname: String) -> Result<(Calibration, bool), String> {
     let (calibration, is_calibrated) = CalibrationService::read_calibration(&robot_type, &nickname)?;
@@ -66,4 +91,21 @@ pub async fn remote_auto_calibrate(
         config.full_reset,
     )
     .await
+}
+
+#[tauri::command]
+pub fn desktop_get_teleop_calibration_status(
+    config: DesktopTeleopCalibrationStatusConfig,
+) -> Result<DesktopTeleopCalibrationStatus, String> {
+    CalibrationService::desktop_get_teleop_calibration_status(&config.teleop_type, &config.nickname)
+}
+
+#[tauri::command]
+pub async fn desktop_auto_calibrate_teleoperator(
+    app_handle: AppHandle,
+    config: DesktopTeleopCalibrationConfig,
+) -> Result<(), String> {
+    let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
+    let db_connection = db_manager.get_connection().clone();
+    CalibrationService::desktop_auto_calibrate_teleoperator(app_handle, db_connection, config).await
 }

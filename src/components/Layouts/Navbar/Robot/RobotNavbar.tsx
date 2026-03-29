@@ -1,7 +1,6 @@
 import { FaGamepad, FaSlidersH } from 'react-icons/fa';
 
 import { setContent, useGetContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
-import Link from 'next/link';
 import { FaArrowLeft, FaCog, FaMicrochip } from 'react-icons/fa';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 

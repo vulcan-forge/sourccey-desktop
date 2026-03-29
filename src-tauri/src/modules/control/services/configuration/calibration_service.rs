@@ -1,4 +1,6 @@
-use crate::modules::control::controllers::configuration::calibration_controller::CalibrationConfig;
+use crate::modules::control::controllers::configuration::calibration_controller::{
+    CalibrationConfig, DesktopTeleopCalibrationConfig, DesktopTeleopCalibrationStatus,
+};
 use crate::modules::control::types::configuration::calibration_types::{
     Calibration, MotorCalibration,
 };
@@ -9,6 +11,7 @@ use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
 use std::fs;
+use std::path::PathBuf;
 use std::process::Stdio;
 use tauri::AppHandle;
 use tokio::process::Command;
@@ -69,6 +72,69 @@ impl CalibrationService {
             .map_err(|e| e.to_string())?;
 
         Ok(Some(since_epoch.as_millis() as u64))
+    }
+
+    fn normalize_nickname(nickname: &str) -> String {
+        nickname.trim().trim_start_matches('@').to_string()
+    }
+
+    fn validate_path_segment(segment: &str, field_name: &str) -> Result<String, String> {
+        let value = segment.trim();
+        if value.is_empty() {
+            return Err(format!("{} cannot be empty", field_name));
+        }
+        if value == "." || value == ".." {
+            return Err(format!("Invalid {}: relative path segment is not allowed", field_name));
+        }
+        if value.contains('/') || value.contains('\\') || value.contains('\0') {
+            return Err(format!(
+                "Invalid {}: path separators and null bytes are not allowed",
+                field_name
+            ));
+        }
+        if cfg!(windows) && value.contains(':') {
+            return Err(format!("Invalid {}: ':' is not allowed in path segments", field_name));
+        }
+        Ok(value.to_string())
+    }
+
+    fn get_teleop_calibration_path(teleop_type: &str, nickname: &str) -> Result<PathBuf, String> {
+        let safe_teleop_type = Self::validate_path_segment(teleop_type, "teleop_type")?;
+        let safe_nickname = Self::validate_path_segment(nickname, "nickname")?;
+        let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
+        Ok(cache_dir
+            .join("calibration")
+            .join("teleoperators")
+            .join(safe_teleop_type)
+            .join(format!("{}.json", safe_nickname)))
+    }
+
+    pub fn desktop_get_teleop_calibration_status(
+        teleop_type: &str,
+        nickname: &str,
+    ) -> Result<DesktopTeleopCalibrationStatus, String> {
+        let normalized_nickname = Self::normalize_nickname(nickname);
+        let calibration_path = Self::get_teleop_calibration_path(teleop_type, &normalized_nickname)?;
+
+        let exists = calibration_path.exists();
+        let modified_at = if exists {
+            let metadata = fs::metadata(&calibration_path).map_err(|e| e.to_string())?;
+            let modified = metadata.modified().map_err(|e| e.to_string())?;
+            let since_epoch = modified
+                .duration_since(std::time::UNIX_EPOCH)
+                .map_err(|e| e.to_string())?;
+            Some(since_epoch.as_millis() as u64)
+        } else {
+            None
+        };
+
+        Ok(DesktopTeleopCalibrationStatus {
+            is_calibrated: exists,
+            left_calibrated: exists,
+            right_calibrated: exists,
+            modified_at,
+            calibration_path: Some(calibration_path.to_string_lossy().to_string()),
+        })
     }
 
     fn decode_output_text(output: &std::process::Output) -> (String, String) {
@@ -178,6 +244,111 @@ impl CalibrationService {
             "robot-actions.log",
             Some("calibration"),
             "Auto calibrate completed successfully",
+        );
+        Ok(())
+    }
+
+    pub async fn desktop_auto_calibrate_teleoperator(
+        app_handle: AppHandle,
+        db_connection: DatabaseConnection,
+        config: DesktopTeleopCalibrationConfig,
+    ) -> Result<(), String> {
+        let normalized_nickname = Self::normalize_nickname(&config.nickname);
+        let teleop_type = config.teleop_type.trim().to_string();
+        let left_arm_port = config.left_arm_port.trim().to_string();
+        let right_arm_port = config.right_arm_port.trim().to_string();
+
+        if teleop_type.is_empty() {
+            return Err("teleop_type cannot be empty".to_string());
+        }
+        if left_arm_port.is_empty() {
+            return Err("left_arm_port cannot be empty".to_string());
+        }
+        if right_arm_port.is_empty() {
+            return Err("right_arm_port cannot be empty".to_string());
+        }
+        if normalized_nickname.is_empty() {
+            return Err("nickname cannot be empty".to_string());
+        }
+
+        let start_message = format!(
+            "Desktop teleoperator auto calibrate started: nickname={}, teleop_type={}, left_arm_port={}, right_arm_port={}, full_reset={}",
+            normalized_nickname, teleop_type, left_arm_port, right_arm_port, config.full_reset
+        );
+        let _ = LogService::write_app_log_line(&app_handle, "robot-actions.log", Some("calibration"), &start_message);
+
+        let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
+        let python_path = DirectoryService::get_python_path()?;
+
+        let mut command_parts = vec!["python".to_string()];
+        command_parts.push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
+        command_parts.push(format!("--teleop.type={}", teleop_type));
+        command_parts.push(format!("--teleop.id={}", normalized_nickname));
+        command_parts.push(format!("--teleop.left_arm_port={}", left_arm_port));
+        command_parts.push(format!("--teleop.right_arm_port={}", right_arm_port));
+        if config.full_reset {
+            command_parts.push("--full_reset=True".to_string());
+        }
+
+        let mut cmd = Command::new(python_path);
+        for arg in &command_parts[1..] {
+            cmd.arg(arg);
+        }
+
+        let child = cmd
+            .current_dir(&lerobot_dir)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to auto calibrate teleoperator: {}", e))?;
+        let pid = child.id();
+
+        let command_string = command_parts.join(" ");
+        let command_log_service = CommandLogService::new(db_connection.clone());
+        let command_log = match command_log_service
+            .add_robot_command_log(
+                &command_string,
+                Some(teleop_type.clone()),
+                Some(normalized_nickname.clone()),
+            )
+            .await
+        {
+            Ok(log) => log,
+            Err(e) => {
+                eprintln!("Failed to add command log: {}", e);
+                return Err(format!("Failed to add command log: {}", e));
+            }
+        };
+        let command_log_id = command_log.id.clone();
+
+        let output = child
+            .wait_with_output()
+            .await
+            .map_err(|e| format!("Failed to get output: {}", e))?;
+        Self::write_process_output_logs(&app_handle, "Desktop teleoperator auto calibrate", &output);
+
+        if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
+            if let Some(pid_value) = pid {
+                ProcessService::on_process_shutdown(&app_handle, pid_value, db_connection, command_log_id);
+            }
+            let _ = LogService::write_app_log_line(
+                &app_handle,
+                "robot-actions.log",
+                Some("calibration"),
+                &format!("Desktop teleoperator auto calibrate failed: {}", validation_error),
+            );
+            return Err(validation_error);
+        }
+
+        if let Some(pid_value) = pid {
+            ProcessService::on_process_shutdown(&app_handle, pid_value, db_connection, command_log_id);
+        }
+
+        let _ = LogService::write_app_log_line(
+            &app_handle,
+            "robot-actions.log",
+            Some("calibration"),
+            "Desktop teleoperator auto calibrate completed successfully",
         );
         Ok(())
     }

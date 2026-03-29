@@ -13,6 +13,7 @@ export const RobotDetailsPage = () => {
     const { data: ownedRobot } = useSelectedOwnedRobot();
     const { data: content } = useGetContent();
     const activeContent = (content as string) ?? 'overview';
+    const showConfigContent = activeContent === 'config' || activeContent === 'calibration';
 
     if (!ownedRobot) {
         return (
@@ -28,7 +29,7 @@ export const RobotDetailsPage = () => {
                 {activeContent === 'overview' && <Overview ownedRobot={ownedRobot} />}
                 {activeContent === 'teleoperate' && <RemoteTeleopContainer ownedRobot={ownedRobot} />}
                 {activeContent === 'ai' && <AIModelContainer ownedRobot={ownedRobot} />}
-                {activeContent === 'config' && <RemoteConfigSection ownedRobot={ownedRobot} embedded={true} showHeader={false} isOpen={true} />}
+                {showConfigContent && <RemoteConfigSection ownedRobot={ownedRobot} embedded={true} showHeader={false} isOpen={true} />}
             </div>
         </RobotLayout>
     );
