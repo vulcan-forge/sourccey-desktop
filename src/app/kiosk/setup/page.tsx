@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 type StepStatus = 'pending' | 'started' | 'success' | 'error';
+type ActionKey = 'modules' | 'app';
 
 type SetupProgress = {
     step: string;
@@ -23,7 +24,7 @@ const statusColors: Record<StepStatus, string> = {
 
 const stepsByAction = {
     modules: [
-        { id: 'submodules', label: 'Update lerobot-vulcan' },
+        { id: 'submodules', label: 'Update LeRobot submodule' },
         { id: 'complete', label: 'Finalize' },
     ],
     app: [
@@ -35,57 +36,65 @@ const stepsByAction = {
     ],
 } as const;
 
-type ActionKey = keyof typeof stepsByAction;
+type StepStateByAction = Record<ActionKey, Record<string, StepStatus>>;
+
+const buildInitialStepState = (): StepStateByAction => ({
+    modules: Object.fromEntries(stepsByAction.modules.map((step) => [step.id, 'pending'])) as Record<string, StepStatus>,
+    app: Object.fromEntries(stepsByAction.app.map((step) => [step.id, 'pending'])) as Record<string, StepStatus>,
+});
 
 export default function KioskSetupPage() {
-    const [activeAction, setActiveAction] = useState<ActionKey>('modules');
     const [isRunning, setIsRunning] = useState(false);
-    const [isComplete, setIsComplete] = useState(false);
+    const [runningAction, setRunningAction] = useState<ActionKey | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [log, setLog] = useState<string[]>([]);
     const hasMarkedCompleteRef = useRef(false);
+    const runningActionRef = useRef<ActionKey | null>(null);
 
-    const activeSteps = useMemo(() => stepsByAction[activeAction], [activeAction]);
-    const [stepState, setStepState] = useState<Record<string, StepStatus>>(() => {
-        const initial: Record<string, StepStatus> = {};
-        stepsByAction.app.forEach((step) => {
-            initial[step.id] = 'pending';
-        });
-        return initial;
-    });
+    const [stepStateByAction, setStepStateByAction] = useState<StepStateByAction>(() => buildInitialStepState());
 
     const appendLog = useCallback((message: string) => {
         setLog((prev) => [...prev, message]);
     }, []);
 
     const updateStep = useCallback(
-        (step: string, status: StepStatus, message?: string | null) => {
-            setStepState((prev) => ({
+        (action: ActionKey, step: string, status: StepStatus, message?: string | null) => {
+            setStepStateByAction((prev) => ({
                 ...prev,
-                [step]: status,
+                [action]: {
+                    ...prev[action],
+                    [step]: status,
+                },
             }));
             if (message) {
                 appendLog(message);
-            }
-            if (step === 'complete' && status === 'success') {
-                setIsComplete(true);
             }
         },
         [appendLog]
     );
 
     useEffect(() => {
+        runningActionRef.current = runningAction;
+    }, [runningAction]);
+
+    useEffect(() => {
         let unlisten: UnlistenFn | undefined;
         let cancelled = false;
         const startListener = async () => {
             unlisten = await listen<SetupProgress>('kiosk:setup-progress', (event) => {
+                const action = runningActionRef.current;
+                if (!action) {
+                    return;
+                }
+
                 const { step, status, message } = event.payload;
                 const mapped: StepStatus =
                     status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
-                updateStep(step, mapped, message ?? undefined);
+                updateStep(action, step, mapped, message ?? undefined);
                 if (status === 'error' && message) {
                     setError(message);
                     setIsRunning(false);
+                    setRunningAction(null);
                 }
             });
             if (cancelled && unlisten) {
@@ -103,18 +112,17 @@ export default function KioskSetupPage() {
     }, [updateStep]);
 
     const resetState = (action: ActionKey) => {
-        setActiveAction(action);
+        setRunningAction(action);
         setIsRunning(true);
-        setIsComplete(false);
         setError(null);
         setLog([]);
         hasMarkedCompleteRef.current = false;
-        setStepState((prev) => {
-            const next = { ...prev };
-            stepsByAction[action].forEach((step) => {
-                next[step.id] = 'pending';
-            });
-            return next;
+        setStepStateByAction((prev) => {
+            const resetForAction = Object.fromEntries(stepsByAction[action].map((step) => [step.id, 'pending'])) as Record<string, StepStatus>;
+            return {
+                ...prev,
+                [action]: resetForAction,
+            };
         });
     };
 
@@ -128,22 +136,45 @@ export default function KioskSetupPage() {
             }
             if (!hasMarkedCompleteRef.current) {
                 hasMarkedCompleteRef.current = true;
-                updateStep('complete', 'success', action === 'modules' ? 'Module update complete.' : 'App update complete.');
+                updateStep(action, 'complete', 'success', action === 'modules' ? 'LeRobot update complete.' : 'App update complete.');
             }
             setIsRunning(false);
+            setRunningAction(null);
         } catch (err) {
-            const message = err instanceof Error ? err.message : action === 'modules' ? 'Module update failed.' : 'App update failed.';
+            const message = err instanceof Error ? err.message : action === 'modules' ? 'LeRobot update failed.' : 'App update failed.';
             setError(message);
             setIsRunning(false);
+            setRunningAction(null);
             appendLog(message);
-            updateStep('complete', 'error', message);
+            updateStep(action, 'complete', 'error', message);
         }
+    };
+
+    const renderStepList = (action: ActionKey) => {
+        return (
+            <div className="grid gap-3">
+                {stepsByAction[action].map((step, index) => {
+                    const status = stepStateByAction[action][step.id] ?? 'pending';
+                    return (
+                        <div key={`${action}-${step.id}`} className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-950/40 px-4 py-3">
+                            <div className="flex items-center gap-3">
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 text-sm text-slate-400">
+                                    {index + 1}
+                                </div>
+                                <p className="text-sm font-semibold text-slate-100">{step.label}</p>
+                            </div>
+                            <div className={`text-xs font-semibold tracking-[0.2em] uppercase ${statusColors[status]}`}>{status}</div>
+                        </div>
+                    );
+                })}
+            </div>
+        );
     };
 
     return (
         <div className="flex min-h-full w-full flex-col bg-linear-to-br from-slate-950 via-slate-900 to-slate-800">
             <div className="container mx-auto flex min-h-full flex-col items-center justify-start px-6 py-12">
-                <div className="relative w-full max-w-3xl">
+                <div className="relative w-full max-w-5xl">
                     <div className="absolute -top-20 -left-16 h-32 w-32 rounded-full bg-red-500/20 blur-3xl" />
                     <div className="absolute -right-16 -bottom-16 h-32 w-32 rounded-full bg-amber-400/20 blur-3xl" />
 
@@ -152,33 +183,45 @@ export default function KioskSetupPage() {
                             <div>
                                 <h1 className="text-3xl font-semibold text-white">Kiosk Updates</h1>
                                 <p className="mt-2 text-sm text-slate-300">
-                                    Update lerobot for a fast module refresh. Update app to pull the latest kiosk code and run the full setup.
+                                    Use Update LeRobot for a fast submodule refresh. Use Update App to pull latest code and rerun kiosk setup.
                                 </p>
                             </div>
 
-                            <div className="rounded-2xl border border-slate-700/60 bg-slate-950/50 p-6">
-                                <div className="grid gap-3">
-                                    {activeSteps.map((step, index) => {
-                                        const status = stepState[step.id] ?? 'pending';
-                                        return (
-                                            <div
-                                                key={step.id}
-                                                className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-950/40 px-4 py-3"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 text-sm text-slate-400">
-                                                        {index + 1}
-                                                    </div>
-                                                    <div>
-                                                        <p className="text-sm font-semibold text-slate-100">{step.label}</p>
-                                                    </div>
-                                                </div>
-                                                <div className={`text-xs font-semibold tracking-[0.2em] uppercase ${statusColors[status]}`}>
-                                                    {status}
-                                                </div>
-                                            </div>
-                                        );
-                                    })}
+                            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                                <div
+                                    className={`rounded-2xl border bg-slate-950/50 p-6 ${
+                                        runningAction === 'modules' ? 'border-slate-400/80' : 'border-slate-700/60'
+                                    }`}
+                                >
+                                    <h2 className="mb-1 text-lg font-semibold text-slate-100">Update LeRobot</h2>
+                                    <p className="mb-4 text-xs text-slate-400">Refreshes the `modules/lerobot-vulcan` submodule to the version pinned by this app repo.</p>
+                                    {renderStepList('modules')}
+                                    <button
+                                        type="button"
+                                        onClick={() => runSetup('modules')}
+                                        disabled={isRunning}
+                                        className="mt-4 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {isRunning && runningAction === 'modules' ? 'Updating LeRobot...' : 'Update LeRobot'}
+                                    </button>
+                                </div>
+
+                                <div
+                                    className={`rounded-2xl border bg-slate-950/50 p-6 ${
+                                        runningAction === 'app' ? 'border-amber-400/80' : 'border-amber-500/30'
+                                    }`}
+                                >
+                                    <h2 className="mb-1 text-lg font-semibold text-amber-100">Update App</h2>
+                                    <p className="mb-4 text-xs text-amber-200/80">Fetches latest kiosk code, updates submodules, and reruns the kiosk setup installer.</p>
+                                    {renderStepList('app')}
+                                    <button
+                                        type="button"
+                                        onClick={() => runSetup('app')}
+                                        disabled={isRunning}
+                                        className="mt-4 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-amber-500/60 bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {isRunning && runningAction === 'app' ? 'Updating App...' : 'Update App'}
+                                    </button>
                                 </div>
                             </div>
 
@@ -189,36 +232,10 @@ export default function KioskSetupPage() {
                             )}
 
                             <div className="flex flex-col gap-4">
-                                <div className="w-full max-w-md space-y-4">
-                                    <div className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-4">
-                                        <h2 className="mb-3 text-sm font-semibold tracking-[0.15em] text-slate-300 uppercase">Update Lerobot</h2>
-                                        <button
-                                            type="button"
-                                            onClick={() => runSetup('modules')}
-                                            disabled={isRunning}
-                                            className="inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {isRunning && activeAction === 'modules' ? 'Updating lerobot...' : 'Update lerobot'}
-                                        </button>
-                                    </div>
-
-                                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
-                                        <h2 className="mb-3 text-sm font-semibold tracking-[0.15em] text-amber-200 uppercase">Update App</h2>
-                                        <button
-                                            type="button"
-                                            onClick={() => runSetup('app')}
-                                            disabled={isRunning}
-                                            className="inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-amber-500/60 bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            {isRunning && activeAction === 'app' ? 'Updating app...' : 'Update App'}
-                                        </button>
-                                    </div>
-                                </div>
-
                                 {isRunning && (
                                     <div className="flex items-center gap-2 text-sm text-slate-300">
                                         <Spinner color="yellow" width="w-4" height="h-4" />
-                                        Running {activeAction === 'modules' ? 'lerobot' : 'app'} update steps
+                                        Running {runningAction === 'modules' ? 'LeRobot' : 'App'} update steps
                                     </div>
                                 )}
                                 {!isRunning && (
