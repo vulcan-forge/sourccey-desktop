@@ -22,11 +22,11 @@ const statusColors: Record<StepStatus, string> = {
 };
 
 const stepsByAction = {
-    repair: [
+    modules: [
         { id: 'submodules', label: 'Update lerobot-vulcan' },
         { id: 'complete', label: 'Finalize' },
     ],
-    update: [
+    app: [
         { id: 'fetch', label: 'Fetch latest code' },
         { id: 'reset', label: 'Reset repository' },
         { id: 'submodules', label: 'Update submodules' },
@@ -38,7 +38,7 @@ const stepsByAction = {
 type ActionKey = keyof typeof stepsByAction;
 
 export default function KioskSetupPage() {
-    const [activeAction, setActiveAction] = useState<ActionKey>('update');
+    const [activeAction, setActiveAction] = useState<ActionKey>('modules');
     const [isRunning, setIsRunning] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -48,7 +48,7 @@ export default function KioskSetupPage() {
     const activeSteps = useMemo(() => stepsByAction[activeAction], [activeAction]);
     const [stepState, setStepState] = useState<Record<string, StepStatus>>(() => {
         const initial: Record<string, StepStatus> = {};
-        stepsByAction.update.forEach((step) => {
+        stepsByAction.app.forEach((step) => {
             initial[step.id] = 'pending';
         });
         return initial;
@@ -121,18 +121,18 @@ export default function KioskSetupPage() {
     const runSetup = async (action: ActionKey) => {
         resetState(action);
         try {
-            if (action === 'repair') {
+            if (action === 'modules') {
                 await invoke('kiosk_setup_repair');
             } else {
                 await invoke('kiosk_setup_update');
             }
             if (!hasMarkedCompleteRef.current) {
                 hasMarkedCompleteRef.current = true;
-                updateStep('complete', 'success', 'Kiosk update complete.');
+                updateStep('complete', 'success', action === 'modules' ? 'Module update complete.' : 'App update complete.');
             }
             setIsRunning(false);
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Kiosk setup failed.';
+            const message = err instanceof Error ? err.message : action === 'modules' ? 'Module update failed.' : 'App update failed.';
             setError(message);
             setIsRunning(false);
             appendLog(message);
@@ -150,9 +150,9 @@ export default function KioskSetupPage() {
                     <div className="relative rounded-3xl border border-slate-700/60 bg-slate-900/80 p-8 shadow-2xl backdrop-blur">
                         <div className="flex flex-col gap-6">
                             <div>
-                                <h1 className="text-3xl font-semibold text-white">Kiosk Update</h1>
+                                <h1 className="text-3xl font-semibold text-white">Kiosk Updates</h1>
                                 <p className="mt-2 text-sm text-slate-300">
-                                    Use repair for a quick lerobot-vulcan refresh. Use update to pull the latest kiosk code and run the full setup.
+                                    Update modules for a fast lerobot-vulcan refresh. Update app to pull the latest kiosk code and run the full setup.
                                 </p>
                             </div>
 
@@ -188,28 +188,30 @@ export default function KioskSetupPage() {
                                 </div>
                             )}
 
-                            <div className="flex flex-wrap items-center justify-start gap-4">
-                                <button
-                                    type="button"
-                                    onClick={() => runSetup('repair')}
-                                    disabled={isRunning}
-                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {isRunning && activeAction === 'repair' ? 'Repairing...' : 'Repair lerobot'}
-                                </button>
-                                <button
-                                    type="button"
-                                    onClick={() => runSetup('update')}
-                                    disabled={isRunning}
-                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-500/60 bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {isRunning && activeAction === 'update' ? 'Updating...' : 'Update kiosk'}
-                                </button>
-                                <div className="grow" />
+                            <div className="flex flex-col gap-4">
+                                <div className="flex w-full max-w-xs flex-col gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => runSetup('modules')}
+                                        disabled={isRunning}
+                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {isRunning && activeAction === 'modules' ? 'Updating modules...' : 'Update modules'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => runSetup('app')}
+                                        disabled={isRunning}
+                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-500/60 bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70 disabled:cursor-not-allowed disabled:opacity-60"
+                                    >
+                                        {isRunning && activeAction === 'app' ? 'Updating app...' : 'Update app'}
+                                    </button>
+                                </div>
+
                                 {isRunning && (
                                     <div className="flex items-center gap-2 text-sm text-slate-300">
                                         <Spinner color="yellow" width="w-4" height="h-4" />
-                                        Running update steps
+                                        Running {activeAction === 'modules' ? 'module' : 'app'} update steps
                                     </div>
                                 )}
                                 {!isRunning && (
