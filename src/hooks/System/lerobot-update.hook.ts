@@ -20,6 +20,8 @@ export const useLerobotUpdateStatus = () =>
     useQuery({
         queryKey: LEROBOT_UPDATE_KEY,
         queryFn: fetchLerobotUpdateStatus,
-        staleTime: 300000,
+        staleTime: 60000,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
         retry: 1,
     });

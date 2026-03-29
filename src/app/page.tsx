@@ -5,7 +5,6 @@ import { Spinner } from '@/components/Elements/Spinner';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
-import { checkForUpdates } from '@/utils/updater/updater';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { safeNavigate } from '@/utils/navigation';
 
@@ -13,28 +12,12 @@ const HomePage = (): ReactElement => {
     const router = useRouter();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
     const [showLoading, setShowLoading] = useState(false);
-    const [updateCheckComplete, setUpdateCheckComplete] = useState(false);
     const [setupCheckComplete, setSetupCheckComplete] = useState(false);
 
     type SetupStatus = {
         installed: boolean;
         missing: string[];
     };
-
-    // Check for updates FIRST before anything else
-    useEffect(() => {
-        const checkUpdates = async () => {
-            try {
-                await checkForUpdates();
-            } catch (error) {
-                console.error('Error checking for updates:', error);
-            } finally {
-                setUpdateCheckComplete(true);
-            }
-        };
-
-        checkUpdates();
-    }, []);
 
     // Delay showing loading screen to prevent flash on fast loads
     useEffect(() => {
@@ -47,10 +30,6 @@ const HomePage = (): ReactElement => {
 
     // In kiosk mode, skip authentication and go directly to app once sync is done
     useEffect(() => {
-        if (!updateCheckComplete) {
-            return;
-        }
-
         if (isLoadingAppMode) {
             return;
         }
@@ -84,10 +63,9 @@ const HomePage = (): ReactElement => {
 
             void checkSetup();
         }
-    }, [router, isKioskMode, isLoadingAppMode, updateCheckComplete]);
+    }, [router, isKioskMode, isLoadingAppMode]);
 
-    // Don't show loading screen until update check is complete and 1 second has passed
-    if (!updateCheckComplete || !showLoading || (!setupCheckComplete && !isKioskMode)) {
+    if (!showLoading || (!setupCheckComplete && !isKioskMode)) {
         return (
             <>
                 <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900"></div>

@@ -54,11 +54,13 @@ struct ModulesManifest {
 #[derive(Clone, Deserialize)]
 struct LerobotModuleManifest {
     pub commit: Option<String>,
+    pub tag: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
 struct LerobotCommitMarker {
     pub commit: String,
+    pub tag: Option<String>,
 }
 
 impl LocalSetupService {
@@ -410,21 +412,37 @@ impl LocalSetupService {
             })?;
             Self::emit_step(emit, "download", "success", None);
 
-            Self::emit_step(
-                emit,
-                "verify",
-                "started",
-                Some("Verifying lerobot-vulcan archive integrity".to_string()),
-            );
-            let expected_sha256 = Self::resolve_lerobot_zip_sha256(&zip_url).map_err(|e| {
-                Self::emit_step(emit, "verify", "error", Some(e.clone()));
-                e
-            })?;
-            Self::verify_file_sha256(&zip_path, &expected_sha256).map_err(|e| {
-                Self::emit_step(emit, "verify", "error", Some(e.clone()));
-                e
-            })?;
-            Self::emit_step(emit, "verify", "success", None);
+            let enforce_checksum = std::env::var("SOURCCEY_ENFORCE_LEROBOT_CHECKSUM")
+                .ok()
+                .map(|v| {
+                    let normalized = v.trim().to_ascii_lowercase();
+                    normalized == "1" || normalized == "true" || normalized == "yes"
+                })
+                .unwrap_or(false);
+            if enforce_checksum {
+                Self::emit_step(
+                    emit,
+                    "verify",
+                    "started",
+                    Some("Verifying lerobot-vulcan archive integrity".to_string()),
+                );
+                let expected_sha256 = Self::resolve_lerobot_zip_sha256(&zip_url).map_err(|e| {
+                    Self::emit_step(emit, "verify", "error", Some(e.clone()));
+                    e
+                })?;
+                Self::verify_file_sha256(&zip_path, &expected_sha256).map_err(|e| {
+                    Self::emit_step(emit, "verify", "error", Some(e.clone()));
+                    e
+                })?;
+                Self::emit_step(emit, "verify", "success", None);
+            } else {
+                Self::emit_step(
+                    emit,
+                    "verify",
+                    "success",
+                    Some("Checksum verification skipped (SOURCCEY_ENFORCE_LEROBOT_CHECKSUM is disabled)".to_string()),
+                );
+            }
 
             Self::emit_step(emit, "extract", "started", Some("Extracting lerobot-vulcan".to_string()));
             Self::extract_zip(&zip_path, &install_root).map_err(|e| {
@@ -571,12 +589,21 @@ impl LocalSetupService {
         Ok(manifest
             .modules
             .and_then(|modules| modules.lerobot_vulcan)
-            .and_then(|module| module.commit))
+            .and_then(|module| module.tag.or(module.commit)))
     }
 
     fn write_current_lerobot_commit(setup_dir: &Path, commit: &str) -> Result<(), String> {
+        Self::write_current_lerobot_commit_with_tag(setup_dir, commit, None)
+    }
+
+    fn write_current_lerobot_commit_with_tag(
+        setup_dir: &Path,
+        commit: &str,
+        tag: Option<String>,
+    ) -> Result<(), String> {
         let marker = LerobotCommitMarker {
             commit: commit.to_string(),
+            tag,
         };
         let json = serde_json::to_string_pretty(&marker)
             .map_err(|e| format!("Failed to serialize commit marker: {}", e))?;
@@ -596,7 +623,8 @@ impl LocalSetupService {
         let marker_path = app_data_dir.join("setup").join("lerobot_vulcan_commit.json");
         let contents = fs::read_to_string(marker_path).ok()?;
         let marker: LerobotCommitMarker = serde_json::from_str(&contents).ok()?;
-        Some(marker.commit)
+        // Prefer tag if present, else commit
+        marker.tag.or(Some(marker.commit))
     }
 
     fn read_current_lerobot_git_commit(app_handle: &AppHandle) -> Option<String> {

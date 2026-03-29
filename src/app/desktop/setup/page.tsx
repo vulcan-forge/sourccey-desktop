@@ -185,10 +185,10 @@ export default function SetupPage() {
         try {
             if (action === 'update') {
                 await invoke('setup_reset');
-                await refetchLerobotStatus();
             } else {
                 await invoke('setup_run', { force: isInstalled });
             }
+            await refetchLerobotStatus();
             setIsRunning(false);
             if (action === 'repair' && isInstalled) {
                 setStepState((prev) => ({
