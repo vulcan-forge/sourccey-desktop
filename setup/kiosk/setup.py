@@ -557,6 +557,7 @@ class KioskSetupScript:
         if not self.git_manager.checkout_submodule_tag(
             submodule_relative_path=LEROBOT_VULCAN_SUBMODULE_PATH,
             tag=LEROBOT_VULCAN_TAG,
+            force=True,
         ):
             self.print_error(
                 f"Failed to checkout tag {LEROBOT_VULCAN_TAG} in "
