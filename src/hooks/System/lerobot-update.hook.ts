@@ -7,6 +7,8 @@ export interface LerobotUpdateStatus {
     upToDate: boolean;
     currentCommit?: string | null;
     latestCommit?: string | null;
+    currentTag?: string | null;
+    latestTag?: string | null;
 }
 
 const fetchLerobotUpdateStatus = async (): Promise<LerobotUpdateStatus> => {
