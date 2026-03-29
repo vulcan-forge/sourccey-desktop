@@ -48,6 +48,7 @@ Type=Application
 set -euo pipefail
 
 export DISPLAY="${{DISPLAY:-:0}}"
+export SOURCCEY_APP_MODE="kiosk"
 xset s off -dpms || true
 xset s noblank || true
 

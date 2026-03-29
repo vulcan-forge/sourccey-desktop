@@ -281,8 +281,19 @@ async fn debug_check_updates(app: tauri::AppHandle) -> Result<String, String> {
 #[derive(Clone)]
 struct AppMode(pub bool); // true = kiosk
 
+fn is_kiosk_env_value(value: &str) -> bool {
+    let normalized = value.trim().to_ascii_lowercase();
+    matches!(normalized.as_str(), "1" | "true" | "yes" | "kiosk")
+}
+
+fn is_kiosk_from_env() -> bool {
+    std::env::var("SOURCCEY_APP_MODE")
+        .map(|value| is_kiosk_env_value(&value))
+        .unwrap_or(false)
+}
+
 fn is_kiosk_from_args() -> bool {
-    std::env::args().any(|a| a == "--kiosk")
+    is_kiosk_from_env() || std::env::args().any(|a| a == "--kiosk")
 }
 
 #[tauri::command]
@@ -640,4 +651,26 @@ fn main() {
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
+}
+
+#[cfg(test)]
+mod app_mode_tests {
+    use super::is_kiosk_env_value;
+
+    #[test]
+    fn kiosk_env_parser_accepts_expected_values() {
+        assert!(is_kiosk_env_value("kiosk"));
+        assert!(is_kiosk_env_value("KIOSK"));
+        assert!(is_kiosk_env_value("true"));
+        assert!(is_kiosk_env_value("1"));
+        assert!(is_kiosk_env_value(" yes "));
+    }
+
+    #[test]
+    fn kiosk_env_parser_rejects_other_values() {
+        assert!(!is_kiosk_env_value(""));
+        assert!(!is_kiosk_env_value("desktop"));
+        assert!(!is_kiosk_env_value("0"));
+        assert!(!is_kiosk_env_value("false"));
+    }
 }
