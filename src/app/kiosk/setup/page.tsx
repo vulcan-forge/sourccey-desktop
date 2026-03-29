@@ -152,7 +152,7 @@ export default function KioskSetupPage() {
                             <div>
                                 <h1 className="text-3xl font-semibold text-white">Kiosk Updates</h1>
                                 <p className="mt-2 text-sm text-slate-300">
-                                    Update modules for a fast lerobot-vulcan refresh. Update app to pull the latest kiosk code and run the full setup.
+                                    Update lerobot for a fast module refresh. Update app to pull the latest kiosk code and run the full setup.
                                 </p>
                             </div>
 
@@ -189,29 +189,36 @@ export default function KioskSetupPage() {
                             )}
 
                             <div className="flex flex-col gap-4">
-                                <div className="flex w-full max-w-xs flex-col gap-3">
-                                    <button
-                                        type="button"
-                                        onClick={() => runSetup('modules')}
-                                        disabled={isRunning}
-                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                        {isRunning && activeAction === 'modules' ? 'Updating modules...' : 'Update modules'}
-                                    </button>
-                                    <button
-                                        type="button"
-                                        onClick={() => runSetup('app')}
-                                        disabled={isRunning}
-                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-500/60 bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70 disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                        {isRunning && activeAction === 'app' ? 'Updating app...' : 'Update app'}
-                                    </button>
+                                <div className="w-full max-w-md space-y-4">
+                                    <div className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-4">
+                                        <h2 className="mb-3 text-sm font-semibold tracking-[0.15em] text-slate-300 uppercase">Update Lerobot</h2>
+                                        <button
+                                            type="button"
+                                            onClick={() => runSetup('modules')}
+                                            disabled={isRunning}
+                                            className="inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {isRunning && activeAction === 'modules' ? 'Updating lerobot...' : 'Update lerobot'}
+                                        </button>
+                                    </div>
+
+                                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+                                        <h2 className="mb-3 text-sm font-semibold tracking-[0.15em] text-amber-200 uppercase">Update App</h2>
+                                        <button
+                                            type="button"
+                                            onClick={() => runSetup('app')}
+                                            disabled={isRunning}
+                                            className="inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-amber-500/60 bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70 disabled:cursor-not-allowed disabled:opacity-60"
+                                        >
+                                            {isRunning && activeAction === 'app' ? 'Updating app...' : 'Update App'}
+                                        </button>
+                                    </div>
                                 </div>
 
                                 {isRunning && (
                                     <div className="flex items-center gap-2 text-sm text-slate-300">
                                         <Spinner color="yellow" width="w-4" height="h-4" />
-                                        Running {activeAction === 'modules' ? 'module' : 'app'} update steps
+                                        Running {activeAction === 'modules' ? 'lerobot' : 'app'} update steps
                                     </div>
                                 )}
                                 {!isRunning && (
