@@ -15,9 +15,6 @@ export const DesktopTopNavbar = () => {
     const needsUpdate = lerobotStatus ? !lerobotStatus.upToDate : false;
     const isAuthenticated = Boolean(authSession?.isAuthenticated && authSession?.accountId);
     const isAccountPage = pathname?.startsWith('/desktop/account');
-    const subscriptionLabel = authSession?.subscriptionTier ? `Plan: ${authSession.subscriptionTier}` : 'Plan: Pending';
-    const tokenLabel = authSession?.tokenBalance != null ? `Tokens: ${authSession.tokenBalance.toLocaleString()}` : 'Tokens: Pending';
-
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -49,17 +46,6 @@ export const DesktopTopNavbar = () => {
                     )}
 
                     <div className="ml-3 flex items-center gap-2">
-                        {isAuthenticated && (
-                            <>
-                                <span className="hidden rounded-lg border border-slate-600 bg-slate-900/60 px-2 py-1 text-xs text-slate-300 xl:inline-flex">
-                                    {subscriptionLabel}
-                                </span>
-                                <span className="hidden rounded-lg border border-slate-600 bg-slate-900/60 px-2 py-1 text-xs text-slate-300 xl:inline-flex">
-                                    {tokenLabel}
-                                </span>
-                            </>
-                        )}
-
                         <LinkButton
                             href="/desktop/account"
                             className={`inline-flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition ${
