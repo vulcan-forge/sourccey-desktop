@@ -1,7 +1,8 @@
 import { FaGamepad, FaStop, FaPlay, FaWifi } from 'react-icons/fa';
-import { useGetCalibration } from '@/hooks/Control/config.hook';
 import { Tooltip } from 'react-tooltip';
 import { RemoteControlType, RemoteRobotStatus } from '@/hooks/Control/remote-control.hook';
+import { setContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
+import { DEFAULT_DESKTOP_TELEOP_TYPE, useDesktopTeleopCalibrationStatus } from '@/hooks/Control/desktop-calibration.hook';
 
 const ConnectRobotComponent = ({ nickname }: { nickname: string }) => {
     return (
@@ -55,17 +56,23 @@ export const RemoteRobotAction = ({
     allowUnconnectedControl?: boolean;
 }) => {
     const nickname = ownedRobot?.nickname ?? '';
-    const robotType = ownedRobot?.robot_type ?? '';
-    const { data: calibration, isLoading: isLoadingCalibration }: any = useGetCalibration(robotType, nickname);
+    const normalizedNickname = nickname.startsWith('@') ? nickname.slice(1) : nickname;
+    const { data: teleopCalibrationStatus, isLoading: isLoadingCalibration }: any = useDesktopTeleopCalibrationStatus(
+        normalizedNickname,
+        DEFAULT_DESKTOP_TELEOP_TYPE,
+        normalizedNickname.length > 0
+    );
 
     const isCalibrationLoading = isLoading || isLoadingCalibration;
+    const isTeleopCalibrated = teleopCalibrationStatus?.isCalibrated === true;
+    const showCalibrationButton = !isCalibrationLoading && !isTeleopCalibrated;
 
     // State Variables
     const isConnected = robotStatus == RemoteRobotStatus.CONNECTED || robotStatus == RemoteRobotStatus.STARTED;
     const isRobotStarted = robotStatus == RemoteRobotStatus.STARTED;
     const requiresConnection = !allowUnconnectedControl;
     const isControlDisabled =
-        isLoading || isLoadingCalibration || !calibration || (requiresConnection && robotStatus == RemoteRobotStatus.NONE);
+        isLoading || isLoadingCalibration || !isTeleopCalibrated || (requiresConnection && robotStatus == RemoteRobotStatus.NONE);
 
     // Show connect component if not connected
     if (requiresConnection && !isConnected) {
@@ -106,6 +113,16 @@ export const RemoteRobotAction = ({
                     </>
                 )}
 
+                {showCalibrationButton && (
+                    <button
+                        type="button"
+                        onClick={() => setContent('config')}
+                        className="cursor-pointer rounded-lg border border-amber-400/60 bg-amber-500/20 px-3 py-2 text-xs font-semibold text-amber-100 transition hover:bg-amber-500/30"
+                    >
+                        Calibrate
+                    </button>
+                )}
+
                 <button
                     onClick={toggleControl}
                     disabled={isControlDisabled}
@@ -113,14 +130,14 @@ export const RemoteRobotAction = ({
                     data-tooltip-content={
                         !requiresConnection
                             ? isControlDisabled
-                                ? 'Auto calibration required before controlling'
+                                ? 'Calibration required before controlling'
                                 : ''
                             : !isConnected
                               ? 'Robot must be connected first'
                               : !isRobotStarted
                                 ? 'Robot must be started first'
                                 : isControlDisabled
-                                  ? 'Auto calibration required before controlling'
+                                  ? 'Calibration required before controlling'
                                   : ''
                     }
                     className={`inline-flex w-36 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-all ${
