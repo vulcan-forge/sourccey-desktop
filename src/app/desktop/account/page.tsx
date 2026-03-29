@@ -163,13 +163,9 @@ function AccountPageContent() {
 
     const credentialsLogin = useMutation({
         mutationFn: async ({ email, password }: { email: string; password: string }) => {
-            const recaptchaSiteKey = getReCaptchaSiteKey();
-            if (!recaptchaSiteKey) {
-                throw new Error('reCAPTCHA is not configured. Set NEXT_PUBLIC_GOOGLE_V3_RECAPTCHA_SITE_KEY in sourccey-desktop .env.');
-            }
-
-            const recaptcha = await getReCaptchaToken('login');
-            if (!recaptcha) {
+            const recaptchaEnabled = Boolean(getReCaptchaSiteKey());
+            const recaptcha = recaptchaEnabled ? await getReCaptchaToken('login') : null;
+            if (recaptchaEnabled && !recaptcha) {
                 throw new Error('reCAPTCHA validation failed. Please try again.');
             }
 
