@@ -173,6 +173,23 @@ class BuildManager:
     # Tauri Build
     #################################################################
 
+    def find_latest_deb(self, deb_locations: list[Path], product_patterns: list[str]) -> Optional[Path]:
+        """Find the newest matching .deb across all known output/cache locations."""
+        candidates: list[Path] = []
+
+        for deb_dir in deb_locations:
+            if not deb_dir.exists():
+                continue
+            for pattern in product_patterns:
+                candidates.extend(deb_dir.glob(pattern))
+
+        if not candidates:
+            return None
+
+        # Pick newest by mtime so stale cache artifacts do not override fresh builds.
+        newest = max(candidates, key=lambda p: p.stat().st_mtime)
+        return newest
+
     def build_tauri(self) -> Optional[Path]:
         """Build Tauri application"""
 
@@ -283,13 +300,10 @@ class BuildManager:
             f"{product_name.replace(' ', '_')}*.deb",
         ]
 
-        for deb_dir in deb_locations:
-            if deb_dir.exists():
-                for pattern in product_patterns:
-                    debs = sorted(deb_dir.glob(pattern))
-                    if debs:
-                        self.print_success(f"Found .deb at {deb_dir}")
-                        return debs[0]
+        newest_deb = self.find_latest_deb(deb_locations, product_patterns)
+        if newest_deb:
+            self.print_success(f"Selected newest .deb: {newest_deb}")
+            return newest_deb
 
         self.print_error(f"No .deb found matching patterns: {', '.join(product_patterns)}")
         return None

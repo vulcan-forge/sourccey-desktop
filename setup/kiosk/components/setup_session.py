@@ -72,6 +72,8 @@ if [ -z "$APP_BIN" ]; then
     exit 1
 fi
 
+echo "$(date -Is) app_bin=$APP_BIN mode=${{SOURCCEY_APP_MODE:-unset}} display=${{DISPLAY:-unset}}" >> /tmp/sourccey-kiosk-launch.log
+
 openbox-session &
 exec "$APP_BIN" --kiosk
 """
