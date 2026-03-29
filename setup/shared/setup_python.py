@@ -16,6 +16,8 @@ from typing import Callable, Optional
 
 from setup_helper import get_real_user_home, wrap_command
 
+UV_VENV_PYTHON_VERSION = "3.12"
+
 #################################################################
 # Helper Functions
 #################################################################
@@ -391,8 +393,17 @@ class PythonSetupManager:
             lerobot_setup = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(lerobot_setup)
 
-            # Call the setup function
-            success = lerobot_setup.setup(desktop=desktop)
+            # Force uv to resolve venv creation against Python 3.12 for this setup run.
+            original_uv_python = os.environ.get("UV_PYTHON")
+            os.environ["UV_PYTHON"] = UV_VENV_PYTHON_VERSION
+            try:
+                # Call the setup function
+                success = lerobot_setup.setup(desktop=desktop)
+            finally:
+                if original_uv_python is None:
+                    os.environ.pop("UV_PYTHON", None)
+                else:
+                    os.environ["UV_PYTHON"] = original_uv_python
 
             if success:
                 self.print_success("lerobot-vulcan setup completed successfully")
