@@ -44,6 +44,7 @@ def test_session_files_use_stable_session_name_and_kiosk_flag():
 
     assert "Exec=/usr/local/bin/vulcan-studio-openbox" in desktop_entry
     assert 'export SOURCCEY_APP_MODE="kiosk"' in launcher
+    assert "sourccey-kiosk-launch.log" in launcher
     assert 'exec "$APP_BIN" --kiosk' in launcher
 
 
