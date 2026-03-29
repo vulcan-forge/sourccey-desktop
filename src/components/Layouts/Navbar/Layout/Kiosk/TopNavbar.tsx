@@ -21,10 +21,12 @@ import { calculateBatteryPercent, getBatteryLevelStep, setSystemInfo, useGetSyst
 import { exit } from '@tauri-apps/plugin-process';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
+import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
 
 export const KioskTopNavbar = () => {
     const { isRobotStarted } = useRobotStatus();
     const { data: kioskUpdateStatus } = useKioskUpdateStatus();
+    const { data: desktopAppUpdateStatus } = useDesktopAppUpdateStatus();
     const [isWiFiModalOpen, setIsWiFiModalOpen] = useState(false);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
@@ -32,6 +34,9 @@ export const KioskTopNavbar = () => {
     const [piCredentials, setPiCredentials] = useState({ username: '...', password: '...' });
 
     const { data: systemInfo }: any = useGetSystemInfo();
+    const hasModuleUpdate = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable);
+    const hasTauriAppUpdate = Boolean(desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.parityPassed);
+    const showTopNavbar = hasModuleUpdate || hasTauriAppUpdate;
 
     // Fetch Raspberry Pi credentials when opening the modal
     const handleOpenCreds = async () => {
@@ -50,6 +55,10 @@ export const KioskTopNavbar = () => {
     };
 
     useEffect(() => {
+        if (!showTopNavbar) {
+            return;
+        }
+
         const fetchSystemInfo = async () => {
             try {
                 const info = await invoke<{ ip_address: string; temperature: string; battery_data: BatteryData }>('get_system_info');
@@ -67,7 +76,7 @@ export const KioskTopNavbar = () => {
         fetchSystemInfo();
         const interval = setInterval(fetchSystemInfo, 10000); // Update every 10 seconds
         return () => clearInterval(interval);
-    }, []);
+    }, [showTopNavbar]);
 
     const getBatteryStyles = (percent: number) => {
         if (percent > 75) {
@@ -92,6 +101,10 @@ export const KioskTopNavbar = () => {
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
 
     const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
+    if (!showTopNavbar) {
+        return null;
+    }
+
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -126,16 +139,14 @@ export const KioskTopNavbar = () => {
                             </button>
                         )}
 
-                        {kioskUpdateStatus?.updateAvailable && (
-                            <LinkButton
-                                href="/kiosk/setup"
-                                className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-500/20 hover:text-amber-100"
-                                tooltip="Open kiosk update and repair"
-                            >
-                                <FaSyncAlt className="h-5 w-5" />
-                                <span className="hidden sm:inline">Update</span>
-                            </LinkButton>
-                        )}
+                        <LinkButton
+                            href="/kiosk/setup"
+                            className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-500/20 hover:text-amber-100"
+                            tooltip="Open kiosk update and repair"
+                        >
+                            <FaSyncAlt className="h-5 w-5" />
+                            <span className="hidden sm:inline">Update</span>
+                        </LinkButton>
 
                         {/* Connect Details button - kiosk mode */}
                         <button
