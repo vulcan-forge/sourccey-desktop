@@ -92,6 +92,7 @@ impl LocalSetupService {
     const DEFAULT_UPDATER_URL: &str = "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/latest.json";
     const DEFAULT_LEROBOT_TAGS_URL: &str = "https://api.github.com/repos/vulcan-forge/lerobot-vulcan/tags?per_page=100";
     const LEROBOT_TAG_CACHE_TTL: Duration = Duration::from_secs(300);
+    const UV_VENV_PYTHON_VERSION: &str = "3.12";
     #[allow(dead_code)]
     pub fn maybe_start(app_handle: AppHandle, kiosk: bool) {
         if kiosk || BuildService::is_dev_mode() {
@@ -505,7 +506,8 @@ impl LocalSetupService {
         Self::emit_step(emit, "uv", "success", None);
 
         Self::emit_step(emit, "venv", "started", Some("Creating virtual environment".to_string()));
-        Self::run_command(&uv_target, &["venv", "--clear"], &lerobot_dir, "uv venv").map_err(|e| {
+        let venv_args = Self::uv_venv_args();
+        Self::run_command(&uv_target, &venv_args, &lerobot_dir, "uv venv").map_err(|e| {
             Self::emit_step(emit, "venv", "error", Some(e.clone()));
             e
         })?;
@@ -1060,6 +1062,10 @@ impl LocalSetupService {
         Ok(())
     }
 
+    fn uv_venv_args() -> [&'static str; 4] {
+        ["venv", "--clear", "--python", Self::UV_VENV_PYTHON_VERSION]
+    }
+
     fn format_protobuf_error(error: &str) -> String {
         format!(
             "Compile protobuf failed.\n\nCompiler output:\n{}",
@@ -1529,5 +1535,13 @@ mod tests {
         .expect("third cache resolution should refresh after ttl");
         assert_eq!(third, Some("vulcan/0.9.0".to_string()));
         assert_eq!(fetch_calls, 2);
+    }
+
+    #[test]
+    fn uv_venv_args_pin_python_312() {
+        assert_eq!(
+            LocalSetupService::uv_venv_args(),
+            ["venv", "--clear", "--python", "3.12"]
+        );
     }
 }
