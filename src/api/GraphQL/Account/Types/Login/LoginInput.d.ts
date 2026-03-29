@@ -3,5 +3,7 @@ export interface LoginInput {
     password?: string;
     provider: number;
     providerId?: string;
+    providerAccessToken?: string;
+    providerIdToken?: string;
     recaptcha?: string;
 }
