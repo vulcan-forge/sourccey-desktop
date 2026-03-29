@@ -814,6 +814,7 @@ class GitSetupManager:
         self,
         submodule_relative_path: str = "modules/lerobot-vulcan",
         tag: str = "vulcan/0.1.0",
+        force: bool = False,
     ) -> bool:
         """Checkout a specific tag inside a submodule."""
         submodule_path = self.project_root / submodule_relative_path
@@ -873,14 +874,62 @@ class GitSetupManager:
                 )
                 return True
 
+            if not force:
+                self.print_warning(
+                    f"Submodule {submodule_relative_path} has local changes. "
+                    f"Cannot switch to tag {tag} without risking data loss."
+                )
+                self.print_error(
+                    f"Commit/stash/discard changes in {submodule_relative_path}, then rerun setup."
+                )
+                return False
+
             self.print_warning(
                 f"Submodule {submodule_relative_path} has local changes. "
-                f"Cannot switch to tag {tag} without risking data loss."
+                f"Forcing checkout to tag {tag} by discarding submodule changes."
             )
-            self.print_error(
-                f"Commit/stash/discard changes in {submodule_relative_path}, then rerun setup."
+            hard_reset = self._run_git_command(
+                ["git", "reset", "--hard", "HEAD"],
+                submodule_path,
+                capture_output=True,
+                text=True,
             )
-            return False
+            if hard_reset.returncode != 0:
+                self.print_error(
+                    f"Failed to hard reset {submodule_relative_path}: {hard_reset.stderr.strip()}"
+                )
+                return False
+
+            clean = self._run_git_command(
+                ["git", "clean", "-fd"],
+                submodule_path,
+                capture_output=True,
+                text=True,
+            )
+            if clean.returncode != 0:
+                self.print_error(
+                    f"Failed to clean {submodule_relative_path}: {clean.stderr.strip()}"
+                )
+                return False
+
+            status_after_force = self._run_git_command(
+                ["git", "status", "--porcelain"],
+                submodule_path,
+                capture_output=True,
+                text=True,
+            )
+            if status_after_force.returncode != 0:
+                self.print_error(
+                    f"Failed to verify submodule status after force clean: "
+                    f"{status_after_force.stderr.strip()}"
+                )
+                return False
+
+            if status_after_force.stdout.strip():
+                self.print_error(
+                    f"Submodule {submodule_relative_path} is still dirty after force clean."
+                )
+                return False
 
         checkout = self._run_git_command(
             ["git", "checkout", "--detach", f"refs/tags/{tag}"],
