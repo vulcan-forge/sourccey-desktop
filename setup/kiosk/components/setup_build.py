@@ -242,8 +242,8 @@ class BuildManager:
                 "env",
                 *env_args,
                 bun_cmd,
-                "tauri",
-                "build",
+                "run",
+                "tauri:build",
             ]
             build_cwd = self.project_root
             print(" ".join(build_cmd))
@@ -254,7 +254,7 @@ class BuildManager:
                 check=True,
             )
         else:
-            build_cmd = [bun_cmd, "tauri", "build"]
+            build_cmd = [bun_cmd, "run", "tauri:build"]
             print(" ".join(build_cmd))
 
             build_result = subprocess.run(
