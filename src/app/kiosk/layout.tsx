@@ -7,7 +7,7 @@ import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlB
 import { PairingCodeModal } from '@/components/Elements/Modals/KioskRobotModals/PairingCodeModal';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { initFrontendLogger } from '@/utils/logs/frontend-logger';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { safeNavigate } from '@/utils/navigation';
 import { getAppModeRedirectPath } from '@/utils/app-mode-route';
@@ -16,9 +16,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
     const pathname = usePathname();
     const router = useRouter();
+    const [isHydrated, setIsHydrated] = useState(false);
 
     useEffect(() => {
         initFrontendLogger();
+    }, []);
+
+    useEffect(() => {
+        setIsHydrated(true);
     }, []);
 
     useEffect(() => {
@@ -28,7 +33,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }
     }, [isLoadingAppMode, isKioskMode, pathname, router]);
 
-    if (isLoadingAppMode) {
+    if (!isHydrated || isLoadingAppMode) {
         return (
             <div className="flex h-screen items-center justify-center">
                 <Spinner />

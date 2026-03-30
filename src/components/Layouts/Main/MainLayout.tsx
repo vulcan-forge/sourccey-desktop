@@ -1,15 +1,14 @@
 'use client';
 
-import { RobotStatusProvider } from '@/context/robot-status-context';
-import { VirtualKeyboardProvider } from '@/context/virtual-keyboard-context';
-import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { VirtualKeyboard } from '@/components/Elements/VirtualKeyboard';
 import { ToastCloseButton } from '@/utils/toast/ToastComponents';
+import { usePathname } from 'next/navigation';
 import { ToastContainer } from 'react-toastify';
 
 export const MainLayout = ({ children }: { children: React.ReactNode }) => {
-    const { isKioskMode } = useAppMode();
-    if (isKioskMode) {
+    const pathname = usePathname();
+    const isKioskRoute = pathname?.startsWith('/kiosk') ?? false;
+    if (isKioskRoute) {
         return <KioskLayout>{children}</KioskLayout>;
     } else {
         return <DesktopLayout>{children}</DesktopLayout>;
