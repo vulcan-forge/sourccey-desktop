@@ -89,7 +89,7 @@ impl LocalSetupService {
     const DEFAULT_LEROBOT_ZIP_URL: &str = "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
     const DEFAULT_LEROBOT_ZIP_SHA256_URL: &str =
         "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip.sha256";
-    const DEFAULT_UPDATER_URL: &str = "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/latest.json";
+    const DEFAULT_UPDATER_URL: &str = "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json";
     const DEFAULT_LEROBOT_TAGS_URL: &str = "https://api.github.com/repos/vulcan-forge/lerobot-vulcan/tags?per_page=100";
     const LEROBOT_TAG_CACHE_TTL: Duration = Duration::from_secs(300);
     const UV_VENV_PYTHON_VERSION: &str = "3.12";

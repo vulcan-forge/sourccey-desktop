@@ -181,7 +181,6 @@ export default function KioskSetupPage() {
     const lerobotCurrent = normalizeVersionLabel(kioskUpdateStatus?.lerobotCurrent) ?? 'unknown';
     const lerobotAvailable = normalizeVersionLabel(kioskUpdateStatus?.lerobotRemote) ?? 'unknown';
     const lerobotOutdated = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable);
-    const showLerobotAvailable = lerobotOutdated && lerobotAvailable !== 'unknown';
     const lerobotStatusMessage = isLoadingKioskUpdate
         ? 'Checking LeRobot version status...'
         : lerobotOutdated
@@ -196,7 +195,6 @@ export default function KioskSetupPage() {
     const appOutdated = Boolean(
         desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.parityPassed && desktopAppUpdateStatus?.targetVersion
     );
-    const showAppAvailable = (appOutdated || appParityBlocked) && appAvailable !== 'unknown';
     const appStatusMessage = isLoadingDesktopAppUpdate
         ? 'Checking app version status...'
         : appParityBlocked
@@ -260,9 +258,9 @@ export default function KioskSetupPage() {
                                         {isRunning && runningAction === 'modules' ? 'Updating LeRobot...' : 'Update LeRobot'}
                                     </button>
                                     <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
-                                        <div className="font-semibold text-slate-100">LeRobot version status</div>
+                                        <div className="font-semibold text-slate-100">Lerobot Vulcan version</div>
                                         <div className="mt-1 text-slate-300">Current: {lerobotCurrent}</div>
-                                        {showLerobotAvailable && <div className="text-slate-300">Available: {lerobotAvailable}</div>}
+                                        <div className="text-slate-300">Available: {lerobotAvailable}</div>
                                         <div className={`mt-2 text-[11px] ${lerobotOutdated ? 'text-amber-200' : 'text-emerald-200'}`}>
                                             {lerobotStatusMessage}
                                         </div>
@@ -288,7 +286,7 @@ export default function KioskSetupPage() {
                                     <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
                                         <div className="font-semibold text-amber-100">App version status</div>
                                         <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
-                                        {showAppAvailable && <div className="text-amber-100/90">Available: {appAvailable}</div>}
+                                        <div className="text-amber-100/90">Available: {appAvailable}</div>
                                         <div
                                             className={`mt-2 text-[11px] ${
                                                 appOutdated ? 'text-amber-100' : appParityBlocked ? 'text-red-200' : 'text-emerald-200'
