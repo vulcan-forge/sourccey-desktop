@@ -246,6 +246,8 @@ impl KioskUpdateService {
             "-n",
             "python3",
             "setup/kiosk/setup.py",
+            "--skip-system",
+            "--no-clean",
             "--use-https",
         ]);
         let status = command

@@ -52,3 +52,17 @@ def test_find_latest_deb_prefers_newest_artifact(tmp_path):
     )
 
     assert selected == new_deb
+
+
+def test_recommend_cargo_jobs_for_4gb_pi(tmp_path):
+    manager = BuildManager(
+        project_root=tmp_path,
+        app_info={},
+        print_status=_noop,
+        print_success=_noop,
+        print_warning=_noop,
+        print_error=_noop,
+    )
+
+    assert manager.recommend_cargo_jobs(total_mem_gib=4.0) == 2
+    assert manager.recommend_cargo_jobs(total_mem_gib=2.0) == 1
