@@ -181,18 +181,7 @@ async fn check_tag_parity(target_version: &str) -> bool {
     true
 }
 
-fn read_force_flag_from_manifest(target_version: &str) -> bool {
-    let url = resolve_updater_manifest_url();
-    let response = match reqwest::blocking::get(url) {
-        Ok(resp) if resp.status().is_success() => resp,
-        _ => return false,
-    };
-
-    let value: serde_json::Value = match response.json() {
-        Ok(json) => json,
-        Err(_) => return false,
-    };
-
+fn read_force_flag_from_manifest(value: &serde_json::Value, target_version: &str) -> bool {
     let manifest_version = value.get("version").and_then(|v| v.as_str()).unwrap_or_default();
     if manifest_version != target_version {
         return false;
@@ -206,14 +195,7 @@ fn resolve_updater_manifest_url() -> String {
         .unwrap_or_else(|_| "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json".to_string())
 }
 
-fn read_manifest_target_version() -> Option<String> {
-    let url = resolve_updater_manifest_url();
-    let response = reqwest::blocking::get(url).ok()?;
-    if !response.status().is_success() {
-        return None;
-    }
-
-    let value: serde_json::Value = response.json().ok()?;
+fn read_manifest_target_version(value: &serde_json::Value) -> Option<String> {
     value
         .get("version")
         .and_then(|v| v.as_str())
@@ -221,10 +203,21 @@ fn read_manifest_target_version() -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
+async fn read_updater_manifest() -> Option<serde_json::Value> {
+    let url = resolve_updater_manifest_url();
+    let response = reqwest::get(url).await.ok()?;
+    if !response.status().is_success() {
+        return None;
+    }
+
+    response.json::<serde_json::Value>().await.ok()
+}
+
 #[tauri::command]
 async fn desktop_update_check(app: tauri::AppHandle) -> Result<DesktopUpdateStatus, String> {
     let current_version = app.package_info().version.to_string();
-    let manifest_target_version = read_manifest_target_version();
+    let manifest = read_updater_manifest().await;
+    let manifest_target_version = manifest.as_ref().and_then(read_manifest_target_version);
 
     let updater = app
         .updater()
@@ -248,7 +241,10 @@ async fn desktop_update_check(app: tauri::AppHandle) -> Result<DesktopUpdateStat
 
     let target_version = update.version.to_string();
     let parity_passed = check_tag_parity(&target_version).await;
-    let force = read_force_flag_from_manifest(&target_version);
+    let force = manifest
+        .as_ref()
+        .map(|value| read_force_flag_from_manifest(value, &target_version))
+        .unwrap_or(false);
     let updater_current_version = update.current_version.to_string();
     let resolved_current_version = if updater_current_version.trim().is_empty() {
         current_version

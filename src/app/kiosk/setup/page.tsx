@@ -191,15 +191,18 @@ export default function KioskSetupPage() {
 
     const appCurrent = normalizeVersionLabel(desktopAppUpdateStatus?.currentVersion) ?? 'unknown';
     const appAvailable = normalizeVersionLabel(desktopAppUpdateStatus?.targetVersion) ?? 'unknown';
+    const appMetadataKnown = appCurrent !== 'unknown' && appAvailable !== 'unknown';
     const appParityBlocked = Boolean(desktopAppUpdateStatus?.updateAvailable && !desktopAppUpdateStatus?.parityPassed);
     const appOutdated = Boolean(
         desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.parityPassed && desktopAppUpdateStatus?.targetVersion
     );
     const appStatusMessage = isLoadingDesktopAppUpdate
         ? 'Checking app version status...'
+        : !appMetadataKnown
+          ? 'Unable to resolve app version metadata from latest.json yet.'
         : appParityBlocked
           ? 'Update detected, but install is blocked because parity checks did not pass yet.'
-          : appOutdated
+        : appOutdated
             ? 'Out of date because a newer signed app version is available.'
             : 'Up to date. You are on the latest app version.';
 
