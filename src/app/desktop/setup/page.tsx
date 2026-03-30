@@ -210,7 +210,8 @@ export default function SetupPage() {
 
     const formatVersionLabel = (tag?: string | null, commit?: string | null) => {
         if (tag && tag.trim().length > 0) {
-            return tag;
+            const normalizedTag = tag.trim().replace(/^vulcan\//, '').replace(/^kiosk\//, '');
+            return normalizedTag;
         }
         if (commit && commit.trim().length > 0) {
             return commit.slice(0, 10);
@@ -221,18 +222,20 @@ export default function SetupPage() {
     const runtimeCurrent = formatVersionLabel(lerobotStatus?.currentTag, lerobotStatus?.currentCommit);
     const runtimeAvailable = formatVersionLabel(lerobotStatus?.latestTag, lerobotStatus?.latestCommit);
     const runtimeOutdated = lerobotStatus ? !lerobotStatus.upToDate : false;
+    const showRuntimeAvailable = runtimeOutdated && runtimeAvailable !== 'unknown';
     const runtimeStatusMessage = isLoadingLerobotStatus
         ? 'Checking runtime version status...'
         : runtimeOutdated
           ? 'Out of date because your local LeRobot runtime is behind the latest available commit/tag.'
           : 'Up to date. Your local LeRobot runtime matches the latest available commit/tag.';
 
-    const appCurrent = desktopAppUpdateStatus?.currentVersion ?? 'unknown';
-    const appAvailable = desktopAppUpdateStatus?.targetVersion ?? appCurrent;
+    const appCurrent = formatVersionLabel(desktopAppUpdateStatus?.currentVersion, null);
+    const appAvailable = formatVersionLabel(desktopAppUpdateStatus?.targetVersion, null);
     const appParityBlocked = Boolean(desktopAppUpdateStatus?.updateAvailable && !desktopAppUpdateStatus?.parityPassed);
     const appOutdated = Boolean(
         desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.parityPassed && desktopAppUpdateStatus?.targetVersion
     );
+    const showAppAvailable = (appOutdated || appParityBlocked) && appAvailable !== 'unknown';
     const appStatusMessage = isLoadingDesktopAppStatus
         ? 'Checking app version status...'
         : appParityBlocked
@@ -347,7 +350,7 @@ export default function SetupPage() {
                                 <div className="rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
                                     <div className="font-semibold text-slate-100">LeRobot runtime status</div>
                                     <div className="mt-1 text-slate-300">Current: {runtimeCurrent}</div>
-                                    <div className="text-slate-300">Available: {runtimeAvailable}</div>
+                                    {showRuntimeAvailable && <div className="text-slate-300">Available: {runtimeAvailable}</div>}
                                     <div className={`mt-2 text-[11px] ${runtimeOutdated ? 'text-amber-200' : 'text-emerald-200'}`}>
                                         {runtimeStatusMessage}
                                     </div>
@@ -356,7 +359,7 @@ export default function SetupPage() {
                                 <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
                                     <div className="font-semibold text-amber-100">Desktop app status</div>
                                     <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
-                                    <div className="text-amber-100/90">Available: {appAvailable}</div>
+                                    {showAppAvailable && <div className="text-amber-100/90">Available: {appAvailable}</div>}
                                     <div
                                         className={`mt-2 text-[11px] ${
                                             appOutdated ? 'text-amber-100' : appParityBlocked ? 'text-red-200' : 'text-emerald-200'

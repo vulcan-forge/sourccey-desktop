@@ -706,7 +706,6 @@ impl LocalSetupService {
     }
 
     fn select_latest_vulcan_tag(tags: Vec<String>) -> Option<String> {
-        let mut fallback: Option<String> = None;
         let mut best_semver: Option<(SimpleSemver, String)> = None;
 
         for tag in tags {
@@ -715,9 +714,6 @@ impl LocalSetupService {
                 continue;
             }
             let normalized = trimmed.to_string();
-            if fallback.is_none() {
-                fallback = Some(normalized.clone());
-            }
             if let Some(version) = Self::parse_vulcan_semver(&normalized) {
                 match best_semver.as_ref() {
                     Some((best_version, _)) if &version <= best_version => {}
@@ -728,7 +724,7 @@ impl LocalSetupService {
             }
         }
 
-        best_semver.map(|(_, tag)| tag).or(fallback)
+        best_semver.map(|(_, tag)| tag)
     }
 
     fn parse_vulcan_semver(tag: &str) -> Option<SimpleSemver> {
@@ -754,15 +750,10 @@ impl LocalSetupService {
         if trimmed.is_empty() {
             return None;
         }
-        if trimmed.starts_with("vulcan/") {
-            return Some(trimmed.to_string());
+        if !trimmed.starts_with("vulcan/") {
+            return None;
         }
-
-        let normalized = trimmed.strip_prefix('v').unwrap_or(trimmed);
-        if Self::parse_semver_core(normalized).is_some() {
-            return Some(format!("vulcan/{}", normalized));
-        }
-        None
+        Some(trimmed.to_string())
     }
 
     fn is_current_tag_up_to_date(current_tag: Option<&str>, latest_tag: Option<&str>) -> bool {
@@ -1461,17 +1452,31 @@ mod tests {
             })
         );
         assert_eq!(LocalSetupService::parse_vulcan_semver("vulcan/not-semver"), None);
+        assert_eq!(LocalSetupService::parse_vulcan_semver("0.1.0"), None);
+        assert_eq!(LocalSetupService::parse_vulcan_semver("v0.1.0"), None);
     }
 
     #[test]
     fn selects_highest_vulcan_semver_and_ignores_other_tags() {
         let selected = LocalSetupService::select_latest_vulcan_tag(vec![
             "release/5.0.0".to_string(),
+            "1.9.9".to_string(),
+            "v2.0.0".to_string(),
             "vulcan/0.1.0".to_string(),
             "vulcan/0.3.0".to_string(),
             "vulcan/0.2.5".to_string(),
         ]);
         assert_eq!(selected, Some("vulcan/0.3.0".to_string()));
+    }
+
+    #[test]
+    fn ignores_non_semver_vulcan_tags_when_selecting_latest() {
+        let selected = LocalSetupService::select_latest_vulcan_tag(vec![
+            "vulcan/latest".to_string(),
+            "vulcan/release".to_string(),
+            "other/1.0.0".to_string(),
+        ]);
+        assert_eq!(selected, None);
     }
 
     #[test]

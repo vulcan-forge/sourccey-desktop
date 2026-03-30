@@ -428,7 +428,6 @@ impl KioskUpdateService {
     }
 
     fn select_latest_prefixed_tag(tags: Vec<String>, prefix: &str) -> Option<String> {
-        let mut fallback: Option<String> = None;
         let mut best_semver: Option<(SimpleSemver, String)> = None;
 
         for tag in tags {
@@ -436,9 +435,6 @@ impl KioskUpdateService {
                 Some(value) => value,
                 None => continue,
             };
-            if fallback.is_none() {
-                fallback = Some(normalized.clone());
-            }
             if let Some(version) = Self::parse_prefixed_semver(&normalized, prefix) {
                 match best_semver.as_ref() {
                     Some((best_version, _)) if &version <= best_version => {}
@@ -447,7 +443,7 @@ impl KioskUpdateService {
             }
         }
 
-        best_semver.map(|(_, tag)| tag).or(fallback)
+        best_semver.map(|(_, tag)| tag)
     }
 
     fn normalize_prefixed_tag(tag: &str, prefix: &str) -> Option<String> {
@@ -455,14 +451,10 @@ impl KioskUpdateService {
         if trimmed.is_empty() {
             return None;
         }
-        if trimmed.starts_with(prefix) {
-            return Some(trimmed.to_string());
+        if !trimmed.starts_with(prefix) {
+            return None;
         }
-        let maybe_version = trimmed.strip_prefix('v').unwrap_or(trimmed);
-        if Self::parse_semver_core(maybe_version).is_some() {
-            return Some(format!("{}{}", prefix, maybe_version));
-        }
-        None
+        Some(trimmed.to_string())
     }
 
     fn parse_prefixed_semver(tag: &str, prefix: &str) -> Option<SimpleSemver> {
@@ -533,6 +525,8 @@ mod tests {
             })
         );
         assert_eq!(KioskUpdateService::parse_prefixed_semver("kiosk/latest", "kiosk/"), None);
+        assert_eq!(KioskUpdateService::parse_prefixed_semver("1.2.3", "kiosk/"), None);
+        assert_eq!(KioskUpdateService::parse_prefixed_semver("v1.2.3", "kiosk/"), None);
     }
 
     #[test]
@@ -541,12 +535,27 @@ mod tests {
             vec![
                 "vulcan/0.1.0".to_string(),
                 "vulcan/0.3.0".to_string(),
+                "v9.9.9".to_string(),
+                "9.9.9".to_string(),
                 "other/9.9.9".to_string(),
                 "vulcan/0.2.5".to_string(),
             ],
             "vulcan/",
         );
         assert_eq!(selected, Some("vulcan/0.3.0".to_string()));
+    }
+
+    #[test]
+    fn ignores_non_semver_prefixed_tags_when_selecting_latest() {
+        let selected = KioskUpdateService::select_latest_prefixed_tag(
+            vec![
+                "vulcan/latest".to_string(),
+                "vulcan/release".to_string(),
+                "other/1.0.0".to_string(),
+            ],
+            "vulcan/",
+        );
+        assert_eq!(selected, None);
     }
 
     #[test]

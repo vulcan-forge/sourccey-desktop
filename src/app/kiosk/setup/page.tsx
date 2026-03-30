@@ -161,21 +161,42 @@ export default function KioskSetupPage() {
         }
     };
 
-    const lerobotCurrent = kioskUpdateStatus?.lerobotCurrent ?? 'unknown';
-    const lerobotAvailable = kioskUpdateStatus?.lerobotRemote ?? 'unknown';
+    const normalizeVersionLabel = (value?: string | null) => {
+        if (!value) {
+            return null;
+        }
+        const trimmed = value.trim();
+        if (!trimmed) {
+            return null;
+        }
+        if (trimmed.startsWith('vulcan/')) {
+            return trimmed.replace(/^vulcan\//, '');
+        }
+        if (trimmed.startsWith('kiosk/')) {
+            return trimmed.replace(/^kiosk\//, '');
+        }
+        return trimmed;
+    };
+
+    const lerobotCurrent = normalizeVersionLabel(kioskUpdateStatus?.lerobotCurrent) ?? 'unknown';
+    const lerobotAvailable = normalizeVersionLabel(kioskUpdateStatus?.lerobotRemote) ?? 'unknown';
     const lerobotOutdated = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable);
+    const showLerobotAvailable = lerobotOutdated && lerobotAvailable !== 'unknown';
     const lerobotStatusMessage = isLoadingKioskUpdate
         ? 'Checking LeRobot version status...'
         : lerobotOutdated
-          ? 'Out of date because your pinned LeRobot tag is behind the latest available tag.'
-          : 'Up to date. Your pinned LeRobot tag matches the latest available tag.';
+          ? lerobotCurrent !== 'unknown' && lerobotAvailable !== 'unknown'
+              ? `Out of date: ${lerobotCurrent} is behind ${lerobotAvailable}.`
+              : 'Out of date because your local LeRobot version is behind the latest available version.'
+          : 'Up to date. Your local LeRobot version matches the latest available version.';
 
-    const appCurrent = desktopAppUpdateStatus?.currentVersion ?? 'unknown';
-    const appAvailable = desktopAppUpdateStatus?.targetVersion ?? appCurrent;
+    const appCurrent = normalizeVersionLabel(desktopAppUpdateStatus?.currentVersion) ?? 'unknown';
+    const appAvailable = normalizeVersionLabel(desktopAppUpdateStatus?.targetVersion) ?? 'unknown';
     const appParityBlocked = Boolean(desktopAppUpdateStatus?.updateAvailable && !desktopAppUpdateStatus?.parityPassed);
     const appOutdated = Boolean(
         desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.parityPassed && desktopAppUpdateStatus?.targetVersion
     );
+    const showAppAvailable = (appOutdated || appParityBlocked) && appAvailable !== 'unknown';
     const appStatusMessage = isLoadingDesktopAppUpdate
         ? 'Checking app version status...'
         : appParityBlocked
@@ -241,7 +262,7 @@ export default function KioskSetupPage() {
                                     <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
                                         <div className="font-semibold text-slate-100">LeRobot version status</div>
                                         <div className="mt-1 text-slate-300">Current: {lerobotCurrent}</div>
-                                        <div className="text-slate-300">Available: {lerobotAvailable}</div>
+                                        {showLerobotAvailable && <div className="text-slate-300">Available: {lerobotAvailable}</div>}
                                         <div className={`mt-2 text-[11px] ${lerobotOutdated ? 'text-amber-200' : 'text-emerald-200'}`}>
                                             {lerobotStatusMessage}
                                         </div>
@@ -267,7 +288,7 @@ export default function KioskSetupPage() {
                                     <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
                                         <div className="font-semibold text-amber-100">App version status</div>
                                         <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
-                                        <div className="text-amber-100/90">Available: {appAvailable}</div>
+                                        {showAppAvailable && <div className="text-amber-100/90">Available: {appAvailable}</div>}
                                         <div
                                             className={`mt-2 text-[11px] ${
                                                 appOutdated ? 'text-amber-100' : appParityBlocked ? 'text-red-200' : 'text-emerald-200'
