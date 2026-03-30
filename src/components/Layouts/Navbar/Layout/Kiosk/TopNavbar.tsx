@@ -35,7 +35,7 @@ export const KioskTopNavbar = () => {
 
     const { data: systemInfo }: any = useGetSystemInfo();
     const hasModuleUpdate = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable);
-    const hasTauriAppUpdate = Boolean(desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.parityPassed);
+    const hasTauriAppUpdate = Boolean(desktopAppUpdateStatus?.updateAvailable);
     const showUpdateButton = hasModuleUpdate || hasTauriAppUpdate;
 
     // Fetch Raspberry Pi credentials when opening the modal

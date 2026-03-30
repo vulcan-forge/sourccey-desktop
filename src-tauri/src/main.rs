@@ -5,7 +5,7 @@
 // Import modules from the database folder
 mod database;
 use database::connection::DatabaseManager;
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use tauri::Manager;
 use services::setup::local_setup_service::{DesktopExtrasStatus, LerobotUpdateStatus, LocalSetupService, SetupStatus};
 use services::setup::kiosk_update_service::{KioskUpdateService, KioskUpdateStatus};
@@ -82,7 +82,6 @@ use modules::settings::controllers::access_point::access_point_controller::{
 use modules::status::controllers::battery::battery_controller::get_battery_data;
 
 use tauri_plugin_process::init;
-use tauri_plugin_updater::UpdaterExt;
 
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -93,92 +92,47 @@ struct DesktopUpdateStatus {
     release_notes: Option<String>,
     parity_passed: bool,
     force: bool,
+    error: Option<String>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
-#[serde(untagged)]
-enum TagsPayload {
-    Array(Vec<serde_json::Value>),
-    Object(serde_json::Value),
-    String(String),
+#[derive(Debug, Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
+struct SimpleVersion {
+    major: u64,
+    minor: u64,
+    patch: u64,
 }
 
-fn expected_tag_names(version: &str) -> Vec<String> {
-    let patterns_raw = std::env::var("SOURCCEY_DESKTOP_TAG_PATTERN")
-        .unwrap_or_else(|_| "v{version}|{version}".to_string());
-
-    let mut tags = Vec::new();
-    for pattern in patterns_raw.split('|') {
-        let candidate = pattern.replace("{version}", version).trim().to_string();
-        if !candidate.is_empty() && !tags.iter().any(|t| t == &candidate) {
-            tags.push(candidate);
-        }
+fn parse_simple_version(value: &str) -> Option<SimpleVersion> {
+    let normalized = value.trim().trim_start_matches('v');
+    let core = normalized
+        .split(['-', '+'])
+        .next()
+        .unwrap_or(normalized)
+        .trim();
+    if core.is_empty() {
+        return None;
     }
 
-    if tags.is_empty() {
-        tags.push(format!("v{}", version));
-        tags.push(version.to_string());
+    let mut parts = core.split('.');
+    let major = parts.next()?.parse::<u64>().ok()?;
+    let minor = parts.next()?.parse::<u64>().ok()?;
+    let patch = parts.next()?.parse::<u64>().ok()?;
+    if parts.next().is_some() {
+        return None;
     }
-    tags
+
+    Some(SimpleVersion {
+        major,
+        minor,
+        patch,
+    })
 }
 
-fn extract_tag_names(value: &serde_json::Value) -> Vec<String> {
-    match value {
-        serde_json::Value::Array(arr) => {
-            let mut tags = Vec::new();
-            for item in arr {
-                match item {
-                    serde_json::Value::String(name) => tags.push(name.trim().to_string()),
-                    serde_json::Value::Object(obj) => {
-                        if let Some(name) = obj.get("name").and_then(|v| v.as_str()) {
-                            tags.push(name.trim().to_string());
-                        } else if let Some(tag) = obj.get("tag").and_then(|v| v.as_str()) {
-                            tags.push(tag.trim().to_string());
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            tags
-        }
-        serde_json::Value::Object(_) => {
-            if let Some(tags) = value.get("tags") {
-                return extract_tag_names(tags);
-            }
-            Vec::new()
-        }
-        serde_json::Value::String(raw) => raw
-            .lines()
-            .map(|line| line.trim().to_string())
-            .filter(|line| !line.is_empty())
-            .collect(),
-        _ => Vec::new(),
+fn is_target_newer_version(current: &str, target: &str) -> bool {
+    match (parse_simple_version(current), parse_simple_version(target)) {
+        (Some(current_version), Some(target_version)) => target_version > current_version,
+        _ => target.trim() != current.trim(),
     }
-}
-
-async fn check_tag_parity(target_version: &str) -> bool {
-    let expected = expected_tag_names(target_version);
-
-    if let Ok(url) = std::env::var("SOURCCEY_DESKTOP_TAGS_URL") {
-        if !url.trim().is_empty() {
-            if let Ok(response) = reqwest::get(url.trim()).await {
-                if response.status().is_success() {
-                    if let Ok(payload) = response.json::<TagsPayload>().await {
-                        let tags = match payload {
-                            TagsPayload::Array(values) => extract_tag_names(&serde_json::Value::Array(values)),
-                            TagsPayload::Object(value) => extract_tag_names(&value),
-                            TagsPayload::String(raw) => extract_tag_names(&serde_json::Value::String(raw)),
-                        };
-                        return expected.iter().any(|candidate| tags.iter().any(|tag| tag == candidate));
-                    }
-                }
-            }
-            return false;
-        }
-    }
-
-    // No external tag source configured: allow updates using the updater source of truth.
-    true
 }
 
 fn read_force_flag_from_manifest(value: &serde_json::Value, target_version: &str) -> bool {
@@ -203,62 +157,62 @@ fn read_manifest_target_version(value: &serde_json::Value) -> Option<String> {
         .filter(|v| !v.is_empty())
 }
 
-async fn read_updater_manifest() -> Option<serde_json::Value> {
+fn read_manifest_release_notes(value: &serde_json::Value) -> Option<String> {
+    value
+        .get("notes")
+        .and_then(|v| v.as_str())
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
+async fn read_updater_manifest() -> Result<serde_json::Value, String> {
     let url = resolve_updater_manifest_url();
-    let response = reqwest::get(url).await.ok()?;
+    let response = reqwest::get(&url)
+        .await
+        .map_err(|e| format!("Failed to fetch updater manifest from {}: {}", url, e))?;
     if !response.status().is_success() {
-        return None;
+        return Err(format!(
+            "Updater manifest request to {} returned HTTP {}",
+            url,
+            response.status()
+        ));
     }
 
-    response.json::<serde_json::Value>().await.ok()
+    response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|e| format!("Failed to parse updater manifest from {}: {}", url, e))
 }
 
 #[tauri::command]
 async fn desktop_update_check(app: tauri::AppHandle) -> Result<DesktopUpdateStatus, String> {
     let current_version = app.package_info().version.to_string();
-    let manifest = read_updater_manifest().await;
+    let (manifest, manifest_error) = match read_updater_manifest().await {
+        Ok(value) => (Some(value), None),
+        Err(error) => {
+            eprintln!("{}", error);
+            (None, Some(error))
+        }
+    };
     let manifest_target_version = manifest.as_ref().and_then(read_manifest_target_version);
-
-    let updater = app
-        .updater()
-        .map_err(|e| format!("Failed to initialize updater: {}", e))?;
-
-    let update = updater
-        .check()
-        .await
-        .map_err(|e| format!("Desktop update check failed: {}", e))?;
-
-    let Some(update) = update else {
-        return Ok(DesktopUpdateStatus {
-            update_available: false,
-            current_version: Some(current_version),
-            target_version: manifest_target_version,
-            release_notes: None,
-            parity_passed: false,
-            force: false,
-        });
-    };
-
-    let target_version = update.version.to_string();
-    let parity_passed = check_tag_parity(&target_version).await;
-    let force = manifest
-        .as_ref()
-        .map(|value| read_force_flag_from_manifest(value, &target_version))
+    let manifest_update_available = manifest_target_version
+        .as_deref()
+        .map(|target| is_target_newer_version(&current_version, target))
         .unwrap_or(false);
-    let updater_current_version = update.current_version.to_string();
-    let resolved_current_version = if updater_current_version.trim().is_empty() {
-        current_version
-    } else {
-        updater_current_version
+    let manifest_force = match (manifest.as_ref(), manifest_target_version.as_deref()) {
+        (Some(value), Some(target)) => read_force_flag_from_manifest(value, target),
+        _ => false,
     };
+    let manifest_release_notes = manifest.as_ref().and_then(read_manifest_release_notes);
 
     Ok(DesktopUpdateStatus {
-        update_available: parity_passed,
-        current_version: Some(resolved_current_version),
-        target_version: manifest_target_version.or(Some(target_version)),
-        release_notes: update.body,
-        parity_passed,
-        force,
+        update_available: manifest_update_available,
+        current_version: Some(current_version),
+        target_version: manifest_target_version,
+        release_notes: manifest_release_notes,
+        parity_passed: true,
+        force: manifest_force,
+        error: manifest_error,
     })
 }
 
@@ -696,5 +650,38 @@ mod app_mode_tests {
         assert!(!is_kiosk_env_value("desktop"));
         assert!(!is_kiosk_env_value("0"));
         assert!(!is_kiosk_env_value("false"));
+    }
+}
+
+#[cfg(test)]
+mod version_compare_tests {
+    use super::{is_target_newer_version, parse_simple_version, SimpleVersion};
+
+    #[test]
+    fn parses_plain_and_prefixed_versions() {
+        assert_eq!(
+            parse_simple_version("0.0.6"),
+            Some(SimpleVersion {
+                major: 0,
+                minor: 0,
+                patch: 6,
+            })
+        );
+        assert_eq!(
+            parse_simple_version("v1.2.3"),
+            Some(SimpleVersion {
+                major: 1,
+                minor: 2,
+                patch: 3,
+            })
+        );
+        assert_eq!(parse_simple_version("bad"), None);
+    }
+
+    #[test]
+    fn detects_newer_target_versions() {
+        assert!(is_target_newer_version("0.0.5", "0.0.6"));
+        assert!(!is_target_newer_version("0.0.6", "0.0.6"));
+        assert!(!is_target_newer_version("0.0.7", "0.0.6"));
     }
 }

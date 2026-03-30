@@ -192,16 +192,14 @@ export default function KioskSetupPage() {
     const appCurrent = normalizeVersionLabel(desktopAppUpdateStatus?.currentVersion) ?? 'unknown';
     const appAvailable = normalizeVersionLabel(desktopAppUpdateStatus?.targetVersion) ?? 'unknown';
     const appMetadataKnown = appCurrent !== 'unknown' && appAvailable !== 'unknown';
-    const appParityBlocked = Boolean(desktopAppUpdateStatus?.updateAvailable && !desktopAppUpdateStatus?.parityPassed);
-    const appOutdated = Boolean(
-        desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.parityPassed && desktopAppUpdateStatus?.targetVersion
-    );
+    const appError = desktopAppUpdateStatus?.error?.trim() || null;
+    const appOutdated = Boolean(desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.targetVersion);
     const appStatusMessage = isLoadingDesktopAppUpdate
         ? 'Checking app version status...'
+        : appError
+          ? 'Update check returned warnings. See details below.'
         : !appMetadataKnown
           ? 'Unable to resolve app version metadata from latest.json yet.'
-        : appParityBlocked
-          ? 'Update detected, but install is blocked because parity checks did not pass yet.'
         : appOutdated
             ? 'Out of date because a newer signed app version is available.'
             : 'Up to date. You are on the latest app version.';
@@ -291,12 +289,13 @@ export default function KioskSetupPage() {
                                         <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
                                         <div className="text-amber-100/90">Available: {appAvailable}</div>
                                         <div
-                                            className={`mt-2 text-[11px] ${
-                                                appOutdated ? 'text-amber-100' : appParityBlocked ? 'text-red-200' : 'text-emerald-200'
-                                            }`}
+                                            className={`mt-2 text-[11px] ${appOutdated ? 'text-amber-100' : 'text-emerald-200'}`}
                                         >
                                             {appStatusMessage}
                                         </div>
+                                        {appError && (
+                                            <div className="mt-2 whitespace-pre-wrap break-words text-[11px] text-red-200">{appError}</div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
