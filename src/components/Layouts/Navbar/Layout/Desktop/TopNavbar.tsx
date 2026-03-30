@@ -27,8 +27,7 @@ export const DesktopTopNavbar = () => {
     const needsRuntimeUpdate = lerobotStatus ? !lerobotStatus.upToDate : false;
     const targetVersion = desktopAppUpdateStatus?.targetVersion ?? null;
     const isForceUpdate = desktopAppUpdateStatus?.force === true;
-    const hasAppUpdate =
-        Boolean(desktopAppUpdateStatus?.updateAvailable) && Boolean(desktopAppUpdateStatus?.parityPassed) && Boolean(targetVersion);
+    const hasAppUpdate = Boolean(desktopAppUpdateStatus?.updateAvailable) && Boolean(targetVersion);
 
     useEffect(() => {
         if (!hasAppUpdate || !targetVersion) {
