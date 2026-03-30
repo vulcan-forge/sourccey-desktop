@@ -4,6 +4,13 @@ import { queryClient } from '@/hooks/default';
 
 export const APP_MODE_KEY = ['app-mode'];
 
+const inferAppModeFromPathname = (): boolean => {
+    if (typeof window === 'undefined') {
+        return false;
+    }
+    return window.location.pathname.startsWith('/kiosk');
+};
+
 // Get app mode from cache or invoke
 const getAppMode = async (): Promise<boolean> => {
     // Check cache first
@@ -17,8 +24,8 @@ const getAppMode = async (): Promise<boolean> => {
         return isKiosk;
     } catch (error) {
         console.error('Failed to get app mode:', error);
-        // Default to desktop mode if there's an error
-        return false;
+        // In dev/startup races, fallback to current route instead of forcing desktop.
+        return inferAppModeFromPathname();
     }
 };
 

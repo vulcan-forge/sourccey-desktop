@@ -4,6 +4,15 @@ type RouterLike = {
 
 const isExternalHref = (href: string) => /^(?:[a-z][a-z0-9+.-]*:)?\/\//i.test(href) || /^[a-z][a-z0-9+.-]*:/i.test(href);
 
+const normalizeInternalForComparison = (href: string) => {
+    if (!href.startsWith('/')) return href;
+    const match = href.match(/^([^?#]*)(.*)$/);
+    const path: any = match ? match[1] : href;
+    const suffix = match ? match[2] : '';
+    const normalizedPath = path.replace(/\/+$/, '') || '/';
+    return `${normalizedPath}${suffix}`;
+};
+
 export const normalizeInternalHref = (href: string) => {
     if (!href.startsWith('/')) return href;
     const match = href.match(/^([^?#]*)(.*)$/);
@@ -31,6 +40,7 @@ export const safeNavigate = (router: RouterLike, href: string) => {
     }
 
     const target = normalizeInternalHref(href);
+    const targetComparable = normalizeInternalForComparison(target);
 
     if (typeof window === 'undefined') {
         router.push(target);
@@ -38,15 +48,22 @@ export const safeNavigate = (router: RouterLike, href: string) => {
     }
 
     const current = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-    if (current === target) {
+    const currentComparable = normalizeInternalForComparison(current);
+
+    if (currentComparable === targetComparable) {
         return;
     }
 
     router.push(target);
 
+    if (process.env.NODE_ENV === 'development') {
+        return;
+    }
+
     window.setTimeout(() => {
         const now = `${window.location.pathname}${window.location.search}${window.location.hash}`;
-        if (now !== target) {
+        const nowComparable = normalizeInternalForComparison(now);
+        if (nowComparable !== targetComparable) {
             window.location.assign(target);
         }
     }, 200);
