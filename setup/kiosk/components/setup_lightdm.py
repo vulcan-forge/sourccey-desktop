@@ -9,10 +9,16 @@ import subprocess
 from pathlib import Path
 from typing import Callable
 
+
 class LightDMConfigurator:
-    def __init__(self, print_status: Callable, print_success: Callable,
-                 print_warning: Callable, print_error: Callable,
-                 write_file_as_root: Callable):
+    def __init__(
+        self,
+        print_status: Callable,
+        print_success: Callable,
+        print_warning: Callable,
+        print_error: Callable,
+        write_file_as_root: Callable,
+    ):
         self.print_status = print_status
         self.print_success = print_success
         self.print_warning = print_warning
@@ -61,7 +67,6 @@ class LightDMConfigurator:
             self.print_status("No LightDM config found, skipping cleanup.")
             return True
 
-
         try:
             # Build the sed delete expression in one command
             sed_expr = "; ".join([f"/^#\\?{s}/d" for s in settings])
@@ -74,7 +79,7 @@ class LightDMConfigurator:
 
             self.print_status("Old LightDM settings cleared.")
             return True
-        except Exception as e:
+        except Exception:
             self.print_status("Existing LightDM settings not found, skipping cleanup.")
             return True
 
@@ -82,37 +87,40 @@ class LightDMConfigurator:
         """Set up LightDM autologin in a clean, modern way."""
         self.print_status("Configuring LightDM autologin...")
 
-        # Define autologin configuration content
         conf_content = (
-            f"[Seat:*]\n"
-            f"autologin-user={user}\n"
-            "autologin-user-timeout=0\n"
-            f"autologin-session={session_name}\n"
-            f"user-session={session_name}\n"
-            "allow-guest=false\n"
+            f"[Seat:*]\\n"
+            f"autologin-user={user}\\n"
+            "autologin-user-timeout=0\\n"
+            f"autologin-session={session_name}\\n"
+            f"user-session={session_name}\\n"
+            "allow-guest=false\\n"
         )
 
-        # Write to a dedicated override file
-        cmd = (
-            "sudo bash -lc '"
-            "mkdir -p /etc/lightdm/lightdm.conf.d && "
-            f"echo \"{conf_content}\" > /etc/lightdm/lightdm.conf.d/50-autologin.conf'"
+        mkdir_result = subprocess.run(
+            "sudo mkdir -p /etc/lightdm/lightdm.conf.d",
+            shell=True,
+            capture_output=True,
+            text=True,
         )
-
-        result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
-
-        if result.returncode != 0:
-            self.print_warning(f"⚠️ Failed to configure LightDM: {result.stderr.strip()}")
+        if mkdir_result.returncode != 0:
+            self.print_warning(f"Failed to create LightDM config directory: {mkdir_result.stderr.strip()}")
             return False
 
-        self.print_status("✅ LightDM autologin configured successfully.")
+        if not self.write_file_as_root(
+            "/etc/lightdm/lightdm.conf.d/50-autologin.conf",
+            conf_content,
+            mode=0o644,
+        ):
+            self.print_warning("Failed to write /etc/lightdm/lightdm.conf.d/50-autologin.conf")
+            return False
+
+        self.print_status("LightDM autologin configured successfully.")
         return True
 
     def create_dropin_config(self, user: str, session_name: str) -> bool:
         """Create drop-in configuration file"""
         self.print_status("Creating LightDM drop-in config...")
 
-        # Ensure directory exists
         mkdir_cmd = "sudo mkdir -p /etc/lightdm/lightdm.conf.d"
         mkdir_result = subprocess.run(
             mkdir_cmd,
@@ -137,7 +145,7 @@ greeter-hide-users=false
         if not self.write_file_as_root(
             f"/etc/lightdm/lightdm.conf.d/99-{session_name}-kiosk.conf",
             dropdin_content,
-            mode=0o644
+            mode=0o644,
         ):
             return False
 
@@ -168,7 +176,7 @@ SystemAccount=false
         if not self.write_file_as_root(
             f"/var/lib/AccountsService/users/{user}",
             accounts_content,
-            mode=0o644
+            mode=0o644,
         ):
             return False
 
@@ -220,12 +228,23 @@ SystemAccount=false
         self.print_success("LightDM restarted - kiosk mode activated")
         return True
 
-def configure_lightdm(user: str, session_name: str,
-                     print_status, print_success, print_warning, print_error, write_file_as_root) -> bool:
+
+def configure_lightdm(
+    user: str,
+    session_name: str,
+    print_status,
+    print_success,
+    print_warning,
+    print_error,
+    write_file_as_root,
+) -> bool:
     """Convenience function for configuring LightDM"""
     configurator = LightDMConfigurator(
-        print_status, print_success, print_warning, print_error,
-        write_file_as_root
+        print_status,
+        print_success,
+        print_warning,
+        print_error,
+        write_file_as_root,
     )
     return configurator.configure(user, session_name)
 
@@ -233,7 +252,10 @@ def configure_lightdm(user: str, session_name: str,
 def restart_lightdm(print_status, print_success) -> bool:
     """Convenience function for restarting LightDM"""
     configurator = LightDMConfigurator(
-        print_status, print_success, None, None,
-        None
+        print_status,
+        print_success,
+        None,
+        None,
+        None,
     )
     return configurator.restart()
