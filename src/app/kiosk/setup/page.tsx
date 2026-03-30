@@ -5,6 +5,8 @@ import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
+import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
+import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
 
 type StepStatus = 'pending' | 'started' | 'success' | 'error';
 type ActionKey = 'modules' | 'app';
@@ -44,6 +46,12 @@ const buildInitialStepState = (): StepStateByAction => ({
 });
 
 export default function KioskSetupPage() {
+    const { data: kioskUpdateStatus, isLoading: isLoadingKioskUpdate, refetch: refetchKioskUpdateStatus } = useKioskUpdateStatus();
+    const {
+        data: desktopAppUpdateStatus,
+        isLoading: isLoadingDesktopAppUpdate,
+        refetch: refetchDesktopAppUpdateStatus,
+    } = useDesktopAppUpdateStatus();
     const [isRunning, setIsRunning] = useState(false);
     const [runningAction, setRunningAction] = useState<ActionKey | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -147,8 +155,34 @@ export default function KioskSetupPage() {
             setRunningAction(null);
             appendLog(message);
             updateStep(action, 'complete', 'error', message);
+        } finally {
+            void refetchKioskUpdateStatus();
+            void refetchDesktopAppUpdateStatus();
         }
     };
+
+    const lerobotCurrent = kioskUpdateStatus?.lerobotCurrent ?? 'unknown';
+    const lerobotAvailable = kioskUpdateStatus?.lerobotRemote ?? 'unknown';
+    const lerobotOutdated = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable);
+    const lerobotStatusMessage = isLoadingKioskUpdate
+        ? 'Checking LeRobot version status...'
+        : lerobotOutdated
+          ? 'Out of date because your pinned LeRobot tag is behind the latest available tag.'
+          : 'Up to date. Your pinned LeRobot tag matches the latest available tag.';
+
+    const appCurrent = desktopAppUpdateStatus?.currentVersion ?? 'unknown';
+    const appAvailable = desktopAppUpdateStatus?.targetVersion ?? appCurrent;
+    const appParityBlocked = Boolean(desktopAppUpdateStatus?.updateAvailable && !desktopAppUpdateStatus?.parityPassed);
+    const appOutdated = Boolean(
+        desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.parityPassed && desktopAppUpdateStatus?.targetVersion
+    );
+    const appStatusMessage = isLoadingDesktopAppUpdate
+        ? 'Checking app version status...'
+        : appParityBlocked
+          ? 'Update detected, but install is blocked because parity checks did not pass yet.'
+          : appOutdated
+            ? 'Out of date because a newer signed app version is available.'
+            : 'Up to date. You are on the latest app version.';
 
     const renderStepList = (action: ActionKey) => {
         return (
@@ -204,6 +238,14 @@ export default function KioskSetupPage() {
                                     >
                                         {isRunning && runningAction === 'modules' ? 'Updating LeRobot...' : 'Update LeRobot'}
                                     </button>
+                                    <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
+                                        <div className="font-semibold text-slate-100">LeRobot version status</div>
+                                        <div className="mt-1 text-slate-300">Current: {lerobotCurrent}</div>
+                                        <div className="text-slate-300">Available: {lerobotAvailable}</div>
+                                        <div className={`mt-2 text-[11px] ${lerobotOutdated ? 'text-amber-200' : 'text-emerald-200'}`}>
+                                            {lerobotStatusMessage}
+                                        </div>
+                                    </div>
                                 </div>
 
                                 <div
@@ -222,6 +264,18 @@ export default function KioskSetupPage() {
                                     >
                                         {isRunning && runningAction === 'app' ? 'Updating App...' : 'Update App'}
                                     </button>
+                                    <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
+                                        <div className="font-semibold text-amber-100">App version status</div>
+                                        <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
+                                        <div className="text-amber-100/90">Available: {appAvailable}</div>
+                                        <div
+                                            className={`mt-2 text-[11px] ${
+                                                appOutdated ? 'text-amber-100' : appParityBlocked ? 'text-red-200' : 'text-emerald-200'
+                                            }`}
+                                        >
+                                            {appStatusMessage}
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 

@@ -8,6 +8,7 @@ import Image from 'next/image';
 import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
+import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
 
 const steps = [
     { id: 'reset', label: 'Reset modules' },
@@ -42,7 +43,8 @@ const statusColors: Record<StepStatus, string> = {
 
 export default function SetupPage() {
     const router = useRouter();
-    const { refetch: refetchLerobotStatus } = useLerobotUpdateStatus();
+    const { data: lerobotStatus, refetch: refetchLerobotStatus, isLoading: isLoadingLerobotStatus } = useLerobotUpdateStatus();
+    const { data: desktopAppUpdateStatus, refetch: refetchDesktopAppUpdateStatus, isLoading: isLoadingDesktopAppStatus } = useDesktopAppUpdateStatus();
     const [isReady, setIsReady] = useState(false);
     const [isRunning, setIsRunning] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
@@ -189,6 +191,7 @@ export default function SetupPage() {
                 await invoke('setup_run', { force: isInstalled });
             }
             await refetchLerobotStatus();
+            await refetchDesktopAppUpdateStatus();
             setIsRunning(false);
             if (action === 'repair' && isInstalled) {
                 setStepState((prev) => ({
@@ -204,6 +207,39 @@ export default function SetupPage() {
             appendLog(message);
         }
     };
+
+    const formatVersionLabel = (tag?: string | null, commit?: string | null) => {
+        if (tag && tag.trim().length > 0) {
+            return tag;
+        }
+        if (commit && commit.trim().length > 0) {
+            return commit.slice(0, 10);
+        }
+        return 'unknown';
+    };
+
+    const runtimeCurrent = formatVersionLabel(lerobotStatus?.currentTag, lerobotStatus?.currentCommit);
+    const runtimeAvailable = formatVersionLabel(lerobotStatus?.latestTag, lerobotStatus?.latestCommit);
+    const runtimeOutdated = lerobotStatus ? !lerobotStatus.upToDate : false;
+    const runtimeStatusMessage = isLoadingLerobotStatus
+        ? 'Checking runtime version status...'
+        : runtimeOutdated
+          ? 'Out of date because your local LeRobot runtime is behind the latest available commit/tag.'
+          : 'Up to date. Your local LeRobot runtime matches the latest available commit/tag.';
+
+    const appCurrent = desktopAppUpdateStatus?.currentVersion ?? 'unknown';
+    const appAvailable = desktopAppUpdateStatus?.targetVersion ?? appCurrent;
+    const appParityBlocked = Boolean(desktopAppUpdateStatus?.updateAvailable && !desktopAppUpdateStatus?.parityPassed);
+    const appOutdated = Boolean(
+        desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.parityPassed && desktopAppUpdateStatus?.targetVersion
+    );
+    const appStatusMessage = isLoadingDesktopAppStatus
+        ? 'Checking app version status...'
+        : appParityBlocked
+          ? 'Update detected, but install is blocked because parity checks did not pass yet.'
+          : appOutdated
+            ? 'Out of date because a newer signed app version is available.'
+            : 'Up to date. You are on the latest app version.';
 
     if (!isReady) {
         return <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900" />;
@@ -305,6 +341,30 @@ export default function SetupPage() {
                                         Update modules
                                     </button>
                                 )}
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                <div className="rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
+                                    <div className="font-semibold text-slate-100">LeRobot runtime status</div>
+                                    <div className="mt-1 text-slate-300">Current: {runtimeCurrent}</div>
+                                    <div className="text-slate-300">Available: {runtimeAvailable}</div>
+                                    <div className={`mt-2 text-[11px] ${runtimeOutdated ? 'text-amber-200' : 'text-emerald-200'}`}>
+                                        {runtimeStatusMessage}
+                                    </div>
+                                </div>
+
+                                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
+                                    <div className="font-semibold text-amber-100">Desktop app status</div>
+                                    <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
+                                    <div className="text-amber-100/90">Available: {appAvailable}</div>
+                                    <div
+                                        className={`mt-2 text-[11px] ${
+                                            appOutdated ? 'text-amber-100' : appParityBlocked ? 'text-red-200' : 'text-emerald-200'
+                                        }`}
+                                    >
+                                        {appStatusMessage}
+                                    </div>
+                                </div>
                             </div>
 
                             <div className="border-t border-slate-700/60 pt-4">
