@@ -46,6 +46,37 @@ class BuildManager:
     #################################################################
     # Helper Functions
     #################################################################
+    def recommend_cargo_jobs(self, total_mem_gib: Optional[float] = None) -> int:
+        """
+        Choose a conservative Cargo parallelism level based on available RAM.
+
+        Defaults:
+        - ~4GB devices (e.g., Raspberry Pi 4 4GB): 2 jobs
+        - low-memory devices: 1 job
+        - higher-memory devices: 3 jobs
+        """
+        if total_mem_gib is None:
+            meminfo = Path("/proc/meminfo")
+            if meminfo.exists():
+                try:
+                    for line in meminfo.read_text(encoding="utf-8").splitlines():
+                        if line.startswith("MemTotal:"):
+                            parts = line.split()
+                            if len(parts) >= 2:
+                                mem_total_kib = int(parts[1])
+                                total_mem_gib = mem_total_kib / (1024 * 1024)
+                            break
+                except Exception:
+                    total_mem_gib = None
+
+        if total_mem_gib is None:
+            return 1
+        if total_mem_gib >= 7.0:
+            return 3
+        if total_mem_gib >= 3.5:
+            return 2
+        return 1
+
     def setup_cargo_build_env(self, project_root: Path, jobs: int = 1) -> dict:
         """Set up environment variables for Cargo builds to reduce memory usage"""
         env = os.environ.copy()
@@ -219,7 +250,21 @@ class BuildManager:
 
         # Set up Cargo build environment
         self.print_status("Setting up build environment...")
-        build_env = self.setup_cargo_build_env(self.project_root, jobs=1)
+        cargo_jobs = self.recommend_cargo_jobs()
+        self.print_status(f"Auto-selected CARGO_BUILD_JOBS={cargo_jobs}")
+        jobs_override = os.environ.get("SOURCCEY_CARGO_BUILD_JOBS", "").strip()
+        if jobs_override:
+            try:
+                parsed = int(jobs_override)
+                if parsed > 0:
+                    cargo_jobs = parsed
+                    self.print_status(f"Using overridden CARGO_BUILD_JOBS={cargo_jobs}")
+            except ValueError:
+                self.print_warning(
+                    f"Ignoring invalid SOURCCEY_CARGO_BUILD_JOBS='{jobs_override}'. "
+                    "Expected a positive integer."
+                )
+        build_env = self.setup_cargo_build_env(self.project_root, jobs=cargo_jobs)
 
         # Disable bundle signing for kiosk builds
         self.print_status("Disabling bundle signing for kiosk builds...")
@@ -250,6 +295,19 @@ class BuildManager:
 
         # When running under sudo, explicitly drop to the real user and keep the
         # build environment. Otherwise run directly as the current user.
+        tauri_build_args = ["run", "tauri:build", "--", "--bundles", "deb"]
+        fallback_build_args = ["run", "tauri:build"]
+
+        def _run_build(args: list[str], env_override: Optional[dict] = None):
+            cmd = [bun_cmd, *args]
+            print(" ".join(cmd))
+            return subprocess.run(
+                cmd,
+                cwd=self.project_root,
+                check=True,
+                env=env_override,
+            )
+
         if hasattr(os, "geteuid") and os.geteuid() == 0 and real_user != "root":
             build_cmd = [
                 "sudo",
@@ -259,27 +317,45 @@ class BuildManager:
                 "env",
                 *env_args,
                 bun_cmd,
-                "run",
-                "tauri:build",
+                *tauri_build_args,
             ]
             build_cwd = self.project_root
             print(" ".join(build_cmd))
 
-            build_result = subprocess.run(
-                build_cmd,
-                cwd=build_cwd,
-                check=True,
-            )
+            try:
+                build_result = subprocess.run(
+                    build_cmd,
+                    cwd=build_cwd,
+                    check=True,
+                )
+            except subprocess.CalledProcessError:
+                self.print_warning(
+                    "Failed to build with '--bundles deb'. Retrying with default bundle targets."
+                )
+                fallback_cmd = [
+                    "sudo",
+                    "-u",
+                    real_user,
+                    "-H",
+                    "env",
+                    *env_args,
+                    bun_cmd,
+                    *fallback_build_args,
+                ]
+                print(" ".join(fallback_cmd))
+                build_result = subprocess.run(
+                    fallback_cmd,
+                    cwd=build_cwd,
+                    check=True,
+                )
         else:
-            build_cmd = [bun_cmd, "run", "tauri:build"]
-            print(" ".join(build_cmd))
-
-            build_result = subprocess.run(
-                build_cmd,
-                cwd=self.project_root,
-                check=True,
-                env=build_env,
-            )
+            try:
+                build_result = _run_build(tauri_build_args, env_override=build_env)
+            except subprocess.CalledProcessError:
+                self.print_warning(
+                    "Failed to build with '--bundles deb'. Retrying with default bundle targets."
+                )
+                build_result = _run_build(fallback_build_args, env_override=build_env)
 
         if build_result.returncode != 0:
             self.print_error("Build failed!")
