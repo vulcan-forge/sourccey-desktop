@@ -1,9 +1,9 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
-import { FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight, FaArrowsAltH } from 'react-icons/fa';
+import { FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight, FaArrowsAltH, FaPlay, FaStop } from 'react-icons/fa';
 import { toastErrorDefaults } from '@/utils/toast/toast-utils';
 import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
 import {
@@ -80,6 +80,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const [sourceMap, setSourceMap] = useState<ManualDriveSourceMap>(createEmptyManualDriveSourceMap());
     const [bridgeReady, setBridgeReady] = useState(false);
     const [bridgeStarting, setBridgeStarting] = useState(false);
+    const [bridgeStopping, setBridgeStopping] = useState(false);
     const [toastErrorMessage, setToastErrorMessage] = useState<string | null>(null);
     const [speedLevel, setSpeedLevel] = useState<0 | 1 | 2>(1);
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
@@ -112,31 +113,51 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         pressedKeysRef.current = pressedKeys;
     }, [pressedKeys]);
 
-    useEffect(() => {
-        let cancelled = false;
+    const startManualDrive = useCallback(async () => {
+        if (bridgeReady || bridgeStarting || bridgeStopping) {
+            return;
+        }
         setBridgeStarting(true);
-        void invoke<string>('start_kiosk_manual_drive', { nickname })
-            .then(() => {
-                if (!cancelled) {
-                    setBridgeReady(true);
-                }
-            })
-            .catch((error) => {
-                if (!cancelled) {
-                    const message = compactError(error);
-                    toast.error(`Failed to start manual drive: ${message}`, {
-                        ...toastErrorDefaults,
-                    });
-                }
-            })
-            .finally(() => {
-                if (!cancelled) {
-                    setBridgeStarting(false);
-                }
+        try {
+            await invoke<string>('start_kiosk_manual_drive', { nickname });
+            setBridgeReady(true);
+            setToastErrorMessage(null);
+        } catch (error) {
+            const message = compactError(error);
+            toast.error(`Failed to start manual drive: ${message}`, {
+                ...toastErrorDefaults,
             });
+        } finally {
+            setBridgeStarting(false);
+        }
+    }, [bridgeReady, bridgeStarting, bridgeStopping, nickname]);
 
+    const stopManualDrive = useCallback(async () => {
+        if ((!bridgeReady && !bridgeStarting) || bridgeStopping) {
+            return;
+        }
+        setBridgeStopping(true);
+        try {
+            await invoke<string>('stop_kiosk_manual_drive', { nickname });
+        } catch (error) {
+            const message = compactError(error);
+            toast.error(`Failed to stop manual drive: ${message}`, {
+                ...toastErrorDefaults,
+            });
+        } finally {
+            for (const timeoutId of pulseTimeoutsRef.current) {
+                window.clearTimeout(timeoutId);
+            }
+            pulseTimeoutsRef.current = [];
+            setBridgeStarting(false);
+            setBridgeReady(false);
+            setSourceMap(createEmptyManualDriveSourceMap());
+            setBridgeStopping(false);
+        }
+    }, [bridgeReady, bridgeStarting, bridgeStopping, nickname]);
+
+    useEffect(() => {
         return () => {
-            cancelled = true;
             for (const timeoutId of pulseTimeoutsRef.current) {
                 window.clearTimeout(timeoutId);
             }
@@ -175,6 +196,8 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             if (payload.nickname !== nickname) {
                 return;
             }
+            setBridgeStarting(false);
+            setBridgeStopping(false);
             setBridgeReady(false);
             setSourceMap(createEmptyManualDriveSourceMap());
             toast.error(`Manual drive process stopped: ${compactError(payload.message || 'Unknown failure')}`, {
@@ -272,49 +295,97 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             <div className="mb-4 flex items-center justify-between gap-4">
                 <div>
                     <h3 className="text-lg font-semibold text-white">Manual Control</h3>
-                    <p className="mt-1 text-sm text-slate-300">Tap a direction to latch movement. Tap the same button again to stop.</p>
+                    <p className="mt-1 text-sm text-slate-300">
+                        Start manual control to enable the drive bridge. Stop it before connecting a teleoperator.
+                    </p>
                 </div>
                 <div className="flex items-center gap-3">
+                    <button
+                        type="button"
+                        onClick={() => {
+                            if (bridgeReady || bridgeStarting) {
+                                void stopManualDrive();
+                                return;
+                            }
+                            void startManualDrive();
+                        }}
+                        disabled={bridgeStarting || bridgeStopping}
+                        className={`inline-flex min-w-52 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                            bridgeStarting || bridgeStopping
+                                ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
+                                : bridgeReady
+                                  ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600'
+                                  : 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
+                        }`}
+                    >
+                        {bridgeStarting ? (
+                            <>
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                Starting...
+                            </>
+                        ) : bridgeStopping ? (
+                            <>
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                Stopping...
+                            </>
+                        ) : bridgeReady ? (
+                            <>
+                                <FaStop className="h-4 w-4" /> Stop Manual Control
+                            </>
+                        ) : (
+                            <>
+                                <FaPlay className="h-4 w-4" /> Start Manual Control
+                            </>
+                        )}
+                    </button>
                     <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-                        {bridgeStarting ? 'Starting...' : bridgeReady ? 'Ready' : 'Offline'}
+                        {bridgeStarting ? 'Starting...' : bridgeStopping ? 'Stopping...' : bridgeReady ? 'Ready' : 'Offline'}
                     </div>
                 </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-                {renderButton(DIRECTION_BUTTONS[0]!)}
-                {renderButton(DIRECTION_BUTTONS[1]!)}
-                {renderButton(DIRECTION_BUTTONS[2]!)}
-                {renderButton(DIRECTION_BUTTONS[3]!)}
-                <div className="flex items-center justify-center rounded-lg border-2 border-slate-700 bg-slate-900 px-2 text-center">
-                    <span className="text-xs font-semibold tracking-wide text-slate-300 uppercase">Tap to Latch</span>
+            {bridgeReady ? (
+                <>
+                    <div className="grid grid-cols-3 gap-2">
+                        {renderButton(DIRECTION_BUTTONS[0]!)}
+                        {renderButton(DIRECTION_BUTTONS[1]!)}
+                        {renderButton(DIRECTION_BUTTONS[2]!)}
+                        {renderButton(DIRECTION_BUTTONS[3]!)}
+                        <div className="flex items-center justify-center rounded-lg border-2 border-slate-700 bg-slate-900 px-2 text-center">
+                            <span className="text-xs font-semibold tracking-wide text-slate-300 uppercase">Tap to Latch</span>
+                        </div>
+                        {renderButton(DIRECTION_BUTTONS[4]!)}
+                        {renderButton(DIRECTION_BUTTONS[5]!)}
+                        {renderButton(DIRECTION_BUTTONS[6]!)}
+                        {renderButton(DIRECTION_BUTTONS[7]!)}
+                    </div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">{TURN_BUTTONS.map(renderButton)}</div>
+
+                    <div className="mt-3 grid grid-cols-2 gap-2">{Z_BUTTONS.map(renderButton)}</div>
+
+                    <div className="mt-8 grid grid-cols-3 gap-2">
+                        {SPEED_OPTIONS.map((option) => (
+                            <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => setSpeedByLevel(option.level)}
+                                className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
+                                    speedLevel === option.level
+                                        ? 'border-cyan-400 bg-cyan-500/20 text-cyan-100'
+                                        : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
+                                }`}
+                            >
+                                {option.label}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            ) : (
+                <div className="rounded-lg border border-slate-700 bg-slate-900/70 px-4 py-3 text-sm text-slate-300">
+                    Manual driving controls are hidden until you start manual control.
                 </div>
-                {renderButton(DIRECTION_BUTTONS[4]!)}
-                {renderButton(DIRECTION_BUTTONS[5]!)}
-                {renderButton(DIRECTION_BUTTONS[6]!)}
-                {renderButton(DIRECTION_BUTTONS[7]!)}
-            </div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">{TURN_BUTTONS.map(renderButton)}</div>
-
-            <div className="mt-3 grid grid-cols-2 gap-2">{Z_BUTTONS.map(renderButton)}</div>
-
-            <div className="mt-8 grid grid-cols-3 gap-2">
-                {SPEED_OPTIONS.map((option) => (
-                    <button
-                        key={option.id}
-                        type="button"
-                        onClick={() => setSpeedByLevel(option.level)}
-                        className={`rounded-lg border-2 px-3 py-2 text-sm font-semibold transition-colors ${
-                            speedLevel === option.level
-                                ? 'border-cyan-400 bg-cyan-500/20 text-cyan-100'
-                                : 'border-slate-600 bg-slate-800 text-slate-200 hover:border-slate-500 hover:bg-slate-700'
-                        }`}
-                    >
-                        {option.label}
-                    </button>
-                ))}
-            </div>
+            )}
         </div>
     );
 };
