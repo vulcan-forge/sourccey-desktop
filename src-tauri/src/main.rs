@@ -453,6 +453,10 @@ fn main() {
                     let _ = win.set_decorations(false);
                     let _ = win.set_resizable(false);
                     let _ = win.set_cursor_visible(false);
+                    // Force kiosk cold-start to home route so we don't reopen on setup/update screens.
+                    let _ = win.eval(
+                        "if (window.location.pathname !== '/kiosk/' && window.location.pathname !== '/kiosk') { window.location.replace('/kiosk/'); }",
+                    );
                 } else {
                     let _ = win.set_fullscreen(false);
                     let _ = win.set_decorations(true);

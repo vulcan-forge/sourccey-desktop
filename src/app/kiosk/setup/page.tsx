@@ -52,6 +52,7 @@ export default function KioskSetupPage() {
         isLoading: isLoadingDesktopAppUpdate,
         refetch: refetchDesktopAppUpdateStatus,
     } = useDesktopAppUpdateStatus();
+
     const [isRunning, setIsRunning] = useState(false);
     const [runningAction, setRunningAction] = useState<ActionKey | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -198,11 +199,11 @@ export default function KioskSetupPage() {
         ? 'Checking app version status...'
         : appError
           ? 'Update check returned warnings. See details below.'
-        : !appMetadataKnown
-          ? 'Unable to resolve app version metadata from latest.json yet.'
-        : appOutdated
-            ? 'Out of date because a newer signed app version is available.'
-            : 'Up to date. You are on the latest app version.';
+          : !appMetadataKnown
+            ? 'Unable to resolve app version metadata from latest.json yet.'
+            : appOutdated
+              ? 'Out of date because a newer signed app version is available.'
+              : 'Up to date. You are on the latest app version.';
 
     const renderStepList = (action: ActionKey) => {
         return (
@@ -226,89 +227,83 @@ export default function KioskSetupPage() {
     };
 
     return (
-        <div className="flex min-h-full w-full flex-col bg-linear-to-br from-slate-950 via-slate-900 to-slate-800">
+        <div className="flex min-h-full w-full flex-col bg-linear-to-br from-slate-800 via-slate-700 to-slate-800">
             <div className="container mx-auto flex min-h-full flex-col items-center justify-start px-6 py-12">
-                <div className="relative w-full max-w-5xl">
-                    <div className="absolute -top-20 -left-16 h-32 w-32 rounded-full bg-red-500/20 blur-3xl" />
-                    <div className="absolute -right-16 -bottom-16 h-32 w-32 rounded-full bg-amber-400/20 blur-3xl" />
+                <div className="relative w-full max-w-4xl">
+                    <div className="absolute -top-20 -left-16 h-36 w-36 rounded-full bg-red-400/30 blur-3xl" />
+                    <div className="absolute -right-16 -bottom-16 h-36 w-36 rounded-full bg-amber-300/30 blur-3xl" />
 
-                    <div className="relative rounded-3xl border border-slate-700/60 bg-slate-900/80 p-8 shadow-2xl backdrop-blur">
+                    <div className="relative rounded-3xl border border-slate-600/70 bg-slate-900/75 p-8 shadow-2xl backdrop-blur">
                         <div className="flex flex-col gap-6">
-                            <div>
-                                <h1 className="text-3xl font-semibold text-white">Kiosk Updates</h1>
-                                <p className="mt-2 text-sm text-slate-300">
-                                    Use Update LeRobot for a fast submodule refresh. Use Update App to pull latest code and rerun kiosk setup.
-                                </p>
+                            <div className="flex flex-wrap items-start justify-between gap-4">
+                                <div>
+                                    <h1 className="text-3xl font-semibold text-white">Kiosk Setup & Updates</h1>
+                                    <p className="mt-2 text-sm text-slate-200">App Update on top and LeRobot Update below for a cleaner flow.</p>
+                                </div>
+                                <LinkButton
+                                    href="/kiosk/"
+                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-500/80 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-300"
+                                >
+                                    Back to home
+                                </LinkButton>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                                <div
-                                    className={`rounded-2xl border bg-slate-950/50 p-6 ${
-                                        runningAction === 'modules' ? 'border-slate-400/80' : 'border-slate-700/60'
-                                    }`}
+                            <div
+                                className={`rounded-2xl border bg-slate-950/50 p-6 ${
+                                    runningAction === 'app' ? 'border-amber-400/80' : 'border-amber-500/45'
+                                }`}
+                            >
+                                <h2 className="mb-1 text-lg font-semibold text-amber-100">App Update</h2>
+                                <p className="mb-4 text-xs text-amber-200/90">Fetch latest kiosk code, update submodules, and rerun kiosk setup.</p>
+                                {renderStepList('app')}
+                                <button
+                                    type="button"
+                                    onClick={() => runSetup('app')}
+                                    disabled={isRunning}
+                                    className="mt-4 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-amber-500/60 bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    <h2 className="mb-1 text-lg font-semibold text-slate-100">Update LeRobot</h2>
-                                    <p className="mb-4 text-xs text-slate-400">Refreshes the `modules/lerobot-vulcan` submodule to the version pinned by this app repo.</p>
-                                    {renderStepList('modules')}
-                                    <button
-                                        type="button"
-                                        onClick={() => runSetup('modules')}
-                                        disabled={isRunning}
-                                        className="mt-4 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                        {isRunning && runningAction === 'modules' ? 'Updating LeRobot...' : 'Update LeRobot'}
-                                    </button>
-                                    <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
-                                        <div className="font-semibold text-slate-100">Lerobot Vulcan version</div>
-                                        <div className="mt-1 text-slate-300">Current: {lerobotCurrent}</div>
-                                        <div className="text-slate-300">Available: {lerobotAvailable}</div>
-                                        <div className={`mt-2 text-[11px] ${lerobotOutdated ? 'text-amber-200' : 'text-emerald-200'}`}>
-                                            {lerobotStatusMessage}
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div
-                                    className={`rounded-2xl border bg-slate-950/50 p-6 ${
-                                        runningAction === 'app' ? 'border-amber-400/80' : 'border-amber-500/30'
-                                    }`}
-                                >
-                                    <h2 className="mb-1 text-lg font-semibold text-amber-100">Update App</h2>
-                                    <p className="mb-4 text-xs text-amber-200/80">Fetches latest kiosk code, updates submodules, and reruns the kiosk setup installer.</p>
-                                    {renderStepList('app')}
-                                    <button
-                                        type="button"
-                                        onClick={() => runSetup('app')}
-                                        disabled={isRunning}
-                                        className="mt-4 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-amber-500/60 bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70 disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                        {isRunning && runningAction === 'app' ? 'Updating App...' : 'Update App'}
-                                    </button>
-                                    <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
-                                        <div className="font-semibold text-amber-100">App version status</div>
-                                        <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
-                                        <div className="text-amber-100/90">Available: {appAvailable}</div>
-                                        <div
-                                            className={`mt-2 text-[11px] ${appOutdated ? 'text-amber-100' : 'text-emerald-200'}`}
-                                        >
-                                            {appStatusMessage}
-                                        </div>
-                                        {appError && (
-                                            <div className="mt-2 whitespace-pre-wrap break-words text-[11px] text-red-200">{appError}</div>
-                                        )}
-                                    </div>
+                                    {isRunning && runningAction === 'app' ? 'Updating App...' : 'Update App'}
+                                </button>
+                                <div className="mt-4 rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
+                                    <div className="font-semibold text-amber-100">App version status</div>
+                                    <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
+                                    <div className="text-amber-100/90">Available: {appAvailable}</div>
+                                    <div className={`mt-2 text-[11px] ${appOutdated ? 'text-amber-100' : 'text-emerald-200'}`}>{appStatusMessage}</div>
+                                    {appError && <div className="mt-2 whitespace-pre-wrap break-words text-[11px] text-red-200">{appError}</div>}
                                 </div>
                             </div>
 
-                            {error && (
-                                <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                                    {error}
+                            <div
+                                className={`rounded-2xl border bg-slate-950/50 p-6 ${
+                                    runningAction === 'modules' ? 'border-slate-400/80' : 'border-slate-600/70'
+                                }`}
+                            >
+                                <h2 className="mb-1 text-lg font-semibold text-slate-100">LeRobot Update</h2>
+                                <p className="mb-4 text-xs text-slate-300">Refresh the `modules/lerobot-vulcan` submodule pinned by this app repo.</p>
+                                {renderStepList('modules')}
+                                <button
+                                    type="button"
+                                    onClick={() => runSetup('modules')}
+                                    disabled={isRunning}
+                                    className="mt-4 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isRunning && runningAction === 'modules' ? 'Updating LeRobot...' : 'Update LeRobot'}
+                                </button>
+                                <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
+                                    <div className="font-semibold text-slate-100">Lerobot Vulcan version</div>
+                                    <div className="mt-1 text-slate-300">Current: {lerobotCurrent}</div>
+                                    <div className="text-slate-300">Available: {lerobotAvailable}</div>
+                                    <div className={`mt-2 text-[11px] ${lerobotOutdated ? 'text-amber-200' : 'text-emerald-200'}`}>
+                                        {lerobotStatusMessage}
+                                    </div>
                                 </div>
-                            )}
+                            </div>
+
+                            {error && <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
 
                             <div className="flex flex-col gap-4">
                                 {isRunning && (
-                                    <div className="flex items-center gap-2 text-sm text-slate-300">
+                                    <div className="flex items-center gap-2 text-sm text-slate-200">
                                         <Spinner color="yellow" width="w-4" height="h-4" />
                                         Running {runningAction === 'modules' ? 'LeRobot' : 'App'} update steps
                                     </div>
