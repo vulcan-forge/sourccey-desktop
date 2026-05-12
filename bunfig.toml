@@ -1,0 +1,3 @@
+[install]
+# Only resolve npm package versions that were published at least 3 days ago.
+minimumReleaseAge = 259200
