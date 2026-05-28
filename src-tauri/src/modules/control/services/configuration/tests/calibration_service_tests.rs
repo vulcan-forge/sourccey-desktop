@@ -50,3 +50,16 @@ fn validate_calibration_output_reports_script_failure_details() {
     assert!(error.contains("Python script failed: port is busy"));
 }
 
+#[test]
+fn validate_calibration_output_rejects_python_thread_traceback() {
+    let output = make_output(
+        true,
+        "",
+        "Exception in thread Thread-1:\nTraceback (most recent call last):\nRuntimeError: left arm failed",
+    );
+    let result = CalibrationService::validate_calibration_command_output(&output);
+    assert!(result.is_err());
+    let error = result.err().unwrap_or_default();
+    assert!(error.contains("RuntimeError: left arm failed"));
+}
+

@@ -15,12 +15,16 @@ export const getCalibrationErrorMessage = (error: unknown): string => {
     return 'Unknown error';
 };
 
-const MAX_TOAST_ERROR_CHARS = 160;
+const MAX_TOAST_ERROR_CHARS = 480;
 
 export const getCalibrationToastErrorMessage = (error: unknown): string => {
     const raw = getCalibrationErrorMessage(error);
-    const firstLine = raw.split(/\r?\n/, 1)[0]?.trim() || 'Unknown error';
-    const compact = firstLine.replace(/\s+/g, ' ').trim();
+    const compact = raw
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .slice(0, 3)
+        .join('\n');
     if (compact.length <= MAX_TOAST_ERROR_CHARS) {
         return compact;
     }
