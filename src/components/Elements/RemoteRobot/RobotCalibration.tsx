@@ -4,6 +4,11 @@ import React, { useState } from 'react';
 import { FaTools, FaCheckCircle } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
+import { queryClient } from '@/hooks/default';
+import {
+    CONTROL_CALIBRATION_KEY,
+    CONTROL_CALIBRATION_MODIFIED_AT_KEY,
+} from '@/hooks/Control/config.hook';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getCalibrationErrorMessage, getCalibrationToastErrorMessage } from '@/components/Elements/RemoteRobot/calibration-error';
 
@@ -26,16 +31,33 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
     const [calibrationType, setCalibrationType] = useState<'auto' | 'full' | null>(null);
     const canCalibrate = !!nickname && !!robotType;
 
-    const calibrationSuccess = (fullReset: boolean) => {
+    const refreshCalibrationQueries = async () => {
+        const queries = [
+            queryClient.invalidateQueries({ queryKey: CONTROL_CALIBRATION_KEY(robotType, nickname) }),
+            queryClient.invalidateQueries({ queryKey: CONTROL_CALIBRATION_MODIFIED_AT_KEY(robotType, nickname) }),
+        ];
+
+        if (robotType === 'sourccey' && nickname) {
+            const followerType = `${robotType}_follower`;
+            const leftNickname = `${nickname}_left`;
+            const rightNickname = `${nickname}_right`;
+            queries.push(
+                queryClient.invalidateQueries({ queryKey: CONTROL_CALIBRATION_KEY(followerType, leftNickname) }),
+                queryClient.invalidateQueries({ queryKey: CONTROL_CALIBRATION_KEY(followerType, rightNickname) }),
+                queryClient.invalidateQueries({ queryKey: CONTROL_CALIBRATION_MODIFIED_AT_KEY(followerType, leftNickname) }),
+                queryClient.invalidateQueries({ queryKey: CONTROL_CALIBRATION_MODIFIED_AT_KEY(followerType, rightNickname) }),
+            );
+        }
+
+        await Promise.all(queries);
+    };
+
+    const calibrationSuccess = async (fullReset: boolean) => {
+        await refreshCalibrationQueries();
         toast.success(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} completed successfully!`, {
             ...toastSuccessDefaults,
         });
         onCalibrationSuccess?.();
-        if (refreshOnSuccess && typeof window !== 'undefined') {
-            window.setTimeout(() => {
-                window.location.reload();
-            }, 600);
-        }
     };
 
     const handleCalibration = async (fullReset: boolean) => {
@@ -52,7 +74,14 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
             };
 
             await invoke('remote_auto_calibrate', { config: remoteCalibrationConfig });
-            calibrationSuccess(fullReset);
+            if (refreshOnSuccess) {
+                await calibrationSuccess(fullReset);
+            } else {
+                toast.success(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} completed successfully!`, {
+                    ...toastSuccessDefaults,
+                });
+                onCalibrationSuccess?.();
+            }
         } catch (error: unknown) {
             const errorMessage = getCalibrationErrorMessage(error);
             const toastErrorMessage = getCalibrationToastErrorMessage(error);
@@ -62,10 +91,9 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
                 ...toastErrorDefaults,
                 style: {
                     ...(toastErrorDefaults.style || {}),
-                    maxWidth: '420px',
-                    whiteSpace: 'nowrap',
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
+                    maxWidth: '560px',
+                    whiteSpace: 'pre-wrap',
+                    overflowWrap: 'anywhere',
                 },
             });
         } finally {

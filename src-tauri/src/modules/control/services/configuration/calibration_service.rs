@@ -11,12 +11,17 @@ use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
 use std::fs;
+#[cfg(windows)]
+use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tauri::AppHandle;
 use tokio::process::Command;
 
 pub struct CalibrationService;
+
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 impl CalibrationService {
 
@@ -154,6 +159,47 @@ impl CalibrationService {
         None
     }
 
+    fn summarize_python_exception(stdout: &str, stderr: &str) -> Option<String> {
+        let combined = format!("{stdout}\n{stderr}");
+        let combined_lower = combined.to_lowercase();
+        if !combined_lower.contains("exception in thread")
+            && !combined_lower.contains("traceback (most recent call last):")
+        {
+            return None;
+        }
+
+        let ignored_prefixes = [
+            "traceback (most recent call last):",
+            "exception in thread",
+            "during handling of the above exception",
+            "file \"",
+        ];
+
+        let detail = combined
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .rev()
+            .find(|line| {
+                let lower = line.to_lowercase();
+                !ignored_prefixes.iter().any(|prefix| lower.starts_with(prefix))
+                    && !lower.starts_with("raise ")
+                    && !lower.starts_with('^')
+            });
+
+        match detail {
+            Some(line) => Some(format!(
+                "Calibration script reported a Python exception: {}",
+                line
+            )),
+            None => Some("Calibration script reported a Python exception. Check logs for details.".to_string()),
+        }
+    }
+
+    fn python_exception_reason(stdout: &str, stderr: &str) -> Option<String> {
+        Self::summarize_python_exception(stdout, stderr)
+    }
+
     fn validate_calibration_command_output(output: &std::process::Output) -> Result<(), String> {
         let (stdout, stderr) = Self::decode_output_text(output);
         if !output.status.success() {
@@ -171,7 +217,18 @@ impl CalibrationService {
             return Err(no_op_reason);
         }
 
+        if let Some(exception_reason) = Self::python_exception_reason(&stdout, &stderr) {
+            return Err(exception_reason);
+        }
+
         Ok(())
+    }
+
+    fn configure_calibration_command(cmd: &mut Command) {
+        #[cfg(windows)]
+        {
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
     }
 
     fn write_process_output_logs(app_handle: &AppHandle, context: &str, output: &std::process::Output) {
@@ -294,6 +351,7 @@ impl CalibrationService {
         for arg in &command_parts[1..] {
             cmd.arg(arg);
         }
+        Self::configure_calibration_command(&mut cmd);
 
         let child = cmd
             .current_dir(&lerobot_dir)
@@ -373,6 +431,7 @@ impl CalibrationService {
         for arg in &command_parts[1..] {
             cmd.arg(arg);
         }
+        Self::configure_calibration_command(&mut cmd);
 
         let child = cmd
             .current_dir(&lerobot_dir)
@@ -446,6 +505,7 @@ impl CalibrationService {
         for arg in &command_parts[1..] {
             cmd.arg(arg);
         }
+        Self::configure_calibration_command(&mut cmd);
 
         let child = cmd
             .current_dir(&lerobot_dir)
@@ -528,6 +588,7 @@ impl CalibrationService {
         for arg in &command_parts[1..] {
             cmd.arg(arg);
         }
+        Self::configure_calibration_command(&mut cmd);
 
         let child = cmd
             .current_dir(&lerobot_dir)
