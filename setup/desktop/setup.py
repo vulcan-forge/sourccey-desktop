@@ -27,6 +27,7 @@ from setup_python import PythonSetupManager  # type: ignore
 from setup_rust import RustSetupManager  # type: ignore
 
 LEROBOT_VULCAN_SUBMODULE_PATH = "modules/lerobot-vulcan"
+LEROBOT_VULCAN_TAG = "vulcan/0.1.0"
 
 
 class Colors:
@@ -82,17 +83,6 @@ class SetupScript:
             self.print_warning,
             self.print_error,
         )
-
-    def resolve_lerobot_checkout_tag(self) -> Optional[str]:
-        """Resolve an optional override tag for lerobot-vulcan checkout."""
-        raw_value = os.environ.get("SOURCCEY_LEROBOT_TAG", "").strip()
-        if not raw_value:
-            return None
-
-        if raw_value.lower() in {"skip", "none", "false", "0"}:
-            return None
-
-        return raw_value
 
     #################################################################
     # Print functions
@@ -459,23 +449,17 @@ class SetupScript:
                 self.print_error("Check your internet connection and try again.")
             return False
 
-        lerobot_tag = self.resolve_lerobot_checkout_tag()
-        if lerobot_tag:
-            if not self.git_manager.checkout_submodule_tag(
-                submodule_relative_path=LEROBOT_VULCAN_SUBMODULE_PATH,
-                tag=lerobot_tag,
-                force=True,
-            ):
-                self.print_error(
-                    f"Failed to checkout tag {lerobot_tag} in "
-                    f"{LEROBOT_VULCAN_SUBMODULE_PATH}."
-                )
-                return False
-        else:
-            self.print_status(
-                "Using the lerobot-vulcan commit recorded by this repo "
-                "(no setup-time tag override applied)."
+        # Pin lerobot-vulcan to the release tag used by Sourccey setup.
+        if not self.git_manager.checkout_submodule_tag(
+            submodule_relative_path=LEROBOT_VULCAN_SUBMODULE_PATH,
+            tag=LEROBOT_VULCAN_TAG,
+            force=True,
+        ):
+            self.print_error(
+                f"Failed to checkout tag {LEROBOT_VULCAN_TAG} in "
+                f"{LEROBOT_VULCAN_SUBMODULE_PATH}."
             )
+            return False
 
         if not self.setup_python_environment():
             self.print_error("Project setup failed.")

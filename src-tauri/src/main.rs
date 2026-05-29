@@ -295,18 +295,6 @@ fn frontend_log_path(app: &tauri::AppHandle) -> Result<std::path::PathBuf, Strin
 }
 
 #[tauri::command]
-fn write_issue_report(
-    app: tauri::AppHandle,
-    category: String,
-    title: String,
-    detail: String,
-) -> Result<String, String> {
-    let log_dir = resolve_log_dir(&app)?;
-    let issue_path = LogService::write_issue_snapshot(&log_dir, &category, &title, &detail, 400)?;
-    Ok(issue_path.to_string_lossy().to_string())
-}
-
-#[tauri::command]
 fn get_log_dir(app: tauri::AppHandle) -> Result<String, String> {
     let log_dir = resolve_log_dir(&app)?;
     Ok(log_dir.to_string_lossy().to_string())
@@ -573,7 +561,6 @@ fn main() {
             get_log_dir,
             get_lerobot_vulcan_dir,
             write_frontend_log,
-            write_issue_report,
             get_frontend_log_tail,
             get_log_tail_all,
             clear_log_dir,
