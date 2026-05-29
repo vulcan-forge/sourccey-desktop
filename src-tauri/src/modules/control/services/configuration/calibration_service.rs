@@ -579,13 +579,6 @@ impl CalibrationService {
         if full_reset {
             command_parts.push(format!("--full_reset=True"));
         }
-        let command_string = command_parts.join(" ");
-        let _ = LogService::write_app_log_line(
-            &app_handle,
-            "robot-actions.log",
-            Some("calibration"),
-            &format!("Remote auto calibrate command: {}", command_string),
-        );
 
         let mut cmd = Command::new(python_path);
         for arg in &command_parts[1..] {
@@ -602,6 +595,7 @@ impl CalibrationService {
         let pid = child.id();
 
         // Create command log service with the provided connection
+        let command_string = command_parts.join(" ");
         let command_log_service = CommandLogService::new(db_connection.clone());
         let command_log = match command_log_service
             .add_robot_command_log(
