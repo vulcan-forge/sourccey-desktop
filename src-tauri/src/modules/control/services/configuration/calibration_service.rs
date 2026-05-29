@@ -196,10 +196,6 @@ impl CalibrationService {
         }
     }
 
-    fn python_exception_reason(stdout: &str, stderr: &str) -> Option<String> {
-        Self::summarize_python_exception(stdout, stderr)
-    }
-
     fn validate_calibration_command_output(output: &std::process::Output) -> Result<(), String> {
         let (stdout, stderr) = Self::decode_output_text(output);
         if !output.status.success() {
@@ -217,7 +213,7 @@ impl CalibrationService {
             return Err(no_op_reason);
         }
 
-        if let Some(exception_reason) = Self::python_exception_reason(&stdout, &stderr) {
+        if let Some(exception_reason) = Self::summarize_python_exception(&stdout, &stderr) {
             return Err(exception_reason);
         }
 

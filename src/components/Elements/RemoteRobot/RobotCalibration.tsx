@@ -11,7 +11,6 @@ import {
 } from '@/hooks/Control/config.hook';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getCalibrationErrorMessage, getCalibrationToastErrorMessage } from '@/components/Elements/RemoteRobot/calibration-error';
-import { writeIssueReport } from '@/utils/logs/issue-reports';
 
 interface CalibrationSectionProps {
     nickname: string;
@@ -86,22 +85,9 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
         } catch (error: unknown) {
             const errorMessage = getCalibrationErrorMessage(error);
             const toastErrorMessage = getCalibrationToastErrorMessage(error);
-            const issueLogPath = await writeIssueReport(
-                'robot-calibration',
-                `${fullReset ? 'Full calibrate' : 'Auto calibrate'} failed`,
-                [
-                    `nickname: ${nickname}`,
-                    `robotType: ${robotType}`,
-                    `fullReset: ${fullReset}`,
-                    '',
-                    'error:',
-                    errorMessage,
-                ].join('\n'),
-            );
             console.error('Calibration failed:', error);
             console.error('Calibration failure details:', errorMessage);
-            const savedLogMessage = issueLogPath ? `\nIssue log saved: ${issueLogPath}` : '';
-            toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${toastErrorMessage}${savedLogMessage}`, {
+            toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${toastErrorMessage}`, {
                 ...toastErrorDefaults,
                 style: {
                     ...(toastErrorDefaults.style || {}),
