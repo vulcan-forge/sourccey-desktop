@@ -13,6 +13,7 @@ import {
 import { setContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getCalibrationErrorMessage, getCalibrationToastErrorMessage } from '@/components/Elements/RemoteRobot/calibration-error';
+import { writeIssueReport } from '@/utils/logs/issue-reports';
 
 export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { ownedRobot: any; embedded?: boolean }) => {
     const nickname = ownedRobot?.nickname ?? '';
@@ -51,8 +52,22 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
         } catch (error: unknown) {
             const errorMessage = getCalibrationErrorMessage(error);
             const toastErrorMessage = getCalibrationToastErrorMessage(error);
+            const issueLogPath = await writeIssueReport(
+                'desktop-teleop-calibration',
+                'Desktop teleoperator auto calibrate failed',
+                [
+                    `nickname: ${normalizedNickname}`,
+                    `teleopType: ${teleopType}`,
+                    `leftArmPort: ${leftArmPort}`,
+                    `rightArmPort: ${rightArmPort}`,
+                    '',
+                    'error:',
+                    errorMessage,
+                ].join('\n'),
+            );
             console.error('Desktop teleoperator calibration failed:', errorMessage);
-            toast.error(`Calibration failed: ${toastErrorMessage}`, {
+            const savedLogMessage = issueLogPath ? `\nIssue log saved: ${issueLogPath}` : '';
+            toast.error(`Calibration failed: ${toastErrorMessage}${savedLogMessage}`, {
                 ...toastErrorDefaults,
             });
         }

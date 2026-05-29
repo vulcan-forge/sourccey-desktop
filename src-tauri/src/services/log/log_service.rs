@@ -333,6 +333,27 @@ impl LogService {
             .unwrap_or(Self::DEFAULT_MAX_FILES)
     }
 
+    fn sanitize_file_segment(value: &str) -> String {
+        let trimmed = value.trim().to_ascii_lowercase();
+        let sanitized: String = trimmed
+            .chars()
+            .map(|ch| match ch {
+                'a'..='z' | '0'..='9' => ch,
+                _ => '-',
+            })
+            .collect();
+        let collapsed = sanitized
+            .split('-')
+            .filter(|segment| !segment.is_empty())
+            .collect::<Vec<_>>()
+            .join("-");
+        if collapsed.is_empty() {
+            "issue".to_string()
+        } else {
+            collapsed
+        }
+    }
+
     /// Get current timestamp in a readable format
     fn get_timestamp() -> String {
         let now = SystemTime::now()
@@ -346,6 +367,18 @@ impl LogService {
         let datetime = chrono::DateTime::from_timestamp(secs as i64, 0).unwrap_or_default();
 
         format!("{}.{:03}", datetime.format("%Y-%m-%d %H:%M:%S"), millis)
+    }
+
+    fn get_filename_timestamp() -> String {
+        let now = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default();
+
+        let secs = now.as_secs();
+        let millis = now.subsec_millis();
+        let datetime = chrono::DateTime::from_timestamp(secs as i64, 0).unwrap_or_default();
+
+        format!("{}-{:03}", datetime.format("%Y%m%d-%H%M%S"), millis)
     }
 
     fn parse_timestamp_ms(line: &str) -> Option<i64> {
@@ -480,5 +513,49 @@ impl LogService {
         }
 
         Ok(combined)
+    }
+
+    pub fn write_issue_snapshot(
+        log_dir: &Path,
+        category: &str,
+        title: &str,
+        detail: &str,
+        recent_lines: usize,
+    ) -> Result<PathBuf, String> {
+        std::fs::create_dir_all(log_dir).map_err(|e| format!("Failed to create log dir: {}", e))?;
+
+        let issues_dir = log_dir.join("issues");
+        std::fs::create_dir_all(&issues_dir).map_err(|e| format!("Failed to create issues dir: {}", e))?;
+
+        let file_name = format!(
+            "{}-{}.log",
+            Self::get_filename_timestamp(),
+            Self::sanitize_file_segment(category)
+        );
+        let file_path = issues_dir.join(file_name);
+
+        let mut body = String::new();
+        body.push_str(&format!("timestamp: {}\n", Self::get_timestamp()));
+        body.push_str(&format!("category: {}\n", category.trim()));
+        body.push_str(&format!("title: {}\n\n", title.trim()));
+        body.push_str("details:\n");
+        body.push_str(detail.trim());
+        body.push_str("\n\nrecent_logs:\n");
+
+        match Self::read_log_tail_all(log_dir, recent_lines.max(1), recent_lines.clamp(1, 200)) {
+            Ok(lines) if !lines.is_empty() => {
+                for line in lines {
+                    body.push_str(&line);
+                    body.push('\n');
+                }
+            }
+            Ok(_) => body.push_str("(no recent logs found)\n"),
+            Err(error) => body.push_str(&format!("(failed to read recent logs: {})\n", error)),
+        }
+
+        std::fs::write(&file_path, body)
+            .map_err(|e| format!("Failed to write issue snapshot {:?}: {}", file_path, e))?;
+
+        Ok(file_path)
     }
 }
