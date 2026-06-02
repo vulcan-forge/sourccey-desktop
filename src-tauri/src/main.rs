@@ -51,7 +51,7 @@ use modules::control::controllers::kiosk_control::manual_drive_controller::{
 use modules::control::controllers::kiosk_control::pairing_controller::{
     check_kiosk_robot_connection,
     get_kiosk_robot_status,
-    discover_pairable_robots, get_kiosk_pairing_info, init_kiosk_pairing, pair_with_kiosk_robot,
+    discover_pairable_robots, get_kiosk_cloud_pairing_info, get_kiosk_pairing_info, init_kiosk_pairing, pair_with_kiosk_robot,
     request_kiosk_pairing_modal, send_model_to_kiosk_robot, start_kiosk_robot, stop_kiosk_robot,
     get_saved_paired_robot_connections, upsert_paired_robot_connection, remove_paired_robot_connection,
 };
@@ -589,7 +589,7 @@ fn main() {
             set_ssh_password_changed_status,
 
             // Pairing + model dispatch
-            get_kiosk_pairing_info,
+            get_kiosk_pairing_info,`r`n            get_kiosk_cloud_pairing_info,
             discover_pairable_robots,
             pair_with_kiosk_robot,
             request_kiosk_pairing_modal,
@@ -689,3 +689,4 @@ mod version_compare_tests {
         assert!(!is_target_newer_version("0.0.7", "0.0.6"));
     }
 }
+

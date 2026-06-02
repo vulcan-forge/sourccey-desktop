@@ -1,5 +1,5 @@
 use crate::modules::control::services::kiosk_control::pairing_service::{
-    DiscoveredKioskRobot, KioskPairingInfo, KioskPairingService, KioskPairingState,
+    DiscoveredKioskRobot, KioskCloudPairingInfo, KioskPairingInfo, KioskPairingService, KioskPairingState,
     PairWithKioskResult, DEFAULT_SERVICE_PORT,
 };
 use crate::services::directory::directory_service::DirectoryService;
@@ -221,3 +221,5 @@ fn save_desktop_paired_connections(connections: &HashMap<String, DesktopPairedRo
 
     Ok(())
 }
+
+
