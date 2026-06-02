@@ -205,7 +205,7 @@ export const AIModelsContainer = () => {
                                 No robots found. Add or discover a robot first.
                                 <div className="mt-3">
                                     <Link
-                                        href="/desktop/robots"
+                                        href="/desktop/robot"
                                         className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 hover:border-amber-400/70"
                                     >
                                         Discover Robots

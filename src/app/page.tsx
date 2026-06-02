@@ -11,22 +11,12 @@ import { safeNavigate } from '@/utils/navigation';
 const HomePage = (): ReactElement => {
     const router = useRouter();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
-    const [showLoading, setShowLoading] = useState(false);
     const [setupCheckComplete, setSetupCheckComplete] = useState(false);
 
     type SetupStatus = {
         installed: boolean;
         missing: string[];
     };
-
-    // Delay showing loading screen to prevent flash on fast loads
-    useEffect(() => {
-        const timer = setTimeout(() => {
-            setShowLoading(true);
-        }, 1000);
-
-        return () => clearTimeout(timer);
-    }, []);
 
     // In kiosk mode, skip authentication and go directly to app once sync is done
     useEffect(() => {
@@ -64,14 +54,6 @@ const HomePage = (): ReactElement => {
             void checkSetup();
         }
     }, [router, isKioskMode, isLoadingAppMode]);
-
-    if (!showLoading || (!setupCheckComplete && !isKioskMode)) {
-        return (
-            <>
-                <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900"></div>
-            </>
-        );
-    }
 
     return (
         <>
