@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import {
     FaBatteryHalf,
@@ -10,38 +10,89 @@ import {
     FaThermometerHalf,
     FaNetworkWired,
     FaBatteryThreeQuarters,
+    FaSpinner,
+    FaCheckCircle,
+    FaCloud,
 } from 'react-icons/fa';
 import { calculateBatteryPercent, getBatteryLevelStep, setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+
+interface KioskCloudPairingInfo {
+    relayBaseUrl: string;
+    deviceId: string;
+    robotModelName: string;
+    pairingCode: string | null;
+    expiresAtMs: number | null;
+    status: string;
+    ownedRobotId: string | null;
+    claimedAtMs: number | null;
+    errorMessage: string | null;
+}
 
 export const HomeWelcome = () => {
     const nickname = 'sourccey';
     const robotType = 'Sourccey';
-
-    // State for system info (battery, temperature, IP)
     const { data: systemInfo }: any = useGetSystemInfo();
+    const [cloudPairing, setCloudPairing] = useState<KioskCloudPairingInfo | null>(null);
+    const [isLoadingCloudPairing, setIsLoadingCloudPairing] = useState(true);
+    const [nowMs, setNowMs] = useState(() => Date.now());
 
-    // Fetch system info periodically
+    const fetchSystemInfo = useCallback(async () => {
+        try {
+            const info = await invoke<{ ip_address: string; temperature: string; battery_data: BatteryData }>('get_system_info');
+            const nextSystemInfo = {
+                ipAddress: info.ip_address,
+                temperature: info.temperature,
+                batteryData: info.battery_data,
+            };
+            setSystemInfo(nextSystemInfo);
+        } catch (error) {
+            console.error('Failed to get system info:', error);
+        }
+    }, []);
+
+    const fetchCloudPairing = useCallback(async () => {
+        try {
+            const info = await invoke<KioskCloudPairingInfo>('get_kiosk_cloud_pairing_info');
+            setCloudPairing(info);
+        } catch (error) {
+            console.error('Failed to get cloud pairing info:', error);
+            setCloudPairing({
+                relayBaseUrl: 'https://studio.vulcanrobotics.ai',
+                deviceId: '',
+                robotModelName: 'sourccey',
+                pairingCode: null,
+                expiresAtMs: null,
+                status: 'error',
+                ownedRobotId: null,
+                claimedAtMs: null,
+                errorMessage: error instanceof Error ? error.message : 'Unable to load cloud pairing info',
+            });
+        } finally {
+            setIsLoadingCloudPairing(false);
+        }
+    }, []);
+
     useEffect(() => {
-        const fetchSystemInfo = async () => {
-            try {
-                const info = await invoke<{ ip_address: string; temperature: string; battery_data: BatteryData }>('get_system_info');
-                const systemInfo = {
-                    ipAddress: info.ip_address,
-                    temperature: info.temperature,
-                    batteryData: info.battery_data,
-                };
-                setSystemInfo(systemInfo);
-            } catch (error) {
-                console.error('Failed to get system info:', error);
-            }
-        };
+        void fetchSystemInfo();
+        const interval = setInterval(() => {
+            void fetchSystemInfo();
+        }, 60000);
+        return () => clearInterval(interval);
+    }, [fetchSystemInfo]);
 
-        fetchSystemInfo();
-        const interval = setInterval(fetchSystemInfo, 60000); // Update every 60 seconds
+    useEffect(() => {
+        void fetchCloudPairing();
+        const interval = setInterval(() => {
+            void fetchCloudPairing();
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [fetchCloudPairing]);
+
+    useEffect(() => {
+        const interval = setInterval(() => setNowMs(Date.now()), 1000);
         return () => clearInterval(interval);
     }, []);
 
-    // Get battery icon based on percentage
     const getBatteryIcon = (percent: number) => {
         const level = getBatteryLevelStep(percent);
         if (level === 100) return FaBatteryFull;
@@ -62,10 +113,19 @@ export const HomeWelcome = () => {
     const BatteryColor = getBatteryColor(batteryPercent);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
 
+    const cloudCountdown = useMemo(() => {
+        if (!cloudPairing?.expiresAtMs) return null;
+        const remainingMs = cloudPairing.expiresAtMs - nowMs;
+        if (remainingMs <= 0) return 'Refreshing code…';
+        const totalSeconds = Math.floor(remainingMs / 1000);
+        const minutes = Math.floor(totalSeconds / 60);
+        const seconds = totalSeconds % 60;
+        return `Expires in ${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }, [cloudPairing?.expiresAtMs, nowMs]);
+
     return (
         <>
             <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
-                {/* Header */}
                 <div className="flex items-center justify-between">
                     <div>
                         <h2 className="text-3xl font-bold text-white">Welcome back!</h2>
@@ -77,7 +137,6 @@ export const HomeWelcome = () => {
                     </div>
                 </div>
 
-                {/* Battery Life Card */}
                 <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
                         <div className="flex items-center justify-between">
@@ -94,7 +153,6 @@ export const HomeWelcome = () => {
                         </div>
                     </div>
 
-                    {/* System Temperature */}
                     <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
                         <div className="flex items-center justify-between">
                             <div>
@@ -109,7 +167,6 @@ export const HomeWelcome = () => {
                         </div>
                     </div>
 
-                    {/* Network Info */}
                     <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
                         <div className="flex items-center justify-between">
                             <div>
@@ -129,6 +186,78 @@ export const HomeWelcome = () => {
                         </div>
                     </div>
                 </div>
+            </div>
+
+            <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
+                <div className="mb-4 flex items-center justify-between gap-4">
+                    <div>
+                        <div className="flex items-center gap-2 text-xl font-semibold text-white">
+                            <FaCloud className="h-5 w-5 text-sky-300" />
+                            Cloud Pairing
+                        </div>
+                        <p className="mt-1 text-sm text-slate-400">
+                            Use this code in the Vulcan portal to register this robot online.
+                        </p>
+                    </div>
+                    <button
+                        onClick={() => void fetchCloudPairing()}
+                        className="cursor-pointer rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-400"
+                    >
+                        Refresh
+                    </button>
+                </div>
+
+                {isLoadingCloudPairing && !cloudPairing ? (
+                    <div className="flex items-center gap-2 text-slate-300">
+                        <FaSpinner className="h-4 w-4 animate-spin" />
+                        <span className="text-sm">Loading cloud pairing…</span>
+                    </div>
+                ) : cloudPairing?.status === 'claimed' ? (
+                    <div className="space-y-3">
+                        <div className="inline-flex items-center gap-2 rounded-full bg-emerald-500/15 px-3 py-1 text-sm font-semibold text-emerald-300">
+                            <FaCheckCircle className="h-4 w-4" />
+                            Registered in Vulcan Cloud
+                        </div>
+                        <div className="grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
+                            <div>
+                                <div className="text-slate-400">Device ID</div>
+                                <div className="font-mono text-xs text-white">{cloudPairing.deviceId || 'Unavailable'}</div>
+                            </div>
+                            <div>
+                                <div className="text-slate-400">Owned Robot ID</div>
+                                <div className="font-mono text-xs text-white">{cloudPairing.ownedRobotId || 'Pending sync'}</div>
+                            </div>
+                            <div>
+                                <div className="text-slate-400">Robot Model</div>
+                                <div className="text-white">{cloudPairing.robotModelName}</div>
+                            </div>
+                            <div>
+                                <div className="text-slate-400">Cloud Host</div>
+                                <div className="text-white">{cloudPairing.relayBaseUrl}</div>
+                            </div>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="space-y-4">
+                        <div className="text-sm text-slate-300">
+                            Open <span className="font-semibold text-white">{cloudPairing?.relayBaseUrl || 'studio.vulcanrobotics.ai'}</span>, sign in,
+                            and enter this pairing code.
+                        </div>
+                        <div className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-5 text-center font-mono text-4xl font-bold tracking-[0.18em] text-white">
+                            {cloudPairing?.pairingCode || '------'}
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400">
+                            <span>{cloudCountdown || 'Waiting for a fresh code…'}</span>
+                            <span>Model: {cloudPairing?.robotModelName || 'sourccey'}</span>
+                            <span className="font-mono text-xs">Device: {cloudPairing?.deviceId || 'Generating…'}</span>
+                        </div>
+                        {cloudPairing?.errorMessage ? (
+                            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                                {cloudPairing.errorMessage}
+                            </div>
+                        ) : null}
+                    </div>
+                )}
             </div>
         </>
     );

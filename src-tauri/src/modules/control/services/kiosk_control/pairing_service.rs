@@ -2,6 +2,7 @@ use crate::services::directory::directory_service::DirectoryService;
 use crate::services::log::log_service::LogService;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
+use chrono::{DateTime, Utc};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Write};
@@ -17,7 +18,7 @@ const DISCOVERY_MAGIC: &str = "SOURCCEY_DISCOVER_V1";
 pub const DISCOVERY_PORT: u16 = 42111;
 pub const DEFAULT_SERVICE_PORT: u16 = 42112;
 const PAIRING_CODE_TTL_MS: u64 = 10 * 60 * 1000; // 10 minutes
-const PAIRING_STATE_FILE_NAME: &str = "pairing_state.json";
+const PAIRING_STATE_FILE_NAME: &str = "pairing_state.json";`r`nconst CLOUD_PAIRING_STATE_FILE_NAME: &str = "cloud_pairing_state.json";`r`nconst DEFAULT_CLOUD_PAIRING_BASE_URL: &str = "https://studio.vulcanrobotics.ai";
 static KIOSK_APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -25,6 +26,16 @@ struct PersistedPairingState {
     valid_tokens: Vec<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+struct PersistedCloudPairingState {
+    device_id: Option<String>,
+    active_session_id: Option<String>,
+    pairing_code: Option<String>,
+    expires_at_ms: Option<u64>,
+    owned_robot_id: Option<String>,
+    claimed_at_ms: Option<u64>,
+    status: Option<String>,
+}
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct KioskPairingInfo {
     pub code: String,
@@ -35,6 +46,59 @@ pub struct KioskPairingInfo {
     pub robot_type: String,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct KioskCloudPairingInfo {
+    pub relay_base_url: String,
+    pub device_id: String,
+    pub robot_model_name: String,
+    pub pairing_code: Option<String>,
+    pub expires_at_ms: Option<u64>,
+    pub status: String,
+    pub owned_robot_id: Option<String>,
+    pub claimed_at_ms: Option<u64>,
+    pub error_message: Option<String>,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+struct RelayBootstrapStartRequest {
+    device_id: String,
+    robot_model_name: String,
+    default_nickname: Option<String>,
+    agent_version: Option<String>,
+    last_known_address: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct RelayBootstrapStartResponse {
+    session_id: String,
+    device_id: String,
+    pairing_code: Option<String>,
+    status: String,
+    owned_robot_id: Option<String>,
+    claimed_at_utc: Option<String>,
+    expires_at_utc: Option<String>,
+    error: Option<RelayPairingError>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+struct RelayBootstrapStatusResponse {
+    session_id: String,
+    device_id: String,
+    status: String,
+    expires_at_utc: Option<String>,
+    claimed_at_utc: Option<String>,
+    owned_robot_id: Option<String>,
+    error: Option<RelayPairingError>,
+}
+
+#[derive(Debug, Deserialize)]
+struct RelayPairingError {
+    message: String,
+    code: String,
+}
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiscoveredKioskRobot {
     pub host: String,
@@ -1320,3 +1384,5 @@ snapshot_download(
         Ok(base_dir.join("logs").join("pairing.log"))
     }
 }
+
+
