@@ -33,12 +33,25 @@ pub async fn start_kiosk_host(
 ) -> Result<String, String> {
     // Refresh cloud pairing state only when a registration flow was already
     // started and we still do not have final credentials on disk yet.
-    if KioskPairingService::should_refresh_cloud_pairing_before_host_start().unwrap_or(false) {
-        if let Err(error) =
-            KioskPairingService::get_kiosk_cloud_pairing_info(pairing_state.inner().clone())
+    // This uses blocking HTTP/file I/O, so keep it off the async Tokio worker.
+    let pairing_state_inner = pairing_state.inner().clone();
+    if let Err(error) = tauri::async_runtime::spawn_blocking(move || {
+        if KioskPairingService::should_refresh_cloud_pairing_before_host_start()
+            .unwrap_or(false)
         {
-            eprintln!("Failed to refresh cloud pairing state before host start: {}", error);
+            if let Err(error) =
+                KioskPairingService::get_kiosk_cloud_pairing_info(pairing_state_inner)
+            {
+                eprintln!("Failed to refresh cloud pairing state before host start: {}", error);
+            }
         }
+    })
+    .await
+    {
+        eprintln!(
+            "Failed to run cloud pairing refresh task before host start: {}",
+            error
+        );
     }
 
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
