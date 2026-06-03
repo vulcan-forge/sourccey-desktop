@@ -86,13 +86,6 @@ export const HomeWelcome = () => {
         return () => clearInterval(interval);
     }, [fetchSystemInfo]);
 
-    useEffect(() => {
-        void fetchCloudPairing();
-        const interval = setInterval(() => {
-            void fetchCloudPairing();
-        }, 5000);
-        return () => clearInterval(interval);
-    }, [fetchCloudPairing]);
 
     useEffect(() => {
         const interval = setInterval(() => setNowMs(Date.now()), 1000);
@@ -231,7 +224,11 @@ export const HomeWelcome = () => {
                     </div>
                 </div>
 
-                {isLoadingCloudPairing && !cloudPairing ? (
+                {!cloudPairing && !isLoadingCloudPairing ? (
+                    <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 text-sm text-slate-300">
+                        Click <span className="font-semibold text-white">Start Registration</span> to generate a pairing code for this robot.
+                    </div>
+                ) : isLoadingCloudPairing && !cloudPairing ? (
                     <div className="flex items-center gap-2 text-slate-300">
                         <FaSpinner className="h-4 w-4 animate-spin" />
                         <span className="text-sm">Loading cloud pairing…</span>
@@ -290,3 +287,4 @@ export const HomeWelcome = () => {
         </>
     );
 };
+
