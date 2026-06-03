@@ -4,8 +4,8 @@ use crate::modules::control::services::kiosk_control::kiosk_host_service::{
 use crate::modules::status::services::battery::battery_service::{BatteryData, BatteryService};
 use serde::Serialize;
 use serde_json::json;
-use std::process::{Command, Stdio};
 use std::io::Write;
+use std::process::{Command, Stdio};
 use tauri::command;
 use tauri::{AppHandle, Manager, State};
 
@@ -61,7 +61,11 @@ pub fn get_system_info() -> SystemInfo {
         max_error: -1,
         error: Some("Failed to read battery data".to_string()),
     });
-    SystemInfo { ip_address, temperature, battery_data }
+    SystemInfo {
+        ip_address,
+        temperature,
+        battery_data,
+    }
 }
 
 fn get_ip_address() -> String {

@@ -1,8 +1,8 @@
-﻿use crate::services::directory::directory_service::DirectoryService;
+use crate::services::directory::directory_service::DirectoryService;
 use crate::services::log::log_service::LogService;
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use chrono::{DateTime, Utc};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{BufRead, BufReader, ErrorKind, Write};
@@ -20,6 +20,7 @@ pub const DEFAULT_SERVICE_PORT: u16 = 42112;
 const PAIRING_CODE_TTL_MS: u64 = 10 * 60 * 1000; // 10 minutes
 const PAIRING_STATE_FILE_NAME: &str = "pairing_state.json";
 const CLOUD_PAIRING_STATE_FILE_NAME: &str = "cloud_pairing_state.json";
+const CLOUD_DEVICE_CREDENTIALS_FILE_NAME: &str = "cloud_device_credentials.json";
 const DEFAULT_CLOUD_PAIRING_BASE_URL: &str = "https://studio.vulcanrobotics.ai";
 static KIOSK_APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
@@ -37,6 +38,22 @@ struct PersistedCloudPairingState {
     owned_robot_id: Option<String>,
     claimed_at_ms: Option<u64>,
     status: Option<String>,
+    relay_base_url: Option<String>,
+    robot_model_name: Option<String>,
+    device_auth_token: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+struct PersistedCloudDeviceCredentials {
+    version: u32,
+    device_id: String,
+    owned_robot_id: String,
+    robot_model_name: Option<String>,
+    relay_http_base_url: String,
+    relay_ws_base_url: String,
+    device_auth_token: String,
+    claimed_at_ms: Option<u64>,
+    saved_at_ms: u64,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct KioskPairingInfo {
@@ -76,11 +93,11 @@ struct RelayBootstrapStartRequest {
 #[serde(rename_all = "snake_case")]
 struct RelayBootstrapStartResponse {
     session_id: String,
-    device_id: String,
     pairing_code: Option<String>,
     status: String,
     owned_robot_id: Option<String>,
     claimed_at_utc: Option<String>,
+    device_auth_token: Option<String>,
     expires_at_utc: Option<String>,
     error: Option<RelayPairingError>,
 }
@@ -88,12 +105,11 @@ struct RelayBootstrapStartResponse {
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "snake_case")]
 struct RelayBootstrapStatusResponse {
-    session_id: String,
-    device_id: String,
     status: String,
     expires_at_utc: Option<String>,
     claimed_at_utc: Option<String>,
     owned_robot_id: Option<String>,
+    device_auth_token: Option<String>,
     error: Option<RelayPairingError>,
 }
 
@@ -286,7 +302,9 @@ impl KioskPairingService {
         })
     }
 
-    pub fn get_kiosk_cloud_pairing_info(state: KioskPairingState) -> Result<KioskCloudPairingInfo, String> {
+    pub fn get_kiosk_cloud_pairing_info(
+        state: KioskPairingState,
+    ) -> Result<KioskCloudPairingInfo, String> {
         let relay_base_url = Self::cloud_pairing_base_url();
         let mut persisted = Self::load_persisted_cloud_pairing_state().unwrap_or_default();
 
@@ -304,9 +322,12 @@ impl KioskPairingService {
             .filter(|value| !value.trim().is_empty())
             .unwrap_or_else(|| Uuid::now_v7().to_string());
         persisted.device_id = Some(device_id.clone());
+        persisted.relay_base_url = Some(relay_base_url.clone());
+        persisted.robot_model_name = Some(robot_model_name.clone());
 
         if persisted.status.as_deref() == Some("claimed") && persisted.owned_robot_id.is_some() {
             let _ = Self::save_persisted_cloud_pairing_state(&persisted);
+            let _ = Self::sync_cloud_device_credentials(&persisted);
             return Ok(KioskCloudPairingInfo {
                 relay_base_url,
                 device_id,
@@ -320,11 +341,16 @@ impl KioskPairingService {
             });
         }
 
-        if let Some(session_id) = persisted.active_session_id.clone().filter(|value| !value.trim().is_empty()) {
+        if let Some(session_id) = persisted
+            .active_session_id
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+        {
             match Self::fetch_cloud_bootstrap_status(&relay_base_url, &session_id, &device_id) {
                 Ok(status_response) => {
                     persisted.status = Some(status_response.status.clone());
                     persisted.owned_robot_id = status_response.owned_robot_id.clone();
+                    persisted.device_auth_token = status_response.device_auth_token.clone();
                     persisted.claimed_at_ms = status_response
                         .claimed_at_utc
                         .as_deref()
@@ -343,6 +369,7 @@ impl KioskPairingService {
                     }
 
                     let _ = Self::save_persisted_cloud_pairing_state(&persisted);
+                    let _ = Self::sync_cloud_device_credentials(&persisted);
 
                     if status_response.status == "pending" || status_response.status == "claimed" {
                         return Ok(KioskCloudPairingInfo {
@@ -354,7 +381,9 @@ impl KioskPairingService {
                             status: status_response.status,
                             owned_robot_id: persisted.owned_robot_id.clone(),
                             claimed_at_ms: persisted.claimed_at_ms,
-                            error_message: status_response.error.map(|error| format!("{} ({})", error.message, error.code)),
+                            error_message: status_response
+                                .error
+                                .map(|error| format!("{} ({})", error.message, error.code)),
                         });
                     }
                 }
@@ -365,7 +394,10 @@ impl KioskPairingService {
                         robot_model_name,
                         pairing_code: persisted.pairing_code.clone(),
                         expires_at_ms: persisted.expires_at_ms,
-                        status: persisted.status.clone().unwrap_or_else(|| "error".to_string()),
+                        status: persisted
+                            .status
+                            .clone()
+                            .unwrap_or_else(|| "error".to_string()),
                         owned_robot_id: persisted.owned_robot_id.clone(),
                         claimed_at_ms: persisted.claimed_at_ms,
                         error_message: Some(error),
@@ -395,6 +427,7 @@ impl KioskPairingService {
                     .and_then(Self::parse_utc_to_ms);
                 persisted.status = Some(start_response.status.clone());
                 persisted.owned_robot_id = start_response.owned_robot_id.clone();
+                persisted.device_auth_token = start_response.device_auth_token.clone();
                 persisted.claimed_at_ms = start_response
                     .claimed_at_utc
                     .as_deref()
@@ -405,6 +438,7 @@ impl KioskPairingService {
                 }
 
                 let _ = Self::save_persisted_cloud_pairing_state(&persisted);
+                let _ = Self::sync_cloud_device_credentials(&persisted);
 
                 Ok(KioskCloudPairingInfo {
                     relay_base_url,
@@ -415,7 +449,9 @@ impl KioskPairingService {
                     status: start_response.status,
                     owned_robot_id: persisted.owned_robot_id.clone(),
                     claimed_at_ms: persisted.claimed_at_ms,
-                    error_message: start_response.error.map(|error| format!("{} ({})", error.message, error.code)),
+                    error_message: start_response
+                        .error
+                        .map(|error| format!("{} ({})", error.message, error.code)),
                 })
             }
             Err(error) => Ok(KioskCloudPairingInfo {
@@ -424,7 +460,10 @@ impl KioskPairingService {
                 robot_model_name,
                 pairing_code: persisted.pairing_code.clone(),
                 expires_at_ms: persisted.expires_at_ms,
-                status: persisted.status.clone().unwrap_or_else(|| "error".to_string()),
+                status: persisted
+                    .status
+                    .clone()
+                    .unwrap_or_else(|| "error".to_string()),
                 owned_robot_id: persisted.owned_robot_id.clone(),
                 claimed_at_ms: persisted.claimed_at_ms,
                 error_message: Some(error),
@@ -499,7 +538,11 @@ impl KioskPairingService {
         targets
     }
 
-    pub fn pair_with_kiosk_robot(host: &str, code: &str, client_name: &str) -> Result<PairWithKioskResult, String> {
+    pub fn pair_with_kiosk_robot(
+        host: &str,
+        code: &str,
+        client_name: &str,
+    ) -> Result<PairWithKioskResult, String> {
         let request = KioskServiceRequest {
             action: "pair".to_string(),
             code: Some(code.trim().to_string()),
@@ -520,9 +563,13 @@ impl KioskPairingService {
             token: response
                 .token
                 .ok_or("Pairing response did not include token".to_string())?,
-            robot_name: response.robot_name.unwrap_or_else(|| "Sourccey".to_string()),
+            robot_name: response
+                .robot_name
+                .unwrap_or_else(|| "Sourccey".to_string()),
             nickname: response.nickname.unwrap_or_else(|| "sourccey".to_string()),
-            robot_type: response.robot_type.unwrap_or_else(|| "sourccey".to_string()),
+            robot_type: response
+                .robot_type
+                .unwrap_or_else(|| "sourccey".to_string()),
             service_port: response.service_port.unwrap_or(DEFAULT_SERVICE_PORT),
         })
     }
@@ -569,7 +616,11 @@ impl KioskPairingService {
         Ok(response.message)
     }
 
-    pub fn check_kiosk_robot_connection(host: &str, port: u16, token: &str) -> Result<String, String> {
+    pub fn check_kiosk_robot_connection(
+        host: &str,
+        port: u16,
+        token: &str,
+    ) -> Result<String, String> {
         let request = KioskServiceRequest {
             action: "ping".to_string(),
             code: None,
@@ -661,8 +712,8 @@ impl KioskPairingService {
                 message
             })?;
 
-        let mut stream = TcpStream::connect_timeout(&socket_addr, Duration::from_secs(4))
-            .map_err(|e| {
+        let mut stream =
+            TcpStream::connect_timeout(&socket_addr, Duration::from_secs(4)).map_err(|e| {
                 let message = format!("Failed to connect to robot service: {}", e);
                 Self::log_pairing_error(&message);
                 message
@@ -690,13 +741,11 @@ impl KioskPairingService {
                 message
             })?
         );
-        stream
-            .write_all(payload.as_bytes())
-            .map_err(|e| {
-                let message = format!("Failed to send request to robot: {}", e);
-                Self::log_pairing_error(&message);
-                message
-            })?;
+        stream.write_all(payload.as_bytes()).map_err(|e| {
+            let message = format!("Failed to send request to robot: {}", e);
+            Self::log_pairing_error(&message);
+            message
+        })?;
         stream.flush().map_err(|e| {
             let message = format!("Failed to flush request: {}", e);
             Self::log_pairing_error(&message);
@@ -705,13 +754,11 @@ impl KioskPairingService {
 
         let mut reader = BufReader::new(stream);
         let mut response_line = String::new();
-        reader
-            .read_line(&mut response_line)
-            .map_err(|e| {
-                let message = format!("Failed to read response from robot: {}", e);
-                Self::log_pairing_error(&message);
-                message
-            })?;
+        reader.read_line(&mut response_line).map_err(|e| {
+            let message = format!("Failed to read response from robot: {}", e);
+            Self::log_pairing_error(&message);
+            message
+        })?;
 
         if response_line.trim().is_empty() {
             let message = "Robot service returned empty response".to_string();
@@ -719,12 +766,11 @@ impl KioskPairingService {
             return Err(message);
         }
 
-        serde_json::from_str::<KioskServiceResponse>(response_line.trim())
-            .map_err(|e| {
-                let message = format!("Failed to parse robot response: {}", e);
-                Self::log_pairing_error(&message);
-                message
-            })
+        serde_json::from_str::<KioskServiceResponse>(response_line.trim()).map_err(|e| {
+            let message = format!("Failed to parse robot response: {}", e);
+            Self::log_pairing_error(&message);
+            message
+        })
     }
 
     fn handle_kiosk_service_client(mut stream: TcpStream, state: KioskPairingState) {
@@ -778,7 +824,10 @@ impl KioskPairingService {
         }
     }
 
-    fn handle_pair_request(state: KioskPairingState, request: KioskServiceRequest) -> KioskServiceResponse {
+    fn handle_pair_request(
+        state: KioskPairingState,
+        request: KioskServiceRequest,
+    ) -> KioskServiceResponse {
         let incoming_code = match request.code {
             Some(code) => code.trim().to_string(),
             None => {
@@ -833,7 +882,10 @@ impl KioskPairingService {
         runtime.pairing_code_expires_at_ms = Self::now_ms() + PAIRING_CODE_TTL_MS;
 
         if let Some(handle) = KIOSK_APP_HANDLE.get() {
-            let _ = handle.emit("kiosk-pairing-close", json!({ "source": "desktop_pairing" }));
+            let _ = handle.emit(
+                "kiosk-pairing-close",
+                json!({ "source": "desktop_pairing" }),
+            );
         }
 
         KioskServiceResponse {
@@ -847,7 +899,10 @@ impl KioskPairingService {
         }
     }
 
-    fn handle_show_pairing_request(state: KioskPairingState, _request: KioskServiceRequest) -> KioskServiceResponse {
+    fn handle_show_pairing_request(
+        state: KioskPairingState,
+        _request: KioskServiceRequest,
+    ) -> KioskServiceResponse {
         let info = match Self::get_kiosk_pairing_info(state.clone()) {
             Ok(info) => info,
             Err(error) => {
@@ -878,7 +933,10 @@ impl KioskPairingService {
         }
     }
 
-    fn handle_download_model_request(state: KioskPairingState, request: KioskServiceRequest) -> KioskServiceResponse {
+    fn handle_download_model_request(
+        state: KioskPairingState,
+        request: KioskServiceRequest,
+    ) -> KioskServiceResponse {
         let token = match request.token {
             Some(token) => token,
             None => {
@@ -973,13 +1031,13 @@ impl KioskPairingService {
             Ok(_) => {
                 Self::spawn_model_download_job(state.clone(), job_key, repo_id, model_name);
                 KioskServiceResponse {
-                ok: true,
-                message: "Model download started on robot".to_string(),
-                token: None,
-                robot_name: None,
-                nickname: None,
-                robot_type: None,
-                service_port: Some(DEFAULT_SERVICE_PORT),
+                    ok: true,
+                    message: "Model download started on robot".to_string(),
+                    token: None,
+                    robot_name: None,
+                    nickname: None,
+                    robot_type: None,
+                    service_port: Some(DEFAULT_SERVICE_PORT),
                 }
             }
             Err(error) => {
@@ -999,7 +1057,10 @@ impl KioskPairingService {
         }
     }
 
-    fn handle_ping_request(state: KioskPairingState, request: KioskServiceRequest) -> KioskServiceResponse {
+    fn handle_ping_request(
+        state: KioskPairingState,
+        request: KioskServiceRequest,
+    ) -> KioskServiceResponse {
         let token = match request.token {
             Some(token) => token,
             None => {
@@ -1043,7 +1104,10 @@ impl KioskPairingService {
         }
     }
 
-    fn handle_start_robot_request(state: KioskPairingState, request: KioskServiceRequest) -> KioskServiceResponse {
+    fn handle_start_robot_request(
+        state: KioskPairingState,
+        request: KioskServiceRequest,
+    ) -> KioskServiceResponse {
         let token = match request.token {
             Some(token) => token,
             None => {
@@ -1137,7 +1201,10 @@ impl KioskPairingService {
         }
     }
 
-    fn handle_stop_robot_request(state: KioskPairingState, request: KioskServiceRequest) -> KioskServiceResponse {
+    fn handle_stop_robot_request(
+        state: KioskPairingState,
+        request: KioskServiceRequest,
+    ) -> KioskServiceResponse {
         let token = match request.token {
             Some(token) => token,
             None => {
@@ -1229,7 +1296,10 @@ impl KioskPairingService {
         }
     }
 
-    fn handle_robot_status_request(state: KioskPairingState, request: KioskServiceRequest) -> KioskServiceResponse {
+    fn handle_robot_status_request(
+        state: KioskPairingState,
+        request: KioskServiceRequest,
+    ) -> KioskServiceResponse {
         let token = match request.token {
             Some(token) => token,
             None => {
@@ -1321,7 +1391,8 @@ impl KioskPairingService {
         }
 
         let model_path = DirectoryService::get_lerobot_ai_model_path(repo_id, model_name)?;
-        fs::create_dir_all(&model_path).map_err(|e| format!("Failed to create model directory: {}", e))?;
+        fs::create_dir_all(&model_path)
+            .map_err(|e| format!("Failed to create model directory: {}", e))?;
 
         let request_path = model_path.join("download_request.json");
         let payload = json!({
@@ -1334,33 +1405,52 @@ impl KioskPairingService {
 
         fs::write(
             request_path,
-            serde_json::to_string_pretty(&payload).map_err(|e| format!("Failed to encode request payload: {}", e))?,
+            serde_json::to_string_pretty(&payload)
+                .map_err(|e| format!("Failed to encode request payload: {}", e))?,
         )
         .map_err(|e| format!("Failed to write download request: {}", e))?;
 
         Ok("Model download request queued on robot".to_string())
     }
 
-    fn spawn_model_download_job(state: KioskPairingState, job_key: String, repo_id: String, model_name: String) {
+    fn spawn_model_download_job(
+        state: KioskPairingState,
+        job_key: String,
+        repo_id: String,
+        model_name: String,
+    ) {
         thread::spawn(move || {
-            if let Err(e) = Self::update_download_request_status(&repo_id, &model_name, "downloading", None) {
+            if let Err(e) =
+                Self::update_download_request_status(&repo_id, &model_name, "downloading", None)
+            {
                 eprintln!("Failed to mark model as downloading: {}", e);
             }
 
             let result = Self::download_model_snapshot(&repo_id, &model_name);
             match result {
                 Ok(_) => {
-                    if let Err(e) = Self::update_download_request_status(&repo_id, &model_name, "downloaded", None) {
+                    if let Err(e) = Self::update_download_request_status(
+                        &repo_id,
+                        &model_name,
+                        "downloaded",
+                        None,
+                    ) {
                         eprintln!("Failed to mark model as downloaded: {}", e);
                     }
                 }
                 Err(error) => {
-                    if let Err(e) =
-                        Self::update_download_request_status(&repo_id, &model_name, "failed", Some(&error))
-                    {
+                    if let Err(e) = Self::update_download_request_status(
+                        &repo_id,
+                        &model_name,
+                        "failed",
+                        Some(&error),
+                    ) {
                         eprintln!("Failed to mark model as failed: {}", e);
                     }
-                    eprintln!("Model download failed ({} / {}): {}", repo_id, model_name, error);
+                    eprintln!(
+                        "Model download failed ({} / {}): {}",
+                        repo_id, model_name, error
+                    );
                 }
             }
 
@@ -1372,7 +1462,8 @@ impl KioskPairingService {
 
     fn download_model_snapshot(repo_id: &str, model_name: &str) -> Result<(), String> {
         let model_path = DirectoryService::get_lerobot_ai_model_path(repo_id, model_name)?;
-        fs::create_dir_all(&model_path).map_err(|e| format!("Failed to create model directory: {}", e))?;
+        fs::create_dir_all(&model_path)
+            .map_err(|e| format!("Failed to create model directory: {}", e))?;
 
         let python_path = DirectoryService::get_python_path()?;
         let downloader_script = r#"
@@ -1420,7 +1511,8 @@ snapshot_download(
         error: Option<&str>,
     ) -> Result<(), String> {
         let model_path = DirectoryService::get_lerobot_ai_model_path(repo_id, model_name)?;
-        fs::create_dir_all(&model_path).map_err(|e| format!("Failed to create model directory: {}", e))?;
+        fs::create_dir_all(&model_path)
+            .map_err(|e| format!("Failed to create model directory: {}", e))?;
 
         let request_path = model_path.join("download_request.json");
         let mut payload = json!({
@@ -1440,7 +1532,8 @@ snapshot_download(
 
         fs::write(
             request_path,
-            serde_json::to_string_pretty(&payload).map_err(|e| format!("Failed to encode request payload: {}", e))?,
+            serde_json::to_string_pretty(&payload)
+                .map_err(|e| format!("Failed to encode request payload: {}", e))?,
         )
         .map_err(|e| format!("Failed to write download request: {}", e))?;
 
@@ -1481,7 +1574,10 @@ snapshot_download(
             .map_err(|e| format!("Failed to start cloud pairing bootstrap: {}", e))?;
 
         if !response.status().is_success() {
-            return Err(format!("Relay bootstrap request failed ({})", response.status()));
+            return Err(format!(
+                "Relay bootstrap request failed ({})",
+                response.status()
+            ));
         }
 
         response
@@ -1502,15 +1598,16 @@ snapshot_download(
         let response = client
             .get(format!(
                 "{}/api/v1/robot/bootstrap/{}?device_id={}",
-                relay_base_url,
-                session_id,
-                device_id
+                relay_base_url, session_id, device_id
             ))
             .send()
             .map_err(|e| format!("Failed to fetch cloud pairing status: {}", e))?;
 
         if !response.status().is_success() {
-            return Err(format!("Relay bootstrap status request failed ({})", response.status()));
+            return Err(format!(
+                "Relay bootstrap status request failed ({})",
+                response.status()
+            ));
         }
 
         response
@@ -1538,30 +1635,52 @@ snapshot_download(
             return Ok(PersistedCloudPairingState::default());
         }
 
-        let content = fs::read_to_string(&state_path)
-            .map_err(|e| format!("Failed to read cloud pairing state file {:?}: {}", state_path, e))?;
-        serde_json::from_str::<PersistedCloudPairingState>(&content)
-            .map_err(|e| format!("Failed to parse cloud pairing state file {:?}: {}", state_path, e))
+        let content = fs::read_to_string(&state_path).map_err(|e| {
+            format!(
+                "Failed to read cloud pairing state file {:?}: {}",
+                state_path, e
+            )
+        })?;
+        serde_json::from_str::<PersistedCloudPairingState>(&content).map_err(|e| {
+            format!(
+                "Failed to parse cloud pairing state file {:?}: {}",
+                state_path, e
+            )
+        })
     }
 
-    fn save_persisted_cloud_pairing_state(state: &PersistedCloudPairingState) -> Result<(), String> {
+    fn save_persisted_cloud_pairing_state(
+        state: &PersistedCloudPairingState,
+    ) -> Result<(), String> {
         let state_path = Self::cloud_pairing_state_file_path()?;
         if let Some(parent) = state_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create cloud pairing state directory {:?}: {}", parent, e))?;
+            fs::create_dir_all(parent).map_err(|e| {
+                format!(
+                    "Failed to create cloud pairing state directory {:?}: {}",
+                    parent, e
+                )
+            })?;
         }
 
         let serialized = serde_json::to_string_pretty(state)
             .map_err(|e| format!("Failed to encode cloud pairing state: {}", e))?;
-        fs::write(&state_path, serialized)
-            .map_err(|e| format!("Failed to write cloud pairing state file {:?}: {}", state_path, e))?;
+        fs::write(&state_path, serialized).map_err(|e| {
+            format!(
+                "Failed to write cloud pairing state file {:?}: {}",
+                state_path, e
+            )
+        })?;
 
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             let perms = fs::Permissions::from_mode(0o600);
-            fs::set_permissions(&state_path, perms)
-                .map_err(|e| format!("Failed to secure cloud pairing state file {:?}: {}", state_path, e))?;
+            fs::set_permissions(&state_path, perms).map_err(|e| {
+                format!(
+                    "Failed to secure cloud pairing state file {:?}: {}",
+                    state_path, e
+                )
+            })?;
         }
 
         Ok(())
@@ -1569,7 +1688,125 @@ snapshot_download(
 
     fn cloud_pairing_state_file_path() -> Result<std::path::PathBuf, String> {
         let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
-        Ok(cache_dir.join("pairing").join(CLOUD_PAIRING_STATE_FILE_NAME))
+        Ok(cache_dir
+            .join("pairing")
+            .join(CLOUD_PAIRING_STATE_FILE_NAME))
+    }
+
+    fn sync_cloud_device_credentials(state: &PersistedCloudPairingState) -> Result<(), String> {
+        if state.status.as_deref() != Some("claimed") {
+            return Ok(());
+        }
+
+        let Some(device_id) = state
+            .device_id
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+        else {
+            Self::log_pairing_error(
+                "Cloud pairing claim is missing device_id; skipping credential file update.",
+            );
+            return Ok(());
+        };
+
+        let Some(owned_robot_id) = state
+            .owned_robot_id
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+        else {
+            Self::log_pairing_error(
+                "Cloud pairing claim is missing owned_robot_id; skipping credential file update.",
+            );
+            return Ok(());
+        };
+
+        let Some(relay_http_base_url) = state
+            .relay_base_url
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+        else {
+            Self::log_pairing_error(
+                "Cloud pairing claim is missing relay_base_url; skipping credential file update.",
+            );
+            return Ok(());
+        };
+
+        let Some(device_auth_token) = state
+            .device_auth_token
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+        else {
+            Self::log_pairing_error("Cloud pairing claim is missing device_auth_token; skipping credential file update.");
+            return Ok(());
+        };
+
+        let payload = PersistedCloudDeviceCredentials {
+            version: 1,
+            device_id,
+            owned_robot_id,
+            robot_model_name: state.robot_model_name.clone(),
+            relay_http_base_url: relay_http_base_url.clone(),
+            relay_ws_base_url: Self::cloud_pairing_ws_base_url(&relay_http_base_url),
+            device_auth_token,
+            claimed_at_ms: state.claimed_at_ms,
+            saved_at_ms: Self::now_ms(),
+        };
+
+        Self::save_cloud_device_credentials(&payload)
+    }
+
+    fn save_cloud_device_credentials(
+        credentials: &PersistedCloudDeviceCredentials,
+    ) -> Result<(), String> {
+        let credentials_path = Self::cloud_device_credentials_file_path()?;
+        if let Some(parent) = credentials_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| {
+                format!(
+                    "Failed to create cloud device credential directory {:?}: {}",
+                    parent, e
+                )
+            })?;
+        }
+
+        let serialized = serde_json::to_string_pretty(credentials)
+            .map_err(|e| format!("Failed to encode cloud device credentials: {}", e))?;
+        fs::write(&credentials_path, serialized).map_err(|e| {
+            format!(
+                "Failed to write cloud device credentials file {:?}: {}",
+                credentials_path, e
+            )
+        })?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = fs::Permissions::from_mode(0o600);
+            fs::set_permissions(&credentials_path, perms).map_err(|e| {
+                format!(
+                    "Failed to secure cloud device credentials file {:?}: {}",
+                    credentials_path, e
+                )
+            })?;
+        }
+
+        Ok(())
+    }
+
+    fn cloud_device_credentials_file_path() -> Result<std::path::PathBuf, String> {
+        let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
+        Ok(cache_dir
+            .join("pairing")
+            .join(CLOUD_DEVICE_CREDENTIALS_FILE_NAME))
+    }
+
+    fn cloud_pairing_ws_base_url(relay_http_base_url: &str) -> String {
+        if let Some(suffix) = relay_http_base_url.strip_prefix("https://") {
+            return format!("wss://{}", suffix);
+        }
+        if let Some(suffix) = relay_http_base_url.strip_prefix("http://") {
+            return format!("ws://{}", suffix);
+        }
+        relay_http_base_url.to_string()
     }
     fn refresh_pairing_code_if_needed(runtime: &mut KioskPairingRuntimeState) {
         if Self::now_ms() >= runtime.pairing_code_expires_at_ms {
@@ -1591,21 +1828,30 @@ snapshot_download(
     }
 
     fn is_safe_repo_id(value: &str) -> bool {
-        if value.trim().is_empty() || value.starts_with('/') || value.contains('\\') || value.contains("..") {
+        if value.trim().is_empty()
+            || value.starts_with('/')
+            || value.contains('\\')
+            || value.contains("..")
+        {
             return false;
         }
-        value
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.' || ch == '/')
+        value.chars().all(|ch| {
+            ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.' || ch == '/'
+        })
     }
 
     fn is_safe_model_name(value: &str) -> bool {
-        if value.trim().is_empty() || value.starts_with('/') || value.contains('\\') || value.contains("..") || value.contains('/') {
+        if value.trim().is_empty()
+            || value.starts_with('/')
+            || value.contains('\\')
+            || value.contains("..")
+            || value.contains('/')
+        {
             return false;
         }
-        value
-            .chars()
-            .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.' || ch == ' ')
+        value.chars().all(|ch| {
+            ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.' || ch == ' '
+        })
     }
 
     fn load_persisted_tokens() -> Result<HashSet<String>, String> {
@@ -1619,14 +1865,22 @@ snapshot_download(
         let persisted = serde_json::from_str::<PersistedPairingState>(&content)
             .map_err(|e| format!("Failed to parse pairing state file {:?}: {}", state_path, e))?;
 
-        Ok(persisted.valid_tokens.into_iter().filter(|token| !token.trim().is_empty()).collect())
+        Ok(persisted
+            .valid_tokens
+            .into_iter()
+            .filter(|token| !token.trim().is_empty())
+            .collect())
     }
 
     fn save_persisted_tokens(valid_tokens: &HashSet<String>) -> Result<(), String> {
         let state_path = Self::pairing_state_file_path()?;
         if let Some(parent) = state_path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create pairing state directory {:?}: {}", parent, e))?;
+            fs::create_dir_all(parent).map_err(|e| {
+                format!(
+                    "Failed to create pairing state directory {:?}: {}",
+                    parent, e
+                )
+            })?;
         }
 
         let payload = PersistedPairingState {
@@ -1656,7 +1910,3 @@ snapshot_download(
         Ok(base_dir.join("logs").join("pairing.log"))
     }
 }
-
-
-
-

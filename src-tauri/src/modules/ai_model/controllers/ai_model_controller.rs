@@ -93,9 +93,7 @@ pub async fn get_ai_models_paginated(
 // Sync AI Models from Cache
 //-------------------------------------------------------------------------//
 #[tauri::command]
-pub async fn sync_ai_models_from_cache(
-    app_handle: AppHandle,
-) -> Result<AiModelSyncResult, String> {
+pub async fn sync_ai_models_from_cache(app_handle: AppHandle) -> Result<AiModelSyncResult, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let ai_model_service = AiModelService::new(db_manager.get_connection().clone());
 

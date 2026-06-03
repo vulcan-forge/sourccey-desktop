@@ -32,4 +32,3 @@ pub fn stop_kiosk_manual_drive(
 ) -> Result<String, String> {
     KioskManualDriveService::stop_kiosk_manual_drive(&state, nickname)
 }
-

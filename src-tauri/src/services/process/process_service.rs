@@ -177,7 +177,8 @@ impl ProcessService {
 
     #[cfg(windows)]
     fn is_process_alive_shell(app_handle: &AppHandle, pid: u32) -> bool {
-        let output = Self::run_shell_command(app_handle, "tasklist", &["/FI", &format!("PID eq {}", pid)]);
+        let output =
+            Self::run_shell_command(app_handle, "tasklist", &["/FI", &format!("PID eq {}", pid)]);
         match output {
             Ok(output) => output.contains(&pid.to_string()),
             Err(_) => false,
@@ -238,7 +239,8 @@ impl ProcessService {
             Some(Box::new(move || {
                 let _ = state.lock().unwrap().remove(&process_key);
 
-                if let (Some(db_conn), Some(log_id)) = (db_connection.clone(), command_log_id.clone())
+                if let (Some(db_conn), Some(log_id)) =
+                    (db_connection.clone(), command_log_id.clone())
                 {
                     Self::on_process_shutdown(&app_handle_for_shutdown, pid, db_conn, log_id);
                 } else {

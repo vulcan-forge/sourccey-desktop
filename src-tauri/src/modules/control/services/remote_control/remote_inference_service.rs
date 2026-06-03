@@ -12,7 +12,9 @@ use tauri::Emitter;
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
-pub struct RemoteInferenceProcess(Arc<Mutex<HashMap<String, (CommandChild, Arc<AtomicBool>, String)>>>);
+pub struct RemoteInferenceProcess(
+    Arc<Mutex<HashMap<String, (CommandChild, Arc<AtomicBool>, String)>>>,
+);
 
 pub struct RemoteInferenceService;
 
@@ -35,7 +37,12 @@ impl RemoteInferenceService {
                     "Process already exists for nickname: {}, stopping it first...",
                     config.nickname
                 );
-                match Self::stop_inference(&app_handle, db_connection.clone(), state, config.nickname.clone()) {
+                match Self::stop_inference(
+                    &app_handle,
+                    db_connection.clone(),
+                    state,
+                    config.nickname.clone(),
+                ) {
                     Ok(_msg) => {
                         std::thread::sleep(std::time::Duration::from_millis(500));
                     }
@@ -48,17 +55,11 @@ impl RemoteInferenceService {
         let python_path = DirectoryService::get_python_path()?;
 
         if !lerobot_dir.exists() {
-            return Err(format!(
-                "LeRobot directory not found at: {:?}",
-                lerobot_dir
-            ));
+            return Err(format!("LeRobot directory not found at: {:?}", lerobot_dir));
         }
 
         if !python_path.exists() {
-            return Err(format!(
-                "Python executable not found at: {:?}",
-                python_path
-            ));
+            return Err(format!("Python executable not found at: {:?}", python_path));
         }
 
         let lerobot_dir_str = lerobot_dir.to_string_lossy().to_string();
@@ -192,7 +193,12 @@ impl RemoteInferenceService {
         {
             shutdown_flag.store(true, Ordering::Relaxed);
 
-            ProcessService::on_process_shutdown(app_handle, child.pid(), db_connection, command_log_id);
+            ProcessService::on_process_shutdown(
+                app_handle,
+                child.pid(),
+                db_connection,
+                command_log_id,
+            );
 
             if let Err(err) = child.kill() {
                 let message = format!("Failed to kill inference process: {}", err);

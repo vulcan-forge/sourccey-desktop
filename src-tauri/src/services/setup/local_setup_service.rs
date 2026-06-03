@@ -1,12 +1,12 @@
+use lazy_static::lazy_static;
+use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use lazy_static::lazy_static;
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
@@ -86,11 +86,14 @@ lazy_static! {
 }
 
 impl LocalSetupService {
-    const DEFAULT_LEROBOT_ZIP_URL: &str = "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
+    const DEFAULT_LEROBOT_ZIP_URL: &str =
+        "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
     const DEFAULT_LEROBOT_ZIP_SHA256_URL: &str =
         "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip.sha256";
-    const DEFAULT_UPDATER_URL: &str = "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json";
-    const DEFAULT_LEROBOT_TAGS_URL: &str = "https://api.github.com/repos/vulcan-forge/lerobot-vulcan/tags?per_page=100";
+    const DEFAULT_UPDATER_URL: &str =
+        "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json";
+    const DEFAULT_LEROBOT_TAGS_URL: &str =
+        "https://api.github.com/repos/vulcan-forge/lerobot-vulcan/tags?per_page=100";
     const LEROBOT_TAG_CACHE_TTL: Duration = Duration::from_secs(300);
     const UV_VENV_PYTHON_VERSION: &str = "3.12";
     #[allow(dead_code)]
@@ -104,10 +107,7 @@ impl LocalSetupService {
                 eprintln!("[setup] {}", e);
                 app_handle
                     .dialog()
-                    .message(format!(
-                        "Sourccey setup failed.\n\n{}",
-                        e
-                    ))
+                    .message(format!("Sourccey setup failed.\n\n{}", e))
                     .title("Setup Failed")
                     .kind(MessageDialogKind::Error)
                     .show(|_| {});
@@ -215,7 +215,8 @@ impl LocalSetupService {
         let current_tag = Self::resolve_current_lerobot_tag(app_handle);
         let current_commit = Self::resolve_current_lerobot_commit(app_handle);
         let latest_commit = latest_tag.clone();
-        let up_to_date = Self::is_current_tag_up_to_date(current_tag.as_deref(), latest_tag.as_deref());
+        let up_to_date =
+            Self::is_current_tag_up_to_date(current_tag.as_deref(), latest_tag.as_deref());
 
         Ok(LerobotUpdateStatus {
             up_to_date,
@@ -321,9 +322,15 @@ impl LocalSetupService {
                 Some(&emit),
                 "check",
                 "error",
-                Some("lerobot-vulcan virtual environment not found. Run the initial setup first.".to_string()),
+                Some(
+                    "lerobot-vulcan virtual environment not found. Run the initial setup first."
+                        .to_string(),
+                ),
             );
-            return Err("lerobot-vulcan virtual environment not found. Run the initial setup first.".to_string());
+            return Err(
+                "lerobot-vulcan virtual environment not found. Run the initial setup first."
+                    .to_string(),
+            );
         }
 
         fs::create_dir_all(&setup_dir)
@@ -419,12 +426,25 @@ impl LocalSetupService {
             .map_err(|e| format!("Failed to create setup directory: {}", e))?;
 
         if !lerobot_dir.exists() {
-            Self::emit_step(emit, "download", "started", Some("Downloading lerobot-vulcan".to_string()));
+            Self::emit_step(
+                emit,
+                "download",
+                "started",
+                Some("Downloading lerobot-vulcan".to_string()),
+            );
             let zip_url = std::env::var("SOURCCEY_LEROBOT_ZIP_URL")
                 .unwrap_or_else(|_| Self::DEFAULT_LEROBOT_ZIP_URL.to_string());
             if zip_url.trim().is_empty() {
-                Self::emit_step(emit, "download", "error", Some("Missing lerobot-vulcan zip URL".to_string()));
-                return Err("SOURCCEY_LEROBOT_ZIP_URL is not set. Provide a zip URL for lerobot-vulcan.".to_string());
+                Self::emit_step(
+                    emit,
+                    "download",
+                    "error",
+                    Some("Missing lerobot-vulcan zip URL".to_string()),
+                );
+                return Err(
+                    "SOURCCEY_LEROBOT_ZIP_URL is not set. Provide a zip URL for lerobot-vulcan."
+                        .to_string(),
+                );
             }
 
             fs::create_dir_all(&install_root)
@@ -469,7 +489,12 @@ impl LocalSetupService {
                 );
             }
 
-            Self::emit_step(emit, "extract", "started", Some("Extracting lerobot-vulcan".to_string()));
+            Self::emit_step(
+                emit,
+                "extract",
+                "started",
+                Some("Extracting lerobot-vulcan".to_string()),
+            );
             Self::extract_zip(&zip_path, &install_root).map_err(|e| {
                 Self::emit_step(emit, "extract", "error", Some(e.clone()));
                 e
@@ -477,7 +502,12 @@ impl LocalSetupService {
             Self::emit_step(emit, "extract", "success", None);
 
             if !lerobot_dir.exists() {
-                Self::emit_step(emit, "extract", "error", Some("lerobot-vulcan folder not found after extract".to_string()));
+                Self::emit_step(
+                    emit,
+                    "extract",
+                    "error",
+                    Some("lerobot-vulcan folder not found after extract".to_string()),
+                );
                 return Err(format!(
                     "lerobot-vulcan not found after extracting zip into {:?}",
                     install_root
@@ -498,14 +528,24 @@ impl LocalSetupService {
             );
         }
 
-        Self::emit_step(emit, "uv", "started", Some("Installing uv runtime".to_string()));
+        Self::emit_step(
+            emit,
+            "uv",
+            "started",
+            Some("Installing uv runtime".to_string()),
+        );
         let uv_target = Self::ensure_uv_binary(app_handle, &app_data_dir).map_err(|e| {
             Self::emit_step(emit, "uv", "error", Some(e.clone()));
             e
         })?;
         Self::emit_step(emit, "uv", "success", None);
 
-        Self::emit_step(emit, "venv", "started", Some("Creating virtual environment".to_string()));
+        Self::emit_step(
+            emit,
+            "venv",
+            "started",
+            Some("Creating virtual environment".to_string()),
+        );
         let venv_args = Self::uv_venv_args();
         Self::run_command(&uv_target, &venv_args, &lerobot_dir, "uv venv").map_err(|e| {
             Self::emit_step(emit, "venv", "error", Some(e.clone()));
@@ -513,7 +553,12 @@ impl LocalSetupService {
         })?;
         Self::emit_step(emit, "venv", "success", None);
 
-        Self::emit_step(emit, "deps", "started", Some("Installing dependencies".to_string()));
+        Self::emit_step(
+            emit,
+            "deps",
+            "started",
+            Some("Installing dependencies".to_string()),
+        );
         if let Err(err) = Self::run_command(
             &uv_target,
             &["pip", "install", "-e", ".[sourccey]"],
@@ -522,12 +567,17 @@ impl LocalSetupService {
         ) {
             let lower = err.to_lowercase();
             let is_macos_or_windows = cfg!(target_os = "macos") || cfg!(target_os = "windows");
-            if is_macos_or_windows && (lower.contains("vosk") || lower.contains("no solution found")) {
+            if is_macos_or_windows
+                && (lower.contains("vosk") || lower.contains("no solution found"))
+            {
                 Self::emit_step(
                     emit,
                     "deps",
                     "started",
-                    Some("vosk not available on this platform; installing core dependencies".to_string()),
+                    Some(
+                        "vosk not available on this platform; installing core dependencies"
+                            .to_string(),
+                    ),
                 );
                 Self::run_command(
                     &uv_target,
@@ -555,7 +605,12 @@ impl LocalSetupService {
             .join("protobuf")
             .join("compile.py");
         if compile_script.exists() {
-            Self::emit_step(emit, "protobuf", "started", Some("Compiling protobuf".to_string()));
+            Self::emit_step(
+                emit,
+                "protobuf",
+                "started",
+                Some("Compiling protobuf".to_string()),
+            );
             let compile_script_str = compile_script.to_string_lossy().to_string();
             Self::run_command(
                 &python_path,
@@ -594,7 +649,12 @@ impl LocalSetupService {
                 .show(|_| {});
         }
 
-        Self::emit_step(emit, "complete", "success", Some("Setup complete".to_string()));
+        Self::emit_step(
+            emit,
+            "complete",
+            "success",
+            Some("Setup complete".to_string()),
+        );
 
         Ok(())
     }
@@ -605,7 +665,11 @@ impl LocalSetupService {
         let response = reqwest::blocking::get(&url)
             .map_err(|e| format!("Failed to download updater manifest: {}", e))?;
         if !response.status().is_success() {
-            return Err(format!("Updater manifest download failed ({}): {}", response.status(), url));
+            return Err(format!(
+                "Updater manifest download failed ({}): {}",
+                response.status(),
+                url
+            ));
         }
         let manifest: UpdaterManifest = response
             .json()
@@ -625,7 +689,9 @@ impl LocalSetupService {
             }
         };
 
-        match Self::resolve_latest_tag_with_cache(&mut cache_guard, now, || Self::fetch_latest_lerobot_tag_from_api()) {
+        match Self::resolve_latest_tag_with_cache(&mut cache_guard, now, || {
+            Self::fetch_latest_lerobot_tag_from_api()
+        }) {
             Ok(tag) => tag,
             Err(error) => {
                 eprintln!("[setup] Failed to resolve latest lerobot tag: {}", error);
@@ -665,12 +731,19 @@ impl LocalSetupService {
             .map_err(|e| format!("Failed to create HTTP client for lerobot tags: {}", e))?;
         let response = client
             .get(&url)
-            .header(reqwest::header::USER_AGENT, "VulcanStudio/lerobot-tag-check")
+            .header(
+                reqwest::header::USER_AGENT,
+                "VulcanStudio/lerobot-tag-check",
+            )
             .send()
             .map_err(|e| format!("Failed to download lerobot tags: {}", e))?;
 
         if !response.status().is_success() {
-            return Err(format!("Lerobot tag request failed ({}): {}", response.status(), url));
+            return Err(format!(
+                "Lerobot tag request failed ({}): {}",
+                response.status(),
+                url
+            ));
         }
 
         let payload: serde_json::Value = response
@@ -742,7 +815,11 @@ impl LocalSetupService {
         if segments.next().is_some() {
             return None;
         }
-        Some(SimpleSemver { major, minor, patch })
+        Some(SimpleSemver {
+            major,
+            minor,
+            patch,
+        })
     }
 
     fn normalize_vulcan_tag(tag: &str) -> Option<String> {
@@ -758,7 +835,10 @@ impl LocalSetupService {
 
     fn is_current_tag_up_to_date(current_tag: Option<&str>, latest_tag: Option<&str>) -> bool {
         match (current_tag, latest_tag) {
-            (Some(current), Some(latest)) => match (Self::parse_vulcan_semver(current), Self::parse_vulcan_semver(latest)) {
+            (Some(current), Some(latest)) => match (
+                Self::parse_vulcan_semver(current),
+                Self::parse_vulcan_semver(latest),
+            ) {
                 (Some(current_version), Some(latest_version)) => current_version >= latest_version,
                 _ => current == latest,
             },
@@ -813,7 +893,9 @@ impl LocalSetupService {
 
     fn read_current_lerobot_marker(app_handle: &AppHandle) -> Option<LerobotCommitMarker> {
         let app_data_dir = app_handle.path().app_data_dir().ok()?;
-        let marker_path = app_data_dir.join("setup").join("lerobot_vulcan_commit.json");
+        let marker_path = app_data_dir
+            .join("setup")
+            .join("lerobot_vulcan_commit.json");
         let contents = fs::read_to_string(marker_path).ok()?;
         serde_json::from_str(&contents).ok()
     }
@@ -928,7 +1010,12 @@ impl LocalSetupService {
             Some("lerobot-vulcan already extracted".to_string()),
         );
 
-        Self::emit_step(emit, "uv", "started", Some("Preparing uv runtime".to_string()));
+        Self::emit_step(
+            emit,
+            "uv",
+            "started",
+            Some("Preparing uv runtime".to_string()),
+        );
         let uv_target = Self::ensure_uv_binary(app_handle, &app_data_dir)?;
         Self::emit_step(emit, "uv", "success", None);
 
@@ -939,7 +1026,12 @@ impl LocalSetupService {
             Some("Using existing virtual environment".to_string()),
         );
 
-        Self::emit_step(emit, "deps", "started", Some("Reinstalling dependencies".to_string()));
+        Self::emit_step(
+            emit,
+            "deps",
+            "started",
+            Some("Reinstalling dependencies".to_string()),
+        );
         if let Err(err) = Self::run_command(
             &uv_target,
             &["pip", "install", "-e", ".[sourccey]"],
@@ -948,12 +1040,17 @@ impl LocalSetupService {
         ) {
             let lower = err.to_lowercase();
             let is_macos_or_windows = cfg!(target_os = "macos") || cfg!(target_os = "windows");
-            if is_macos_or_windows && (lower.contains("vosk") || lower.contains("no solution found")) {
+            if is_macos_or_windows
+                && (lower.contains("vosk") || lower.contains("no solution found"))
+            {
                 Self::emit_step(
                     emit,
                     "deps",
                     "started",
-                    Some("vosk not available on this platform; installing core dependencies".to_string()),
+                    Some(
+                        "vosk not available on this platform; installing core dependencies"
+                            .to_string(),
+                    ),
                 );
                 Self::run_command(
                     &uv_target,
@@ -981,7 +1078,12 @@ impl LocalSetupService {
             .join("protobuf")
             .join("compile.py");
         if compile_script.exists() {
-            Self::emit_step(emit, "protobuf", "started", Some("Compiling protobuf".to_string()));
+            Self::emit_step(
+                emit,
+                "protobuf",
+                "started",
+                Some("Compiling protobuf".to_string()),
+            );
             let compile_script_str = compile_script.to_string_lossy().to_string();
             Self::run_command(
                 &python_path,
@@ -1011,7 +1113,12 @@ impl LocalSetupService {
 
         DirectoryService::set_project_root_override(app_data_dir);
 
-        Self::emit_step(emit, "complete", "success", Some("Setup complete".to_string()));
+        Self::emit_step(
+            emit,
+            "complete",
+            "success",
+            Some("Setup complete".to_string()),
+        );
 
         Ok(())
     }
@@ -1084,8 +1191,8 @@ impl LocalSetupService {
             return Err(format!("Download failed ({}): {}", response.status(), url));
         }
 
-        let mut file = fs::File::create(dest)
-            .map_err(|e| format!("Failed to create {:?}: {}", dest, e))?;
+        let mut file =
+            fs::File::create(dest).map_err(|e| format!("Failed to create {:?}: {}", dest, e))?;
         let mut content = io::BufReader::new(response);
         io::copy(&mut content, &mut file)
             .map_err(|e| format!("Failed to write download to {:?}: {}", dest, e))?;
@@ -1138,15 +1245,22 @@ impl LocalSetupService {
 
     fn verify_file_sha256(file_path: &Path, expected_sha256: &str) -> Result<(), String> {
         let normalized_expected = Self::normalize_sha256(expected_sha256)?;
-        let file = fs::File::open(file_path)
-            .map_err(|e| format!("Failed to open {:?} for checksum verification: {}", file_path, e))?;
+        let file = fs::File::open(file_path).map_err(|e| {
+            format!(
+                "Failed to open {:?} for checksum verification: {}",
+                file_path, e
+            )
+        })?;
         let mut reader = io::BufReader::new(file);
         let mut hasher = Sha256::new();
         let mut buf = [0u8; 8192];
         loop {
-            let bytes_read = reader
-                .read(&mut buf)
-                .map_err(|e| format!("Failed to read {:?} during checksum verification: {}", file_path, e))?;
+            let bytes_read = reader.read(&mut buf).map_err(|e| {
+                format!(
+                    "Failed to read {:?} during checksum verification: {}",
+                    file_path, e
+                )
+            })?;
             if bytes_read == 0 {
                 break;
             }
@@ -1165,8 +1279,8 @@ impl LocalSetupService {
     fn extract_zip(zip_path: &Path, target_dir: &Path) -> Result<(), String> {
         let file = fs::File::open(zip_path)
             .map_err(|e| format!("Failed to open {:?}: {}", zip_path, e))?;
-        let mut archive = zip::ZipArchive::new(file)
-            .map_err(|e| format!("Failed to read zip: {}", e))?;
+        let mut archive =
+            zip::ZipArchive::new(file).map_err(|e| format!("Failed to read zip: {}", e))?;
 
         for i in 0..archive.len() {
             let mut entry = archive
@@ -1231,7 +1345,9 @@ impl LocalSetupService {
         }
         candidates.push(PathBuf::from("/usr/local/bin").join(binary_name));
         candidates.push(PathBuf::from("/usr/bin").join(binary_name));
-        candidates.into_iter().find(|path| path.exists() && path.is_file())
+        candidates
+            .into_iter()
+            .find(|path| path.exists() && path.is_file())
     }
 
     fn is_command_usable(exe: &Path, args: &[&str]) -> bool {
@@ -1248,12 +1364,14 @@ impl LocalSetupService {
     #[cfg(unix)]
     fn ensure_executable(path: &Path) -> Result<(), String> {
         use std::os::unix::fs::PermissionsExt;
-        let metadata = fs::metadata(path).map_err(|e| format!("Failed to read uv binary permissions: {}", e))?;
+        let metadata = fs::metadata(path)
+            .map_err(|e| format!("Failed to read uv binary permissions: {}", e))?;
         let mut perms = metadata.permissions();
         let mode = perms.mode();
         if mode & 0o111 == 0 {
             perms.set_mode(mode | 0o755);
-            fs::set_permissions(path, perms).map_err(|e| format!("Failed to set uv binary executable bit: {}", e))?;
+            fs::set_permissions(path, perms)
+                .map_err(|e| format!("Failed to set uv binary executable bit: {}", e))?;
         }
         Ok(())
     }
@@ -1285,7 +1403,10 @@ impl LocalSetupService {
             if !stderr.trim().is_empty() {
                 details.push_str(&format!("\nstderr: {}", stderr.trim()));
             }
-            return Err(format!("uv installer failed with status: {}{}", output.status, details));
+            return Err(format!(
+                "uv installer failed with status: {}{}",
+                output.status, details
+            ));
         }
 
         let uv_path = install_dir.join("uv");
@@ -1350,7 +1471,10 @@ impl LocalSetupService {
             if Self::is_command_usable(&path, &["--version"]) {
                 return Ok(path);
             }
-            return Err(format!("Existing uv binary is not usable: {}", path.display()));
+            return Err(format!(
+                "Existing uv binary is not usable: {}",
+                path.display()
+            ));
         }
 
         let resource_dir = app_handle
@@ -1408,7 +1532,12 @@ impl LocalSetupService {
         }
     }
 
-    fn emit_step(emit: Option<&dyn Fn(SetupProgress)>, step: &str, status: &str, message: Option<String>) {
+    fn emit_step(
+        emit: Option<&dyn Fn(SetupProgress)>,
+        step: &str,
+        status: &str,
+        message: Option<String>,
+    ) {
         if let Some(emit) = emit {
             emit(SetupProgress {
                 step: step.to_string(),
@@ -1423,7 +1552,11 @@ impl LocalSetupService {
             let log_dir = app_data_dir.join("logs");
             if fs::create_dir_all(&log_dir).is_ok() {
                 let log_path = log_dir.join("setup.log");
-                LogService::write_log_line(log_path.to_string_lossy().as_ref(), Some("setup"), message);
+                LogService::write_log_line(
+                    log_path.to_string_lossy().as_ref(),
+                    Some("setup"),
+                    message,
+                );
             }
         }
     }
@@ -1451,7 +1584,10 @@ mod tests {
                 patch: 3
             })
         );
-        assert_eq!(LocalSetupService::parse_vulcan_semver("vulcan/not-semver"), None);
+        assert_eq!(
+            LocalSetupService::parse_vulcan_semver("vulcan/not-semver"),
+            None
+        );
         assert_eq!(LocalSetupService::parse_vulcan_semver("0.1.0"), None);
         assert_eq!(LocalSetupService::parse_vulcan_semver("v0.1.0"), None);
     }

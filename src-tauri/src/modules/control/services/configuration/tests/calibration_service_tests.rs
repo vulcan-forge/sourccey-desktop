@@ -15,7 +15,11 @@ fn exit_status(code: u32) -> std::process::ExitStatus {
 
 fn make_output(success: bool, stdout: &str, stderr: &str) -> Output {
     Output {
-        status: if success { exit_status(0) } else { exit_status(1) },
+        status: if success {
+            exit_status(0)
+        } else {
+            exit_status(1)
+        },
         stdout: stdout.as_bytes().to_vec(),
         stderr: stderr.as_bytes().to_vec(),
     }
@@ -62,4 +66,3 @@ fn validate_calibration_output_rejects_python_thread_traceback() {
     let error = result.err().unwrap_or_default();
     assert!(error.contains("RuntimeError: left arm failed"));
 }
-

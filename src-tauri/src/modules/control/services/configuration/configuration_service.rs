@@ -1,12 +1,11 @@
-
-use crate::modules::control::types::configuration::configuration_types::{
-    Config, ConfigConfig, RemoteConfig,
+use crate::modules::control::controllers::configuration::calibration_controller::{
+    CalibrationConfig, RemoteCalibrationConfig,
 };
 use crate::modules::control::types::configuration::calibration_types::{
-    Calibration, MotorCalibration
+    Calibration, MotorCalibration,
 };
-use crate::modules::control::controllers::configuration::calibration_controller::{
-    CalibrationConfig, RemoteCalibrationConfig
+use crate::modules::control::types::configuration::configuration_types::{
+    Config, ConfigConfig, RemoteConfig,
 };
 use crate::modules::log::services::command_log_service::CommandLogService;
 use crate::services::directory::directory_service::DirectoryService;
@@ -157,7 +156,12 @@ impl ConfigurationService {
         if !output.status.success() {
             let stderr = String::from_utf8_lossy(&output.stderr);
             if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
+                ProcessService::on_process_shutdown(
+                    app_handle,
+                    pid_value,
+                    db_connection,
+                    command_log_id,
+                );
             }
             return Err(format!("Python script failed: {}", stderr));
         }
@@ -168,7 +172,12 @@ impl ConfigurationService {
             .map_err(|e| format!("Failed to parse JSON output: {}", e))?;
 
         if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
+            ProcessService::on_process_shutdown(
+                app_handle,
+                pid_value,
+                db_connection,
+                command_log_id,
+            );
         }
         Ok(com_ports)
     }

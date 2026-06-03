@@ -22,9 +22,7 @@ struct ManualDriveProcessEntry {
 }
 
 #[derive(Clone)]
-pub struct KioskManualDriveProcess(
-    Arc<Mutex<HashMap<String, ManualDriveProcessEntry>>>,
-);
+pub struct KioskManualDriveProcess(Arc<Mutex<HashMap<String, ManualDriveProcessEntry>>>);
 
 pub struct KioskManualDriveService;
 
@@ -61,16 +59,10 @@ impl KioskManualDriveService {
         let python_path = DirectoryService::get_python_path()?;
 
         if !lerobot_dir.exists() {
-            return Err(format!(
-                "LeRobot directory not found at: {:?}",
-                lerobot_dir
-            ));
+            return Err(format!("LeRobot directory not found at: {:?}", lerobot_dir));
         }
         if !python_path.exists() {
-            return Err(format!(
-                "Python executable not found at: {:?}",
-                python_path
-            ));
+            return Err(format!("Python executable not found at: {:?}", python_path));
         }
 
         let udp_port = Self::find_available_udp_port()?;
@@ -152,18 +144,14 @@ impl KioskManualDriveService {
             ));
         }
 
-        state
-            .0
-            .lock()
-            .unwrap()
-            .insert(
-                normalized_nickname.clone(),
-                ManualDriveProcessEntry {
-                    child,
-                    shutdown_flag: shutdown_flag.clone(),
-                    udp_port,
-                },
-            );
+        state.0.lock().unwrap().insert(
+            normalized_nickname.clone(),
+            ManualDriveProcessEntry {
+                child,
+                shutdown_flag: shutdown_flag.clone(),
+                udp_port,
+            },
+        );
 
         let state_for_shutdown = state.0.clone();
         let process_key = normalized_nickname.clone();
@@ -277,7 +265,8 @@ impl KioskManualDriveService {
             pressed_keys: keys,
             sent_at_ms: Self::now_ms(),
         };
-        serde_json::to_string(&packet).map_err(|e| format!("Failed to encode manual drive payload: {}", e))
+        serde_json::to_string(&packet)
+            .map_err(|e| format!("Failed to encode manual drive payload: {}", e))
     }
 
     fn send_control_packet(nickname: &str, keys: Vec<String>, udp_port: u16) -> Result<(), String> {
@@ -358,4 +347,3 @@ impl KioskManualDriveService {
 #[cfg(test)]
 #[path = "tests/manual_drive_service_tests.rs"]
 mod manual_drive_service_tests;
-

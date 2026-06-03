@@ -1,10 +1,8 @@
 use crate::modules::control::services::configuration::calibration_service::CalibrationService;
-use crate::modules::control::types::configuration::calibration_types::{
-    Calibration,
-};
+use crate::modules::control::types::configuration::calibration_types::Calibration;
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager};
 use std::collections::HashMap;
+use tauri::{AppHandle, Manager};
 
 //----------------------------------------------------------//
 // Calibration Functions
@@ -51,18 +49,29 @@ pub struct DesktopTeleopCalibrationStatus {
 }
 
 #[tauri::command]
-pub fn read_calibration(robot_type: String, nickname: String) -> Result<(Calibration, bool), String> {
-    let (calibration, is_calibrated) = CalibrationService::read_calibration(&robot_type, &nickname)?;
+pub fn read_calibration(
+    robot_type: String,
+    nickname: String,
+) -> Result<(Calibration, bool), String> {
+    let (calibration, is_calibrated) =
+        CalibrationService::read_calibration(&robot_type, &nickname)?;
     Ok((calibration, is_calibrated))
 }
 
 #[tauri::command]
-pub fn write_calibration(robot_type: String, nickname: String, calibration: Calibration) -> Result<(), String> {
+pub fn write_calibration(
+    robot_type: String,
+    nickname: String,
+    calibration: Calibration,
+) -> Result<(), String> {
     CalibrationService::write_calibration(&robot_type, &nickname, calibration)
 }
 
 #[tauri::command]
-pub fn get_calibration_modified_at(robot_type: String, nickname: String) -> Result<Option<u64>, String> {
+pub fn get_calibration_modified_at(
+    robot_type: String,
+    nickname: String,
+) -> Result<Option<u64>, String> {
     CalibrationService::get_calibration_modified_at(&robot_type, &nickname)
 }
 

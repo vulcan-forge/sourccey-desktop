@@ -1,9 +1,9 @@
 use crate::modules::control::services::configuration::configuration_service::ConfigurationService;
+use crate::modules::control::types::configuration::calibration_types::{
+    Calibration, MotorCalibration,
+};
 use crate::modules::control::types::configuration::configuration_types::{
     Config, ConfigConfig, RemoteConfig,
-};
-use crate::modules::control::types::configuration::calibration_types::{
-    Calibration, MotorCalibration
 };
 use serde_json::Value;
 use tauri::{AppHandle, Manager};
@@ -40,4 +40,3 @@ pub fn read_remote_config(nickname: String) -> Result<RemoteConfig, String> {
 pub fn write_remote_config(nickname: String, config: RemoteConfig) -> Result<(), String> {
     ConfigurationService::write_remote_config(&nickname, config)
 }
-

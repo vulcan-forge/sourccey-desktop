@@ -37,7 +37,6 @@ impl KioskHostService {
         state: &KioskHostProcess,
         nickname: String,
     ) -> Result<String, String> {
-
         // Check if a process with this nickname is already running
         {
             let processes = state.0.lock().unwrap();
@@ -50,7 +49,7 @@ impl KioskHostService {
                 ));
             }
         }
-        
+
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
         let python_path = DirectoryService::get_python_path()?;
 
@@ -79,8 +78,10 @@ impl KioskHostService {
 
         // Create the command
         let mut cmd = Command::new(&command_parts[0]);
+        let envs = Self::build_envs()?;
         cmd.args(&command_parts[1..])
             .current_dir(&lerobot_dir)
+            .envs(envs)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
 
@@ -168,10 +169,7 @@ impl KioskHostService {
             Some(db_connection),
         );
 
-        Ok(format!(
-            "Robot starting for nickname: {}",
-            nickname
-        ))
+        Ok(format!("Robot starting for nickname: {}", nickname))
     }
 
     pub fn stop_kiosk_host(
@@ -228,12 +226,12 @@ impl KioskHostService {
                 }),
             );
 
-            Ok(format!(
-                "Robot stopping for nickname: {}",
-                nickname
-            ))
+            Ok(format!("Robot stopping for nickname: {}", nickname))
         } else {
-            println!("Checking for external sourccey_host process for nickname: {}", nickname);
+            println!(
+                "Checking for external sourccey_host process for nickname: {}",
+                nickname
+            );
             // Fallback: not tracked in state, but may be running externally on Linux.
             // Find all matching PIDs (command line contains "sourccey_host")
             let output = Command::new("pgrep")
@@ -257,7 +255,10 @@ impl KioskHostService {
                     }),
                 );
 
-                return Err(format!("No kiosk host process found for nickname: {}", nickname));
+                return Err(format!(
+                    "No kiosk host process found for nickname: {}",
+                    nickname
+                ));
             }
 
             // Try graceful stop first, then force
@@ -299,14 +300,58 @@ impl KioskHostService {
         if state.0.lock().unwrap().contains_key(&nickname) {
             return true;
         }
-    
+
         // 2) Externally started (Linux): check for the module name in cmdline
         // Use a specific match to avoid false positives.
         // Example: the module you spawn contains "sourccey_host"
         let status = Command::new("pgrep")
             .args(&["-f", "sourccey_host"])
             .status();
-    
+
         status.map(|s| s.success()).unwrap_or(false)
+    }
+
+    fn build_envs() -> Result<HashMap<String, String>, String> {
+        let mut envs: HashMap<String, String> = std::env::vars().collect();
+        let venv_path = DirectoryService::get_virtual_env_path()?;
+        envs.insert(
+            "VIRTUAL_ENV".to_string(),
+            venv_path.to_string_lossy().to_string(),
+        );
+
+        let venv_bin_path = DirectoryService::get_virtual_env_bin_path()?
+            .display()
+            .to_string();
+        let separator = if cfg!(windows) { ";" } else { ":" };
+        let base_path = std::env::var("PATH").unwrap_or_default();
+        envs.insert(
+            "PATH".to_string(),
+            format!("{}{}{}", venv_bin_path, separator, base_path),
+        );
+
+        let cloud_credentials_path = Self::cloud_device_credentials_path()?;
+        let cloud_credentials_path = cloud_credentials_path.to_string_lossy().to_string();
+        envs.insert(
+            "VULCAN_DEVICE_CREDENTIALS_PATH".to_string(),
+            cloud_credentials_path.clone(),
+        );
+        envs.insert(
+            "SOURCCEY_CLOUD_CREDENTIALS_PATH".to_string(),
+            cloud_credentials_path,
+        );
+
+        if cfg!(target_os = "linux") {
+            envs.entry("DISPLAY".to_string())
+                .or_insert_with(|| ":0".to_string());
+        }
+
+        Ok(envs)
+    }
+
+    fn cloud_device_credentials_path() -> Result<std::path::PathBuf, String> {
+        let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
+        Ok(cache_dir
+            .join("pairing")
+            .join("cloud_device_credentials.json"))
     }
 }

@@ -400,7 +400,9 @@ impl LogService {
             .path()
             .app_data_dir()
             .map_err(|e| format!("Failed to resolve app data dir: {}", e))
-            .or_else(|_| std::env::current_dir().map_err(|e| format!("Failed to resolve cwd: {}", e)))?;
+            .or_else(|_| {
+                std::env::current_dir().map_err(|e| format!("Failed to resolve cwd: {}", e))
+            })?;
         let log_dir = base_dir.join("logs");
         std::fs::create_dir_all(&log_dir)
             .map_err(|e| format!("Failed to create log dir: {}", e))?;
@@ -415,14 +417,19 @@ impl LogService {
         }
 
         let mut removed = 0usize;
-        for entry in std::fs::read_dir(log_dir).map_err(|e| format!("Failed to read log dir: {}", e))? {
+        for entry in
+            std::fs::read_dir(log_dir).map_err(|e| format!("Failed to read log dir: {}", e))?
+        {
             let entry = entry.map_err(|e| format!("Failed to read log dir entry: {}", e))?;
             let path = entry.path();
             if !path.is_file() {
                 continue;
             }
 
-            let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+            let file_name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("");
             if !file_name.ends_with(".log") && !file_name.contains(".log.") {
                 continue;
             }
@@ -451,14 +458,19 @@ impl LogService {
         let mut entries: Vec<(i64, usize, String)> = Vec::new();
         let mut order: usize = 0;
 
-        for entry in std::fs::read_dir(log_dir).map_err(|e| format!("Failed to read log dir: {}", e))? {
+        for entry in
+            std::fs::read_dir(log_dir).map_err(|e| format!("Failed to read log dir: {}", e))?
+        {
             let entry = entry.map_err(|e| format!("Failed to read log dir entry: {}", e))?;
             let path = entry.path();
             if !path.is_file() {
                 continue;
             }
 
-            let file_name = path.file_name().and_then(|name| name.to_str()).unwrap_or("");
+            let file_name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .unwrap_or("");
             if !file_name.contains(".log") {
                 continue;
             }

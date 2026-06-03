@@ -3,8 +3,8 @@ use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-use serde::Serialize;
 use lazy_static::lazy_static;
+use serde::Serialize;
 use tauri::{AppHandle, Emitter};
 
 use crate::services::directory::directory_service::DirectoryService;
@@ -44,8 +44,10 @@ pub struct KioskUpdateStatus {
 }
 
 impl KioskUpdateService {
-    const DEFAULT_KIOSK_APP_TAGS_URL: &str = "https://api.github.com/repos/vulcan-forge/sourccey-desktop/tags?per_page=100";
-    const DEFAULT_KIOSK_LEROBOT_TAGS_URL: &str = "https://api.github.com/repos/vulcan-forge/lerobot-vulcan/tags?per_page=100";
+    const DEFAULT_KIOSK_APP_TAGS_URL: &str =
+        "https://api.github.com/repos/vulcan-forge/sourccey-desktop/tags?per_page=100";
+    const DEFAULT_KIOSK_LEROBOT_TAGS_URL: &str =
+        "https://api.github.com/repos/vulcan-forge/lerobot-vulcan/tags?per_page=100";
     const DEFAULT_KIOSK_APP_TAG_PREFIX: &str = "kiosk/";
     const DEFAULT_KIOSK_LEROBOT_TAG_PREFIX: &str = "vulcan/";
     const TAG_CACHE_TTL: Duration = Duration::from_secs(300);
@@ -343,11 +345,9 @@ impl KioskUpdateService {
             .lock()
             .map_err(|_| "Failed to lock kiosk tag cache".to_string())?;
 
-        Self::resolve_latest_tag_with_cache_entry(
-            &mut cache_guard,
-            now,
-            || Self::fetch_latest_tag_from_api(url_env_key, default_url, prefix),
-        )
+        Self::resolve_latest_tag_with_cache_entry(&mut cache_guard, now, || {
+            Self::fetch_latest_tag_from_api(url_env_key, default_url, prefix)
+        })
     }
 
     fn resolve_latest_tag_with_cache_entry<F>(
@@ -472,17 +472,27 @@ impl KioskUpdateService {
         if parts.next().is_some() {
             return None;
         }
-        Some(SimpleSemver { major, minor, patch })
+        Some(SimpleSemver {
+            major,
+            minor,
+            patch,
+        })
     }
 
-    fn is_current_tag_up_to_date(current: Option<&str>, latest: Option<&str>, prefix: &str) -> bool {
+    fn is_current_tag_up_to_date(
+        current: Option<&str>,
+        latest: Option<&str>,
+        prefix: &str,
+    ) -> bool {
         match (current, latest) {
             (Some(current_tag), Some(latest_tag)) => {
                 match (
                     Self::parse_prefixed_semver(current_tag, prefix),
                     Self::parse_prefixed_semver(latest_tag, prefix),
                 ) {
-                    (Some(current_version), Some(latest_version)) => current_version >= latest_version,
+                    (Some(current_version), Some(latest_version)) => {
+                        current_version >= latest_version
+                    }
                     _ => current_tag == latest_tag,
                 }
             }
@@ -491,7 +501,12 @@ impl KioskUpdateService {
         }
     }
 
-    fn emit_step(emit: Option<&dyn Fn(SetupProgress)>, step: &str, status: &str, message: Option<String>) {
+    fn emit_step(
+        emit: Option<&dyn Fn(SetupProgress)>,
+        step: &str,
+        status: &str,
+        message: Option<String>,
+    ) {
         if let Some(emit) = emit {
             emit(SetupProgress {
                 step: step.to_string(),
@@ -524,9 +539,18 @@ mod tests {
                 patch: 0
             })
         );
-        assert_eq!(KioskUpdateService::parse_prefixed_semver("kiosk/latest", "kiosk/"), None);
-        assert_eq!(KioskUpdateService::parse_prefixed_semver("1.2.3", "kiosk/"), None);
-        assert_eq!(KioskUpdateService::parse_prefixed_semver("v1.2.3", "kiosk/"), None);
+        assert_eq!(
+            KioskUpdateService::parse_prefixed_semver("kiosk/latest", "kiosk/"),
+            None
+        );
+        assert_eq!(
+            KioskUpdateService::parse_prefixed_semver("1.2.3", "kiosk/"),
+            None
+        );
+        assert_eq!(
+            KioskUpdateService::parse_prefixed_semver("v1.2.3", "kiosk/"),
+            None
+        );
     }
 
     #[test]
@@ -593,11 +617,12 @@ mod tests {
         let start = Instant::now();
         let mut calls = 0;
 
-        let first = KioskUpdateService::resolve_latest_tag_with_cache_entry(&mut cache, start, || {
-            calls += 1;
-            Ok(Some("kiosk/1.0.0".to_string()))
-        })
-        .expect("first call should succeed");
+        let first =
+            KioskUpdateService::resolve_latest_tag_with_cache_entry(&mut cache, start, || {
+                calls += 1;
+                Ok(Some("kiosk/1.0.0".to_string()))
+            })
+            .expect("first call should succeed");
         assert_eq!(first, Some("kiosk/1.0.0".to_string()));
         assert_eq!(calls, 1);
 
