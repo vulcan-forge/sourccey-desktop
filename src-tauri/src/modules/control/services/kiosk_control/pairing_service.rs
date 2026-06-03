@@ -470,6 +470,29 @@ impl KioskPairingService {
             }),
         }
     }
+
+    pub fn should_refresh_cloud_pairing_before_host_start() -> Result<bool, String> {
+        if Self::cloud_device_credentials_file_path()?.exists() {
+            return Ok(false);
+        }
+
+        let persisted = Self::load_persisted_cloud_pairing_state().unwrap_or_default();
+
+        let has_active_session = persisted
+            .active_session_id
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|value| !value.is_empty());
+        let has_pairing_code = persisted
+            .pairing_code
+            .as_deref()
+            .map(str::trim)
+            .is_some_and(|value| !value.is_empty());
+        let has_pending_status = matches!(persisted.status.as_deref(), Some("pending"));
+
+        Ok(has_active_session || has_pairing_code || has_pending_status)
+    }
+
     pub fn discover_pairable_robots(timeout_ms: u64) -> Result<Vec<DiscoveredKioskRobot>, String> {
         let socket = UdpSocket::bind(("0.0.0.0", 0))
             .map_err(|e| format!("Failed to bind discovery client socket: {}", e))?;
