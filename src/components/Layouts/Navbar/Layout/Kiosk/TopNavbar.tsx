@@ -17,7 +17,13 @@ import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiMod
 import { useRobotStatus } from '@/context/robot-status-context';
 import { CredentialsModal } from '@/components/Elements/Modals/KioskRobotModals/CredentialsModal';
 import { RobotStatusModal } from '@/components/Elements/Modals/KioskRobotModals/RobotStatusModal';
-import { calculateBatteryPercent, getBatteryLevelStep, setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import {
+    calculateBatteryPercent,
+    getBatteryLevelStep,
+    setSystemInfo,
+    useGetSystemInfo,
+    type BatteryData,
+} from '@/hooks/System/system-info.hook';
 import { exit } from '@tauri-apps/plugin-process';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
@@ -115,15 +121,12 @@ export const KioskTopNavbar = () => {
                         </span>
                     </Link>
 
-                    {isDevMode && (
-                        <span className="ml-3 inline-flex items-center rounded-full border border-amber-400/60 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-amber-200">
-                            DEV MODE
-                        </span>
-                    )}
-
                     <div className="grow" />
 
                     <div className="ml-auto flex items-center gap-4">
+                        <span className="ml-3 inline-flex items-center rounded-full border border-amber-400/60 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-amber-200">
+                            DEV MODE
+                        </span>
                         {isDevMode && (
                             <button
                                 onClick={async () => {
@@ -210,5 +213,3 @@ export const KioskTopNavbar = () => {
         </nav>
     );
 };
-
-
