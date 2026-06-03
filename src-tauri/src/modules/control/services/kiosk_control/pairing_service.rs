@@ -176,6 +176,12 @@ struct KioskPairingRuntimeState {
 
 pub struct KioskPairingService;
 
+enum ClaimedCloudPairingValidation {
+    Valid,
+    Invalid,
+    Unknown(String),
+}
+
 impl KioskPairingService {
     pub fn register_kiosk_runtime(app_handle: AppHandle) {
         if KIOSK_APP_HANDLE.set(app_handle).is_err() {
@@ -326,19 +332,43 @@ impl KioskPairingService {
         persisted.robot_model_name = Some(robot_model_name.clone());
 
         if persisted.status.as_deref() == Some("claimed") && persisted.owned_robot_id.is_some() {
-            let _ = Self::save_persisted_cloud_pairing_state(&persisted);
-            let _ = Self::sync_cloud_device_credentials(&persisted);
-            return Ok(KioskCloudPairingInfo {
-                relay_base_url,
-                device_id,
-                robot_model_name,
-                pairing_code: None,
-                expires_at_ms: None,
-                status: "claimed".to_string(),
-                owned_robot_id: persisted.owned_robot_id.clone(),
-                claimed_at_ms: persisted.claimed_at_ms,
-                error_message: None,
-            });
+            match Self::validate_claimed_cloud_pairing(&persisted) {
+                ClaimedCloudPairingValidation::Valid => {
+                    let _ = Self::save_persisted_cloud_pairing_state(&persisted);
+                    let _ = Self::sync_cloud_device_credentials(&persisted);
+                    return Ok(KioskCloudPairingInfo {
+                        relay_base_url,
+                        device_id,
+                        robot_model_name,
+                        pairing_code: None,
+                        expires_at_ms: None,
+                        status: "claimed".to_string(),
+                        owned_robot_id: persisted.owned_robot_id.clone(),
+                        claimed_at_ms: persisted.claimed_at_ms,
+                        error_message: None,
+                    });
+                }
+                ClaimedCloudPairingValidation::Invalid => {
+                    Self::reset_claimed_cloud_pairing_state(&mut persisted, &relay_base_url, &robot_model_name);
+                    let _ = Self::delete_cloud_device_credentials();
+                    let _ = Self::save_persisted_cloud_pairing_state(&persisted);
+                }
+                ClaimedCloudPairingValidation::Unknown(error) => {
+                    let _ = Self::save_persisted_cloud_pairing_state(&persisted);
+                    let _ = Self::sync_cloud_device_credentials(&persisted);
+                    return Ok(KioskCloudPairingInfo {
+                        relay_base_url,
+                        device_id,
+                        robot_model_name,
+                        pairing_code: None,
+                        expires_at_ms: None,
+                        status: "claimed".to_string(),
+                        owned_robot_id: persisted.owned_robot_id.clone(),
+                        claimed_at_ms: persisted.claimed_at_ms,
+                        error_message: Some(error),
+                    });
+                }
+            }
         }
 
         if let Some(session_id) = persisted
@@ -1638,6 +1668,82 @@ snapshot_download(
             .map_err(|e| format!("Failed to parse relay bootstrap status response: {}", e))
     }
 
+    fn validate_claimed_cloud_pairing(
+        state: &PersistedCloudPairingState,
+    ) -> ClaimedCloudPairingValidation {
+        let relay_base_url = state
+            .relay_base_url
+            .clone()
+            .map(|value| value.trim().trim_end_matches('/').to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(Self::cloud_pairing_base_url);
+        let Some(device_auth_token) = state
+            .device_auth_token
+            .clone()
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty())
+        else {
+            return ClaimedCloudPairingValidation::Invalid;
+        };
+
+        let client = match reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(5))
+            .build()
+        {
+            Ok(client) => client,
+            Err(error) => {
+                return ClaimedCloudPairingValidation::Unknown(format!(
+                    "Failed to create cloud pairing validation client: {}",
+                    error
+                ));
+            }
+        };
+
+        let response = match client
+            .get(format!(
+                "{}/api/v1/robot/session/active",
+                relay_base_url
+            ))
+            .bearer_auth(device_auth_token)
+            .send()
+        {
+            Ok(response) => response,
+            Err(error) => {
+                return ClaimedCloudPairingValidation::Unknown(format!(
+                    "Failed to validate claimed cloud pairing: {}",
+                    error
+                ));
+            }
+        };
+
+        match response.status() {
+            reqwest::StatusCode::UNAUTHORIZED | reqwest::StatusCode::FORBIDDEN => {
+                ClaimedCloudPairingValidation::Invalid
+            }
+            status if status.is_server_error() => ClaimedCloudPairingValidation::Unknown(format!(
+                "Cloud pairing validation returned {}",
+                status
+            )),
+            _ => ClaimedCloudPairingValidation::Valid,
+        }
+    }
+
+    fn reset_claimed_cloud_pairing_state(
+        state: &mut PersistedCloudPairingState,
+        relay_base_url: &str,
+        robot_model_name: &str,
+    ) {
+        state.active_session_id = None;
+        state.pairing_code = None;
+        state.expires_at_ms = None;
+        state.owned_robot_id = None;
+        state.claimed_at_ms = None;
+        state.status = None;
+        state.relay_base_url = Some(relay_base_url.to_string());
+        state.robot_model_name = Some(robot_model_name.to_string());
+        state.device_auth_token = None;
+    }
+
     fn cloud_pairing_base_url() -> String {
         std::env::var("VULCAN_CLOUD_PAIRING_BASE_URL")
             .ok()
@@ -1813,6 +1919,20 @@ snapshot_download(
         }
 
         Ok(())
+    }
+
+    fn delete_cloud_device_credentials() -> Result<(), String> {
+        let credentials_path = Self::cloud_device_credentials_file_path()?;
+        if !credentials_path.exists() {
+            return Ok(());
+        }
+
+        fs::remove_file(&credentials_path).map_err(|e| {
+            format!(
+                "Failed to delete cloud device credentials file {:?}: {}",
+                credentials_path, e
+            )
+        })
     }
 
     fn cloud_device_credentials_file_path() -> Result<std::path::PathBuf, String> {
