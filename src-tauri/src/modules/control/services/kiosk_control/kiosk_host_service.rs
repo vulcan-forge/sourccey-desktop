@@ -51,13 +51,11 @@ impl KioskHostService {
         }
 
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
-
-        // Prepare a debug-friendly string before moving/borrowing the path
-        let python_path_str = python_path.to_string_lossy().to_string();
-
-        // Use the real host command - use the virtual environment's python directly
-        let mut command_parts = vec![python_path.to_string_lossy().to_string()];
+        // Launch through uv so kiosk starts use the same project/runtime resolution
+        // as the manual host command developers use locally.
+        let mut command_parts = vec!["uv".to_string()];
+        command_parts.push("run".to_string());
+        command_parts.push("python".to_string());
         command_parts.push("-u".to_string());
         command_parts.push("-m".to_string());
         command_parts.push("lerobot.robots.sourccey.sourccey.sourccey.sourccey_host".to_string());
@@ -89,8 +87,8 @@ impl KioskHostService {
         let mut child = cmd.spawn()
             .map_err(|e| {
                 let error_msg = format!(
-                    "Failed to start kiosk host process: {}. Command: {:?}, Working dir: {:?}, Python path: {}",
-                    e, command_parts, lerobot_dir, python_path_str
+                    "Failed to start kiosk host process: {}. Command: {:?}, Working dir: {:?}",
+                    e, command_parts, lerobot_dir
                 );
                 Self::debug_emit(&app_handle, &format!("Failed to spawn host process: {}", error_msg));
                 error_msg
@@ -314,6 +312,7 @@ impl KioskHostService {
     fn build_envs() -> Result<HashMap<String, String>, String> {
         let mut envs: HashMap<String, String> = std::env::vars().collect();
         let venv_path = DirectoryService::get_virtual_env_path()?;
+        let lerobot_src_path = DirectoryService::get_lerobot_vulcan_dir()?.join("src");
         envs.insert(
             "VIRTUAL_ENV".to_string(),
             venv_path.to_string_lossy().to_string(),
@@ -328,6 +327,15 @@ impl KioskHostService {
             "PATH".to_string(),
             format!("{}{}{}", venv_bin_path, separator, base_path),
         );
+
+        let lerobot_src = lerobot_src_path.to_string_lossy().to_string();
+        let base_python_path = std::env::var("PYTHONPATH").unwrap_or_default();
+        let python_path = if base_python_path.is_empty() {
+            lerobot_src
+        } else {
+            format!("{}{}{}", lerobot_src, separator, base_python_path)
+        };
+        envs.insert("PYTHONPATH".to_string(), python_path);
 
         let cloud_credentials_path = Self::cloud_device_credentials_path()?;
         let cloud_credentials_path = cloud_credentials_path.to_string_lossy().to_string();
