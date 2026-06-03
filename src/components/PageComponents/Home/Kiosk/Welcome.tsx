@@ -39,7 +39,7 @@ export const HomeWelcome = () => {
     const robotType = 'Sourccey';
     const { data: systemInfo }: any = useGetSystemInfo();
     const [cloudPairing, setCloudPairing] = useState<KioskCloudPairingInfo | null>(null);
-    const [isLoadingCloudPairing, setIsLoadingCloudPairing] = useState(true);
+    const [isLoadingCloudPairing, setIsLoadingCloudPairing] = useState(false);
     const [nowMs, setNowMs] = useState(() => Date.now());
 
     const fetchSystemInfo = useCallback(async () => {
@@ -287,4 +287,5 @@ export const HomeWelcome = () => {
         </>
     );
 };
+
 
