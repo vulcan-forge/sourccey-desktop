@@ -7,11 +7,13 @@ import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
 
 export const useKioskRobotStartStop = (nickname: string) => {
     const POST_STOP_TAP_GUARD_MS = 800;
+    const ACTIVE_START_CONFIRM_MS = 5000;
     const { isRobotStarted, setIsRobotStarted } = useRobotStatus();
     const [isStarting, setIsStarting] = useState(false);
     const [isStopping, setIsStopping] = useState(false);
     const stopActionLockRef = useRef(false);
     const postStopGuardUntilRef = useRef(0);
+    const startRequestedAtRef = useRef(0);
     const lastToastMessageRef = useRef<string | null>(null);
     const suppressAutoStartingRef = useRef(false);
     const hasConfirmedStartRef = useRef(false);
@@ -22,6 +24,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
         setIsStarting(false);
         setIsRobotStarted(false);
         hasConfirmedStartRef.current = false;
+        startRequestedAtRef.current = 0;
         postStopGuardUntilRef.current = Date.now() + POST_STOP_TAP_GUARD_MS;
     };
 
@@ -97,6 +100,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
             setIsStopping(false);
             setIsRobotStarted(false);
             hasConfirmedStartRef.current = false;
+            startRequestedAtRef.current = Date.now();
         });
 
         const unlistenStopRobot = kioskEventManager.listenStopRobot((payload) => {
@@ -137,12 +141,14 @@ export const useKioskRobotStartStop = (nickname: string) => {
                 setIsRobotStarted(true);
                 setIsStarting(false);
                 setIsStopping(false);
+                startRequestedAtRef.current = 0;
                 toast.success(status.message, { ...toastSuccessDefaults });
             } else {
                 if (!hasConfirmedStartRef.current) {
                     suppressAutoStartingRef.current = true;
                     setIsRobotStarted(false);
                     setIsStarting(false);
+                    startRequestedAtRef.current = 0;
 
                     console.error('Robot start error log:', line);
                     toast.error(status.message, { ...toastErrorDefaults });
@@ -179,6 +185,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
                 if (!active) {
                     suppressAutoStartingRef.current = false;
                     hasConfirmedStartRef.current = false;
+                    startRequestedAtRef.current = 0;
                     if (isRobotStarted || isStarting) {
                         setIsStarting(false);
                         setIsRobotStarted(false);
@@ -192,6 +199,19 @@ export const useKioskRobotStartStop = (nickname: string) => {
                 }
 
                 if (!isRobotStarted && !isStopping && !suppressAutoStartingRef.current) {
+                    const hasPendingManualStart = startRequestedAtRef.current > 0;
+                    const hasWaitedLongEnough =
+                        hasPendingManualStart &&
+                        Date.now() - startRequestedAtRef.current >= ACTIVE_START_CONFIRM_MS;
+
+                    if (hasWaitedLongEnough || !hasPendingManualStart) {
+                        hasConfirmedStartRef.current = true;
+                        startRequestedAtRef.current = 0;
+                        setIsStarting(false);
+                        setIsRobotStarted(true);
+                        return;
+                    }
+
                     setIsStarting(true);
                 }
             } catch {
@@ -200,6 +220,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
                     setIsStarting(false);
                     setIsStopping(false);
                     setIsRobotStarted(false);
+                    startRequestedAtRef.current = 0;
                 }
             }
         };
@@ -221,6 +242,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
         setIsRobotStarted(false);
         suppressAutoStartingRef.current = false;
         hasConfirmedStartRef.current = false;
+        startRequestedAtRef.current = Date.now();
         lastToastMessageRef.current = 'Robot is starting...';
         toast.info('Robot is starting...', { ...toastInfoDefaults });
 
@@ -229,6 +251,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
         } catch (error: any) {
             setIsRobotStarted(false);
             setIsStarting(false);
+            startRequestedAtRef.current = 0;
 
             console.error('Failed to start robot:', error);
             toast.error('Failed to start robot. Check connection and try again.', { ...toastErrorDefaults });
