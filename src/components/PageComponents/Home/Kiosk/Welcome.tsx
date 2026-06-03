@@ -255,7 +255,11 @@ export const HomeWelcome = () => {
                         </div>
                     </div>
                 ) : (
-                    <div className="space-y-4">`n                        <div className="inline-flex items-center gap-2 rounded-full bg-sky-500/10 px-3 py-1 text-sm font-semibold text-sky-200">`n                            <FaCloud className="h-4 w-4" />`n                            Registration in progress`n                        </div>
+                    <div className="space-y-4">
+                        <div className="inline-flex items-center gap-2 rounded-full bg-sky-500/10 px-3 py-1 text-sm font-semibold text-sky-200">
+                            <FaCloud className="h-4 w-4" />
+                            Registration in progress
+                        </div>
                         <div className="text-sm text-slate-300">
                             Open <span className="font-semibold text-white">{cloudPairing?.relayBaseUrl || 'studio.vulcanrobotics.ai'}</span>, sign in,
                             and enter this pairing code.
@@ -279,4 +283,5 @@ export const HomeWelcome = () => {
         </>
     );
 };
+
 
