@@ -21,7 +21,7 @@ const PAIRING_CODE_TTL_MS: u64 = 10 * 60 * 1000; // 10 minutes
 const PAIRING_STATE_FILE_NAME: &str = "pairing_state.json";
 const CLOUD_PAIRING_STATE_FILE_NAME: &str = "cloud_pairing_state.json";
 const CLOUD_DEVICE_CREDENTIALS_FILE_NAME: &str = "cloud_device_credentials.json";
-const DEFAULT_CLOUD_PAIRING_BASE_URL: &str = "https://studio.vulcanrobotics.ai";
+const DEFAULT_CLOUD_PAIRING_BASE_URL: &str = "http://192.168.1.220:5200";
 static KIOSK_APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize, Default)]
