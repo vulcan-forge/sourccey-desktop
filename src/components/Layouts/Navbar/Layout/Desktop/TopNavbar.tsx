@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import Image from 'next/image';
 import Link from 'next/link';
@@ -112,6 +112,7 @@ export const DesktopTopNavbar = () => {
 
     const isAuthenticated = Boolean(authSession?.isAuthenticated && authSession?.accountId);
     const isAccountPage = pathname?.startsWith('/desktop/account');
+    const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -129,6 +130,12 @@ export const DesktopTopNavbar = () => {
                             Vulcan Studio
                         </span>
                     </Link>
+
+                    {isDevMode && (
+                        <span className="ml-3 inline-flex items-center rounded-full border border-amber-400/60 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-amber-200">
+                            DEV MODE
+                        </span>
+                    )}
 
                     <div className="grow" />
 
@@ -190,3 +197,7 @@ export const DesktopTopNavbar = () => {
         </nav>
     );
 };
+
+
+
+
