@@ -1,4 +1,4 @@
-use crate::modules::control::services::kiosk_control::pairing_service::{
+﻿use crate::modules::control::services::kiosk_control::pairing_service::{
     DiscoveredKioskRobot, KioskCloudPairingInfo, KioskPairingInfo, KioskPairingService, KioskPairingState,
     PairWithKioskResult, DEFAULT_SERVICE_PORT,
 };
@@ -56,6 +56,11 @@ pub fn remove_paired_robot_connection(nickname: String) -> Result<(), String> {
 #[command]
 pub fn get_kiosk_pairing_info(state: State<'_, KioskPairingState>) -> Result<KioskPairingInfo, String> {
     KioskPairingService::get_kiosk_pairing_info(state.inner().clone())
+}
+
+#[command]
+pub fn get_kiosk_cloud_pairing_info(state: State<'_, KioskPairingState>) -> Result<KioskCloudPairingInfo, String> {
+    KioskPairingService::get_kiosk_cloud_pairing_info(state.inner().clone())
 }
 
 #[command]
@@ -221,5 +226,8 @@ fn save_desktop_paired_connections(connections: &HashMap<String, DesktopPairedRo
 
     Ok(())
 }
+
+
+
 
 

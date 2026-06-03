@@ -1,4 +1,4 @@
-use crate::services::directory::directory_service::DirectoryService;
+﻿use crate::services::directory::directory_service::DirectoryService;
 use crate::services::log::log_service::LogService;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -18,7 +18,9 @@ const DISCOVERY_MAGIC: &str = "SOURCCEY_DISCOVER_V1";
 pub const DISCOVERY_PORT: u16 = 42111;
 pub const DEFAULT_SERVICE_PORT: u16 = 42112;
 const PAIRING_CODE_TTL_MS: u64 = 10 * 60 * 1000; // 10 minutes
-const PAIRING_STATE_FILE_NAME: &str = "pairing_state.json";`r`nconst CLOUD_PAIRING_STATE_FILE_NAME: &str = "cloud_pairing_state.json";`r`nconst DEFAULT_CLOUD_PAIRING_BASE_URL: &str = "https://studio.vulcanrobotics.ai";
+const PAIRING_STATE_FILE_NAME: &str = "pairing_state.json";
+const CLOUD_PAIRING_STATE_FILE_NAME: &str = "cloud_pairing_state.json";
+const DEFAULT_CLOUD_PAIRING_BASE_URL: &str = "https://studio.vulcanrobotics.ai";
 static KIOSK_APP_HANDLE: OnceLock<AppHandle> = OnceLock::new();
 
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -47,6 +49,7 @@ pub struct KioskPairingInfo {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
 pub struct KioskCloudPairingInfo {
     pub relay_base_url: String,
     pub device_id: String,
@@ -283,6 +286,151 @@ impl KioskPairingService {
         })
     }
 
+    pub fn get_kiosk_cloud_pairing_info(state: KioskPairingState) -> Result<KioskCloudPairingInfo, String> {
+        let relay_base_url = Self::cloud_pairing_base_url();
+        let mut persisted = Self::load_persisted_cloud_pairing_state().unwrap_or_default();
+
+        let (robot_model_name, default_nickname) = {
+            let runtime = state
+                .inner
+                .lock()
+                .map_err(|_| "Failed to lock pairing state".to_string())?;
+            (runtime.robot_type.clone(), runtime.nickname.clone())
+        };
+
+        let device_id = persisted
+            .device_id
+            .clone()
+            .filter(|value| !value.trim().is_empty())
+            .unwrap_or_else(|| Uuid::now_v7().to_string());
+        persisted.device_id = Some(device_id.clone());
+
+        if persisted.status.as_deref() == Some("claimed") && persisted.owned_robot_id.is_some() {
+            let _ = Self::save_persisted_cloud_pairing_state(&persisted);
+            return Ok(KioskCloudPairingInfo {
+                relay_base_url,
+                device_id,
+                robot_model_name,
+                pairing_code: None,
+                expires_at_ms: None,
+                status: "claimed".to_string(),
+                owned_robot_id: persisted.owned_robot_id.clone(),
+                claimed_at_ms: persisted.claimed_at_ms,
+                error_message: None,
+            });
+        }
+
+        if let Some(session_id) = persisted.active_session_id.clone().filter(|value| !value.trim().is_empty()) {
+            match Self::fetch_cloud_bootstrap_status(&relay_base_url, &session_id, &device_id) {
+                Ok(status_response) => {
+                    persisted.status = Some(status_response.status.clone());
+                    persisted.owned_robot_id = status_response.owned_robot_id.clone();
+                    persisted.claimed_at_ms = status_response
+                        .claimed_at_utc
+                        .as_deref()
+                        .and_then(Self::parse_utc_to_ms);
+                    persisted.expires_at_ms = status_response
+                        .expires_at_utc
+                        .as_deref()
+                        .and_then(Self::parse_utc_to_ms);
+
+                    if status_response.status == "claimed" {
+                        persisted.pairing_code = None;
+                    } else if status_response.status != "pending" {
+                        persisted.active_session_id = None;
+                        persisted.pairing_code = None;
+                        persisted.expires_at_ms = None;
+                    }
+
+                    let _ = Self::save_persisted_cloud_pairing_state(&persisted);
+
+                    if status_response.status == "pending" || status_response.status == "claimed" {
+                        return Ok(KioskCloudPairingInfo {
+                            relay_base_url,
+                            device_id,
+                            robot_model_name,
+                            pairing_code: persisted.pairing_code.clone(),
+                            expires_at_ms: persisted.expires_at_ms,
+                            status: status_response.status,
+                            owned_robot_id: persisted.owned_robot_id.clone(),
+                            claimed_at_ms: persisted.claimed_at_ms,
+                            error_message: status_response.error.map(|error| format!("{} ({})", error.message, error.code)),
+                        });
+                    }
+                }
+                Err(error) => {
+                    return Ok(KioskCloudPairingInfo {
+                        relay_base_url,
+                        device_id,
+                        robot_model_name,
+                        pairing_code: persisted.pairing_code.clone(),
+                        expires_at_ms: persisted.expires_at_ms,
+                        status: persisted.status.clone().unwrap_or_else(|| "error".to_string()),
+                        owned_robot_id: persisted.owned_robot_id.clone(),
+                        claimed_at_ms: persisted.claimed_at_ms,
+                        error_message: Some(error),
+                    });
+                }
+            }
+        }
+
+        match Self::start_cloud_bootstrap(
+            &relay_base_url,
+            &device_id,
+            &robot_model_name,
+            Some(default_nickname.as_str()),
+            None,
+            None,
+        ) {
+            Ok(start_response) => {
+                persisted.active_session_id = if start_response.session_id.trim().is_empty() {
+                    None
+                } else {
+                    Some(start_response.session_id.clone())
+                };
+                persisted.pairing_code = start_response.pairing_code.clone();
+                persisted.expires_at_ms = start_response
+                    .expires_at_utc
+                    .as_deref()
+                    .and_then(Self::parse_utc_to_ms);
+                persisted.status = Some(start_response.status.clone());
+                persisted.owned_robot_id = start_response.owned_robot_id.clone();
+                persisted.claimed_at_ms = start_response
+                    .claimed_at_utc
+                    .as_deref()
+                    .and_then(Self::parse_utc_to_ms);
+
+                if start_response.status == "claimed" {
+                    persisted.pairing_code = None;
+                }
+
+                let _ = Self::save_persisted_cloud_pairing_state(&persisted);
+
+                Ok(KioskCloudPairingInfo {
+                    relay_base_url,
+                    device_id,
+                    robot_model_name,
+                    pairing_code: persisted.pairing_code.clone(),
+                    expires_at_ms: persisted.expires_at_ms,
+                    status: start_response.status,
+                    owned_robot_id: persisted.owned_robot_id.clone(),
+                    claimed_at_ms: persisted.claimed_at_ms,
+                    error_message: start_response.error.map(|error| format!("{} ({})", error.message, error.code)),
+                })
+            }
+            Err(error) => Ok(KioskCloudPairingInfo {
+                relay_base_url,
+                device_id,
+                robot_model_name,
+                pairing_code: persisted.pairing_code.clone(),
+                expires_at_ms: persisted.expires_at_ms,
+                status: persisted.status.clone().unwrap_or_else(|| "error".to_string()),
+                owned_robot_id: persisted.owned_robot_id.clone(),
+                claimed_at_ms: persisted.claimed_at_ms,
+                error_message: Some(error),
+            }),
+        }
+    }
     pub fn discover_pairable_robots(timeout_ms: u64) -> Result<Vec<DiscoveredKioskRobot>, String> {
         let socket = UdpSocket::bind(("0.0.0.0", 0))
             .map_err(|e| format!("Failed to bind discovery client socket: {}", e))?;
@@ -1299,6 +1447,130 @@ snapshot_download(
         Ok(())
     }
 
+    fn start_cloud_bootstrap(
+        relay_base_url: &str,
+        device_id: &str,
+        robot_model_name: &str,
+        default_nickname: Option<&str>,
+        agent_version: Option<&str>,
+        last_known_address: Option<&str>,
+    ) -> Result<RelayBootstrapStartResponse, String> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .map_err(|e| format!("Failed to create relay bootstrap client: {}", e))?;
+
+        let request = RelayBootstrapStartRequest {
+            device_id: device_id.to_string(),
+            robot_model_name: robot_model_name.to_string(),
+            default_nickname: default_nickname
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+            agent_version: agent_version
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+            last_known_address: last_known_address
+                .map(|value| value.trim().to_string())
+                .filter(|value| !value.is_empty()),
+        };
+
+        let response = client
+            .post(format!("{}/api/v1/robot/bootstrap/start", relay_base_url))
+            .json(&request)
+            .send()
+            .map_err(|e| format!("Failed to start cloud pairing bootstrap: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("Relay bootstrap request failed ({})", response.status()));
+        }
+
+        response
+            .json::<RelayBootstrapStartResponse>()
+            .map_err(|e| format!("Failed to parse relay bootstrap response: {}", e))
+    }
+
+    fn fetch_cloud_bootstrap_status(
+        relay_base_url: &str,
+        session_id: &str,
+        device_id: &str,
+    ) -> Result<RelayBootstrapStatusResponse, String> {
+        let client = reqwest::blocking::Client::builder()
+            .timeout(Duration::from_secs(10))
+            .build()
+            .map_err(|e| format!("Failed to create relay bootstrap status client: {}", e))?;
+
+        let response = client
+            .get(format!(
+                "{}/api/v1/robot/bootstrap/{}?device_id={}",
+                relay_base_url,
+                session_id,
+                device_id
+            ))
+            .send()
+            .map_err(|e| format!("Failed to fetch cloud pairing status: {}", e))?;
+
+        if !response.status().is_success() {
+            return Err(format!("Relay bootstrap status request failed ({})", response.status()));
+        }
+
+        response
+            .json::<RelayBootstrapStatusResponse>()
+            .map_err(|e| format!("Failed to parse relay bootstrap status response: {}", e))
+    }
+
+    fn cloud_pairing_base_url() -> String {
+        std::env::var("VULCAN_CLOUD_PAIRING_BASE_URL")
+            .ok()
+            .map(|value| value.trim().trim_end_matches('/').to_string())
+            .filter(|value| !value.is_empty())
+            .unwrap_or_else(|| DEFAULT_CLOUD_PAIRING_BASE_URL.to_string())
+    }
+
+    fn parse_utc_to_ms(value: &str) -> Option<u64> {
+        DateTime::parse_from_rfc3339(value)
+            .ok()
+            .and_then(|date_time| u64::try_from(date_time.timestamp_millis()).ok())
+    }
+
+    fn load_persisted_cloud_pairing_state() -> Result<PersistedCloudPairingState, String> {
+        let state_path = Self::cloud_pairing_state_file_path()?;
+        if !state_path.exists() {
+            return Ok(PersistedCloudPairingState::default());
+        }
+
+        let content = fs::read_to_string(&state_path)
+            .map_err(|e| format!("Failed to read cloud pairing state file {:?}: {}", state_path, e))?;
+        serde_json::from_str::<PersistedCloudPairingState>(&content)
+            .map_err(|e| format!("Failed to parse cloud pairing state file {:?}: {}", state_path, e))
+    }
+
+    fn save_persisted_cloud_pairing_state(state: &PersistedCloudPairingState) -> Result<(), String> {
+        let state_path = Self::cloud_pairing_state_file_path()?;
+        if let Some(parent) = state_path.parent() {
+            fs::create_dir_all(parent)
+                .map_err(|e| format!("Failed to create cloud pairing state directory {:?}: {}", parent, e))?;
+        }
+
+        let serialized = serde_json::to_string_pretty(state)
+            .map_err(|e| format!("Failed to encode cloud pairing state: {}", e))?;
+        fs::write(&state_path, serialized)
+            .map_err(|e| format!("Failed to write cloud pairing state file {:?}: {}", state_path, e))?;
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let perms = fs::Permissions::from_mode(0o600);
+            fs::set_permissions(&state_path, perms)
+                .map_err(|e| format!("Failed to secure cloud pairing state file {:?}: {}", state_path, e))?;
+        }
+
+        Ok(())
+    }
+
+    fn cloud_pairing_state_file_path() -> Result<std::path::PathBuf, String> {
+        let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
+        Ok(cache_dir.join("pairing").join(CLOUD_PAIRING_STATE_FILE_NAME))
+    }
     fn refresh_pairing_code_if_needed(runtime: &mut KioskPairingRuntimeState) {
         if Self::now_ms() >= runtime.pairing_code_expires_at_ms {
             runtime.pairing_code = Self::generate_pairing_code();
@@ -1384,5 +1656,7 @@ snapshot_download(
         Ok(base_dir.join("logs").join("pairing.log"))
     }
 }
+
+
 
 

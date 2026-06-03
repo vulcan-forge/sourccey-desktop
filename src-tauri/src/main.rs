@@ -1,4 +1,4 @@
-// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+﻿// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(unused_imports)]
 
@@ -218,7 +218,7 @@ async fn desktop_update_check(app: tauri::AppHandle) -> Result<DesktopUpdateStat
 
 #[tauri::command]
 async fn debug_check_updates(app: tauri::AppHandle) -> Result<String, String> {
-    println!("🔍 Debug: Starting update check...");
+    println!("ðŸ” Debug: Starting update check...");
 
     // In Tauri v2, we need to use the updater plugin differently
     // The updater plugin provides a check function that we can call
@@ -226,22 +226,22 @@ async fn debug_check_updates(app: tauri::AppHandle) -> Result<String, String> {
 
     match app.updater() {
         Ok(updater) => {
-            println!("🔍 Debug: Updater obtained successfully, checking for updates...");
+            println!("ðŸ” Debug: Updater obtained successfully, checking for updates...");
 
             // Try to get more detailed error information
             match updater.check().await {
                 Ok(update) => {
                     if let Some(update) = update {
-                        println!("✅ Debug: Update found: {}", update.version);
+                        println!("âœ… Debug: Update found: {}", update.version);
                         Ok(format!("Update found: {}", update.version))
                     } else {
-                        println!("ℹ️ Debug: No updates available");
+                        println!("â„¹ï¸ Debug: No updates available");
                         Ok("No updates available".to_string())
                     }
                 }
                 Err(e) => {
-                    println!("❌ Debug: Update check failed: {}", e);
-                    println!("❌ Debug: Error details: {:?}", e);
+                    println!("âŒ Debug: Update check failed: {}", e);
+                    println!("âŒ Debug: Error details: {:?}", e);
 
                     // Try to provide more context about the error
                     let error_msg = format!("Update check failed: {}\n\nPossible causes:\n- Network connectivity issues\n- GitHub API rate limiting\n- SSL certificate problems\n- Corporate firewall blocking requests\n- Missing User-Agent headers", e);
@@ -250,7 +250,7 @@ async fn debug_check_updates(app: tauri::AppHandle) -> Result<String, String> {
             }
         }
         Err(e) => {
-            println!("❌ Debug: Failed to get updater: {}", e);
+            println!("âŒ Debug: Failed to get updater: {}", e);
             Err(format!("Failed to get updater: {}", e))
         }
     }
@@ -589,7 +589,8 @@ fn main() {
             set_ssh_password_changed_status,
 
             // Pairing + model dispatch
-            get_kiosk_pairing_info,`r`n            get_kiosk_cloud_pairing_info,
+            get_kiosk_pairing_info,
+            get_kiosk_cloud_pairing_info,
             discover_pairable_robots,
             pair_with_kiosk_robot,
             request_kiosk_pairing_modal,
@@ -689,4 +690,5 @@ mod version_compare_tests {
         assert!(!is_target_newer_version("0.0.7", "0.0.6"));
     }
 }
+
 
