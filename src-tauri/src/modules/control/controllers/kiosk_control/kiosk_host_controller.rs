@@ -1,6 +1,9 @@
 use crate::modules::control::services::kiosk_control::kiosk_host_service::{
     KioskHostProcess, KioskHostService,
 };
+use crate::modules::control::services::kiosk_control::pairing_service::{
+    KioskPairingService, KioskPairingState,
+};
 use crate::modules::status::services::battery::battery_service::{BatteryData, BatteryService};
 use serde::Serialize;
 use serde_json::json;
@@ -25,8 +28,19 @@ pub fn init_kiosk_host() -> KioskHostProcess {
 pub async fn start_kiosk_host(
     app_handle: AppHandle,
     state: State<'_, KioskHostProcess>,
+    pairing_state: State<'_, KioskPairingState>,
     nickname: String,
 ) -> Result<String, String> {
+    // Refresh cloud pairing state only when a registration flow was already
+    // started and we still do not have final credentials on disk yet.
+    if KioskPairingService::should_refresh_cloud_pairing_before_host_start().unwrap_or(false) {
+        if let Err(error) =
+            KioskPairingService::get_kiosk_cloud_pairing_info(pairing_state.inner().clone())
+        {
+            eprintln!("Failed to refresh cloud pairing state before host start: {}", error);
+        }
+    }
+
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
     KioskHostService::start_kiosk_host(app_handle, db_connection, &state, nickname).await
