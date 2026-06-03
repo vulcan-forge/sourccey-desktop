@@ -77,6 +77,16 @@ impl KioskHostService {
         // Create the command
         let mut cmd = Command::new(&command_parts[0]);
         let envs = Self::build_envs()?;
+        if let Some(credentials_path) = envs.get("VULCAN_DEVICE_CREDENTIALS_PATH") {
+            Self::debug_emit(
+                &app_handle,
+                &format!(
+                    "Using cloud device credentials at {} (exists={})",
+                    credentials_path,
+                    std::path::Path::new(credentials_path).exists()
+                ),
+            );
+        }
         cmd.args(&command_parts[1..])
             .current_dir(&lerobot_dir)
             .envs(envs)

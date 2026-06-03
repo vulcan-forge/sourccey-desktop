@@ -222,17 +222,44 @@ impl KioskPairingService {
             runtime.servers_started = true;
         }
 
-        let discovery_socket = UdpSocket::bind(("0.0.0.0", DISCOVERY_PORT))
-            .map_err(|e| format!("Failed to bind pairing discovery socket: {}", e))?;
-        discovery_socket
-            .set_nonblocking(true)
-            .map_err(|e| format!("Failed to set nonblocking on discovery socket: {}", e))?;
+        let discovery_socket = match UdpSocket::bind(("0.0.0.0", DISCOVERY_PORT)) {
+            Ok(socket) => socket,
+            Err(e) if e.kind() == ErrorKind::AddrInUse => {
+                eprintln!(
+                    "Kiosk pairing discovery socket already in use on port {}. Skipping duplicate listener.",
+                    DISCOVERY_PORT
+                );
+                return Ok(());
+            }
+            Err(e) => {
+                if let Ok(mut runtime) = state.inner.lock() {
+                    runtime.servers_started = false;
+                }
+                return Err(format!("Failed to bind pairing discovery socket: {}", e));
+            }
+        };
+        if let Err(e) = discovery_socket.set_nonblocking(true) {
+            if let Ok(mut runtime) = state.inner.lock() {
+                runtime.servers_started = false;
+            }
+            return Err(format!("Failed to set nonblocking on discovery socket: {}", e));
+        }
 
-        let service_listener = TcpListener::bind(("0.0.0.0", DEFAULT_SERVICE_PORT))
-            .map_err(|e| format!("Failed to bind pairing service socket: {}", e))?;
-        service_listener
-            .set_nonblocking(true)
-            .map_err(|e| format!("Failed to set nonblocking on service socket: {}", e))?;
+        let service_listener = match TcpListener::bind(("0.0.0.0", DEFAULT_SERVICE_PORT)) {
+            Ok(listener) => listener,
+            Err(e) => {
+                if let Ok(mut runtime) = state.inner.lock() {
+                    runtime.servers_started = false;
+                }
+                return Err(format!("Failed to bind pairing service socket: {}", e));
+            }
+        };
+        if let Err(e) = service_listener.set_nonblocking(true) {
+            if let Ok(mut runtime) = state.inner.lock() {
+                runtime.servers_started = false;
+            }
+            return Err(format!("Failed to set nonblocking on service socket: {}", e));
+        }
 
         let discovery_state = state.clone();
         thread::spawn(move || loop {
