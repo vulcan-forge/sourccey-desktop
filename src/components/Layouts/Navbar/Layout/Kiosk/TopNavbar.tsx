@@ -1,4 +1,4 @@
-import Image from 'next/image';
+﻿import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
@@ -115,6 +115,12 @@ export const KioskTopNavbar = () => {
                         </span>
                     </Link>
 
+                    {isDevMode && (
+                        <span className="ml-3 inline-flex items-center rounded-full border border-amber-400/60 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-amber-200">
+                            DEV MODE
+                        </span>
+                    )}
+
                     <div className="grow" />
 
                     <div className="ml-auto flex items-center gap-4">
@@ -204,3 +210,5 @@ export const KioskTopNavbar = () => {
         </nav>
     );
 };
+
+
