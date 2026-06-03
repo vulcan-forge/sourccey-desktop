@@ -8,9 +8,9 @@ use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
 use std::io::{BufRead, BufReader};
-use std::process::{Child, Command, Stdio};
 #[cfg(windows)]
 use std::os::windows::process::CommandExt;
+use std::process::{Child, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -50,7 +50,11 @@ impl TeleopService {
         #[cfg(windows)]
         let python_path = {
             let pythonw = python_path.with_file_name("pythonw.exe");
-            if pythonw.exists() { pythonw } else { python_path }
+            if pythonw.exists() {
+                pythonw
+            } else {
+                python_path
+            }
         };
         let robot_type = "so100_follower".to_string();
         let teleop_type = "so100_leader".to_string();
@@ -171,7 +175,12 @@ impl TeleopService {
             shutdown_flag.store(true, Ordering::Relaxed);
 
             // Update command log on shutdown
-            ProcessService::on_process_shutdown(app_handle, child.id(), db_connection, command_log_id);
+            ProcessService::on_process_shutdown(
+                app_handle,
+                child.id(),
+                db_connection,
+                command_log_id,
+            );
 
             // Kill the process
             #[cfg(windows)]

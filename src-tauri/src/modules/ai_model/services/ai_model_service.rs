@@ -1,5 +1,5 @@
 use crate::modules::ai_model::models::ai_model::{
-    AiModel, AiModelColumn, ActiveModel as AiModelActiveModel, Entity as AiModelEntity,
+    ActiveModel as AiModelActiveModel, AiModel, AiModelColumn, Entity as AiModelEntity,
 };
 use crate::services::directory::directory_service::DirectoryService;
 use crate::utils::pagination::{PaginatedResponse, PaginationParameters};
@@ -62,9 +62,7 @@ impl AiModelService {
     // Delete AI Model (Soft Delete)
     //-------------------------------------------------------------------------//
     pub async fn delete_ai_model(&self, id: String) -> Result<(), DbErr> {
-        let model = AiModelEntity::find_by_id(id)
-            .one(&self.connection)
-            .await?;
+        let model = AiModelEntity::find_by_id(id).one(&self.connection).await?;
 
         if let Some(model) = model {
             let mut active: AiModelActiveModel = model.into();
@@ -183,7 +181,11 @@ impl AiModelService {
             .all(&self.connection)
             .await?;
 
-        let total_pages = if page_size == 0 { 0 } else { (total + page_size - 1) / page_size };
+        let total_pages = if page_size == 0 {
+            0
+        } else {
+            (total + page_size - 1) / page_size
+        };
 
         Ok(PaginatedResponse {
             data,
@@ -222,13 +224,16 @@ impl AiModelService {
             return Err("Invalid model_name".to_string());
         }
 
-        let use_custom_subdirectory = model_name.map(|name| !name.trim().is_empty()).unwrap_or(false);
+        let use_custom_subdirectory = model_name
+            .map(|name| !name.trim().is_empty())
+            .unwrap_or(false);
         let model_path = if use_custom_subdirectory {
             DirectoryService::get_lerobot_ai_model_path(repo_id, &resolved_name)?
         } else {
             DirectoryService::get_lerobot_ai_model_repository_path(repo_id)?
         };
-        std::fs::create_dir_all(&model_path).map_err(|e| format!("Failed to create model directory: {}", e))?;
+        std::fs::create_dir_all(&model_path)
+            .map_err(|e| format!("Failed to create model directory: {}", e))?;
 
         let python_path = DirectoryService::get_python_path()?;
         let downloader_script = r#"
@@ -419,8 +424,14 @@ finally:
             .spawn()
             .map_err(|e| format!("Failed to launch model download process: {}", e))?;
 
-        let stdout = child.stdout.take().ok_or("Failed to capture download stdout")?;
-        let stderr = child.stderr.take().ok_or("Failed to capture download stderr")?;
+        let stdout = child
+            .stdout
+            .take()
+            .ok_or("Failed to capture download stdout")?;
+        let stderr = child
+            .stderr
+            .take()
+            .ok_or("Failed to capture download stderr")?;
 
         let stderr_handle = std::thread::spawn(move || {
             let mut buffer = String::new();
@@ -442,7 +453,8 @@ finally:
                     let speed_bps = payload.get("speed_bps").and_then(|v| v.as_i64());
                     let stall_seconds = payload.get("stall_seconds").and_then(|v| v.as_i64());
                     let active_file = payload.get("active_file").and_then(|v| v.as_str());
-                    let active_file_bytes = payload.get("active_file_bytes").and_then(|v| v.as_i64());
+                    let active_file_bytes =
+                        payload.get("active_file_bytes").and_then(|v| v.as_i64());
                     let active_file_total_bytes = payload
                         .get("active_file_total_bytes")
                         .and_then(|v| v.as_i64());
@@ -480,7 +492,9 @@ finally:
             }
         }
 
-        let status = child.wait().map_err(|e| format!("Failed to wait for download: {}", e))?;
+        let status = child
+            .wait()
+            .map_err(|e| format!("Failed to wait for download: {}", e))?;
         let stderr_output = stderr_handle.join().unwrap_or_default().trim().to_string();
 
         if !status.success() {
@@ -516,10 +530,18 @@ finally:
 fn get_ai_model_cache_dir() -> PathBuf {
     if cfg!(target_os = "macos") {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        return home.join("Library").join("Caches").join("huggingface").join("lerobot").join("ai_models");
+        return home
+            .join("Library")
+            .join("Caches")
+            .join("huggingface")
+            .join("lerobot")
+            .join("ai_models");
     }
     let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    home.join(".cache").join("huggingface").join("lerobot").join("ai_models")
+    home.join(".cache")
+        .join("huggingface")
+        .join("lerobot")
+        .join("ai_models")
 }
 
 fn list_model_dirs(root: &Path) -> Vec<(String, String)> {
@@ -605,7 +627,11 @@ fn get_latest_checkpoint(model_dir: &Path) -> Option<i64> {
 }
 
 fn is_safe_repo_id(value: &str) -> bool {
-    if value.trim().is_empty() || value.starts_with('/') || value.contains('\\') || value.contains("..") {
+    if value.trim().is_empty()
+        || value.starts_with('/')
+        || value.contains('\\')
+        || value.contains("..")
+    {
         return false;
     }
     value
@@ -614,7 +640,12 @@ fn is_safe_repo_id(value: &str) -> bool {
 }
 
 fn is_safe_model_name(value: &str) -> bool {
-    if value.trim().is_empty() || value.starts_with('/') || value.contains('\\') || value.contains("..") || value.contains('/') {
+    if value.trim().is_empty()
+        || value.starts_with('/')
+        || value.contains('\\')
+        || value.contains("..")
+        || value.contains('/')
+    {
         return false;
     }
     value

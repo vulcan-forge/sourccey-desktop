@@ -15,7 +15,11 @@ impl WiFiService {
         let working_dir = RemoteDirectoryService::get_sourccey_desktop_root()?;
 
         // Build the script path - scripts are in scripts/connection/local/ relative to sourccey-desktop dir
-        let script_path = working_dir.join("scripts").join("connection").join("local").join("set_wifi.py");
+        let script_path = working_dir
+            .join("scripts")
+            .join("connection")
+            .join("local")
+            .join("set_wifi.py");
         if !script_path.exists() {
             return Err(format!("Script not found at: {:?}", script_path));
         }

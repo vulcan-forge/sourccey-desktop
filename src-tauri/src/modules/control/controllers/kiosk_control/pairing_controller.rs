@@ -1,6 +1,6 @@
-﻿use crate::modules::control::services::kiosk_control::pairing_service::{
-    DiscoveredKioskRobot, KioskCloudPairingInfo, KioskPairingInfo, KioskPairingService, KioskPairingState,
-    PairWithKioskResult, DEFAULT_SERVICE_PORT,
+use crate::modules::control::services::kiosk_control::pairing_service::{
+    DiscoveredKioskRobot, KioskCloudPairingInfo, KioskPairingInfo, KioskPairingService,
+    KioskPairingState, PairWithKioskResult, DEFAULT_SERVICE_PORT,
 };
 use crate::services::directory::directory_service::DirectoryService;
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,8 @@ pub struct DesktopPairedRobotConnection {
 }
 
 #[command]
-pub fn get_saved_paired_robot_connections() -> Result<HashMap<String, DesktopPairedRobotConnection>, String> {
+pub fn get_saved_paired_robot_connections(
+) -> Result<HashMap<String, DesktopPairedRobotConnection>, String> {
     load_desktop_paired_connections()
 }
 
@@ -54,17 +55,23 @@ pub fn remove_paired_robot_connection(nickname: String) -> Result<(), String> {
 }
 
 #[command]
-pub fn get_kiosk_pairing_info(state: State<'_, KioskPairingState>) -> Result<KioskPairingInfo, String> {
+pub fn get_kiosk_pairing_info(
+    state: State<'_, KioskPairingState>,
+) -> Result<KioskPairingInfo, String> {
     KioskPairingService::get_kiosk_pairing_info(state.inner().clone())
 }
 
 #[command]
-pub fn get_kiosk_cloud_pairing_info(state: State<'_, KioskPairingState>) -> Result<KioskCloudPairingInfo, String> {
+pub fn get_kiosk_cloud_pairing_info(
+    state: State<'_, KioskPairingState>,
+) -> Result<KioskCloudPairingInfo, String> {
     KioskPairingService::get_kiosk_cloud_pairing_info(state.inner().clone())
 }
 
 #[command]
-pub fn discover_pairable_robots(timeout_ms: Option<u64>) -> Result<Vec<DiscoveredKioskRobot>, String> {
+pub fn discover_pairable_robots(
+    timeout_ms: Option<u64>,
+) -> Result<Vec<DiscoveredKioskRobot>, String> {
     KioskPairingService::discover_pairable_robots(timeout_ms.unwrap_or(1200))
 }
 
@@ -74,7 +81,11 @@ pub fn pair_with_kiosk_robot(
     code: String,
     client_name: Option<String>,
 ) -> Result<PairWithKioskResult, String> {
-    KioskPairingService::pair_with_kiosk_robot(&host, &code, &client_name.unwrap_or_else(|| "Desktop App".to_string()))
+    KioskPairingService::pair_with_kiosk_robot(
+        &host,
+        &code,
+        &client_name.unwrap_or_else(|| "Desktop App".to_string()),
+    )
 }
 
 #[command]
@@ -113,29 +124,13 @@ pub fn check_kiosk_robot_connection(
 }
 
 #[command]
-pub fn start_kiosk_robot(
-    host: String,
-    port: Option<u16>,
-    token: String,
-) -> Result<String, String> {
-    KioskPairingService::start_kiosk_robot(
-        &host,
-        port.unwrap_or(DEFAULT_SERVICE_PORT),
-        &token,
-    )
+pub fn start_kiosk_robot(host: String, port: Option<u16>, token: String) -> Result<String, String> {
+    KioskPairingService::start_kiosk_robot(&host, port.unwrap_or(DEFAULT_SERVICE_PORT), &token)
 }
 
 #[command]
-pub fn stop_kiosk_robot(
-    host: String,
-    port: Option<u16>,
-    token: String,
-) -> Result<String, String> {
-    KioskPairingService::stop_kiosk_robot(
-        &host,
-        port.unwrap_or(DEFAULT_SERVICE_PORT),
-        &token,
-    )
+pub fn stop_kiosk_robot(host: String, port: Option<u16>, token: String) -> Result<String, String> {
+    KioskPairingService::stop_kiosk_robot(&host, port.unwrap_or(DEFAULT_SERVICE_PORT), &token)
 }
 
 #[command]
@@ -144,11 +139,7 @@ pub fn get_kiosk_robot_status(
     port: Option<u16>,
     token: String,
 ) -> Result<String, String> {
-    KioskPairingService::get_kiosk_robot_status(
-        &host,
-        port.unwrap_or(DEFAULT_SERVICE_PORT),
-        &token,
-    )
+    KioskPairingService::get_kiosk_robot_status(&host, port.unwrap_or(DEFAULT_SERVICE_PORT), &token)
 }
 
 fn validate_connection(connection: &DesktopPairedRobotConnection) -> Result<(), String> {
@@ -189,10 +180,13 @@ fn normalize_nickname(value: &str) -> Result<String, String> {
 
 fn desktop_paired_connections_file_path() -> Result<PathBuf, String> {
     let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
-    Ok(cache_dir.join("pairing").join("desktop_paired_connections.json"))
+    Ok(cache_dir
+        .join("pairing")
+        .join("desktop_paired_connections.json"))
 }
 
-fn load_desktop_paired_connections() -> Result<HashMap<String, DesktopPairedRobotConnection>, String> {
+fn load_desktop_paired_connections() -> Result<HashMap<String, DesktopPairedRobotConnection>, String>
+{
     let file_path = desktop_paired_connections_file_path()?;
     if !file_path.exists() {
         return Ok(HashMap::new());
@@ -204,11 +198,17 @@ fn load_desktop_paired_connections() -> Result<HashMap<String, DesktopPairedRobo
         .map_err(|e| format!("Failed to parse paired connections {:?}: {}", file_path, e))
 }
 
-fn save_desktop_paired_connections(connections: &HashMap<String, DesktopPairedRobotConnection>) -> Result<(), String> {
+fn save_desktop_paired_connections(
+    connections: &HashMap<String, DesktopPairedRobotConnection>,
+) -> Result<(), String> {
     let file_path = desktop_paired_connections_file_path()?;
     if let Some(parent) = file_path.parent() {
-        fs::create_dir_all(parent)
-            .map_err(|e| format!("Failed to create paired connections directory {:?}: {}", parent, e))?;
+        fs::create_dir_all(parent).map_err(|e| {
+            format!(
+                "Failed to create paired connections directory {:?}: {}",
+                parent, e
+            )
+        })?;
     }
 
     let serialized = serde_json::to_string_pretty(connections)
@@ -220,14 +220,13 @@ fn save_desktop_paired_connections(connections: &HashMap<String, DesktopPairedRo
     {
         use std::os::unix::fs::PermissionsExt;
         let perms = fs::Permissions::from_mode(0o600);
-        fs::set_permissions(&file_path, perms)
-            .map_err(|e| format!("Failed to secure paired connections file {:?}: {}", file_path, e))?;
+        fs::set_permissions(&file_path, perms).map_err(|e| {
+            format!(
+                "Failed to secure paired connections file {:?}: {}",
+                file_path, e
+            )
+        })?;
     }
 
     Ok(())
 }
-
-
-
-
-

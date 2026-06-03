@@ -1,7 +1,7 @@
-use crate::modules::robot::models::robot::{Entity as RobotEntity, Robot, RobotColumn};
-use sea_orm::*;
-use sea_orm::Set;
 use crate::modules::robot::models::robot::ActiveRobot;
+use crate::modules::robot::models::robot::{Entity as RobotEntity, Robot, RobotColumn};
+use sea_orm::Set;
+use sea_orm::*;
 
 pub struct RobotService {
     connection: DatabaseConnection,

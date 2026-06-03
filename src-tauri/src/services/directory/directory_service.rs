@@ -1,8 +1,8 @@
+use crate::services::directory::path_constants;
+use crate::services::environment::build_service::BuildService;
+use lazy_static::lazy_static;
 use std::path::PathBuf;
 use std::sync::Mutex;
-use crate::services::environment::build_service::BuildService;
-use crate::services::directory::path_constants;
-use lazy_static::lazy_static;
 
 lazy_static! {
     static ref PROJECT_ROOT_OVERRIDE: Mutex<Option<PathBuf>> = Mutex::new(None);
@@ -17,7 +17,10 @@ impl DirectoryService {
             return Err(format!("{} cannot be empty", field_name));
         }
         if value == "." || value == ".." {
-            return Err(format!("Invalid {}: relative path segment is not allowed", field_name));
+            return Err(format!(
+                "Invalid {}: relative path segment is not allowed",
+                field_name
+            ));
         }
         if value.contains('/') || value.contains('\\') || value.contains('\0') {
             return Err(format!(
@@ -26,7 +29,10 @@ impl DirectoryService {
             ));
         }
         if cfg!(windows) && value.contains(':') {
-            return Err(format!("Invalid {}: ':' is not allowed in path segments", field_name));
+            return Err(format!(
+                "Invalid {}: ':' is not allowed in path segments",
+                field_name
+            ));
         }
         Ok(value)
     }
@@ -134,13 +140,11 @@ impl DirectoryService {
         let safe_robot_type = Self::validate_path_segment(robot_type, "robot_type")?;
         let safe_filename = Self::validate_path_segment(filename, "filename")?;
         let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
-        Ok(
-            lerobot_cache_dir
-                .join("calibration")
-                .join("robots")
-                .join(safe_robot_type)
-                .join(safe_filename),
-        )
+        Ok(lerobot_cache_dir
+            .join("calibration")
+            .join("robots")
+            .join(safe_robot_type)
+            .join(safe_filename))
     }
 
     //------------------------------------------------------------//
@@ -155,7 +159,9 @@ impl DirectoryService {
     pub fn get_remote_config_path(nickname: &str) -> Result<PathBuf, String> {
         let safe_nickname = Self::validate_path_segment(nickname, "nickname")?;
         let lerobot_cache_dir = Self::get_lerobot_cache_dir()?;
-        Ok(lerobot_cache_dir.join(safe_nickname).join("remote_config.json"))
+        Ok(lerobot_cache_dir
+            .join(safe_nickname)
+            .join("remote_config.json"))
     }
     //------------------------------------------------------------//
     // AI Models Directory Functions

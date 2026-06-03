@@ -1,7 +1,7 @@
+use crate::modules::control::types::configuration::configuration_types::RemoteConfig;
+use crate::modules::settings::services::wifi::wifi_service::WiFiService;
 use serde::{Deserialize, Serialize};
 use std::process::Command;
-use crate::modules::settings::services::wifi::wifi_service::WiFiService;
-use crate::modules::control::types::configuration::configuration_types::RemoteConfig;
 use tauri::AppHandle;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -32,7 +32,11 @@ pub async fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>, String> {
 
 /// Connect to a WiFi network
 #[tauri::command]
-pub async fn connect_to_wifi(ssid: String, password: String, security: Option<String>) -> Result<String, String> {
+pub async fn connect_to_wifi(
+    ssid: String,
+    password: String,
+    security: Option<String>,
+) -> Result<String, String> {
     #[cfg(target_os = "linux")]
     {
         connect_wifi_linux(ssid, password, security)
@@ -147,7 +151,11 @@ fn connect_open_network(ssid: &str) -> Result<String, String> {
 }
 
 #[cfg(target_os = "linux")]
-fn connect_wifi_linux(ssid: String, password: String, security: Option<String>) -> Result<String, String> {
+fn connect_wifi_linux(
+    ssid: String,
+    password: String,
+    security: Option<String>,
+) -> Result<String, String> {
     // Determine key-mgmt type from security string
     let security_str = security.as_deref().unwrap_or("");
 
@@ -365,7 +373,11 @@ fn scan_wifi_windows() -> Result<Vec<WiFiNetwork>, String> {
 }
 
 #[cfg(target_os = "windows")]
-fn connect_wifi_windows(ssid: String, password: String, security: Option<String>) -> Result<String, String> {
+fn connect_wifi_windows(
+    ssid: String,
+    password: String,
+    security: Option<String>,
+) -> Result<String, String> {
     // Create a temporary XML profile for the network
     let profile_xml = format!(
         r#"<?xml version="1.0"?>
@@ -562,7 +574,11 @@ fn scan_wifi_macos() -> Result<Vec<WiFiNetwork>, String> {
 }
 
 #[cfg(target_os = "macos")]
-fn connect_wifi_macos(ssid: String, password: String, security: Option<String>) -> Result<String, String> {
+fn connect_wifi_macos(
+    ssid: String,
+    password: String,
+    security: Option<String>,
+) -> Result<String, String> {
     // Use networksetup to connect
     println!(
         "Connecting to WiFi: {} with password: [REDACTED] and security: {:?}",
@@ -640,7 +656,6 @@ fn disconnect_wifi_macos() -> Result<String, String> {
 
     Ok("Successfully disconnected from WiFi".to_string())
 }
-
 
 // Wifi and Access Point Controller
 #[tauri::command]

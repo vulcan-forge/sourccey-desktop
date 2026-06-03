@@ -1,4 +1,4 @@
-﻿// Prevents additional console window on Windows in release, DO NOT REMOVE!!
+// Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![allow(unused_imports)]
 
@@ -6,9 +6,11 @@
 mod database;
 use database::connection::DatabaseManager;
 use serde::Serialize;
-use tauri::Manager;
-use services::setup::local_setup_service::{DesktopExtrasStatus, LerobotUpdateStatus, LocalSetupService, SetupStatus};
 use services::setup::kiosk_update_service::{KioskUpdateService, KioskUpdateStatus};
+use services::setup::local_setup_service::{
+    DesktopExtrasStatus, LerobotUpdateStatus, LocalSetupService, SetupStatus,
+};
+use tauri::Manager;
 
 // Import modules from the services folder
 mod services;
@@ -29,55 +31,57 @@ use modules::robot::controllers::owned_robot_controller::{
     add_owned_robot, delete_owned_robot, get_owned_robot_by_id, get_owned_robot_by_nickname,
     get_owned_robots,
 };
-use modules::robot::controllers::robot_controller::{get_all_robots, get_robot_by_id, upsert_robot_template};
+use modules::robot::controllers::robot_controller::{
+    get_all_robots, get_robot_by_id, upsert_robot_template,
+};
 
 // Import Robotics Control Modules
+use modules::ai_model::controllers::ai_model_controller::{
+    add_ai_model, delete_ai_model, download_ai_model_from_huggingface, get_ai_model,
+    get_ai_model_cache_path, get_ai_models_paginated, sync_ai_models_from_cache, update_ai_model,
+};
+use modules::control::controllers::configuration::calibration_controller::{
+    auto_calibrate, desktop_auto_calibrate_teleoperator, desktop_get_teleop_calibration_status,
+    get_calibration_modified_at, read_calibration, remote_auto_calibrate, write_calibration,
+};
 use modules::control::controllers::configuration::configuration_controller::{
     detect_config, read_config, read_remote_config, write_config, write_remote_config,
 };
-use modules::control::controllers::configuration::calibration_controller::{
-    read_calibration, write_calibration, get_calibration_modified_at, auto_calibrate, remote_auto_calibrate,
-    desktop_get_teleop_calibration_status, desktop_auto_calibrate_teleoperator,
-};
 use modules::control::controllers::kiosk_control::kiosk_host_controller::{
-    get_pi_username, get_ssh_password_changed_status,
-    get_system_info, init_kiosk_host, is_kiosk_host_active, set_pi_password,
-    set_ssh_password_changed_status, start_kiosk_host, stop_kiosk_host,
+    get_pi_username, get_ssh_password_changed_status, get_system_info, init_kiosk_host,
+    is_kiosk_host_active, set_pi_password, set_ssh_password_changed_status, start_kiosk_host,
+    stop_kiosk_host,
 };
 use modules::control::controllers::kiosk_control::manual_drive_controller::{
     init_kiosk_manual_drive, set_kiosk_manual_drive_keys, start_kiosk_manual_drive,
     stop_kiosk_manual_drive,
 };
 use modules::control::controllers::kiosk_control::pairing_controller::{
-    check_kiosk_robot_connection,
-    get_kiosk_robot_status,
-    discover_pairable_robots, get_kiosk_cloud_pairing_info, get_kiosk_pairing_info, init_kiosk_pairing, pair_with_kiosk_robot,
+    check_kiosk_robot_connection, discover_pairable_robots, get_kiosk_cloud_pairing_info,
+    get_kiosk_pairing_info, get_kiosk_robot_status, get_saved_paired_robot_connections,
+    init_kiosk_pairing, pair_with_kiosk_robot, remove_paired_robot_connection,
     request_kiosk_pairing_modal, send_model_to_kiosk_robot, start_kiosk_robot, stop_kiosk_robot,
-    get_saved_paired_robot_connections, upsert_paired_robot_connection, remove_paired_robot_connection,
-};
-use modules::control::services::kiosk_control::pairing_service::{
-    KioskPairingService, KioskPairingState,
+    upsert_paired_robot_connection,
 };
 use modules::control::controllers::local_control::teleop_controller::{
     get_active_teleop_sessions, init_teleop, is_teleop_active, start_teleop, stop_teleop,
 };
-use modules::control::controllers::remote_control::remote_teleop_controller::{
-    init_remote_teleop, start_remote_teleop, stop_remote_teleop,
-};
 use modules::control::controllers::remote_control::remote_inference_controller::{
     init_remote_inference, start_remote_inference, stop_remote_inference,
 };
-use modules::ai_model::controllers::ai_model_controller::{
-    add_ai_model, delete_ai_model, download_ai_model_from_huggingface, get_ai_model,
-    get_ai_model_cache_path, get_ai_models_paginated, sync_ai_models_from_cache, update_ai_model,
+use modules::control::controllers::remote_control::remote_teleop_controller::{
+    init_remote_teleop, start_remote_teleop, stop_remote_teleop,
+};
+use modules::control::services::kiosk_control::pairing_service::{
+    KioskPairingService, KioskPairingState,
+};
+use modules::settings::controllers::access_point::access_point_controller::{
+    get_access_point_credentials, is_access_point_active, save_access_point_credentials,
+    set_access_point,
 };
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
     set_wifi,
-};
-use modules::settings::controllers::access_point::access_point_controller::{
-    get_access_point_credentials, save_access_point_credentials, set_access_point,
-    is_access_point_active,
 };
 use modules::status::controllers::battery::battery_controller::get_battery_data;
 
@@ -136,17 +140,24 @@ fn is_target_newer_version(current: &str, target: &str) -> bool {
 }
 
 fn read_force_flag_from_manifest(value: &serde_json::Value, target_version: &str) -> bool {
-    let manifest_version = value.get("version").and_then(|v| v.as_str()).unwrap_or_default();
+    let manifest_version = value
+        .get("version")
+        .and_then(|v| v.as_str())
+        .unwrap_or_default();
     if manifest_version != target_version {
         return false;
     }
 
-    value.get("force").and_then(|v| v.as_bool()).unwrap_or(false)
+    value
+        .get("force")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(false)
 }
 
 fn resolve_updater_manifest_url() -> String {
-    std::env::var("SOURCCEY_UPDATER_URL")
-        .unwrap_or_else(|_| "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json".to_string())
+    std::env::var("SOURCCEY_UPDATER_URL").unwrap_or_else(|_| {
+        "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json".to_string()
+    })
 }
 
 fn read_manifest_target_version(value: &serde_json::Value) -> Option<String> {
@@ -315,7 +326,10 @@ fn write_frontend_log(app: tauri::AppHandle, level: String, message: String) -> 
 }
 
 #[tauri::command]
-fn get_frontend_log_tail(app: tauri::AppHandle, max_lines: Option<usize>) -> Result<Vec<String>, String> {
+fn get_frontend_log_tail(
+    app: tauri::AppHandle,
+    max_lines: Option<usize>,
+) -> Result<Vec<String>, String> {
     let log_path = frontend_log_path(&app)?;
     let limit = max_lines.unwrap_or(200).clamp(1, 1000);
     LogService::read_log_tail(log_path.to_string_lossy().as_ref(), limit)
@@ -367,9 +381,11 @@ async fn setup_reset(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn setup_desktop_extras_check(app: tauri::AppHandle) -> Result<DesktopExtrasStatus, String> {
     let app_handle = app.clone();
-    tauri::async_runtime::spawn_blocking(move || LocalSetupService::check_desktop_extras(&app_handle))
-        .await
-        .map_err(|e| format!("Setup task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        LocalSetupService::check_desktop_extras(&app_handle)
+    })
+    .await
+    .map_err(|e| format!("Setup task failed: {}", e))?
 }
 
 #[tauri::command]
@@ -383,9 +399,11 @@ async fn setup_desktop_extras_run(app: tauri::AppHandle) -> Result<(), String> {
 #[tauri::command]
 async fn check_lerobot_update(app: tauri::AppHandle) -> Result<LerobotUpdateStatus, String> {
     let app_handle = app.clone();
-    tauri::async_runtime::spawn_blocking(move || LocalSetupService::check_lerobot_update(&app_handle))
-        .await
-        .map_err(|e| format!("Setup task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        LocalSetupService::check_lerobot_update(&app_handle)
+    })
+    .await
+    .map_err(|e| format!("Setup task failed: {}", e))?
 }
 
 #[tauri::command]
@@ -690,5 +708,3 @@ mod version_compare_tests {
         assert!(!is_target_newer_version("0.0.7", "0.0.6"));
     }
 }
-
-

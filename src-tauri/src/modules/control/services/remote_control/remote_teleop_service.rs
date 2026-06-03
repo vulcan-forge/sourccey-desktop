@@ -14,7 +14,9 @@ use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 // Create a struct to hold our processes, shutdown flags, and command log info
-pub struct RemoteTeleopProcess(Arc<Mutex<HashMap<String, (CommandChild, Arc<AtomicBool>, String)>>>);
+pub struct RemoteTeleopProcess(
+    Arc<Mutex<HashMap<String, (CommandChild, Arc<AtomicBool>, String)>>>,
+);
 
 pub struct RemoteTeleopService;
 
@@ -38,7 +40,12 @@ impl RemoteTeleopService {
                     "Process already exists for nickname: {}, stopping it first...",
                     config.nickname
                 );
-                match Self::stop_teleop(&app_handle, db_connection.clone(), state, config.nickname.clone()) {
+                match Self::stop_teleop(
+                    &app_handle,
+                    db_connection.clone(),
+                    state,
+                    config.nickname.clone(),
+                ) {
                     Ok(_msg) => {
                         std::thread::sleep(std::time::Duration::from_millis(500));
                     }
@@ -227,7 +234,12 @@ impl RemoteTeleopService {
         {
             shutdown_flag.store(true, Ordering::Relaxed);
 
-            ProcessService::on_process_shutdown(app_handle, child.pid(), db_connection, command_log_id);
+            ProcessService::on_process_shutdown(
+                app_handle,
+                child.pid(),
+                db_connection,
+                command_log_id,
+            );
 
             if let Err(err) = child.kill() {
                 let message = format!("Failed to kill teleop process: {}", err);

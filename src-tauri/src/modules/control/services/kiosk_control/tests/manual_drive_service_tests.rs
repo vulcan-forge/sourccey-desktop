@@ -30,24 +30,20 @@ fn sanitize_pressed_keys_filters_unknown_dedupes_and_sorts() {
 
 #[test]
 fn build_control_payload_contains_nickname_and_keys() {
-    let payload = Service::build_control_payload(
-        "sourccey",
-        vec!["a".to_string(), "w".to_string()],
-    )
-    .expect("payload should serialize");
+    let payload =
+        Service::build_control_payload("sourccey", vec!["a".to_string(), "w".to_string()])
+            .expect("payload should serialize");
 
     let parsed: serde_json::Value = serde_json::from_str(&payload).expect("valid JSON payload");
     assert_eq!(parsed["nickname"], "sourccey");
-    assert_eq!(
-        parsed["pressed_keys"],
-        serde_json::json!(["a", "w"])
-    );
+    assert_eq!(parsed["pressed_keys"], serde_json::json!(["a", "w"]));
     assert!(parsed["sent_at_ms"].as_u64().is_some());
 }
 
 #[test]
 fn normalize_nickname_trims_and_removes_at_prefix() {
-    let normalized = Service::normalize_nickname("  @Sourccey  ").expect("nickname should normalize");
+    let normalized =
+        Service::normalize_nickname("  @Sourccey  ").expect("nickname should normalize");
     assert_eq!(normalized, "Sourccey".to_string());
 }
 

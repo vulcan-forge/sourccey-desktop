@@ -21,13 +21,20 @@ impl AccessPointService {
         ssid: String,
         password: String,
     ) -> Result<Option<String>, String> {
-        println!("[AccessPoint] Setting access point mode for robot SSID: {}", ssid);
+        println!(
+            "[AccessPoint] Setting access point mode for robot SSID: {}",
+            ssid
+        );
 
         // Get the working directory on the robot (local path)
         let working_dir = RemoteDirectoryService::get_sourccey_desktop_root()?;
 
         // Build the script path - scripts are in scripts/connection/local/ relative to sourccey-desktop dir
-        let script_path = working_dir.join("scripts").join("connection").join("local").join("set_access_point.py");
+        let script_path = working_dir
+            .join("scripts")
+            .join("connection")
+            .join("local")
+            .join("set_access_point.py");
         if !script_path.exists() {
             return Err(format!("Script not found at: {:?}", script_path));
         }
@@ -83,11 +90,7 @@ impl AccessPointService {
                     .and_then(|v| v.as_str())
                     .map(|s| s.to_string());
                 // Return None if IP is empty or invalid, otherwise return Some(ip)
-                let result = ip_address
-                    .filter(|ip| !ip.is_empty())
-                    .map(|ip| {
-                        ip
-                    });
+                let result = ip_address.filter(|ip| !ip.is_empty()).map(|ip| ip);
 
                 Ok(result)
             } else {
@@ -139,8 +142,12 @@ impl AccessPointService {
         Self::validate_credentials(&ssid, &password)?;
         let path = Self::credentials_file_path()?;
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent)
-                .map_err(|e| format!("Failed to create access point credentials directory {:?}: {}", parent, e))?;
+            fs::create_dir_all(parent).map_err(|e| {
+                format!(
+                    "Failed to create access point credentials directory {:?}: {}",
+                    parent, e
+                )
+            })?;
         }
 
         let payload = AccessPointCredentials {
@@ -157,8 +164,12 @@ impl AccessPointService {
         {
             use std::os::unix::fs::PermissionsExt;
             let perms = fs::Permissions::from_mode(0o600);
-            fs::set_permissions(&path, perms)
-                .map_err(|e| format!("Failed to secure access point credentials file {:?}: {}", path, e))?;
+            fs::set_permissions(&path, perms).map_err(|e| {
+                format!(
+                    "Failed to secure access point credentials file {:?}: {}",
+                    path, e
+                )
+            })?;
         }
 
         Ok(())
@@ -186,6 +197,8 @@ impl AccessPointService {
 
     fn credentials_file_path() -> Result<PathBuf, String> {
         let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
-        Ok(cache_dir.join("settings").join("access_point_credentials.json"))
+        Ok(cache_dir
+            .join("settings")
+            .join("access_point_credentials.json"))
     }
 }

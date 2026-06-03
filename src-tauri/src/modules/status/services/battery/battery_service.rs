@@ -1,8 +1,8 @@
+use serde::{Deserialize, Serialize};
+use serde_json;
 use std::process::{Command, Stdio};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
-use serde::{Deserialize, Serialize};
-use serde_json;
 
 use crate::services::directory::directory_service::DirectoryService;
 use crate::services::environment::env_service::EnvService;
@@ -58,4 +58,3 @@ impl BatteryService {
         Ok(battery_data)
     }
 }
-

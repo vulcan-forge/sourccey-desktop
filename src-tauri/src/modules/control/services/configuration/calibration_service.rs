@@ -24,12 +24,17 @@ pub struct CalibrationService;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 impl CalibrationService {
-
     //----------------------------------------------------------//
     // Calibration Functions
     //----------------------------------------------------------//
-    pub fn read_calibration(robot_type: &str, nickname: &str) -> Result<(Calibration, bool), String> {
-        let calibration_path = DirectoryService::get_robot_calibration_path(robot_type, &format!("{}.json", nickname))?;
+    pub fn read_calibration(
+        robot_type: &str,
+        nickname: &str,
+    ) -> Result<(Calibration, bool), String> {
+        let calibration_path = DirectoryService::get_robot_calibration_path(
+            robot_type,
+            &format!("{}.json", nickname),
+        )?;
 
         // Create the calibration directory if it doesn't exist
         if let Some(parent) = calibration_path.parent() {
@@ -50,8 +55,15 @@ impl CalibrationService {
         Ok((calibration, true))
     }
 
-    pub fn write_calibration(robot_type: &str, nickname: &str, calibration: Calibration) -> Result<(), String> {
-        let calibration_path = DirectoryService::get_robot_calibration_path(robot_type, &format!("{}.json", nickname))?;
+    pub fn write_calibration(
+        robot_type: &str,
+        nickname: &str,
+        calibration: Calibration,
+    ) -> Result<(), String> {
+        let calibration_path = DirectoryService::get_robot_calibration_path(
+            robot_type,
+            &format!("{}.json", nickname),
+        )?;
 
         // Create the calibration directory if it doesn't exist
         if let Some(parent) = calibration_path.parent() {
@@ -63,8 +75,14 @@ impl CalibrationService {
         fs::write(calibration_path, calibration_str).map_err(|e| e.to_string())
     }
 
-    pub fn get_calibration_modified_at(robot_type: &str, nickname: &str) -> Result<Option<u64>, String> {
-        let calibration_path = DirectoryService::get_robot_calibration_path(robot_type, &format!("{}.json", nickname))?;
+    pub fn get_calibration_modified_at(
+        robot_type: &str,
+        nickname: &str,
+    ) -> Result<Option<u64>, String> {
+        let calibration_path = DirectoryService::get_robot_calibration_path(
+            robot_type,
+            &format!("{}.json", nickname),
+        )?;
 
         if !calibration_path.exists() {
             return Ok(None);
@@ -89,7 +107,10 @@ impl CalibrationService {
             return Err(format!("{} cannot be empty", field_name));
         }
         if value == "." || value == ".." {
-            return Err(format!("Invalid {}: relative path segment is not allowed", field_name));
+            return Err(format!(
+                "Invalid {}: relative path segment is not allowed",
+                field_name
+            ));
         }
         if value.contains('/') || value.contains('\\') || value.contains('\0') {
             return Err(format!(
@@ -98,7 +119,10 @@ impl CalibrationService {
             ));
         }
         if cfg!(windows) && value.contains(':') {
-            return Err(format!("Invalid {}: ':' is not allowed in path segments", field_name));
+            return Err(format!(
+                "Invalid {}: ':' is not allowed in path segments",
+                field_name
+            ));
         }
         Ok(value.to_string())
     }
@@ -119,7 +143,8 @@ impl CalibrationService {
         nickname: &str,
     ) -> Result<DesktopTeleopCalibrationStatus, String> {
         let normalized_nickname = Self::normalize_nickname(nickname);
-        let calibration_path = Self::get_teleop_calibration_path(teleop_type, &normalized_nickname)?;
+        let calibration_path =
+            Self::get_teleop_calibration_path(teleop_type, &normalized_nickname)?;
 
         let exists = calibration_path.exists();
         let modified_at = if exists {
@@ -182,7 +207,9 @@ impl CalibrationService {
             .rev()
             .find(|line| {
                 let lower = line.to_lowercase();
-                !ignored_prefixes.iter().any(|prefix| lower.starts_with(prefix))
+                !ignored_prefixes
+                    .iter()
+                    .any(|prefix| lower.starts_with(prefix))
                     && !lower.starts_with("raise ")
                     && !lower.starts_with('^')
             });
@@ -192,7 +219,10 @@ impl CalibrationService {
                 "Calibration script reported a Python exception: {}",
                 line
             )),
-            None => Some("Calibration script reported a Python exception. Check logs for details.".to_string()),
+            None => Some(
+                "Calibration script reported a Python exception. Check logs for details."
+                    .to_string(),
+            ),
         }
     }
 
@@ -227,7 +257,11 @@ impl CalibrationService {
         }
     }
 
-    fn write_process_output_logs(app_handle: &AppHandle, context: &str, output: &std::process::Output) {
+    fn write_process_output_logs(
+        app_handle: &AppHandle,
+        context: &str,
+        output: &std::process::Output,
+    ) {
         let (stdout, stderr) = Self::decode_output_text(output);
         if !stdout.is_empty() {
             let _ = LogService::write_app_log_line(
@@ -256,7 +290,12 @@ impl CalibrationService {
             "Auto calibrate started: nickname={}, robot_type={}, teleop_type={}, robot_port={}, teleop_port={}",
             config.nickname, config.robot_type, config.teleop_type, config.robot_port, config.teleop_port
         );
-        let _ = LogService::write_app_log_line(&app_handle, "robot-actions.log", Some("calibration"), &start_message);
+        let _ = LogService::write_app_log_line(
+            &app_handle,
+            "robot-actions.log",
+            Some("calibration"),
+            &start_message,
+        );
 
         Self::auto_calibrate_robot(
             &app_handle,
@@ -328,13 +367,19 @@ impl CalibrationService {
             "Desktop teleoperator auto calibrate started: nickname={}, teleop_type={}, left_arm_port={}, right_arm_port={}, full_reset={}",
             normalized_nickname, teleop_type, left_arm_port, right_arm_port, config.full_reset
         );
-        let _ = LogService::write_app_log_line(&app_handle, "robot-actions.log", Some("calibration"), &start_message);
+        let _ = LogService::write_app_log_line(
+            &app_handle,
+            "robot-actions.log",
+            Some("calibration"),
+            &start_message,
+        );
 
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
         let python_path = DirectoryService::get_python_path()?;
 
         let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
+        command_parts
+            .push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
         command_parts.push(format!("--teleop.type={}", teleop_type));
         command_parts.push(format!("--teleop.id={}", normalized_nickname));
         command_parts.push(format!("--teleop.left_arm_port={}", left_arm_port));
@@ -379,23 +424,40 @@ impl CalibrationService {
             .wait_with_output()
             .await
             .map_err(|e| format!("Failed to get output: {}", e))?;
-        Self::write_process_output_logs(&app_handle, "Desktop teleoperator auto calibrate", &output);
+        Self::write_process_output_logs(
+            &app_handle,
+            "Desktop teleoperator auto calibrate",
+            &output,
+        );
 
         if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
             if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(&app_handle, pid_value, db_connection, command_log_id);
+                ProcessService::on_process_shutdown(
+                    &app_handle,
+                    pid_value,
+                    db_connection,
+                    command_log_id,
+                );
             }
             let _ = LogService::write_app_log_line(
                 &app_handle,
                 "robot-actions.log",
                 Some("calibration"),
-                &format!("Desktop teleoperator auto calibrate failed: {}", validation_error),
+                &format!(
+                    "Desktop teleoperator auto calibrate failed: {}",
+                    validation_error
+                ),
             );
             return Err(validation_error);
         }
 
         if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(&app_handle, pid_value, db_connection, command_log_id);
+            ProcessService::on_process_shutdown(
+                &app_handle,
+                pid_value,
+                db_connection,
+                command_log_id,
+            );
         }
 
         let _ = LogService::write_app_log_line(
@@ -418,7 +480,8 @@ impl CalibrationService {
         let python_path = DirectoryService::get_python_path()?;
 
         let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
+        command_parts
+            .push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
         command_parts.push(format!("--robot.type={}", robot_type));
         command_parts.push(format!("--robot.id={}", nickname));
         command_parts.push(format!("--robot.port={}", port));
@@ -464,7 +527,12 @@ impl CalibrationService {
 
         if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
             if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
+                ProcessService::on_process_shutdown(
+                    app_handle,
+                    pid_value,
+                    db_connection,
+                    command_log_id,
+                );
             }
             let _ = LogService::write_app_log_line(
                 app_handle,
@@ -476,7 +544,12 @@ impl CalibrationService {
         }
 
         if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
+            ProcessService::on_process_shutdown(
+                app_handle,
+                pid_value,
+                db_connection,
+                command_log_id,
+            );
         }
         Ok(())
     }
@@ -492,7 +565,8 @@ impl CalibrationService {
         let python_path = DirectoryService::get_python_path()?;
 
         let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
+        command_parts
+            .push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
         command_parts.push(format!("--teleop.type={}", teleop_type));
         command_parts.push(format!("--teleop.id={}", nickname));
         command_parts.push(format!("--teleop.port={}", port));
@@ -539,7 +613,12 @@ impl CalibrationService {
 
         if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
             if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
+                ProcessService::on_process_shutdown(
+                    app_handle,
+                    pid_value,
+                    db_connection,
+                    command_log_id,
+                );
             }
             let _ = LogService::write_app_log_line(
                 app_handle,
@@ -551,7 +630,12 @@ impl CalibrationService {
         }
 
         if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(app_handle, pid_value, db_connection, command_log_id);
+            ProcessService::on_process_shutdown(
+                app_handle,
+                pid_value,
+                db_connection,
+                command_log_id,
+            );
         }
         Ok(())
     }
@@ -567,13 +651,19 @@ impl CalibrationService {
             "Remote auto calibrate started: nickname={}, robot_type={}, full_reset={}",
             nickname, robot_type, full_reset
         );
-        let _ = LogService::write_app_log_line(&app_handle, "robot-actions.log", Some("calibration"), &start_message);
+        let _ = LogService::write_app_log_line(
+            &app_handle,
+            "robot-actions.log",
+            Some("calibration"),
+            &start_message,
+        );
 
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
         let python_path = DirectoryService::get_python_path()?;
 
         let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
+        command_parts
+            .push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
         command_parts.push(format!("--robot.type={}", robot_type));
         command_parts.push(format!("--robot.id={}", nickname));
         if full_reset {
@@ -621,7 +711,12 @@ impl CalibrationService {
 
         if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
             if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(&app_handle, pid_value, db_connection, command_log_id);
+                ProcessService::on_process_shutdown(
+                    &app_handle,
+                    pid_value,
+                    db_connection,
+                    command_log_id,
+                );
             }
             let _ = LogService::write_app_log_line(
                 &app_handle,
@@ -633,7 +728,12 @@ impl CalibrationService {
         }
 
         if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(&app_handle, pid_value, db_connection, command_log_id);
+            ProcessService::on_process_shutdown(
+                &app_handle,
+                pid_value,
+                db_connection,
+                command_log_id,
+            );
         }
         let _ = LogService::write_app_log_line(
             &app_handle,
@@ -650,18 +750,22 @@ impl CalibrationService {
     pub fn create_default_calibration(robot_type: &str, nickname: &str) -> Calibration {
         if robot_type == "so100_follower" {
             return Self::create_default_so100_calibration();
-        }
-        else if robot_type == "sourccey_follower" {
+        } else if robot_type == "sourccey_follower" {
             let arm_side = match nickname {
                 "sourccey_left" => "left",
                 "sourccey_right" => "right",
-                _ => return Calibration { motors: HashMap::new() },
+                _ => {
+                    return Calibration {
+                        motors: HashMap::new(),
+                    }
+                }
             };
             return Self::create_default_sourccey_calibration(&arm_side);
         }
-        return Calibration { motors: HashMap::new() };
+        return Calibration {
+            motors: HashMap::new(),
+        };
     }
-
 
     pub fn create_default_so100_calibration() -> Calibration {
         // First try to load the default calibration from the lerobot-vulcan repo

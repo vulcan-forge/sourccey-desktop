@@ -17,7 +17,9 @@ pub struct AddOwnedRobotRequest {
 // GET Robot Functions
 //----------------------------------------------------------//
 #[tauri::command]
-pub async fn get_owned_robots(app_handle: AppHandle) -> Result<Vec<OwnedRobotWithRelations>, String> {
+pub async fn get_owned_robots(
+    app_handle: AppHandle,
+) -> Result<Vec<OwnedRobotWithRelations>, String> {
     let db_manager = match app_handle.try_state::<crate::database::connection::DatabaseManager>() {
         Some(manager) => manager,
         None => return Err("Database not initialized".to_string()),
