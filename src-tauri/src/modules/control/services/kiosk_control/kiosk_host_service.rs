@@ -51,11 +51,10 @@ impl KioskHostService {
         }
 
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        // Launch through uv so kiosk starts use the same project/runtime resolution
-        // as the manual host command developers use locally.
-        let mut command_parts = vec!["uv".to_string()];
-        command_parts.push("run".to_string());
-        command_parts.push("python".to_string());
+        let python_path = DirectoryService::get_python_path()?;
+        // Launch from the prepared virtualenv directly so host start does not
+        // depend on parsing uv.lock at runtime.
+        let mut command_parts = vec![python_path.to_string_lossy().to_string()];
         command_parts.push("-u".to_string());
         command_parts.push("-m".to_string());
         command_parts.push("lerobot.robots.sourccey.sourccey.sourccey.sourccey_host".to_string());
