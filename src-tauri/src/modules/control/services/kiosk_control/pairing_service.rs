@@ -51,6 +51,7 @@ struct PersistedCloudDeviceCredentials {
     robot_model_name: Option<String>,
     relay_http_base_url: String,
     relay_ws_base_url: String,
+    active_session_id: Option<String>,
     device_auth_token: String,
     claimed_at_ms: Option<u64>,
     saved_at_ms: u64,
@@ -1903,6 +1904,10 @@ snapshot_download(
             robot_model_name: state.robot_model_name.clone(),
             relay_http_base_url: relay_http_base_url.clone(),
             relay_ws_base_url: Self::cloud_pairing_ws_base_url(&relay_http_base_url),
+            active_session_id: state
+                .active_session_id
+                .clone()
+                .filter(|value| !value.trim().is_empty()),
             device_auth_token,
             claimed_at_ms: state.claimed_at_ms,
             saved_at_ms: Self::now_ms(),
