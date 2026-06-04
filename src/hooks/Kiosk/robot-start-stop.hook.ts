@@ -35,6 +35,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
 
     const mapHostLogToStartupStatus = (line: string) => {
         const normalized = line.toLowerCase();
+        const trimmed = line.trim();
 
         if (normalized.includes('waiting for commands')) {
             return {
@@ -81,7 +82,21 @@ export const useKioskRobotStartStop = (nickname: string) => {
             };
         }
 
-        if (normalized.includes('traceback') || normalized.includes('exception') || normalized.includes('error')) {
+        // Python tracebacks arrive over several stderr lines. Ignore the
+        // scaffold lines so we can surface the actual exception summary.
+        if (normalized.includes('traceback (most recent call last):')) {
+            return null;
+        }
+
+        if (trimmed.includes(' File "') || trimmed.startsWith('File "')) {
+            return null;
+        }
+
+        if (trimmed === '^' || /^[~^]+$/.test(trimmed)) {
+            return null;
+        }
+
+        if (normalized.includes('exception') || normalized.includes('error')) {
             return {
                 type: 'error' as const,
                 message: 'Robot start failed with an internal error. Check robot service health.',
