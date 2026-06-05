@@ -31,20 +31,6 @@ impl KioskHostService {
         }
     }
 
-    fn redact_env_value(value: Option<&String>) -> String {
-        match value {
-            Some(raw) if !raw.trim().is_empty() => {
-                if raw.len() <= 8 {
-                    "***".to_string()
-                } else {
-                    format!("{}...{}", &raw[..4], &raw[raw.len() - 4..])
-                }
-            }
-            Some(_) => "<empty>".to_string(),
-            None => "<unset>".to_string(),
-        }
-    }
-
     pub async fn start_kiosk_host(
         app_handle: AppHandle,
         db_connection: DatabaseConnection,
@@ -104,17 +90,6 @@ impl KioskHostService {
                 ),
             );
         }
-        Self::debug_emit(
-            &app_handle,
-            &format!(
-                "Relay env snapshot: ws_base_url={}, session_id={}, robot_token={}, autostart={}, credentials_path={}",
-                Self::redact_env_value(envs.get("VULCAN_WEBSOCKET_RELAY_WS_BASE_URL").or_else(|| envs.get("VULCAN_RELAY_WS_BASE_URL"))),
-                Self::redact_env_value(envs.get("VULCAN_WEBSOCKET_RELAY_SESSION_ID").or_else(|| envs.get("VULCAN_RELAY_SESSION_ID"))),
-                Self::redact_env_value(envs.get("VULCAN_WEBSOCKET_RELAY_ROBOT_TOKEN").or_else(|| envs.get("VULCAN_RELAY_ROBOT_TOKEN"))),
-                Self::redact_env_value(envs.get("VULCAN_WEBSOCKET_RELAY_AUTOSTART").or_else(|| envs.get("VULCAN_RELAY_AGENT_AUTOSTART"))),
-                Self::redact_env_value(envs.get("VULCAN_DEVICE_CREDENTIALS_PATH")),
-            ),
-        );
         cmd.args(&command_parts[1..])
             .current_dir(&lerobot_dir)
             .envs(envs)
