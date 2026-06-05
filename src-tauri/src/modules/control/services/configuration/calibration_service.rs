@@ -250,10 +250,10 @@ impl CalibrationService {
         Ok(())
     }
 
-    fn configure_calibration_command(cmd: &mut Command) {
+    fn configure_calibration_command(_cmd: &mut Command) {
         #[cfg(windows)]
         {
-            cmd.creation_flags(CREATE_NO_WINDOW);
+            _cmd.creation_flags(CREATE_NO_WINDOW);
         }
     }
 
