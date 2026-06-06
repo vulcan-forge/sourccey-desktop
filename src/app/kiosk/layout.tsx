@@ -4,7 +4,6 @@ import { Spinner } from '@/components/Elements/Spinner';
 import { SideNavbar as KioskSideNavbar } from '@/components/Layouts/Navbar/Layout/Kiosk/SideNavbar';
 import { KioskTopNavbar } from '@/components/Layouts/Navbar/Layout/Kiosk/TopNavbar';
 import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
-import { PairingCodeModal } from '@/components/Elements/Modals/KioskRobotModals/PairingCodeModal';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { initFrontendLogger } from '@/utils/logs/frontend-logger';
 import { useEffect, useState } from 'react';
@@ -54,7 +53,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <div className={`bg-slate-850 flex h-screen flex-col overflow-hidden ${isKioskMode ? 'kiosk-mode' : ''}`}>
                 <KioskTopNavbar />
                 <div className="min-h-0 w-full flex-1 overflow-auto">{children}</div>
-                <PairingCodeModal />
             </div>
         );
     }
@@ -67,7 +65,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <div className="min-h-0 w-full flex-1 overflow-auto">{children}</div>
             </div>
             <RemoteControlBar />
-            <PairingCodeModal />
         </div>
     );
 }

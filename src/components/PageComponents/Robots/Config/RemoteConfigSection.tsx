@@ -1,11 +1,10 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useGetRemoteConfig, setRemoteConfig } from '@/hooks/Control/remote-config.hook';
-import { usePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
 import type { RemoteConfig } from '@/types/remote-config';
 import { DesktopTeleopCalibration } from '@/components/PageComponents/Robots/Calibration/DesktopTeleopCalibration';
 
@@ -18,37 +17,15 @@ type RemoteConfigSectionProps = {
 
 export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader = false, isOpen }: RemoteConfigSectionProps) => {
     const nickname = ownedRobot?.nickname ?? '';
-    const normalizedNickname = useMemo(() => (nickname.startsWith('@') ? nickname.slice(1) : nickname), [nickname]);
     const { data: remoteConfig, isLoading: isLoadingConfig }: any = useGetRemoteConfig(nickname);
-    const { data: pairedConnections }: any = usePairedRobotConnections();
 
     const [draftConfig, setDraftConfig] = useState<RemoteConfig | null>(null);
     const [isSavingConfig, setIsSavingConfig] = useState(false);
-    const hasAppliedPairedHostRef = useRef(false);
-
-    const pairedHost = pairedConnections?.[normalizedNickname]?.host ?? '';
 
     useEffect(() => {
         if (!remoteConfig || isLoadingConfig) return;
-        if (!pairedHost) return;
-        if (hasAppliedPairedHostRef.current) return;
-
-        if (remoteConfig.remote_ip !== pairedHost) {
-            const updatedConfig = { ...remoteConfig, remote_ip: pairedHost };
-            setRemoteConfig(nickname, updatedConfig);
-            void invoke('write_remote_config', { config: updatedConfig, nickname }).catch((error) => {
-                console.error('Failed to sync paired host into remote config:', error);
-            });
-        }
-
-        hasAppliedPairedHostRef.current = true;
-    }, [remoteConfig, isLoadingConfig, pairedHost, nickname]);
-
-    useEffect(() => {
-        if (!remoteConfig || isLoadingConfig) return;
-        const host = pairedHost || remoteConfig.remote_ip;
-        setDraftConfig({ ...remoteConfig, remote_ip: host });
-    }, [remoteConfig, isLoadingConfig, pairedHost]);
+        setDraftConfig(remoteConfig);
+    }, [remoteConfig, isLoadingConfig]);
 
     const updateDraft = (key: keyof RemoteConfig, value: string | number) => {
         if (!draftConfig) return;

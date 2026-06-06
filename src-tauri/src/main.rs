@@ -57,11 +57,7 @@ use modules::control::controllers::kiosk_control::manual_drive_controller::{
     stop_kiosk_manual_drive,
 };
 use modules::control::controllers::kiosk_control::pairing_controller::{
-    check_kiosk_robot_connection, discover_pairable_robots, get_kiosk_cloud_pairing_info,
-    get_kiosk_pairing_info, get_kiosk_robot_status, get_saved_paired_robot_connections,
-    init_kiosk_pairing, pair_with_kiosk_robot, remove_paired_robot_connection,
-    request_kiosk_pairing_modal, send_model_to_kiosk_robot, start_kiosk_robot, stop_kiosk_robot,
-    upsert_paired_robot_connection,
+    get_kiosk_cloud_pairing_info, init_kiosk_pairing,
 };
 use modules::control::controllers::local_control::teleop_controller::{
     get_active_teleop_sessions, init_teleop, is_teleop_active, start_teleop, stop_teleop,
@@ -495,10 +491,6 @@ fn main() {
             // Start process monitor in kiosk mode (after app is initialized)
             if kiosk {
                 KioskPairingService::register_kiosk_runtime(app.handle().clone());
-                let pairing_state = app.state::<KioskPairingState>().inner().clone();
-                if let Err(e) = KioskPairingService::start_kiosk_pairing_network(pairing_state) {
-                    eprintln!("Failed to start kiosk pairing network: {}", e);
-                }
             }
 
             Ok(())
@@ -609,20 +601,8 @@ fn main() {
             get_ssh_password_changed_status,
             set_ssh_password_changed_status,
 
-            // Pairing + model dispatch
-            get_kiosk_pairing_info,
+            // Cloud pairing
             get_kiosk_cloud_pairing_info,
-            discover_pairable_robots,
-            pair_with_kiosk_robot,
-            request_kiosk_pairing_modal,
-            send_model_to_kiosk_robot,
-            check_kiosk_robot_connection,
-            start_kiosk_robot,
-            stop_kiosk_robot,
-            get_kiosk_robot_status,
-            get_saved_paired_robot_connections,
-            upsert_paired_robot_connection,
-            remove_paired_robot_connection,
 
             // WiFi API
             scan_wifi_networks,
@@ -660,56 +640,5 @@ fn main() {
 }
 
 #[cfg(test)]
-mod app_mode_tests {
-    use super::is_kiosk_env_value;
-
-    #[test]
-    fn kiosk_env_parser_accepts_expected_values() {
-        assert!(is_kiosk_env_value("kiosk"));
-        assert!(is_kiosk_env_value("KIOSK"));
-        assert!(is_kiosk_env_value("true"));
-        assert!(is_kiosk_env_value("1"));
-        assert!(is_kiosk_env_value(" yes "));
-    }
-
-    #[test]
-    fn kiosk_env_parser_rejects_other_values() {
-        assert!(!is_kiosk_env_value(""));
-        assert!(!is_kiosk_env_value("desktop"));
-        assert!(!is_kiosk_env_value("0"));
-        assert!(!is_kiosk_env_value("false"));
-    }
-}
-
-#[cfg(test)]
-mod version_compare_tests {
-    use super::{is_target_newer_version, parse_simple_version, SimpleVersion};
-
-    #[test]
-    fn parses_plain_and_prefixed_versions() {
-        assert_eq!(
-            parse_simple_version("0.0.6"),
-            Some(SimpleVersion {
-                major: 0,
-                minor: 0,
-                patch: 6,
-            })
-        );
-        assert_eq!(
-            parse_simple_version("v1.2.3"),
-            Some(SimpleVersion {
-                major: 1,
-                minor: 2,
-                patch: 3,
-            })
-        );
-        assert_eq!(parse_simple_version("bad"), None);
-    }
-
-    #[test]
-    fn detects_newer_target_versions() {
-        assert!(is_target_newer_version("0.0.5", "0.0.6"));
-        assert!(!is_target_newer_version("0.0.6", "0.0.6"));
-        assert!(!is_target_newer_version("0.0.7", "0.0.6"));
-    }
-}
+#[path = "tests/main_tests.rs"]
+mod main_tests;

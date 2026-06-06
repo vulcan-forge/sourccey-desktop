@@ -11,7 +11,6 @@ import { ACCESS_POINT_ENABLED_KEY, ACCESS_POINT_PASSWORD_KEY, ACCESS_POINT_SSID_
 import { SAVED_WIFI_SSIDS_KEY } from '@/hooks/WIFI/wifi.hook';
 import { SELECTED_ROBOT_KEY } from '@/hooks/Robot/selected-robot.hook';
 import { SELECTED_MODEL_KEY } from '@/hooks/AI/selected-model.hook';
-import { PAIRED_ROBOT_CONNECTIONS_KEY } from '@/hooks/Robot/paired-robot-connection.hook';
 import { DESKTOP_EXTRAS_KEY } from '@/hooks/System/setup-desktop-extras.hook';
 import { AUTH_SESSION_KEY } from '@/hooks/Auth/auth-session.hook';
 
@@ -40,7 +39,7 @@ const persistOptions = {
 };
 
 const REACT_QUERY_STORAGE_KEY = 'REACT_QUERY_OFFLINE_CACHE';
-const sensitiveQueryKeys: QueryKey[] = [ACCESS_POINT_PASSWORD_KEY, PAIRED_ROBOT_CONNECTIONS_KEY];
+const sensitiveQueryKeys: QueryKey[] = [ACCESS_POINT_PASSWORD_KEY];
 
 const scrubSensitivePersistedQueries = () => {
     if (typeof window === 'undefined') return;
