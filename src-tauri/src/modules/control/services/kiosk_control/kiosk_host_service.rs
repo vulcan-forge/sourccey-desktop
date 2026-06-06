@@ -1,3 +1,4 @@
+use crate::modules::control::services::kiosk_control::pairing_service::KioskPairingService;
 use crate::modules::log::services::command_log_service::CommandLogService;
 use crate::services::directory::directory_service::DirectoryService;
 use crate::services::log::log_service::LogService;
@@ -370,9 +371,6 @@ impl KioskHostService {
     }
 
     fn cloud_device_credentials_path() -> Result<std::path::PathBuf, String> {
-        let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
-        Ok(cache_dir
-            .join("pairing")
-            .join("cloud_device_credentials.json"))
+        KioskPairingService::current_cloud_device_credentials_file_path()
     }
 }

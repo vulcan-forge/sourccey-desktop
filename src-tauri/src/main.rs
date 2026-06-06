@@ -79,6 +79,9 @@ use modules::settings::controllers::access_point::access_point_controller::{
     get_access_point_credentials, is_access_point_active, save_access_point_credentials,
     set_access_point,
 };
+use modules::settings::controllers::kiosk_environment::kiosk_environment_controller::{
+    get_kiosk_environment_settings, save_kiosk_environment_settings,
+};
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
     set_wifi,
@@ -631,6 +634,8 @@ fn main() {
             is_access_point_active,
             get_access_point_credentials,
             save_access_point_credentials,
+            get_kiosk_environment_settings,
+            save_kiosk_environment_settings,
 
             // Battery API
             get_battery_data,

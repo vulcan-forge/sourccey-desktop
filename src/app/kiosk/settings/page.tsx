@@ -538,6 +538,23 @@ export default function KioskSettingsPage() {
                         </LinkButton>
                     </div>
                 </div>
+
+                <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
+                    <div className="mb-4">
+                        <h2 className="text-xl font-semibold text-white">Developer Settings</h2>
+                        <p className="mt-1 text-sm text-slate-400">
+                            Choose which Vulcan environment this kiosk should use for cloud registration and websocket relay.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <LinkButton
+                            href="/kiosk/settings/developer"
+                            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
+                        >
+                            Open Developer Settings
+                        </LinkButton>
+                    </div>
+                </div>
             </div>
         </div>
     );

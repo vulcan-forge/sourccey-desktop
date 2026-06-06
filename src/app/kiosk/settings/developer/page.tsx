@@ -1,0 +1,210 @@
+'use client';
+
+import { useEffect, useState } from 'react';
+import { FaArrowLeft, FaCheckCircle, FaSave, FaSpinner } from 'react-icons/fa';
+import { toast } from 'react-toastify';
+import { LinkButton } from '@/components/Elements/Link/LinkButton';
+import {
+    saveKioskEnvironmentSettings,
+    useKioskEnvironmentSettings,
+} from '@/hooks/System/kiosk-environment.hook';
+import type { KioskEnvironment, KioskEnvironmentSettings } from '@/types/kiosk-environment';
+
+const environmentCards: Array<{
+    value: KioskEnvironment;
+    title: string;
+    description: string;
+}> = [
+    {
+        value: 'production',
+        title: 'Production',
+        description: 'Connect this kiosk to the live Vulcan Studio environment.',
+    },
+    {
+        value: 'staging',
+        title: 'Staging',
+        description: 'Use the staging environment for pre-release validation.',
+    },
+    {
+        value: 'local',
+        title: 'Local / Custom',
+        description: 'Point the kiosk at a local or custom host for development.',
+    },
+];
+
+export default function KioskDeveloperSettingsPage() {
+    const { data, isLoading, error } = useKioskEnvironmentSettings();
+    const [environment, setEnvironment] = useState<KioskEnvironment>('local');
+    const [customBaseUrl, setCustomBaseUrl] = useState('http://192.168.1.220:5200');
+    const [resolvedSettings, setResolvedSettings] = useState<KioskEnvironmentSettings | null>(null);
+    const [isSaving, setIsSaving] = useState(false);
+
+    useEffect(() => {
+        if (!data) {
+            return;
+        }
+
+        setEnvironment(data.environment);
+        setCustomBaseUrl(data.customBaseUrl);
+        setResolvedSettings(data);
+    }, [data]);
+
+    const applyLocalDraft = () => {
+        const normalized = customBaseUrl.trim();
+        const base = normalized.length > 0 ? normalized : 'http://192.168.1.220:5200';
+        setResolvedSettings({
+            environment,
+            displayName:
+                environment === 'production' ? 'Production' : environment === 'staging' ? 'Staging' : 'Local',
+            badgeLabel: environment === 'production' ? null : environment === 'staging' ? 'Staging' : 'Local',
+            customBaseUrl: base,
+            appBaseUrl:
+                environment === 'production'
+                    ? 'https://studio.vulcanrobotics.ai'
+                    : environment === 'staging'
+                      ? 'https://staging.factory.studio.vulcanrobotics.ai'
+                      : base,
+            apiBaseUrl:
+                environment === 'production'
+                    ? 'https://api.studio.vulcanrobotics.ai'
+                    : environment === 'staging'
+                      ? 'https://api.staging.factory.studio.vulcanrobotics.ai'
+                      : base,
+        });
+    };
+
+    useEffect(() => {
+        applyLocalDraft();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [environment, customBaseUrl]);
+
+    const handleSave = async () => {
+        setIsSaving(true);
+        try {
+            const saved = await saveKioskEnvironmentSettings({
+                environment,
+                customBaseUrl,
+            });
+            setResolvedSettings(saved);
+            setEnvironment(saved.environment);
+            setCustomBaseUrl(saved.customBaseUrl);
+            toast.success('Developer environment saved. Cloud pairing will refresh for the selected environment.');
+        } catch (saveError) {
+            console.error('Failed to save kiosk environment settings:', saveError);
+            toast.error(saveError instanceof Error ? saveError.message : 'Failed to save developer settings');
+        } finally {
+            setIsSaving(false);
+        }
+    };
+
+    return (
+        <div className="min-h-screen bg-slate-900/30">
+            <div className="container mx-auto flex flex-col gap-8 px-8 py-8">
+                <div>
+                    <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Kiosk Settings</div>
+                    <h1 className="text-3xl font-semibold text-white">Developer Settings</h1>
+                    <p className="mt-2 text-sm text-slate-300">
+                        Switch this robot between production, staging, and local Vulcan environments.
+                    </p>
+                    <div className="mt-4">
+                        <LinkButton
+                            href="/kiosk/settings"
+                            className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
+                        >
+                            <FaArrowLeft className="h-4 w-4" />
+                            Back to Settings
+                        </LinkButton>
+                    </div>
+                </div>
+
+                <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
+                    <div className="mb-6">
+                        <h2 className="text-xl font-semibold text-white">Environment</h2>
+                        <p className="mt-1 text-sm text-slate-400">
+                            The selected environment controls cloud registration, API calls, and websocket relay defaults.
+                        </p>
+                    </div>
+
+                    {isLoading ? (
+                        <div className="flex items-center gap-2 text-sm text-slate-300">
+                            <FaSpinner className="h-4 w-4 animate-spin" />
+                            Loading developer settings...
+                        </div>
+                    ) : (
+                        <div className="space-y-6">
+                            <div className="grid gap-4 md:grid-cols-3">
+                                {environmentCards.map((card) => {
+                                    const active = environment === card.value;
+                                    return (
+                                        <button
+                                            key={card.value}
+                                            type="button"
+                                            onClick={() => setEnvironment(card.value)}
+                                            className={`cursor-pointer rounded-xl border p-4 text-left transition ${
+                                                active
+                                                    ? 'border-amber-400/60 bg-amber-500/10 shadow-[0_0_0_1px_rgba(251,191,36,0.15)]'
+                                                    : 'border-slate-600 bg-slate-700/40 hover:border-slate-500 hover:bg-slate-700/60'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between">
+                                                <div className="text-lg font-semibold text-white">{card.title}</div>
+                                                {active ? <FaCheckCircle className="h-4 w-4 text-amber-300" /> : null}
+                                            </div>
+                                            <p className="mt-2 text-sm text-slate-300">{card.description}</p>
+                                        </button>
+                                    );
+                                })}
+                            </div>
+
+                            <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                                <label htmlFor="custom-base-url" className="mb-2 block text-sm font-medium text-slate-300">
+                                    Local / Custom Host
+                                </label>
+                                <input
+                                    id="custom-base-url"
+                                    type="text"
+                                    value={customBaseUrl}
+                                    onChange={(event) => setCustomBaseUrl(event.target.value)}
+                                    placeholder="192.168.1.220:5200 or http://192.168.1.220:5200"
+                                    disabled={environment !== 'local' || isSaving}
+                                    className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                />
+                                <p className="mt-2 text-xs text-slate-400">
+                                    For local mode, enter an IP, host, or full URL. We will use the same base for the local app and API.
+                                </p>
+                            </div>
+
+                            <div className="grid gap-4 rounded-xl border border-slate-700 bg-slate-900/40 p-4 md:grid-cols-2">
+                                <div>
+                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">App URL</div>
+                                    <div className="mt-2 break-all text-sm text-white">{resolvedSettings?.appBaseUrl ?? '...'}</div>
+                                </div>
+                                <div>
+                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">API URL</div>
+                                    <div className="mt-2 break-all text-sm text-white">{resolvedSettings?.apiBaseUrl ?? '...'}</div>
+                                </div>
+                            </div>
+
+                            {error ? <div className="text-sm text-red-300">Failed to load environment settings.</div> : null}
+
+                            <div className="flex items-center gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => void handleSave()}
+                                    disabled={isSaving}
+                                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                >
+                                    {isSaving ? <FaSpinner className="h-4 w-4 animate-spin" /> : <FaSave className="h-4 w-4" />}
+                                    {isSaving ? 'Saving...' : 'Save Environment'}
+                                </button>
+                                <span className="text-xs text-slate-400">
+                                    Saving clears stale cloud pairing credentials so the robot reconnects to the selected environment cleanly.
+                                </span>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}

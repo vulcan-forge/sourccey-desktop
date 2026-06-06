@@ -23,7 +23,9 @@ import {
 } from '@/hooks/System/system-info.hook';
 
 interface KioskCloudPairingInfo {
-    relayBaseUrl: string;
+    environment: string;
+    portalBaseUrl: string;
+    apiBaseUrl: string;
     deviceId: string;
     robotModelName: string;
     pairingCode: string | null;
@@ -57,13 +59,16 @@ export const HomeWelcome = () => {
     }, []);
 
     const fetchCloudPairing = useCallback(async () => {
+        setIsLoadingCloudPairing(true);
         try {
             const info = await invoke<KioskCloudPairingInfo>('get_kiosk_cloud_pairing_info');
             setCloudPairing(info);
         } catch (error) {
             console.error('Failed to get cloud pairing info:', error);
             setCloudPairing({
-                relayBaseUrl: 'http://192.168.1.220:5200',
+                environment: 'local',
+                portalBaseUrl: 'http://192.168.1.220:5200',
+                apiBaseUrl: 'http://192.168.1.220:5200',
                 deviceId: '',
                 robotModelName: 'sourccey',
                 pairingCode: null,
@@ -254,7 +259,7 @@ export const HomeWelcome = () => {
                             </div>
                             <div>
                                 <div className="text-slate-400">Cloud Host</div>
-                                <div className="text-white">{cloudPairing.relayBaseUrl}</div>
+                                <div className="text-white">{cloudPairing.portalBaseUrl}</div>
                             </div>
                         </div>
                     </div>
@@ -265,7 +270,7 @@ export const HomeWelcome = () => {
                             Registration in progress
                         </div>
                         <div className="text-sm text-slate-300">
-                            Open <span className="font-semibold text-white">{cloudPairing?.relayBaseUrl || 'http://192.168.1.220:5200'}</span>,
+                            Open <span className="font-semibold text-white">{cloudPairing?.portalBaseUrl || 'http://192.168.1.220:5200'}</span>,
                             sign in, and enter this pairing code.
                         </div>
                         <div className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-5 text-center font-mono text-4xl font-bold tracking-[0.18em] text-white">
