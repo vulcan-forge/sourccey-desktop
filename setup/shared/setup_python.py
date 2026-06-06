@@ -10,16 +10,26 @@ import platform
 import subprocess
 import sys
 import shutil
+import shlex
 from pathlib import Path
 from typing import Callable, Optional
 
-from setup_helper import get_real_user_home, wrap_command
+from setup_helper import get_real_user_home, should_run_as_user, wrap_command
 
 UV_VENV_PYTHON_VERSION = "3.12"
 
 #################################################################
 # Helper Functions
 #################################################################
+
+def _is_path_within(candidate: Path, directory: Path) -> bool:
+    """Return whether candidate is inside directory."""
+    try:
+        candidate.resolve().relative_to(directory.resolve())
+        return True
+    except Exception:
+        return False
+
 
 def find_user_binary(binary_name: str, search_dirs: list) -> Optional[Path]:
     """
@@ -32,13 +42,24 @@ def find_user_binary(binary_name: str, search_dirs: list) -> Optional[Path]:
     Returns:
         Path to the binary if found, None otherwise
     """
-    # First, check if binary is already in PATH
+    # Resolve user homes first so sudo/root sessions don't accidentally prefer
+    # binaries from /root over the real user's installation.
+    user_home = Path(get_real_user_home()).expanduser()
+    current_home = Path.home().expanduser()
+    running_as_other_user = (
+        os.name != "nt"
+        and hasattr(os, "geteuid")
+        and os.geteuid() == 0
+        and os.environ.get("SUDO_USER")
+        and user_home != current_home
+    )
+
+    # First, check if binary is already in PATH.
     binary_path = shutil.which(binary_name)
     if binary_path:
-        return Path(binary_path)
-
-    # Get real user home directory
-    user_home = get_real_user_home()
+        candidate = Path(binary_path)
+        if not (running_as_other_user and _is_path_within(candidate, current_home)):
+            return candidate
 
     # Potential binary locations
     search_paths = []
@@ -50,13 +71,13 @@ def find_user_binary(binary_name: str, search_dirs: list) -> Optional[Path]:
     if user_home:
         for search_dir in search_dirs:
             for candidate in binary_candidates:
-                search_paths.append(Path(user_home) / search_dir / candidate)
+                search_paths.append(user_home / search_dir / candidate)
 
-    # Check current user's home
-    current_home = Path.home()
-    for search_dir in search_dirs:
-        for candidate in binary_candidates:
-            search_paths.append(current_home / search_dir / candidate)
+    # Check current user's home only when it won't accidentally prefer /root.
+    if not running_as_other_user:
+        for search_dir in search_dirs:
+            for candidate in binary_candidates:
+                search_paths.append(current_home / search_dir / candidate)
 
     # Check common system locations
     if os.name != 'nt':  # Not Windows
@@ -97,6 +118,66 @@ class PythonSetupManager:
         self.print_success = print_success
         self.print_warning = print_warning
         self.print_error = print_error
+
+    def _build_real_user_env_overrides(self) -> dict[str, str]:
+        """Build env overrides so delegated setup uses the real user's uv/home."""
+        env_overrides: dict[str, str] = {"UV_PYTHON": UV_VENV_PYTHON_VERSION}
+        should_run, sudo_user = should_run_as_user()
+
+        uv_path = find_user_binary("uv", [".local/bin", ".cargo/bin"])
+        if uv_path:
+            env_overrides["SOURCCEY_UV_BIN"] = str(uv_path)
+
+        if not should_run or os.name == "nt" or not sudo_user:
+            return env_overrides
+
+        user_home = Path(get_real_user_home()).expanduser()
+        current_home = Path.home().expanduser()
+
+        env_overrides["HOME"] = str(user_home)
+        env_overrides["USER"] = sudo_user
+        env_overrides["LOGNAME"] = sudo_user
+        env_overrides["XDG_CACHE_HOME"] = str(user_home / ".cache")
+        env_overrides["XDG_CONFIG_HOME"] = str(user_home / ".config")
+        env_overrides["XDG_DATA_HOME"] = str(user_home / ".local" / "share")
+        env_overrides["XDG_STATE_HOME"] = str(user_home / ".local" / "state")
+
+        preferred_bins = [
+            str(user_home / ".local" / "bin"),
+            str(user_home / ".cargo" / "bin"),
+        ]
+        current_path_entries = [
+            entry for entry in os.environ.get("PATH", "").split(os.pathsep) if entry
+        ]
+        filtered_entries = []
+        for entry in current_path_entries:
+            entry_path = Path(entry).expanduser()
+            if current_home != user_home and _is_path_within(entry_path, current_home):
+                continue
+            filtered_entries.append(entry)
+
+        combined_path = []
+        for entry in preferred_bins + filtered_entries:
+            if entry and entry not in combined_path:
+                combined_path.append(entry)
+        env_overrides["PATH"] = os.pathsep.join(combined_path)
+
+        return env_overrides
+
+    def _run_command_as_real_user(self, command: list[str], cwd: Path, env_overrides: dict[str, str]) -> subprocess.CompletedProcess:
+        """Run a command as the original sudo user with explicit env overrides."""
+        should_run, sudo_user = should_run_as_user()
+        if should_run and os.name != "nt" and sudo_user:
+            cmd_str = " ".join(shlex.quote(str(arg)) for arg in command)
+            cwd_str = shlex.quote(str(cwd))
+            wrapped_cmd = ["sudo", "-u", sudo_user, "-H", "env"]
+            wrapped_cmd.extend(f"{key}={value}" for key, value in env_overrides.items())
+            wrapped_cmd.extend(["bash", "-lc", f"cd {cwd_str} && {cmd_str}"])
+            return subprocess.run(wrapped_cmd, cwd=Path("/"))
+
+        env = os.environ.copy()
+        env.update(env_overrides)
+        return subprocess.run(command, cwd=cwd, env=env)
 
     #################################################################
     # Python Version Check
@@ -382,14 +463,15 @@ class PythonSetupManager:
             if desktop:
                 command.append("--desktop")
 
-            wrapped_cmd, actual_cwd = wrap_command(command, lerobot_path)
-            env = os.environ.copy()
-            env["UV_PYTHON"] = UV_VENV_PYTHON_VERSION
+            env_overrides = self._build_real_user_env_overrides()
+            uv_path = env_overrides.get("SOURCCEY_UV_BIN")
+            if uv_path:
+                self.print_status(f"Delegating lerobot-vulcan setup with uv at {uv_path}")
 
-            result = subprocess.run(
-                wrapped_cmd,
-                cwd=actual_cwd,
-                env=env,
+            result = self._run_command_as_real_user(
+                command,
+                lerobot_path,
+                env_overrides,
             )
             success = result.returncode == 0
 
