@@ -584,6 +584,9 @@ class KioskSetupScript:
             self.print_error("Bun packages installation failed")
             return False
 
+        if not self.fix_project_permissions():
+            self.print_warning("Final project ownership fix had issues; continuing.")
+
         self.print_success("Project setup completed")
 
         # Configure kiosk mode
