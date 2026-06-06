@@ -694,7 +694,8 @@ class GitSetupManager:
                 # Check if submodule exists and has valid git directory/file
                 if submodule_path.exists():
                     # Check if it's a valid git repo (either .git directory or .git file pointing to .git/modules)
-                    if git_dir.exists() or (git_dir.is_file() and self.project_root / ".git" / "modules" / "modules" / "lerobot-vulcan").exists():
+                    nested_git_dir = self.project_root / ".git" / "modules" / "modules" / "lerobot-vulcan"
+                    if git_dir.exists() or (git_dir.is_file() and nested_git_dir.exists()):
                         # Submodule exists and is valid, consider it success even if return code != 0
                         self.print_status("Submodule validation: submodule directory exists and appears valid")
                         self.print_success("Git submodules updated to recorded commits")
@@ -719,7 +720,8 @@ class GitSetupManager:
 
             if submodule_path.exists():
                 # Check if it's a valid git repo (either .git directory or .git file)
-                if git_dir.exists() or (git_dir.is_file() and self.project_root / ".git" / "modules" / "modules" / "lerobot-vulcan").exists():
+                nested_git_dir = self.project_root / ".git" / "modules" / "modules" / "lerobot-vulcan"
+                if git_dir.exists() or (git_dir.is_file() and nested_git_dir.exists()):
                     # Submodule exists and is valid, consider it success even if exception occurred
                     self.print_status("Submodule validation: submodule directory exists and appears valid")
                     self.print_success("Git submodules updated to recorded commits")
