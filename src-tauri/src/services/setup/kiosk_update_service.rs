@@ -15,7 +15,13 @@ pub struct KioskUpdateService;
 #[derive(Clone)]
 struct KioskTagCacheEntry {
     fetched_at: Instant,
-    latest_tag: Option<String>,
+    latest_tag: Option<LatestTagInfo>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LatestTagInfo {
+    name: String,
+    commit_sha: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -65,7 +71,7 @@ impl KioskUpdateService {
 
         let mut error: Option<String> = None;
         let app_current = Self::resolve_current_repo_tag(&repo_root, &app_tag_prefix);
-        let app_remote = match Self::resolve_latest_tag_cached(
+        let app_remote_info = match Self::resolve_latest_tag_cached(
             &KIOSK_APP_TAG_CACHE,
             "SOURCCEY_KIOSK_APP_TAGS_URL",
             Self::DEFAULT_KIOSK_APP_TAGS_URL,
@@ -77,15 +83,17 @@ impl KioskUpdateService {
                 None
             }
         };
-        let app_update_available = !Self::is_current_tag_up_to_date(
+        let app_remote = app_remote_info.as_ref().map(|tag| tag.name.clone());
+        let app_update_available = !Self::is_repo_up_to_date(
+            &repo_root,
             app_current.as_deref(),
-            app_remote.as_deref(),
+            app_remote_info.as_ref(),
             &app_tag_prefix,
         );
 
         let lerobot_dir = repo_root.join("modules").join("lerobot-vulcan");
         let lerobot_current = Self::resolve_current_repo_tag(&lerobot_dir, &lerobot_tag_prefix);
-        let lerobot_remote = match Self::resolve_latest_tag_cached(
+        let lerobot_remote_info = match Self::resolve_latest_tag_cached(
             &KIOSK_LEROBOT_TAG_CACHE,
             "SOURCCEY_KIOSK_LEROBOT_TAGS_URL",
             Self::DEFAULT_KIOSK_LEROBOT_TAGS_URL,
@@ -97,9 +105,11 @@ impl KioskUpdateService {
                 None
             }
         };
-        let lerobot_update_available = !Self::is_current_tag_up_to_date(
+        let lerobot_remote = lerobot_remote_info.as_ref().map(|tag| tag.name.clone());
+        let lerobot_update_available = !Self::is_repo_up_to_date(
+            &lerobot_dir,
             lerobot_current.as_deref(),
-            lerobot_remote.as_deref(),
+            lerobot_remote_info.as_ref(),
             &lerobot_tag_prefix,
         );
 
@@ -330,8 +340,12 @@ impl KioskUpdateService {
             .lines()
             .map(|line| line.trim().to_string())
             .filter(|line| !line.is_empty())
+            .map(|name| LatestTagInfo {
+                name,
+                commit_sha: None,
+            })
             .collect::<Vec<_>>();
-        Self::select_latest_prefixed_tag(tags, prefix)
+        Self::select_latest_prefixed_tag(tags, prefix).map(|tag| tag.name)
     }
 
     fn resolve_latest_tag_cached(
@@ -339,7 +353,7 @@ impl KioskUpdateService {
         url_env_key: &str,
         default_url: &str,
         prefix: &str,
-    ) -> Result<Option<String>, String> {
+    ) -> Result<Option<LatestTagInfo>, String> {
         let now = Instant::now();
         let mut cache_guard = cache
             .lock()
@@ -354,9 +368,9 @@ impl KioskUpdateService {
         cache: &mut Option<KioskTagCacheEntry>,
         now: Instant,
         fetch_latest_tag: F,
-    ) -> Result<Option<String>, String>
+    ) -> Result<Option<LatestTagInfo>, String>
     where
-        F: FnOnce() -> Result<Option<String>, String>,
+        F: FnOnce() -> Result<Option<LatestTagInfo>, String>,
     {
         if let Some(entry) = cache.as_ref() {
             if now.duration_since(entry.fetched_at) <= Self::TAG_CACHE_TTL {
@@ -376,7 +390,7 @@ impl KioskUpdateService {
         url_env_key: &str,
         default_url: &str,
         prefix: &str,
-    ) -> Result<Option<String>, String> {
+    ) -> Result<Option<LatestTagInfo>, String> {
         let url = std::env::var(url_env_key).unwrap_or_else(|_| default_url.to_string());
         let client = reqwest::blocking::Client::builder()
             .build()
@@ -398,47 +412,79 @@ impl KioskUpdateService {
         let payload: serde_json::Value = response
             .json()
             .map_err(|e| format!("Invalid tag payload for {}: {}", url_env_key, e))?;
-        let tags = Self::extract_tag_names_from_value(&payload);
+        let tags = Self::extract_tag_refs_from_value(&payload);
         Ok(Self::select_latest_prefixed_tag(tags, prefix))
     }
 
-    fn extract_tag_names_from_value(value: &serde_json::Value) -> Vec<String> {
+    fn extract_tag_refs_from_value(value: &serde_json::Value) -> Vec<LatestTagInfo> {
         match value {
             serde_json::Value::Array(items) => items
                 .iter()
                 .filter_map(|item| {
                     if let Some(name) = item.as_str() {
-                        return Some(name.trim().to_string());
+                        let trimmed = name.trim();
+                        if trimmed.is_empty() {
+                            return None;
+                        }
+                        return Some(LatestTagInfo {
+                            name: trimmed.to_string(),
+                            commit_sha: None,
+                        });
                     }
-                    if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
-                        return Some(name.trim().to_string());
+                    if let Some(name) = item.get("name").and_then(|v| v.as_str()).map(str::trim) {
+                        if name.is_empty() {
+                            return None;
+                        }
+                        let commit_sha = item
+                            .get("commit")
+                            .and_then(|commit| commit.get("sha"))
+                            .and_then(|sha| sha.as_str())
+                            .map(str::trim)
+                            .filter(|sha| !sha.is_empty())
+                            .map(ToOwned::to_owned);
+                        return Some(LatestTagInfo {
+                            name: name.to_string(),
+                            commit_sha,
+                        });
                     }
                     item.get("tag")
                         .and_then(|v| v.as_str())
-                        .map(|tag| tag.trim().to_string())
+                        .map(str::trim)
+                        .filter(|tag| !tag.is_empty())
+                        .map(|tag| LatestTagInfo {
+                            name: tag.to_string(),
+                            commit_sha: None,
+                        })
                 })
-                .filter(|name| !name.is_empty())
                 .collect(),
             serde_json::Value::Object(_) => value
                 .get("tags")
-                .map(Self::extract_tag_names_from_value)
+                .map(Self::extract_tag_refs_from_value)
                 .unwrap_or_default(),
             _ => Vec::new(),
         }
     }
 
-    fn select_latest_prefixed_tag(tags: Vec<String>, prefix: &str) -> Option<String> {
-        let mut best_semver: Option<(SimpleSemver, String)> = None;
+    fn select_latest_prefixed_tag(tags: Vec<LatestTagInfo>, prefix: &str) -> Option<LatestTagInfo> {
+        let mut best_semver: Option<(SimpleSemver, LatestTagInfo)> = None;
 
         for tag in tags {
-            let normalized = match Self::normalize_prefixed_tag(&tag, prefix) {
+            let normalized_name = match Self::normalize_prefixed_tag(&tag.name, prefix) {
                 Some(value) => value,
                 None => continue,
             };
-            if let Some(version) = Self::parse_prefixed_semver(&normalized, prefix) {
+            if let Some(version) = Self::parse_prefixed_semver(&normalized_name, prefix) {
                 match best_semver.as_ref() {
                     Some((best_version, _)) if &version <= best_version => {}
-                    _ => best_semver = Some((version, normalized.clone())),
+                    _ => {
+                        best_semver = Some((
+                            version,
+                            LatestTagInfo {
+                                name: normalized_name.clone(),
+                                commit_sha: tag.commit_sha.clone(),
+                            },
+                        ))
+                    }
                 }
             }
         }
@@ -477,6 +523,54 @@ impl KioskUpdateService {
             minor,
             patch,
         })
+    }
+
+    fn is_repo_up_to_date(
+        repo_dir: &Path,
+        current: Option<&str>,
+        latest: Option<&LatestTagInfo>,
+        prefix: &str,
+    ) -> bool {
+        let contains_latest_commit = latest
+            .and_then(|tag| tag.commit_sha.as_deref())
+            .and_then(|commit_sha| Self::head_contains_commit(repo_dir, commit_sha));
+        Self::is_repo_up_to_date_from_sources(
+            current,
+            latest.map(|tag| tag.name.as_str()),
+            prefix,
+            contains_latest_commit,
+        )
+    }
+
+    fn is_repo_up_to_date_from_sources(
+        current: Option<&str>,
+        latest: Option<&str>,
+        prefix: &str,
+        contains_latest_commit: Option<bool>,
+    ) -> bool {
+        if contains_latest_commit == Some(true) {
+            return true;
+        }
+
+        Self::is_current_tag_up_to_date(current, latest, prefix)
+    }
+
+    fn head_contains_commit(repo_dir: &Path, commit_sha: &str) -> Option<bool> {
+        if !repo_dir.exists() {
+            return None;
+        }
+
+        let output = Command::new("git")
+            .args(["merge-base", "--is-ancestor", commit_sha, "HEAD"])
+            .current_dir(repo_dir)
+            .output()
+            .ok()?;
+
+        match output.status.code() {
+            Some(0) => Some(true),
+            Some(1) => Some(false),
+            _ => None,
+        }
     }
 
     fn is_current_tag_up_to_date(
@@ -557,29 +651,88 @@ mod tests {
     fn selects_latest_tag_for_prefix() {
         let selected = KioskUpdateService::select_latest_prefixed_tag(
             vec![
-                "vulcan/0.1.0".to_string(),
-                "vulcan/0.3.0".to_string(),
-                "v9.9.9".to_string(),
-                "9.9.9".to_string(),
-                "other/9.9.9".to_string(),
-                "vulcan/0.2.5".to_string(),
+                LatestTagInfo {
+                    name: "vulcan/0.1.0".to_string(),
+                    commit_sha: Some("111".to_string()),
+                },
+                LatestTagInfo {
+                    name: "vulcan/0.3.0".to_string(),
+                    commit_sha: Some("333".to_string()),
+                },
+                LatestTagInfo {
+                    name: "v9.9.9".to_string(),
+                    commit_sha: Some("999".to_string()),
+                },
+                LatestTagInfo {
+                    name: "9.9.9".to_string(),
+                    commit_sha: Some("999".to_string()),
+                },
+                LatestTagInfo {
+                    name: "other/9.9.9".to_string(),
+                    commit_sha: Some("999".to_string()),
+                },
+                LatestTagInfo {
+                    name: "vulcan/0.2.5".to_string(),
+                    commit_sha: Some("225".to_string()),
+                },
             ],
             "vulcan/",
         );
-        assert_eq!(selected, Some("vulcan/0.3.0".to_string()));
+        assert_eq!(
+            selected,
+            Some(LatestTagInfo {
+                name: "vulcan/0.3.0".to_string(),
+                commit_sha: Some("333".to_string()),
+            })
+        );
     }
 
     #[test]
     fn ignores_non_semver_prefixed_tags_when_selecting_latest() {
         let selected = KioskUpdateService::select_latest_prefixed_tag(
             vec![
-                "vulcan/latest".to_string(),
-                "vulcan/release".to_string(),
-                "other/1.0.0".to_string(),
+                LatestTagInfo {
+                    name: "vulcan/latest".to_string(),
+                    commit_sha: Some("latest".to_string()),
+                },
+                LatestTagInfo {
+                    name: "vulcan/release".to_string(),
+                    commit_sha: Some("release".to_string()),
+                },
+                LatestTagInfo {
+                    name: "other/1.0.0".to_string(),
+                    commit_sha: Some("other".to_string()),
+                },
             ],
             "vulcan/",
         );
         assert_eq!(selected, None);
+    }
+
+    #[test]
+    fn treats_head_that_contains_latest_tag_commit_as_up_to_date() {
+        assert!(KioskUpdateService::is_repo_up_to_date_from_sources(
+            None,
+            Some("kiosk/1.1.0"),
+            "kiosk/",
+            Some(true),
+        ));
+    }
+
+    #[test]
+    fn falls_back_to_tag_comparison_when_commit_check_cannot_confirm_currency() {
+        assert!(!KioskUpdateService::is_repo_up_to_date_from_sources(
+            None,
+            Some("kiosk/1.1.0"),
+            "kiosk/",
+            Some(false),
+        ));
+        assert!(KioskUpdateService::is_repo_up_to_date_from_sources(
+            Some("kiosk/1.1.0"),
+            Some("kiosk/1.1.0"),
+            "kiosk/",
+            None,
+        ));
     }
 
     #[test]
@@ -620,10 +773,19 @@ mod tests {
         let first =
             KioskUpdateService::resolve_latest_tag_with_cache_entry(&mut cache, start, || {
                 calls += 1;
-                Ok(Some("kiosk/1.0.0".to_string()))
+                Ok(Some(LatestTagInfo {
+                    name: "kiosk/1.0.0".to_string(),
+                    commit_sha: Some("100".to_string()),
+                }))
             })
             .expect("first call should succeed");
-        assert_eq!(first, Some("kiosk/1.0.0".to_string()));
+        assert_eq!(
+            first,
+            Some(LatestTagInfo {
+                name: "kiosk/1.0.0".to_string(),
+                commit_sha: Some("100".to_string()),
+            })
+        );
         assert_eq!(calls, 1);
 
         let second = KioskUpdateService::resolve_latest_tag_with_cache_entry(
@@ -631,11 +793,20 @@ mod tests {
             start + Duration::from_secs(120),
             || {
                 calls += 1;
-                Ok(Some("kiosk/2.0.0".to_string()))
+                Ok(Some(LatestTagInfo {
+                    name: "kiosk/2.0.0".to_string(),
+                    commit_sha: Some("200".to_string()),
+                }))
             },
         )
         .expect("second call should reuse cache");
-        assert_eq!(second, Some("kiosk/1.0.0".to_string()));
+        assert_eq!(
+            second,
+            Some(LatestTagInfo {
+                name: "kiosk/1.0.0".to_string(),
+                commit_sha: Some("100".to_string()),
+            })
+        );
         assert_eq!(calls, 1);
 
         let third = KioskUpdateService::resolve_latest_tag_with_cache_entry(
@@ -643,11 +814,20 @@ mod tests {
             start + KioskUpdateService::TAG_CACHE_TTL + Duration::from_secs(1),
             || {
                 calls += 1;
-                Ok(Some("kiosk/2.0.0".to_string()))
+                Ok(Some(LatestTagInfo {
+                    name: "kiosk/2.0.0".to_string(),
+                    commit_sha: Some("200".to_string()),
+                }))
             },
         )
         .expect("third call should refresh after ttl");
-        assert_eq!(third, Some("kiosk/2.0.0".to_string()));
+        assert_eq!(
+            third,
+            Some(LatestTagInfo {
+                name: "kiosk/2.0.0".to_string(),
+                commit_sha: Some("200".to_string()),
+            })
+        );
         assert_eq!(calls, 2);
     }
 }
