@@ -28,11 +28,13 @@ import { exit } from '@tauri-apps/plugin-process';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
 import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
+import { useKioskEnvironmentSettings } from '@/hooks/System/kiosk-environment.hook';
 
 export const KioskTopNavbar = () => {
     const { isRobotStarted } = useRobotStatus();
     const { data: kioskUpdateStatus } = useKioskUpdateStatus();
     const { data: desktopAppUpdateStatus } = useDesktopAppUpdateStatus();
+    const { data: kioskEnvironment } = useKioskEnvironmentSettings();
     const [isWiFiModalOpen, setIsWiFiModalOpen] = useState(false);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
@@ -102,7 +104,9 @@ export const KioskTopNavbar = () => {
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
 
-    const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
+    const runtimeEnvironment = kioskEnvironment?.environment ?? 'local';
+    const environmentBadgeLabel = kioskEnvironment?.badgeLabel;
+    const isDevMode = runtimeEnvironment !== 'production' || process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -120,6 +124,16 @@ export const KioskTopNavbar = () => {
                             Sourccey
                         </span>
                     </Link>
+
+                    {environmentBadgeLabel ? (
+                        <LinkButton
+                            href="/kiosk/settings/developer"
+                            className="ml-4 inline-flex items-center rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-[0.22em] text-amber-200 uppercase transition hover:border-amber-300/60 hover:bg-amber-500/20 hover:text-amber-100"
+                            tooltip="Open developer settings"
+                        >
+                            {environmentBadgeLabel}
+                        </LinkButton>
+                    ) : null}
 
                     <div className="grow" />
 
