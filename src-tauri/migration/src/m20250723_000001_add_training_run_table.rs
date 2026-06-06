@@ -12,7 +12,12 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(TrainingRun::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(TrainingRun::Id).string().not_null().primary_key())
+                    .col(
+                        ColumnDef::new(TrainingRun::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
                     // Basic Training Information
                     .col(ColumnDef::new(TrainingRun::Name).string())
                     .col(ColumnDef::new(TrainingRun::Description).text())
@@ -79,21 +84,21 @@ impl MigrationTrait for Migration {
                             .name("fk_training_run_profile")
                             .from(TrainingRun::Table, TrainingRun::ProfileId)
                             .to(Profile::Table, Profile::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_delete(ForeignKeyAction::SetNull),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_training_run_robot")
                             .from(TrainingRun::Table, TrainingRun::RobotId)
                             .to(Robot::Table, Robot::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_delete(ForeignKeyAction::SetNull),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_training_run_owned_robot")
                             .from(TrainingRun::Table, TrainingRun::OwnedRobotId)
                             .to(OwnedRobot::Table, OwnedRobot::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_delete(ForeignKeyAction::SetNull),
                     )
                     .to_owned(),
             )
@@ -178,7 +183,11 @@ impl MigrationTrait for Migration {
     async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Drop indexes first
         manager
-            .drop_index(Index::drop().name("idx_training_run_status_created_at").to_owned())
+            .drop_index(
+                Index::drop()
+                    .name("idx_training_run_status_created_at")
+                    .to_owned(),
+            )
             .await?;
 
         manager
@@ -190,7 +199,11 @@ impl MigrationTrait for Migration {
             .await?;
 
         manager
-            .drop_index(Index::drop().name("idx_training_run_owned_robot_id").to_owned())
+            .drop_index(
+                Index::drop()
+                    .name("idx_training_run_owned_robot_id")
+                    .to_owned(),
+            )
             .await?;
 
         manager

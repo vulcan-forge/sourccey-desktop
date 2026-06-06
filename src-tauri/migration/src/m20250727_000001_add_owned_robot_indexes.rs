@@ -87,11 +87,7 @@ impl MigrationTrait for Migration {
             .await?;
 
         manager
-            .drop_index(
-                Index::drop()
-                    .name("idx_owned_robot_created_at")
-                    .to_owned(),
-            )
+            .drop_index(Index::drop().name("idx_owned_robot_created_at").to_owned())
             .await?;
 
         manager
@@ -111,19 +107,11 @@ impl MigrationTrait for Migration {
             .await?;
 
         manager
-            .drop_index(
-                Index::drop()
-                    .name("idx_owned_robot_robot_id")
-                    .to_owned(),
-            )
+            .drop_index(Index::drop().name("idx_owned_robot_robot_id").to_owned())
             .await?;
 
         manager
-            .drop_index(
-                Index::drop()
-                    .name("idx_owned_robot_profile_id")
-                    .to_owned(),
-            )
+            .drop_index(Index::drop().name("idx_owned_robot_profile_id").to_owned())
             .await?;
 
         Ok(())

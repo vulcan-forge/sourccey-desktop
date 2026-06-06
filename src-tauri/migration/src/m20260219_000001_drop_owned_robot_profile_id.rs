@@ -31,7 +31,8 @@ impl MigrationTrait for Migration {
                 deleted_at TIMESTAMP WITH TIME ZONE,
                 FOREIGN KEY(robot_id) REFERENCES robot(id) ON DELETE CASCADE
             );
-            "#.to_string(),
+            "#
+            .to_string(),
         ))
         .await?;
 
@@ -60,7 +61,8 @@ impl MigrationTrait for Migration {
                 updated_at,
                 deleted_at
             FROM owned_robot;
-            "#.to_string(),
+            "#
+            .to_string(),
         ))
         .await?;
 
@@ -84,7 +86,8 @@ impl MigrationTrait for Migration {
         .await?;
         db.execute(Statement::from_string(
             manager.get_database_backend(),
-            "CREATE INDEX IF NOT EXISTS idx_owned_robot_robot_id ON owned_robot (robot_id);".to_string(),
+            "CREATE INDEX IF NOT EXISTS idx_owned_robot_robot_id ON owned_robot (robot_id);"
+                .to_string(),
         ))
         .await?;
         db.execute(Statement::from_string(
@@ -99,7 +102,8 @@ impl MigrationTrait for Migration {
         .await?;
         db.execute(Statement::from_string(
             manager.get_database_backend(),
-            "CREATE INDEX IF NOT EXISTS idx_owned_robot_created_at ON owned_robot (created_at);".to_string(),
+            "CREATE INDEX IF NOT EXISTS idx_owned_robot_created_at ON owned_robot (created_at);"
+                .to_string(),
         ))
         .await?;
 
@@ -127,7 +131,8 @@ impl MigrationTrait for Migration {
             r#"
             INSERT OR IGNORE INTO profile (id, handle)
             VALUES ('local-profile', 'local');
-            "#.to_string(),
+            "#
+            .to_string(),
         ))
         .await?;
 
@@ -148,7 +153,8 @@ impl MigrationTrait for Migration {
                 FOREIGN KEY(profile_id) REFERENCES profile(id) ON DELETE CASCADE,
                 FOREIGN KEY(robot_id) REFERENCES robot(id) ON DELETE CASCADE
             );
-            "#.to_string(),
+            "#
+            .to_string(),
         ))
         .await?;
 
@@ -179,7 +185,8 @@ impl MigrationTrait for Migration {
                 updated_at,
                 deleted_at
             FROM owned_robot;
-            "#.to_string(),
+            "#
+            .to_string(),
         ))
         .await?;
 
@@ -202,12 +209,14 @@ impl MigrationTrait for Migration {
         .await?;
         db.execute(Statement::from_string(
             manager.get_database_backend(),
-            "CREATE INDEX IF NOT EXISTS idx_owned_robot_profile_id ON owned_robot (profile_id);".to_string(),
+            "CREATE INDEX IF NOT EXISTS idx_owned_robot_profile_id ON owned_robot (profile_id);"
+                .to_string(),
         ))
         .await?;
         db.execute(Statement::from_string(
             manager.get_database_backend(),
-            "CREATE INDEX IF NOT EXISTS idx_owned_robot_robot_id ON owned_robot (robot_id);".to_string(),
+            "CREATE INDEX IF NOT EXISTS idx_owned_robot_robot_id ON owned_robot (robot_id);"
+                .to_string(),
         ))
         .await?;
         db.execute(Statement::from_string(
@@ -222,7 +231,8 @@ impl MigrationTrait for Migration {
         .await?;
         db.execute(Statement::from_string(
             manager.get_database_backend(),
-            "CREATE INDEX IF NOT EXISTS idx_owned_robot_created_at ON owned_robot (created_at);".to_string(),
+            "CREATE INDEX IF NOT EXISTS idx_owned_robot_created_at ON owned_robot (created_at);"
+                .to_string(),
         ))
         .await?;
         db.execute(Statement::from_string(

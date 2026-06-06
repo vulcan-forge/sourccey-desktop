@@ -1,10 +1,11 @@
-use sea_orm_migration::prelude::*;
 use migration::Migrator;
+use sea_orm_migration::prelude::*;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     tokio::runtime::Runtime::new()?.block_on(async {
         // Connect to the database
-        let database_url = "sqlite://C:/Users/Nicholas/AppData/Roaming/Sourccey/sourccey.db?mode=rwc";
+        let database_url =
+            "sqlite://C:/Users/Nicholas/AppData/Roaming/Sourccey/sourccey.db?mode=rwc";
         let db = Database::connect(database_url).await?;
 
         // Remove the problematic migration records

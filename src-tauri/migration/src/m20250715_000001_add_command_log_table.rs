@@ -12,7 +12,12 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(CommandLog::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(CommandLog::Id).string().not_null().primary_key())
+                    .col(
+                        ColumnDef::new(CommandLog::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(CommandLog::Command).string().not_null())
                     .col(ColumnDef::new(CommandLog::Description).string())
                     .col(ColumnDef::new(CommandLog::Status).string().not_null())
@@ -23,7 +28,11 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(CommandLog::OwnedRobotId).string())
                     .col(ColumnDef::new(CommandLog::ProfileId).string())
                     .col(ColumnDef::new(CommandLog::ExecutionTimeMs).big_integer())
-                    .col(ColumnDef::new(CommandLog::StartedAt).timestamp_with_time_zone().not_null())
+                    .col(
+                        ColumnDef::new(CommandLog::StartedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(CommandLog::CompletedAt).timestamp_with_time_zone())
                     .col(ColumnDef::new(CommandLog::CreatedAt).timestamp_with_time_zone())
                     .col(ColumnDef::new(CommandLog::UpdatedAt).timestamp_with_time_zone())
@@ -33,21 +42,21 @@ impl MigrationTrait for Migration {
                             .name("fk_command_log_robot")
                             .from(CommandLog::Table, CommandLog::RobotId)
                             .to(Robot::Table, Robot::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_delete(ForeignKeyAction::SetNull),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_command_log_owned_robot")
                             .from(CommandLog::Table, CommandLog::OwnedRobotId)
                             .to(OwnedRobot::Table, OwnedRobot::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_delete(ForeignKeyAction::SetNull),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_command_log_profile")
                             .from(CommandLog::Table, CommandLog::ProfileId)
                             .to(Profile::Table, Profile::Id)
-                            .on_delete(ForeignKeyAction::SetNull)
+                            .on_delete(ForeignKeyAction::SetNull),
                     )
                     .to_owned(),
             )
@@ -103,4 +112,4 @@ enum OwnedRobot {
 enum Profile {
     Table,
     Id,
-} 
+}

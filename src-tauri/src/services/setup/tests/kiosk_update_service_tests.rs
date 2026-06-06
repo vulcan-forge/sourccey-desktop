@@ -155,15 +155,14 @@ fn reuses_cached_tag_inside_ttl() {
     let start = Instant::now();
     let mut calls = 0;
 
-    let first =
-        KioskUpdateService::resolve_latest_tag_with_cache_entry(&mut cache, start, || {
-            calls += 1;
-            Ok(Some(LatestTagInfo {
-                name: "kiosk/1.0.0".to_string(),
-                commit_sha: Some("100".to_string()),
-            }))
-        })
-        .expect("first call should succeed");
+    let first = KioskUpdateService::resolve_latest_tag_with_cache_entry(&mut cache, start, || {
+        calls += 1;
+        Ok(Some(LatestTagInfo {
+            name: "kiosk/1.0.0".to_string(),
+            commit_sha: Some("100".to_string()),
+        }))
+    })
+    .expect("first call should succeed");
     assert_eq!(
         first,
         Some(LatestTagInfo {

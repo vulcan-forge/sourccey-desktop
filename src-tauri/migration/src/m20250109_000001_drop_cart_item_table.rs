@@ -8,12 +8,7 @@ impl MigrationTrait for Migration {
     async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
         // Drop the cart_item table
         manager
-            .drop_table(
-                Table::drop()
-                    .table(CartItem::Table)
-                    .if_exists()
-                    .to_owned(),
-            )
+            .drop_table(Table::drop().table(CartItem::Table).if_exists().to_owned())
             .await
     }
 
@@ -44,19 +39,19 @@ impl MigrationTrait for Migration {
                     .index(
                         Index::create()
                             .name("idx_cart_item_account_id")
-                            .col(CartItem::AccountId)
+                            .col(CartItem::AccountId),
                     )
                     .index(
                         Index::create()
                             .name("idx_cart_item_store_item_id")
-                            .col(CartItem::StoreItemId)
+                            .col(CartItem::StoreItemId),
                     )
                     .index(
                         Index::create()
                             .name("idx_cart_item_account_store_status")
                             .col(CartItem::AccountId)
                             .col(CartItem::StoreItemId)
-                            .col(CartItem::Status)
+                            .col(CartItem::Status),
                     )
                     .to_owned(),
             )
