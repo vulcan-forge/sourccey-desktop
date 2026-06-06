@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCheckCircle, FaSave, FaSpinner } from 'react-icons/fa';
+import { FaArrowLeft, FaCheckCircle, FaCodeBranch, FaGlobe, FaSave, FaSpinner } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import {
@@ -9,6 +9,7 @@ import {
     useKioskEnvironmentSettings,
 } from '@/hooks/System/kiosk-environment.hook';
 import type { KioskEnvironment, KioskEnvironmentSettings } from '@/types/kiosk-environment';
+import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 
 const environmentCards: Array<{
     value: KioskEnvironment;
@@ -39,6 +40,7 @@ export default function KioskDeveloperSettingsPage() {
     const [customApiBaseUrl, setCustomApiBaseUrl] = useState('http://192.168.1.220:5200');
     const [resolvedSettings, setResolvedSettings] = useState<KioskEnvironmentSettings | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const isLocalEnvironment = environment === 'local';
 
     useEffect(() => {
         if (!data) {
@@ -95,10 +97,30 @@ export default function KioskDeveloperSettingsPage() {
             setEnvironment(saved.environment);
             setCustomAppBaseUrl(saved.customAppBaseUrl);
             setCustomApiBaseUrl(saved.customApiBaseUrl);
-            toast.success('Developer environment saved. New pairing state and websocket credentials will follow the selected environment.');
+            toast.success(
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2 font-semibold">
+                        <FaCheckCircle className="h-4 w-4 text-emerald-300" />
+                        Environment updated
+                    </div>
+                    <div className="text-sm text-slate-200">
+                        Pairing state and websocket credentials will now follow{' '}
+                        <span className="font-semibold text-white">{saved.displayName}</span>.
+                    </div>
+                </div>,
+                { ...toastSuccessDefaults }
+            );
         } catch (saveError) {
             console.error('Failed to save kiosk environment settings:', saveError);
-            toast.error(saveError instanceof Error ? saveError.message : 'Failed to save developer settings');
+            toast.error(
+                <div className="space-y-1">
+                    <div className="font-semibold">Could not save developer settings</div>
+                    <div className="text-sm text-slate-200">
+                        {saveError instanceof Error ? saveError.message : 'Failed to save developer settings'}
+                    </div>
+                </div>,
+                { ...toastErrorDefaults }
+            );
         } finally {
             setIsSaving(false);
         }
@@ -163,45 +185,53 @@ export default function KioskDeveloperSettingsPage() {
                                 })}
                             </div>
 
-                            <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                <label htmlFor="custom-app-base-url" className="mb-2 block text-sm font-medium text-slate-300">
-                                    Local Portal URL
-                                </label>
-                                <input
-                                    id="custom-app-base-url"
-                                    type="text"
-                                    value={customAppBaseUrl}
-                                    onChange={(event) => setCustomAppBaseUrl(event.target.value)}
-                                    placeholder="192.168.1.220:3000 or http://192.168.1.220:3000"
-                                    disabled={environment !== 'local' || isSaving}
-                                    className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                                />
-                                <p className="mt-2 text-xs text-slate-400">
-                                    This is the local website users open to enter the pairing code.
-                                </p>
-                            </div>
+                            {isLocalEnvironment ? (
+                                <div className="grid gap-4 md:grid-cols-2">
+                                    <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                                        <label htmlFor="custom-app-base-url" className="mb-2 block text-sm font-medium text-slate-300">
+                                            Local Portal URL
+                                        </label>
+                                        <input
+                                            id="custom-app-base-url"
+                                            type="text"
+                                            value={customAppBaseUrl}
+                                            onChange={(event) => setCustomAppBaseUrl(event.target.value)}
+                                            placeholder="192.168.1.220:3000 or http://192.168.1.220:3000"
+                                            disabled={isSaving}
+                                            className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                        />
+                                        <p className="mt-2 flex items-start gap-2 text-xs text-slate-400">
+                                            <FaGlobe className="mt-0.5 h-3 w-3 shrink-0 text-slate-500" />
+                                            This is the local website users open to enter the pairing code.
+                                        </p>
+                                    </div>
 
-                            <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                <label htmlFor="custom-api-base-url" className="mb-2 block text-sm font-medium text-slate-300">
-                                    Local API URL
-                                </label>
-                                <input
-                                    id="custom-api-base-url"
-                                    type="text"
-                                    value={customApiBaseUrl}
-                                    onChange={(event) => setCustomApiBaseUrl(event.target.value)}
-                                    placeholder="192.168.1.220:5200 or http://192.168.1.220:5200"
-                                    disabled={environment !== 'local' || isSaving}
-                                    className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                                />
-                                <p className="mt-2 text-xs text-slate-400">
-                                    This is the local cloud/bootstrap API used for pairing, session lookup, and credential generation.
-                                </p>
-                            </div>
+                                    <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                                        <label htmlFor="custom-api-base-url" className="mb-2 block text-sm font-medium text-slate-300">
+                                            Local API URL
+                                        </label>
+                                        <input
+                                            id="custom-api-base-url"
+                                            type="text"
+                                            value={customApiBaseUrl}
+                                            onChange={(event) => setCustomApiBaseUrl(event.target.value)}
+                                            placeholder="192.168.1.220:5200 or http://192.168.1.220:5200"
+                                            disabled={isSaving}
+                                            className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                        />
+                                        <p className="mt-2 flex items-start gap-2 text-xs text-slate-400">
+                                            <FaCodeBranch className="mt-0.5 h-3 w-3 shrink-0 text-slate-500" />
+                                            This powers pairing, session lookup, and the credential file used by the websocket relay.
+                                        </p>
+                                    </div>
+                                </div>
+                            ) : null}
 
                             <div className="grid gap-4 rounded-xl border border-slate-700 bg-slate-900/40 p-4 md:grid-cols-2">
                                 <div>
-                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">App URL</div>
+                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">
+                                        {isLocalEnvironment ? 'Portal URL' : 'App URL'}
+                                    </div>
                                     <div className="mt-2 break-all text-sm text-white">{resolvedSettings?.appBaseUrl ?? '...'}</div>
                                 </div>
                                 <div>
