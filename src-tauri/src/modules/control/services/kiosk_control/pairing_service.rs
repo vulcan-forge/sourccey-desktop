@@ -2339,14 +2339,15 @@ mod tests {
     };
     use crate::modules::settings::services::kiosk_environment::kiosk_environment_service::KioskEnvironmentSettings;
 
-    fn local_settings(base_url: &str) -> KioskEnvironmentSettings {
+    fn local_settings(app_base_url: &str, api_base_url: &str) -> KioskEnvironmentSettings {
         KioskEnvironmentSettings {
             environment: "local".to_string(),
             display_name: "Local".to_string(),
             badge_label: Some("Local".to_string()),
-            custom_base_url: base_url.to_string(),
-            app_base_url: base_url.to_string(),
-            api_base_url: base_url.to_string(),
+            custom_app_base_url: app_base_url.to_string(),
+            custom_api_base_url: api_base_url.to_string(),
+            app_base_url: app_base_url.to_string(),
+            api_base_url: api_base_url.to_string(),
         }
     }
 
@@ -2368,7 +2369,8 @@ mod tests {
             environment: "staging".to_string(),
             display_name: "Staging".to_string(),
             badge_label: Some("Staging".to_string()),
-            custom_base_url: "http://192.168.1.220:5200".to_string(),
+            custom_app_base_url: "http://192.168.1.220:3000".to_string(),
+            custom_api_base_url: "http://192.168.1.220:5200".to_string(),
             app_base_url: "https://staging.factory.studio.vulcanrobotics.ai".to_string(),
             api_base_url: "https://api.staging.factory.studio.vulcanrobotics.ai".to_string(),
         };
@@ -2392,7 +2394,8 @@ mod tests {
             environment: "staging".to_string(),
             display_name: "Staging".to_string(),
             badge_label: Some("Staging".to_string()),
-            custom_base_url: "http://192.168.1.220:5200".to_string(),
+            custom_app_base_url: "http://192.168.1.220:3000".to_string(),
+            custom_api_base_url: "http://192.168.1.220:5200".to_string(),
             app_base_url: "https://staging.factory.studio.vulcanrobotics.ai".to_string(),
             api_base_url: "https://api.staging.factory.studio.vulcanrobotics.ai".to_string(),
         };
@@ -2409,12 +2412,12 @@ mod tests {
         assert!(KioskPairingService::legacy_cloud_pairing_matches_environment(
             Some(&PersistedCloudPairingState::default()),
             None,
-            &local_settings("http://192.168.1.220:5200")
+            &local_settings("http://192.168.1.220:3000", "http://192.168.1.220:5200")
         ));
         assert!(!KioskPairingService::legacy_cloud_pairing_matches_environment(
             Some(&PersistedCloudPairingState::default()),
             None,
-            &local_settings("http://10.0.0.8:5200")
+            &local_settings("http://10.0.0.8:3000", "http://10.0.0.8:5200")
         ));
     }
 }

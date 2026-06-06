@@ -35,7 +35,8 @@ const environmentCards: Array<{
 export default function KioskDeveloperSettingsPage() {
     const { data, isLoading, error } = useKioskEnvironmentSettings();
     const [environment, setEnvironment] = useState<KioskEnvironment>('local');
-    const [customBaseUrl, setCustomBaseUrl] = useState('http://192.168.1.220:5200');
+    const [customAppBaseUrl, setCustomAppBaseUrl] = useState('http://192.168.1.220:3000');
+    const [customApiBaseUrl, setCustomApiBaseUrl] = useState('http://192.168.1.220:5200');
     const [resolvedSettings, setResolvedSettings] = useState<KioskEnvironmentSettings | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -45,50 +46,56 @@ export default function KioskDeveloperSettingsPage() {
         }
 
         setEnvironment(data.environment);
-        setCustomBaseUrl(data.customBaseUrl);
+        setCustomAppBaseUrl(data.customAppBaseUrl);
+        setCustomApiBaseUrl(data.customApiBaseUrl);
         setResolvedSettings(data);
     }, [data]);
 
     const applyLocalDraft = () => {
-        const normalized = customBaseUrl.trim();
-        const base = normalized.length > 0 ? normalized : 'http://192.168.1.220:5200';
+        const normalizedApp = customAppBaseUrl.trim();
+        const normalizedApi = customApiBaseUrl.trim();
+        const appBase = normalizedApp.length > 0 ? normalizedApp : 'http://192.168.1.220:3000';
+        const apiBase = normalizedApi.length > 0 ? normalizedApi : 'http://192.168.1.220:5200';
         setResolvedSettings({
             environment,
             displayName:
                 environment === 'production' ? 'Production' : environment === 'staging' ? 'Staging' : 'Local',
             badgeLabel: environment === 'production' ? null : environment === 'staging' ? 'Staging' : 'Local',
-            customBaseUrl: base,
+            customAppBaseUrl: appBase,
+            customApiBaseUrl: apiBase,
             appBaseUrl:
                 environment === 'production'
                     ? 'https://studio.vulcanrobotics.ai'
                     : environment === 'staging'
                       ? 'https://staging.factory.studio.vulcanrobotics.ai'
-                      : base,
+                      : appBase,
             apiBaseUrl:
                 environment === 'production'
                     ? 'https://api.studio.vulcanrobotics.ai'
                     : environment === 'staging'
                       ? 'https://api.staging.factory.studio.vulcanrobotics.ai'
-                      : base,
+                      : apiBase,
         });
     };
 
     useEffect(() => {
         applyLocalDraft();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [environment, customBaseUrl]);
+    }, [environment, customAppBaseUrl, customApiBaseUrl]);
 
     const handleSave = async () => {
         setIsSaving(true);
         try {
             const saved = await saveKioskEnvironmentSettings({
                 environment,
-                customBaseUrl,
+                customAppBaseUrl,
+                customApiBaseUrl,
             });
             setResolvedSettings(saved);
             setEnvironment(saved.environment);
-            setCustomBaseUrl(saved.customBaseUrl);
-            toast.success('Developer environment saved. Cloud pairing will refresh for the selected environment.');
+            setCustomAppBaseUrl(saved.customAppBaseUrl);
+            setCustomApiBaseUrl(saved.customApiBaseUrl);
+            toast.success('Developer environment saved. New pairing state and websocket credentials will follow the selected environment.');
         } catch (saveError) {
             console.error('Failed to save kiosk environment settings:', saveError);
             toast.error(saveError instanceof Error ? saveError.message : 'Failed to save developer settings');
@@ -157,20 +164,38 @@ export default function KioskDeveloperSettingsPage() {
                             </div>
 
                             <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                <label htmlFor="custom-base-url" className="mb-2 block text-sm font-medium text-slate-300">
-                                    Local / Custom Host
+                                <label htmlFor="custom-app-base-url" className="mb-2 block text-sm font-medium text-slate-300">
+                                    Local Portal URL
                                 </label>
                                 <input
-                                    id="custom-base-url"
+                                    id="custom-app-base-url"
                                     type="text"
-                                    value={customBaseUrl}
-                                    onChange={(event) => setCustomBaseUrl(event.target.value)}
+                                    value={customAppBaseUrl}
+                                    onChange={(event) => setCustomAppBaseUrl(event.target.value)}
+                                    placeholder="192.168.1.220:3000 or http://192.168.1.220:3000"
+                                    disabled={environment !== 'local' || isSaving}
+                                    className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+                                />
+                                <p className="mt-2 text-xs text-slate-400">
+                                    This is the local website users open to enter the pairing code.
+                                </p>
+                            </div>
+
+                            <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                                <label htmlFor="custom-api-base-url" className="mb-2 block text-sm font-medium text-slate-300">
+                                    Local API URL
+                                </label>
+                                <input
+                                    id="custom-api-base-url"
+                                    type="text"
+                                    value={customApiBaseUrl}
+                                    onChange={(event) => setCustomApiBaseUrl(event.target.value)}
                                     placeholder="192.168.1.220:5200 or http://192.168.1.220:5200"
                                     disabled={environment !== 'local' || isSaving}
                                     className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                 />
                                 <p className="mt-2 text-xs text-slate-400">
-                                    For local mode, enter an IP, host, or full URL. We will use the same base for the local app and API.
+                                    This is the local cloud/bootstrap API used for pairing, session lookup, and credential generation.
                                 </p>
                             </div>
 
@@ -198,7 +223,7 @@ export default function KioskDeveloperSettingsPage() {
                                     {isSaving ? 'Saving...' : 'Save Environment'}
                                 </button>
                                 <span className="text-xs text-slate-400">
-                                    Saving clears stale cloud pairing credentials so the robot reconnects to the selected environment cleanly.
+                                    Saving updates the kiosk environment that the backend uses when it writes pairing state and websocket credential files.
                                 </span>
                             </div>
                         </div>
