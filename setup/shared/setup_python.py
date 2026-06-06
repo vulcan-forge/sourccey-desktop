@@ -9,7 +9,6 @@ import os
 import platform
 import subprocess
 import sys
-import importlib.util
 import shutil
 from pathlib import Path
 from typing import Callable, Optional
@@ -379,31 +378,20 @@ class PythonSetupManager:
         try:
             self.print_status("Running lerobot-vulcan setup...")
 
-            # Add the lerobot setup directory to the path temporarily
-            setup_dir = str(lerobot_setup_path.parent)
-            if setup_dir not in sys.path:
-                sys.path.insert(0, setup_dir)
+            command = [sys.executable, str(lerobot_setup_path)]
+            if desktop:
+                command.append("--desktop")
 
-            # Load the setup module
-            spec = importlib.util.spec_from_file_location("lerobot_setup", lerobot_setup_path)
-            if spec is None or spec.loader is None:
-                self.print_error("Failed to load lerobot setup module")
-                return False
+            wrapped_cmd, actual_cwd = wrap_command(command, lerobot_path)
+            env = os.environ.copy()
+            env["UV_PYTHON"] = UV_VENV_PYTHON_VERSION
 
-            lerobot_setup = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(lerobot_setup)
-
-            # Force uv to resolve venv creation against Python 3.12 for this setup run.
-            original_uv_python = os.environ.get("UV_PYTHON")
-            os.environ["UV_PYTHON"] = UV_VENV_PYTHON_VERSION
-            try:
-                # Call the setup function
-                success = lerobot_setup.setup(desktop=desktop)
-            finally:
-                if original_uv_python is None:
-                    os.environ.pop("UV_PYTHON", None)
-                else:
-                    os.environ["UV_PYTHON"] = original_uv_python
+            result = subprocess.run(
+                wrapped_cmd,
+                cwd=actual_cwd,
+                env=env,
+            )
+            success = result.returncode == 0
 
             if success:
                 self.print_success("lerobot-vulcan setup completed successfully")
