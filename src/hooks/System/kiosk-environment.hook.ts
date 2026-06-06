@@ -9,8 +9,9 @@ const defaultEnvironmentSettings: KioskEnvironmentSettings = {
     environment: 'local',
     displayName: 'Local',
     badgeLabel: 'Local',
-    customBaseUrl: 'http://192.168.1.220:5200',
-    appBaseUrl: 'http://192.168.1.220:5200',
+    customAppBaseUrl: 'http://192.168.1.220:3000',
+    customApiBaseUrl: 'http://192.168.1.220:5200',
+    appBaseUrl: 'http://192.168.1.220:3000',
     apiBaseUrl: 'http://192.168.1.220:5200',
 };
 

@@ -67,7 +67,7 @@ export const HomeWelcome = () => {
             console.error('Failed to get cloud pairing info:', error);
             setCloudPairing({
                 environment: 'local',
-                portalBaseUrl: 'http://192.168.1.220:5200',
+                portalBaseUrl: 'http://192.168.1.220:3000',
                 apiBaseUrl: 'http://192.168.1.220:5200',
                 deviceId: '',
                 robotModelName: 'sourccey',
@@ -270,7 +270,7 @@ export const HomeWelcome = () => {
                             Registration in progress
                         </div>
                         <div className="text-sm text-slate-300">
-                            Open <span className="font-semibold text-white">{cloudPairing?.portalBaseUrl || 'http://192.168.1.220:5200'}</span>,
+                            Open <span className="font-semibold text-white">{cloudPairing?.portalBaseUrl || 'http://192.168.1.220:3000'}</span>,
                             sign in, and enter this pairing code.
                         </div>
                         <div className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-5 text-center font-mono text-4xl font-bold tracking-[0.18em] text-white">

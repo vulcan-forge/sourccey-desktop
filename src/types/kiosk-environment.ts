@@ -4,12 +4,14 @@ export interface KioskEnvironmentSettings {
     environment: KioskEnvironment;
     displayName: string;
     badgeLabel: string | null;
-    customBaseUrl: string;
+    customAppBaseUrl: string;
+    customApiBaseUrl: string;
     appBaseUrl: string;
     apiBaseUrl: string;
 }
 
 export interface SaveKioskEnvironmentSettingsRequest {
     environment: KioskEnvironment;
-    customBaseUrl?: string;
+    customAppBaseUrl?: string;
+    customApiBaseUrl?: string;
 }
