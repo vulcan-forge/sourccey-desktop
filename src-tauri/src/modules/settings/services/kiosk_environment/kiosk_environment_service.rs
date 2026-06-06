@@ -99,10 +99,19 @@ impl KioskEnvironmentService {
             return Ok(Self::default_settings());
         }
 
-        let content = fs::read_to_string(&path)
-            .map_err(|e| format!("Failed to read kiosk environment settings {:?}: {}", path, e))?;
+        let content = fs::read_to_string(&path).map_err(|e| {
+            format!(
+                "Failed to read kiosk environment settings {:?}: {}",
+                path, e
+            )
+        })?;
         let persisted = serde_json::from_str::<PersistedKioskEnvironmentSettings>(&content)
-            .map_err(|e| format!("Failed to parse kiosk environment settings {:?}: {}", path, e))?;
+            .map_err(|e| {
+                format!(
+                    "Failed to parse kiosk environment settings {:?}: {}",
+                    path, e
+                )
+            })?;
 
         let environment = KioskEnvironment::parse(&persisted.environment)?;
         let (custom_app_base_url, custom_api_base_url) = match environment {
@@ -155,8 +164,12 @@ impl KioskEnvironmentService {
 
         let serialized = serde_json::to_string_pretty(&payload)
             .map_err(|e| format!("Failed to encode kiosk environment settings: {}", e))?;
-        fs::write(&path, serialized)
-            .map_err(|e| format!("Failed to write kiosk environment settings {:?}: {}", path, e))?;
+        fs::write(&path, serialized).map_err(|e| {
+            format!(
+                "Failed to write kiosk environment settings {:?}: {}",
+                path, e
+            )
+        })?;
 
         #[cfg(unix)]
         {
@@ -194,10 +207,7 @@ impl KioskEnvironmentService {
                     Self::normalize_base_url(&settings.custom_api_base_url)?;
                 let app_key = Self::storage_url_segment(&normalized_app_base_url)?;
                 let api_key = Self::storage_url_segment(&normalized_api_base_url)?;
-                Ok(format!(
-                    "local-app-{}-api-{}",
-                    app_key, api_key
-                ))
+                Ok(format!("local-app-{}-api-{}", app_key, api_key))
             }
         }
     }
@@ -214,8 +224,8 @@ impl KioskEnvironmentService {
             format!("http://{}", raw)
         };
 
-        let parsed = Url::parse(&with_scheme)
-            .map_err(|e| format!("Invalid base URL '{}': {}", raw, e))?;
+        let parsed =
+            Url::parse(&with_scheme).map_err(|e| format!("Invalid base URL '{}': {}", raw, e))?;
         let scheme = parsed.scheme();
         if scheme != "http" && scheme != "https" {
             return Err("Base URL must use http or https".to_string());

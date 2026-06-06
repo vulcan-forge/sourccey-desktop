@@ -98,15 +98,17 @@ impl KioskHostService {
             .stderr(Stdio::piped());
 
         // Start the process
-        let mut child = cmd.spawn()
-            .map_err(|e| {
-                let error_msg = format!(
-                    "Failed to start kiosk host process: {}. Command: {:?}, Working dir: {:?}",
-                    e, command_parts, lerobot_dir
-                );
-                Self::debug_emit(&app_handle, &format!("Failed to spawn host process: {}", error_msg));
-                error_msg
-            })?;
+        let mut child = cmd.spawn().map_err(|e| {
+            let error_msg = format!(
+                "Failed to start kiosk host process: {}. Command: {:?}, Working dir: {:?}",
+                e, command_parts, lerobot_dir
+            );
+            Self::debug_emit(
+                &app_handle,
+                &format!("Failed to spawn host process: {}", error_msg),
+            );
+            error_msg
+        })?;
 
         let pid = child.id();
 

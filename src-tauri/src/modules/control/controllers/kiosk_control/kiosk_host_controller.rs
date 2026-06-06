@@ -36,13 +36,14 @@ pub async fn start_kiosk_host(
     // This uses blocking HTTP/file I/O, so keep it off the async Tokio worker.
     let pairing_state_inner = pairing_state.inner().clone();
     if let Err(error) = tauri::async_runtime::spawn_blocking(move || {
-        if KioskPairingService::should_refresh_cloud_pairing_before_host_start()
-            .unwrap_or(false)
-        {
+        if KioskPairingService::should_refresh_cloud_pairing_before_host_start().unwrap_or(false) {
             if let Err(error) =
                 KioskPairingService::get_kiosk_cloud_pairing_info(pairing_state_inner)
             {
-                eprintln!("Failed to refresh cloud pairing state before host start: {}", error);
+                eprintln!(
+                    "Failed to refresh cloud pairing state before host start: {}",
+                    error
+                );
             }
         }
     })

@@ -87,12 +87,15 @@ fn reuses_cached_latest_tag_inside_ttl() {
     assert_eq!(first, Some("vulcan/0.2.0".to_string()));
     assert_eq!(fetch_calls, 1);
 
-    let second =
-        LocalSetupService::resolve_latest_tag_with_cache(&mut cache, start + Duration::from_secs(60), || {
+    let second = LocalSetupService::resolve_latest_tag_with_cache(
+        &mut cache,
+        start + Duration::from_secs(60),
+        || {
             fetch_calls += 1;
             Ok(Some("vulcan/0.9.0".to_string()))
-        })
-        .expect("second cache resolution should reuse cache");
+        },
+    )
+    .expect("second cache resolution should reuse cache");
     assert_eq!(second, Some("vulcan/0.2.0".to_string()));
     assert_eq!(fetch_calls, 1);
 

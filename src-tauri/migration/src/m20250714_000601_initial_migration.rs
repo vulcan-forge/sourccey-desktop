@@ -12,9 +12,19 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(Profile::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(Profile::Id).string().not_null().primary_key())
+                    .col(
+                        ColumnDef::new(Profile::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(Profile::AccountId).string())
-                    .col(ColumnDef::new(Profile::Handle).string().not_null().unique_key())
+                    .col(
+                        ColumnDef::new(Profile::Handle)
+                            .string()
+                            .not_null()
+                            .unique_key(),
+                    )
                     .col(ColumnDef::new(Profile::Name).string())
                     .col(ColumnDef::new(Profile::Image).string())
                     .col(ColumnDef::new(Profile::Bio).string())
@@ -51,13 +61,30 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(OwnedRobot::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(OwnedRobot::Id).string().not_null().primary_key())
+                    .col(
+                        ColumnDef::new(OwnedRobot::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(OwnedRobot::ProfileId).string().not_null())
                     .col(ColumnDef::new(OwnedRobot::RobotId).string().not_null())
                     .col(ColumnDef::new(OwnedRobot::Nickname).string())
-                    .col(ColumnDef::new(OwnedRobot::RegistrationDate).timestamp_with_time_zone().not_null())
-                    .col(ColumnDef::new(OwnedRobot::ConfirmationDate).timestamp_with_time_zone().not_null())
-                    .col(ColumnDef::new(OwnedRobot::LastActiveDate).timestamp_with_time_zone().not_null())
+                    .col(
+                        ColumnDef::new(OwnedRobot::RegistrationDate)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(OwnedRobot::ConfirmationDate)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(OwnedRobot::LastActiveDate)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
                     .col(ColumnDef::new(OwnedRobot::CreatedAt).timestamp_with_time_zone())
                     .col(ColumnDef::new(OwnedRobot::UpdatedAt).timestamp_with_time_zone())
                     .col(ColumnDef::new(OwnedRobot::DeletedAt).timestamp_with_time_zone())
@@ -66,14 +93,14 @@ impl MigrationTrait for Migration {
                             .name("fk_owned_robot_profile")
                             .from(OwnedRobot::Table, OwnedRobot::ProfileId)
                             .to(Profile::Table, Profile::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .foreign_key(
                         ForeignKey::create()
                             .name("fk_owned_robot_robot")
                             .from(OwnedRobot::Table, OwnedRobot::RobotId)
                             .to(Robot::Table, Robot::Id)
-                            .on_delete(ForeignKeyAction::Cascade)
+                            .on_delete(ForeignKeyAction::Cascade),
                     )
                     .to_owned(),
             )
@@ -85,7 +112,12 @@ impl MigrationTrait for Migration {
                 Table::create()
                     .table(SyncMetadata::Table)
                     .if_not_exists()
-                    .col(ColumnDef::new(SyncMetadata::Id).string().not_null().primary_key())
+                    .col(
+                        ColumnDef::new(SyncMetadata::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
                     .col(ColumnDef::new(SyncMetadata::LastSyncAt).timestamp_with_time_zone())
                     .col(ColumnDef::new(SyncMetadata::SyncStatus).string())
                     .col(ColumnDef::new(SyncMetadata::RecordsSynced).integer())
