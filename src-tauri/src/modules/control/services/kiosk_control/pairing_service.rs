@@ -1,5 +1,5 @@
 use crate::modules::settings::services::kiosk_environment::kiosk_environment_service::{
-    KioskEnvironment, KioskEnvironmentService, KioskEnvironmentSettings,
+    KioskEnvironmentService, KioskEnvironmentSettings,
 };
 use crate::services::directory::directory_service::DirectoryService;
 use crate::services::log::log_service::LogService;
@@ -44,8 +44,6 @@ struct PersistedCloudPairingState {
     api_base_url: Option<String>,
     #[serde(default)]
     portal_base_url: Option<String>,
-    #[serde(default)]
-    relay_base_url: Option<String>,
     robot_model_name: Option<String>,
     device_auth_token: Option<String>,
 }
@@ -369,7 +367,6 @@ impl KioskPairingService {
         persisted.device_id = Some(device_id.clone());
         persisted.api_base_url = Some(api_base_url.clone());
         persisted.portal_base_url = Some(portal_base_url.clone());
-        persisted.relay_base_url = Some(api_base_url.clone());
         persisted.robot_model_name = Some(robot_model_name.clone());
 
         if persisted.status.as_deref() == Some("claimed") && persisted.owned_robot_id.is_some() {
@@ -1652,7 +1649,7 @@ snapshot_download(
     }
 
     fn start_cloud_bootstrap(
-        relay_base_url: &str,
+        api_base_url: &str,
         device_id: &str,
         robot_model_name: &str,
         default_nickname: Option<&str>,
@@ -1679,7 +1676,7 @@ snapshot_download(
         };
 
         let response = client
-            .post(format!("{}/api/v1/robot/bootstrap/start", relay_base_url))
+            .post(format!("{}/api/v1/robot/bootstrap/start", api_base_url))
             .json(&request)
             .send()
             .map_err(|e| format!("Failed to start cloud pairing bootstrap: {}", e))?;
@@ -1697,7 +1694,7 @@ snapshot_download(
     }
 
     fn fetch_cloud_bootstrap_status(
-        relay_base_url: &str,
+        api_base_url: &str,
         session_id: &str,
         device_id: &str,
     ) -> Result<RelayBootstrapStatusResponse, String> {
@@ -1709,7 +1706,7 @@ snapshot_download(
         let response = client
             .get(format!(
                 "{}/api/v1/robot/bootstrap/{}?device_id={}",
-                relay_base_url, session_id, device_id
+                api_base_url, session_id, device_id
             ))
             .send()
             .map_err(|e| format!("Failed to fetch cloud pairing status: {}", e))?;
@@ -1729,16 +1726,10 @@ snapshot_download(
     fn validate_claimed_cloud_pairing(
         state: &PersistedCloudPairingState,
     ) -> ClaimedCloudPairingValidation {
-        let relay_base_url = state
+        let api_base_url = state
             .api_base_url
             .clone()
             .filter(|value| !value.trim().is_empty())
-            .or_else(|| {
-                state
-                    .relay_base_url
-                    .clone()
-                    .filter(|value| !value.trim().is_empty())
-            })
             .clone()
             .map(|value| value.trim().trim_end_matches('/').to_string())
             .filter(|value| !value.is_empty())
@@ -1768,7 +1759,7 @@ snapshot_download(
         let response = match client
             .get(format!(
                 "{}/api/v1/robot/session/active",
-                relay_base_url
+                api_base_url
             ))
             .bearer_auth(device_auth_token)
             .send()
@@ -1808,7 +1799,6 @@ snapshot_download(
         state.status = None;
         state.api_base_url = Some(api_base_url.to_string());
         state.portal_base_url = Some(portal_base_url.to_string());
-        state.relay_base_url = Some(api_base_url.to_string());
         state.robot_model_name = Some(robot_model_name.to_string());
         state.device_auth_token = None;
     }
@@ -1883,7 +1873,6 @@ snapshot_download(
 
     fn cloud_pairing_state_file_path() -> Result<std::path::PathBuf, String> {
         let pairing_dir = Self::current_cloud_pairing_dir_path()?;
-        Self::migrate_legacy_cloud_pairing_files_if_needed(&pairing_dir)?;
         Ok(pairing_dir.join(CLOUD_PAIRING_STATE_FILE_NAME))
     }
 
@@ -1918,12 +1907,6 @@ snapshot_download(
             .api_base_url
             .clone()
             .filter(|value| !value.trim().is_empty())
-            .or_else(|| {
-                state
-                    .relay_base_url
-                    .clone()
-                    .filter(|value| !value.trim().is_empty())
-            })
         else {
             Self::log_pairing_error(
                 "Cloud pairing claim is missing api_base_url; skipping credential file update.",
@@ -2027,7 +2010,6 @@ snapshot_download(
 
     fn cloud_device_credentials_file_path() -> Result<std::path::PathBuf, String> {
         let pairing_dir = Self::current_cloud_pairing_dir_path()?;
-        Self::migrate_legacy_cloud_pairing_files_if_needed(&pairing_dir)?;
         Ok(pairing_dir.join(CLOUD_DEVICE_CREDENTIALS_FILE_NAME))
     }
 
@@ -2045,188 +2027,6 @@ snapshot_download(
         let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
         let storage_key = KioskEnvironmentService::current_storage_key()?;
         Ok(cache_dir.join("pairing").join(storage_key))
-    }
-
-    fn legacy_cloud_pairing_root_path() -> Result<std::path::PathBuf, String> {
-        let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
-        Ok(cache_dir.join("pairing"))
-    }
-
-    fn migrate_legacy_cloud_pairing_files_if_needed(
-        pairing_dir: &std::path::Path,
-    ) -> Result<(), String> {
-        fs::create_dir_all(pairing_dir).map_err(|e| {
-            format!(
-                "Failed to create cloud pairing directory {:?}: {}",
-                pairing_dir, e
-            )
-        })?;
-
-        let legacy_root = Self::legacy_cloud_pairing_root_path()?;
-        if !Self::legacy_cloud_pairing_matches_current_environment(&legacy_root) {
-            return Ok(());
-        }
-
-        let file_names = [CLOUD_PAIRING_STATE_FILE_NAME, CLOUD_DEVICE_CREDENTIALS_FILE_NAME];
-
-        for file_name in file_names {
-            let target = pairing_dir.join(file_name);
-            if target.exists() {
-                continue;
-            }
-
-            let legacy = legacy_root.join(file_name);
-            if !legacy.exists() || legacy == target {
-                continue;
-            }
-
-            fs::copy(&legacy, &target).map_err(|e| {
-                format!(
-                    "Failed to migrate legacy cloud pairing file {:?} to {:?}: {}",
-                    legacy, target, e
-                )
-            })?;
-
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::PermissionsExt;
-                let perms = fs::Permissions::from_mode(0o600);
-                fs::set_permissions(&target, perms).map_err(|e| {
-                    format!(
-                        "Failed to secure migrated cloud pairing file {:?}: {}",
-                        target, e
-                    )
-                })?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn legacy_cloud_pairing_matches_current_environment(legacy_root: &std::path::Path) -> bool {
-        let environment_settings = Self::cloud_environment_settings();
-        let legacy_state = Self::load_legacy_pairing_file::<PersistedCloudPairingState>(
-            &legacy_root.join(CLOUD_PAIRING_STATE_FILE_NAME),
-            "cloud pairing state",
-        );
-        let legacy_credentials = Self::load_legacy_pairing_file::<PersistedCloudDeviceCredentials>(
-            &legacy_root.join(CLOUD_DEVICE_CREDENTIALS_FILE_NAME),
-            "cloud device credentials",
-        );
-
-        Self::legacy_cloud_pairing_matches_environment(
-            legacy_state.as_ref(),
-            legacy_credentials.as_ref(),
-            &environment_settings,
-        )
-    }
-
-    fn load_legacy_pairing_file<T>(path: &std::path::Path, label: &str) -> Option<T>
-    where
-        T: serde::de::DeserializeOwned,
-    {
-        if !path.exists() {
-            return None;
-        }
-
-        let content = match fs::read_to_string(path) {
-            Ok(content) => content,
-            Err(error) => {
-                Self::log_pairing_error(&format!(
-                    "Failed to read legacy {} file {:?}: {}",
-                    label, path, error
-                ));
-                return None;
-            }
-        };
-
-        match serde_json::from_str::<T>(&content) {
-            Ok(parsed) => Some(parsed),
-            Err(error) => {
-                Self::log_pairing_error(&format!(
-                    "Failed to parse legacy {} file {:?}: {}",
-                    label, path, error
-                ));
-                None
-            }
-        }
-    }
-
-    fn legacy_cloud_pairing_matches_environment(
-        legacy_state: Option<&PersistedCloudPairingState>,
-        legacy_credentials: Option<&PersistedCloudDeviceCredentials>,
-        environment_settings: &KioskEnvironmentSettings,
-    ) -> bool {
-        let expected_api_base_url =
-            match KioskEnvironmentService::normalize_base_url(&environment_settings.api_base_url) {
-                Ok(value) => value,
-                Err(_) => return false,
-            };
-        let expected_portal_base_url =
-            match KioskEnvironmentService::normalize_base_url(&environment_settings.app_base_url) {
-                Ok(value) => value,
-                Err(_) => return false,
-            };
-        let expected_ws_base_url = Self::cloud_pairing_ws_base_url(&expected_portal_base_url);
-        let mut saw_environment_marker = false;
-
-        if let Some(state) = legacy_state {
-            for candidate in [
-                state.api_base_url.as_deref(),
-                state.portal_base_url.as_deref(),
-                state.relay_base_url.as_deref(),
-            ] {
-                let Some(candidate) = candidate else {
-                    continue;
-                };
-                let candidate = candidate.trim();
-                if candidate.is_empty() {
-                    continue;
-                }
-
-                saw_environment_marker = true;
-                if let Ok(normalized_candidate) =
-                    KioskEnvironmentService::normalize_base_url(candidate)
-                {
-                    if normalized_candidate == expected_api_base_url
-                        || normalized_candidate == expected_portal_base_url
-                    {
-                        return true;
-                    }
-                }
-            }
-        }
-
-        if let Some(credentials) = legacy_credentials {
-            let relay_http_base_url = credentials.relay_http_base_url.trim();
-            if !relay_http_base_url.is_empty() {
-                saw_environment_marker = true;
-                if let Ok(normalized_candidate) =
-                    KioskEnvironmentService::normalize_base_url(relay_http_base_url)
-                {
-                    if normalized_candidate == expected_api_base_url {
-                        return true;
-                    }
-                }
-            }
-
-            let relay_ws_base_url = credentials.relay_ws_base_url.trim().trim_end_matches('/');
-            if !relay_ws_base_url.is_empty() {
-                saw_environment_marker = true;
-                if relay_ws_base_url == expected_ws_base_url {
-                    return true;
-                }
-            }
-        }
-
-        if saw_environment_marker {
-            return false;
-        }
-
-        KioskEnvironment::parse(&environment_settings.environment)
-            .ok()
-            .is_some_and(|environment| environment == KioskEnvironment::Local)
-            && expected_api_base_url == KioskEnvironmentService::default_settings().api_base_url
     }
 
     fn refresh_pairing_code_if_needed(runtime: &mut KioskPairingRuntimeState) {
@@ -2329,95 +2129,5 @@ snapshot_download(
     fn pairing_log_path() -> Result<std::path::PathBuf, String> {
         let base_dir = DirectoryService::get_current_dir()?;
         Ok(base_dir.join("logs").join("pairing.log"))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{
-        KioskPairingService, PersistedCloudDeviceCredentials, PersistedCloudPairingState,
-    };
-    use crate::modules::settings::services::kiosk_environment::kiosk_environment_service::KioskEnvironmentSettings;
-
-    fn local_settings(app_base_url: &str, api_base_url: &str) -> KioskEnvironmentSettings {
-        KioskEnvironmentSettings {
-            environment: "local".to_string(),
-            display_name: "Local".to_string(),
-            badge_label: Some("Local".to_string()),
-            custom_app_base_url: app_base_url.to_string(),
-            custom_api_base_url: api_base_url.to_string(),
-            app_base_url: app_base_url.to_string(),
-            api_base_url: api_base_url.to_string(),
-        }
-    }
-
-    #[test]
-    fn legacy_pairing_matches_same_hosted_environment() {
-        let legacy_credentials = PersistedCloudDeviceCredentials {
-            version: 1,
-            device_id: "device-1".to_string(),
-            owned_robot_id: "robot-1".to_string(),
-            robot_model_name: Some("sourccey".to_string()),
-            relay_http_base_url: "https://api.staging.factory.studio.vulcanrobotics.ai".to_string(),
-            relay_ws_base_url: "wss://staging.factory.studio.vulcanrobotics.ai".to_string(),
-            active_session_id: Some("session-1".to_string()),
-            device_auth_token: "token-1".to_string(),
-            claimed_at_ms: Some(1),
-            saved_at_ms: 1,
-        };
-        let settings = KioskEnvironmentSettings {
-            environment: "staging".to_string(),
-            display_name: "Staging".to_string(),
-            badge_label: Some("Staging".to_string()),
-            custom_app_base_url: "http://192.168.1.220:3000".to_string(),
-            custom_api_base_url: "http://192.168.1.220:5200".to_string(),
-            app_base_url: "https://staging.factory.studio.vulcanrobotics.ai".to_string(),
-            api_base_url: "https://api.staging.factory.studio.vulcanrobotics.ai".to_string(),
-        };
-
-        assert!(KioskPairingService::legacy_cloud_pairing_matches_environment(
-            None,
-            Some(&legacy_credentials),
-            &settings
-        ));
-    }
-
-    #[test]
-    fn legacy_pairing_does_not_bleed_into_different_environment() {
-        let legacy_state = PersistedCloudPairingState {
-            api_base_url: Some("https://api.studio.vulcanrobotics.ai".to_string()),
-            portal_base_url: Some("https://studio.vulcanrobotics.ai".to_string()),
-            relay_base_url: Some("https://api.studio.vulcanrobotics.ai".to_string()),
-            ..Default::default()
-        };
-        let settings = KioskEnvironmentSettings {
-            environment: "staging".to_string(),
-            display_name: "Staging".to_string(),
-            badge_label: Some("Staging".to_string()),
-            custom_app_base_url: "http://192.168.1.220:3000".to_string(),
-            custom_api_base_url: "http://192.168.1.220:5200".to_string(),
-            app_base_url: "https://staging.factory.studio.vulcanrobotics.ai".to_string(),
-            api_base_url: "https://api.staging.factory.studio.vulcanrobotics.ai".to_string(),
-        };
-
-        assert!(!KioskPairingService::legacy_cloud_pairing_matches_environment(
-            Some(&legacy_state),
-            None,
-            &settings
-        ));
-    }
-
-    #[test]
-    fn markerless_legacy_pairing_only_falls_back_to_default_local_environment() {
-        assert!(KioskPairingService::legacy_cloud_pairing_matches_environment(
-            Some(&PersistedCloudPairingState::default()),
-            None,
-            &local_settings("http://192.168.1.220:3000", "http://192.168.1.220:5200")
-        ));
-        assert!(!KioskPairingService::legacy_cloud_pairing_matches_environment(
-            Some(&PersistedCloudPairingState::default()),
-            None,
-            &local_settings("http://10.0.0.8:3000", "http://10.0.0.8:5200")
-        ));
     }
 }

@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { invoke } from '@tauri-apps/api/core';
 import {
     FaTimes,
     FaCircle,
@@ -22,38 +21,12 @@ interface RobotStatusModalProps {
     isRobotStarted: boolean;
 }
 
-type KioskPairingInfo = {
-    service_port: number;
-};
-
-const DISCOVERY_UDP_PORT = 42111;
-
 export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }: RobotStatusModalProps) => {
-    const [servicePort, setServicePort] = useState<number | null>(null);
     const [activeView, setActiveView] = useState<'overview' | 'battery'>('overview');
 
     useEffect(() => {
         if (!isOpen) return;
-        let cancelled = false;
         setActiveView('overview');
-
-        const loadPairingInfo = async () => {
-            try {
-                const info = await invoke<KioskPairingInfo>('get_kiosk_pairing_info');
-                if (!cancelled) {
-                    setServicePort(info?.service_port ?? null);
-                }
-            } catch {
-                if (!cancelled) {
-                    setServicePort(null);
-                }
-            }
-        };
-
-        loadPairingInfo();
-        return () => {
-            cancelled = true;
-        };
     }, [isOpen]);
 
     if (!isOpen) return null;
@@ -122,19 +95,6 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
                                     <span className="text-sm font-medium text-slate-300">IP Address</span>
                                 </div>
                                 <div className="text-sm font-semibold text-slate-300">{systemInfo.ipAddress}</div>
-                            </div>
-
-                            <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                <div className="flex items-center gap-3">
-                                    <div className="text-slate-400">
-                                        <FaWifi />
-                                    </div>
-                                    <span className="text-sm font-medium text-slate-300">Discovery Ports</span>
-                                </div>
-                                <div className="text-right text-xs font-semibold text-slate-300">
-                                    <div>UDP {DISCOVERY_UDP_PORT}</div>
-                                    <div>TCP {servicePort ?? '--'}</div>
-                                </div>
                             </div>
 
                             <button

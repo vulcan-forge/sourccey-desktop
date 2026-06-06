@@ -82,8 +82,6 @@ struct PersistedKioskEnvironmentSettings {
     custom_app_base_url: String,
     #[serde(default)]
     custom_api_base_url: String,
-    #[serde(default)]
-    custom_base_url: String,
 }
 
 impl KioskEnvironmentService {
@@ -108,7 +106,10 @@ impl KioskEnvironmentService {
 
         let environment = KioskEnvironment::parse(&persisted.environment)?;
         let (custom_app_base_url, custom_api_base_url) = match environment {
-            KioskEnvironment::Local => Self::resolve_local_urls_from_persisted(&persisted)?,
+            KioskEnvironment::Local => Self::normalize_local_urls(
+                Some(&persisted.custom_app_base_url),
+                Some(&persisted.custom_api_base_url),
+            )?,
             _ => (
                 DEFAULT_LOCAL_KIOSK_APP_BASE_URL.to_string(),
                 DEFAULT_LOCAL_KIOSK_API_BASE_URL.to_string(),
@@ -140,7 +141,6 @@ impl KioskEnvironmentService {
             environment: environment.as_str().to_string(),
             custom_app_base_url: custom_app_base_url.clone(),
             custom_api_base_url: custom_api_base_url.clone(),
-            custom_base_url: custom_api_base_url.clone(),
         };
 
         let path = Self::settings_file_path()?;
@@ -261,18 +261,6 @@ impl KioskEnvironmentService {
         }
     }
 
-    fn resolve_local_urls_from_persisted(
-        persisted: &PersistedKioskEnvironmentSettings,
-    ) -> Result<(String, String), String> {
-        let fallback_api = Self::non_empty_value(&persisted.custom_base_url);
-        let fallback_app = fallback_api.map(Self::derive_local_app_base_url);
-
-        Self::normalize_local_urls(
-            Self::non_empty_value(&persisted.custom_app_base_url).or(fallback_app.as_deref()),
-            Self::non_empty_value(&persisted.custom_api_base_url).or(fallback_api),
-        )
-    }
-
     fn normalize_local_urls(
         app_value: Option<&str>,
         api_value: Option<&str>,
@@ -292,20 +280,6 @@ impl KioskEnvironmentService {
         Ok((custom_app_base_url, custom_api_base_url))
     }
 
-    fn derive_local_app_base_url(api_base_url: &str) -> String {
-        let normalized_api_base_url = Self::normalize_base_url(api_base_url)
-            .unwrap_or_else(|_| DEFAULT_LOCAL_KIOSK_API_BASE_URL.to_string());
-        let parsed = match Url::parse(&normalized_api_base_url) {
-            Ok(parsed) => parsed,
-            Err(_) => return DEFAULT_LOCAL_KIOSK_APP_BASE_URL.to_string(),
-        };
-        let scheme = parsed.scheme();
-        let Some(host) = parsed.host_str() else {
-            return DEFAULT_LOCAL_KIOSK_APP_BASE_URL.to_string();
-        };
-        format!("{}://{}:3000", scheme, host)
-    }
-
     fn storage_url_segment(value: &str) -> Result<String, String> {
         let parsed = Url::parse(value)
             .map_err(|e| format!("Invalid local kiosk environment URL '{}': {}", value, e))?;
@@ -322,15 +296,6 @@ impl KioskEnvironmentService {
             Self::slugify_storage_segment(host),
             port
         ))
-    }
-
-    fn non_empty_value(value: &str) -> Option<&str> {
-        let trimmed = value.trim();
-        if trimmed.is_empty() {
-            None
-        } else {
-            Some(trimmed)
-        }
     }
 
     fn slugify_storage_segment(value: &str) -> String {
@@ -362,77 +327,5 @@ impl KioskEnvironmentService {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::{
-        KioskEnvironmentService, KioskEnvironmentSettings, PersistedKioskEnvironmentSettings,
-    };
-
-    #[test]
-    fn storage_key_uses_fixed_names_for_hosted_environments() {
-        let production = KioskEnvironmentSettings {
-            environment: "production".to_string(),
-            display_name: "Production".to_string(),
-            badge_label: None,
-            custom_app_base_url: "http://192.168.1.220:3000".to_string(),
-            custom_api_base_url: "http://192.168.1.220:5200".to_string(),
-            app_base_url: "https://studio.vulcanrobotics.ai".to_string(),
-            api_base_url: "https://api.studio.vulcanrobotics.ai".to_string(),
-        };
-        let staging = KioskEnvironmentSettings {
-            environment: "staging".to_string(),
-            display_name: "Staging".to_string(),
-            badge_label: Some("Staging".to_string()),
-            custom_app_base_url: "http://192.168.1.220:3000".to_string(),
-            custom_api_base_url: "http://192.168.1.220:5200".to_string(),
-            app_base_url: "https://staging.factory.studio.vulcanrobotics.ai".to_string(),
-            api_base_url: "https://api.staging.factory.studio.vulcanrobotics.ai".to_string(),
-        };
-
-        assert_eq!(
-            KioskEnvironmentService::storage_key_for_settings(&production).unwrap(),
-            "production"
-        );
-        assert_eq!(
-            KioskEnvironmentService::storage_key_for_settings(&staging).unwrap(),
-            "staging"
-        );
-    }
-
-    #[test]
-    fn storage_key_normalizes_local_custom_host() {
-        let local = KioskEnvironmentSettings {
-            environment: "local".to_string(),
-            display_name: "Local".to_string(),
-            badge_label: Some("Local".to_string()),
-            custom_app_base_url: "HTTP://Dev-Box.local:3000/".to_string(),
-            custom_api_base_url: "HTTP://Dev-Box.local:5200/".to_string(),
-            app_base_url: "http://Dev-Box.local:3000".to_string(),
-            api_base_url: "http://Dev-Box.local:5200".to_string(),
-        };
-
-        assert_eq!(
-            KioskEnvironmentService::storage_key_for_settings(&local).unwrap(),
-            "local-app-http-dev-box-local-3000-api-http-dev-box-local-5200"
-        );
-        assert_eq!(
-            KioskEnvironmentService::normalize_base_url("Dev-Box.local:5200").unwrap(),
-            "http://dev-box.local:5200"
-        );
-    }
-
-    #[test]
-    fn legacy_local_settings_migrate_to_split_app_and_api_urls() {
-        let persisted = PersistedKioskEnvironmentSettings {
-            environment: "local".to_string(),
-            custom_app_base_url: String::new(),
-            custom_api_base_url: String::new(),
-            custom_base_url: "http://10.0.0.8:5200".to_string(),
-        };
-
-        let (app_base_url, api_base_url) =
-            KioskEnvironmentService::resolve_local_urls_from_persisted(&persisted).unwrap();
-
-        assert_eq!(app_base_url, "http://10.0.0.8:3000");
-        assert_eq!(api_base_url, "http://10.0.0.8:5200");
-    }
-}
+#[path = "tests/kiosk_environment_service_tests.rs"]
+mod kiosk_environment_service_tests;

@@ -1,6 +1,5 @@
 import type { RemoteConfig } from '@/types/remote-config';
 import { queryClient } from '@/hooks/default';
-import { getPairedRobotConnections, hydratePairedRobotConnections } from '@/hooks/Robot/paired-robot-connection.hook';
 import { useQuery } from '@tanstack/react-query';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 
@@ -22,19 +21,7 @@ export const defaultRemoteConfig: RemoteConfig = {
 
 const normalizeNickname = (nickname: string) => (nickname.startsWith('@') ? nickname.slice(1) : nickname);
 
-const getPairedHost = (nickname: string) => {
-    const normalized = normalizeNickname(nickname);
-    const pairedConnections = getPairedRobotConnections();
-    return pairedConnections?.[normalized]?.host ?? '';
-};
-
-const getDefaultRemoteConfig = (nickname: string) => {
-    const pairedHost = getPairedHost(nickname);
-    return {
-        ...defaultRemoteConfig,
-        remote_ip: pairedHost || defaultRemoteConfig.remote_ip,
-    };
-};
+const getDefaultRemoteConfig = (_nickname: string) => defaultRemoteConfig;
 
 export const getRemoteConfig = (nickname: string) => queryClient.getQueryData(REMOTE_CONFIG_KEY(nickname)) ?? getDefaultRemoteConfig(nickname);
 export const setRemoteConfig = (nickname: string, config: RemoteConfig | null) => queryClient.setQueryData(REMOTE_CONFIG_KEY(nickname), config);
@@ -48,16 +35,9 @@ export const useGetRemoteConfig = (nickname: string) =>
             }
 
             try {
-                await hydratePairedRobotConnections();
                 const config = await invoke<RemoteConfig>('read_remote_config', { nickname });
-                const pairedHost = getPairedHost(nickname);
-                const resolvedConfig = pairedHost ? { ...config, remote_ip: pairedHost } : config;
-
-                setRemoteConfig(nickname, resolvedConfig);
-                if (resolvedConfig !== config) {
-                    await invoke('write_remote_config', { config: resolvedConfig, nickname });
-                }
-                return resolvedConfig;
+                setRemoteConfig(nickname, config);
+                return config;
             } catch (error) {
                 console.error('Failed to load remote config:', error);
                 return cached;
