@@ -6,13 +6,13 @@ import type { KioskEnvironmentSettings, SaveKioskEnvironmentSettingsRequest } fr
 export const KIOSK_ENVIRONMENT_KEY = ['kiosk', 'environment-settings'];
 
 const defaultEnvironmentSettings: KioskEnvironmentSettings = {
-    environment: 'local',
-    displayName: 'Local',
-    badgeLabel: 'Local',
-    customAppBaseUrl: 'http://192.168.1.220:3000',
-    customApiBaseUrl: 'http://192.168.1.220:5200',
-    appBaseUrl: 'http://192.168.1.220:3000',
-    apiBaseUrl: 'http://192.168.1.220:5200',
+    environment: 'production',
+    displayName: 'Production',
+    badgeLabel: null,
+    customAppBaseUrl: 'https://studio.vulcanrobotics.ai',
+    customApiBaseUrl: 'https://api.studio.vulcanrobotics.ai',
+    appBaseUrl: 'https://studio.vulcanrobotics.ai',
+    apiBaseUrl: 'https://api.studio.vulcanrobotics.ai',
 };
 
 const fetchKioskEnvironmentSettings = async (): Promise<KioskEnvironmentSettings> => {
