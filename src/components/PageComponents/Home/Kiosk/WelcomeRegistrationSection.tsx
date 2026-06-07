@@ -21,7 +21,6 @@ export const WelcomeRegistrationSection = ({
     nowMs,
     onRefresh,
 }: WelcomeRegistrationSectionProps) => {
-    const [showRegistrationDetails, setShowRegistrationDetails] = useState(false);
     const [showClaimedRegistrationInfo, setShowClaimedRegistrationInfo] = useState(false);
 
     const registrationActionLabel =
@@ -50,7 +49,9 @@ export const WelcomeRegistrationSection = ({
                     <p className="mt-1 text-sm text-slate-400">
                         Start cloud registration here, then enter the pairing code in the Vulcan portal to claim this robot.
                     </p>
-                    <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800/70 px-3 py-1 text-sm">
+                </div>
+                <div className="flex flex-col items-end gap-3">
+                    <div className="inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800/70 px-3 py-1 text-sm">
                         {isRegistered ? (
                             <>
                                 <FaCheckCircle className="h-4 w-4 text-emerald-300" />
@@ -63,19 +64,9 @@ export const WelcomeRegistrationSection = ({
                             </>
                         )}
                     </div>
-                </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={() => setShowRegistrationDetails((current) => !current)}
-                        className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-400"
-                    >
-                        <span>Details</span>
-                        {showRegistrationDetails ? <FaChevronUp className="h-3 w-3" /> : <FaChevronDown className="h-3 w-3" />}
-                    </button>
                     <button
                         onClick={onRefresh}
-                        className="cursor-pointer rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-400"
+                        className="cursor-pointer whitespace-nowrap rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-400"
                     >
                         {registrationActionLabel}
                     </button>
@@ -101,37 +92,6 @@ export const WelcomeRegistrationSection = ({
                 <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Studio URL</div>
                 <div className="mt-2 break-all font-mono text-sm text-sky-200">{portalUrlDisplay}</div>
             </div>
-
-            {showRegistrationDetails ? (
-                <div className="mb-5 grid gap-3 rounded-lg border border-slate-700 bg-slate-900/40 p-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
-                    <div>
-                        <div className="text-slate-400">Environment</div>
-                        <div className="mt-1 font-semibold text-white">{cloudPairing?.environment || 'local'}</div>
-                    </div>
-                    <div>
-                        <div className="text-slate-400">Portal URL</div>
-                        <div className="mt-1 break-all font-mono text-xs text-white">{portalUrlDisplay}</div>
-                    </div>
-                    <div>
-                        <div className="text-slate-400">API URL</div>
-                        <div className="mt-1 break-all font-mono text-xs text-white">
-                            {cloudPairing?.apiBaseUrl || DEFAULT_PRODUCTION_API_BASE_URL}
-                        </div>
-                    </div>
-                    <div>
-                        <div className="text-slate-400">Device ID</div>
-                        <div className="mt-1 break-all font-mono text-xs text-white">{cloudPairing?.deviceId || 'Generating…'}</div>
-                    </div>
-                    <div>
-                        <div className="text-slate-400">Owned Robot ID</div>
-                        <div className="mt-1 break-all font-mono text-xs text-white">{cloudPairing?.ownedRobotId || 'Not claimed yet'}</div>
-                    </div>
-                    <div>
-                        <div className="text-slate-400">Robot Model</div>
-                        <div className="mt-1 text-white">{cloudPairing?.robotModelName || 'sourccey'}</div>
-                    </div>
-                </div>
-            ) : null}
 
             {!cloudPairing && !isLoadingCloudPairing ? (
                 <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 text-sm text-slate-300">
@@ -165,7 +125,11 @@ export const WelcomeRegistrationSection = ({
                                 This robot has been successfully registered and claimed in{' '}
                                 <span className="font-semibold text-white">{portalUrlDisplay}</span>.
                             </div>
-                            <div className="grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
+                            <div className="grid gap-2 text-sm text-slate-300 sm:grid-cols-2 xl:grid-cols-3">
+                                <div>
+                                    <div className="text-slate-400">Environment</div>
+                                    <div className="mt-1 font-semibold text-white">{cloudPairing.environment || 'production'}</div>
+                                </div>
                                 <div>
                                     <div className="text-slate-400">Device ID</div>
                                     <div className="font-mono text-xs text-white">{cloudPairing.deviceId || 'Unavailable'}</div>
@@ -181,6 +145,12 @@ export const WelcomeRegistrationSection = ({
                                 <div>
                                     <div className="text-slate-400">Cloud Host</div>
                                     <div className="text-white">{portalUrlDisplay}</div>
+                                </div>
+                                <div>
+                                    <div className="text-slate-400">API URL</div>
+                                    <div className="break-all font-mono text-xs text-white">
+                                        {cloudPairing.apiBaseUrl || DEFAULT_PRODUCTION_API_BASE_URL}
+                                    </div>
                                 </div>
                             </div>
                         </div>
