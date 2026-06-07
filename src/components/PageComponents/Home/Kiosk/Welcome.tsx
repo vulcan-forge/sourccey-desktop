@@ -13,6 +13,8 @@ import {
     FaSpinner,
     FaCheckCircle,
     FaCloud,
+    FaChevronDown,
+    FaChevronUp,
 } from 'react-icons/fa';
 import {
     calculateBatteryPercent,
@@ -36,6 +38,9 @@ interface KioskCloudPairingInfo {
     errorMessage: string | null;
 }
 
+const DEFAULT_PRODUCTION_PORTAL_BASE_URL = 'https://studio.vulcanrobotics.ai';
+const DEFAULT_PRODUCTION_API_BASE_URL = 'https://api.studio.vulcanrobotics.ai';
+
 export const HomeWelcome = () => {
     const nickname = 'sourccey';
     const robotType = 'Sourccey';
@@ -43,6 +48,7 @@ export const HomeWelcome = () => {
     const [cloudPairing, setCloudPairing] = useState<KioskCloudPairingInfo | null>(null);
     const [isLoadingCloudPairing, setIsLoadingCloudPairing] = useState(false);
     const [nowMs, setNowMs] = useState(() => Date.now());
+    const [showRegistrationDetails, setShowRegistrationDetails] = useState(false);
 
     const fetchSystemInfo = useCallback(async () => {
         try {
@@ -66,9 +72,9 @@ export const HomeWelcome = () => {
         } catch (error) {
             console.error('Failed to get cloud pairing info:', error);
             setCloudPairing({
-                environment: 'local',
-                portalBaseUrl: 'http://192.168.1.220:3000',
-                apiBaseUrl: 'http://192.168.1.220:5200',
+                environment: 'production',
+                portalBaseUrl: DEFAULT_PRODUCTION_PORTAL_BASE_URL,
+                apiBaseUrl: DEFAULT_PRODUCTION_API_BASE_URL,
                 deviceId: '',
                 robotModelName: 'sourccey',
                 pairingCode: null,
@@ -122,7 +128,7 @@ export const HomeWelcome = () => {
 
     const registrationActionLabel =
         cloudPairing?.status === 'claimed' ? 'Refresh Status' : cloudPairing?.pairingCode ? 'Refresh Code' : 'Start Registration';
-    const portalUrlDisplay = cloudPairing?.portalBaseUrl || 'http://192.168.1.220:3000';
+    const portalUrlDisplay = cloudPairing?.portalBaseUrl || DEFAULT_PRODUCTION_PORTAL_BASE_URL;
     const isRegistered = cloudPairing?.status === 'claimed';
 
     const cloudCountdown = useMemo(() => {
@@ -224,12 +230,22 @@ export const HomeWelcome = () => {
                             )}
                         </div>
                     </div>
-                    <button
-                        onClick={() => void fetchCloudPairing()}
-                        className="cursor-pointer rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-400"
-                    >
-                        {registrationActionLabel}
-                    </button>
+                    <div className="flex items-center gap-3">
+                        <button
+                            type="button"
+                            onClick={() => setShowRegistrationDetails((current) => !current)}
+                            className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-400"
+                        >
+                            <span>Details</span>
+                            {showRegistrationDetails ? <FaChevronUp className="h-3 w-3" /> : <FaChevronDown className="h-3 w-3" />}
+                        </button>
+                        <button
+                            onClick={() => void fetchCloudPairing()}
+                            className="cursor-pointer rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-400"
+                        >
+                            {registrationActionLabel}
+                        </button>
+                    </div>
                 </div>
 
                 <div className="mb-5 grid gap-3 rounded-lg border border-slate-700 bg-slate-800/50 p-4 text-sm text-slate-300 md:grid-cols-3">
@@ -239,16 +255,49 @@ export const HomeWelcome = () => {
                     </div>
                     <div>
                         <div className="font-semibold text-white">2. Sign in to Vulcan</div>
-                        <div className="mt-1 text-slate-400">Open the portal below and choose the robot registration flow.</div>
-                        <div className="mt-2 break-all rounded-md border border-slate-600 bg-slate-900/70 px-3 py-2 font-mono text-xs text-sky-200">
-                            {portalUrlDisplay}
-                        </div>
+                        <div className="mt-1 text-slate-400">Open Studio, sign in, and choose the robot registration flow.</div>
                     </div>
                     <div>
                         <div className="font-semibold text-white">3. Enter the code</div>
                         <div className="mt-1 text-slate-400">Once claimed, this kiosk will automatically show that the robot is registered.</div>
                     </div>
                 </div>
+
+                <div className="mb-5 rounded-lg border border-slate-700 bg-slate-900/40 px-4 py-3">
+                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Studio URL</div>
+                    <div className="mt-2 break-all font-mono text-sm text-sky-200">{portalUrlDisplay}</div>
+                </div>
+
+                {showRegistrationDetails ? (
+                    <div className="mb-5 grid gap-3 rounded-lg border border-slate-700 bg-slate-900/40 p-4 text-sm sm:grid-cols-2 xl:grid-cols-3">
+                        <div>
+                            <div className="text-slate-400">Environment</div>
+                            <div className="mt-1 font-semibold text-white">{cloudPairing?.environment || 'local'}</div>
+                        </div>
+                        <div>
+                            <div className="text-slate-400">Portal URL</div>
+                            <div className="mt-1 break-all font-mono text-xs text-white">{portalUrlDisplay}</div>
+                        </div>
+                        <div>
+                            <div className="text-slate-400">API URL</div>
+                            <div className="mt-1 break-all font-mono text-xs text-white">
+                                {cloudPairing?.apiBaseUrl || DEFAULT_PRODUCTION_API_BASE_URL}
+                            </div>
+                        </div>
+                        <div>
+                            <div className="text-slate-400">Device ID</div>
+                            <div className="mt-1 break-all font-mono text-xs text-white">{cloudPairing?.deviceId || 'Generating…'}</div>
+                        </div>
+                        <div>
+                            <div className="text-slate-400">Owned Robot ID</div>
+                            <div className="mt-1 break-all font-mono text-xs text-white">{cloudPairing?.ownedRobotId || 'Not claimed yet'}</div>
+                        </div>
+                        <div>
+                            <div className="text-slate-400">Robot Model</div>
+                            <div className="mt-1 text-white">{cloudPairing?.robotModelName || 'sourccey'}</div>
+                        </div>
+                    </div>
+                ) : null}
 
                 {!cloudPairing && !isLoadingCloudPairing ? (
                     <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 text-sm text-slate-300">
