@@ -91,6 +91,9 @@ export const HomeWelcome = () => {
         return () => clearInterval(interval);
     }, [fetchSystemInfo]);
 
+    useEffect(() => {
+        void fetchCloudPairing();
+    }, [fetchCloudPairing]);
 
     useEffect(() => {
         const interval = setInterval(() => setNowMs(Date.now()), 1000);
@@ -119,6 +122,8 @@ export const HomeWelcome = () => {
 
     const registrationActionLabel =
         cloudPairing?.status === 'claimed' ? 'Refresh Status' : cloudPairing?.pairingCode ? 'Refresh Code' : 'Start Registration';
+    const portalUrlDisplay = cloudPairing?.portalBaseUrl || 'http://192.168.1.220:3000';
+    const isRegistered = cloudPairing?.status === 'claimed';
 
     const cloudCountdown = useMemo(() => {
         if (!cloudPairing?.expiresAtMs) return null;
@@ -205,6 +210,19 @@ export const HomeWelcome = () => {
                         <p className="mt-1 text-sm text-slate-400">
                             Start cloud registration here, then enter the pairing code in the Vulcan portal to claim this robot.
                         </p>
+                        <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800/70 px-3 py-1 text-sm">
+                            {isRegistered ? (
+                                <>
+                                    <FaCheckCircle className="h-4 w-4 text-emerald-300" />
+                                    <span className="font-semibold text-emerald-200">Robot registered</span>
+                                </>
+                            ) : (
+                                <>
+                                    <FaCloud className="h-4 w-4 text-sky-300" />
+                                    <span className="font-semibold text-sky-100">Awaiting registration</span>
+                                </>
+                            )}
+                        </div>
                     </div>
                     <button
                         onClick={() => void fetchCloudPairing()}
@@ -221,11 +239,14 @@ export const HomeWelcome = () => {
                     </div>
                     <div>
                         <div className="font-semibold text-white">2. Sign in to Vulcan</div>
-                        <div className="mt-1 text-slate-400">Open the portal and choose the robot registration flow.</div>
+                        <div className="mt-1 text-slate-400">Open the portal below and choose the robot registration flow.</div>
+                        <div className="mt-2 break-all rounded-md border border-slate-600 bg-slate-900/70 px-3 py-2 font-mono text-xs text-sky-200">
+                            {portalUrlDisplay}
+                        </div>
                     </div>
                     <div>
                         <div className="font-semibold text-white">3. Enter the code</div>
-                        <div className="mt-1 text-slate-400">Once claimed, this kiosk will show that the robot is registered.</div>
+                        <div className="mt-1 text-slate-400">Once claimed, this kiosk will automatically show that the robot is registered.</div>
                     </div>
                 </div>
 
@@ -244,6 +265,10 @@ export const HomeWelcome = () => {
                             <FaCheckCircle className="h-4 w-4" />
                             Registered in Vulcan Cloud
                         </div>
+                        <div className="text-sm text-slate-300">
+                            This robot has been successfully registered and claimed in{' '}
+                            <span className="font-semibold text-white">{portalUrlDisplay}</span>.
+                        </div>
                         <div className="grid gap-2 text-sm text-slate-300 sm:grid-cols-2">
                             <div>
                                 <div className="text-slate-400">Device ID</div>
@@ -259,7 +284,7 @@ export const HomeWelcome = () => {
                             </div>
                             <div>
                                 <div className="text-slate-400">Cloud Host</div>
-                                <div className="text-white">{cloudPairing.portalBaseUrl}</div>
+                                <div className="text-white">{portalUrlDisplay}</div>
                             </div>
                         </div>
                     </div>
@@ -270,7 +295,7 @@ export const HomeWelcome = () => {
                             Registration in progress
                         </div>
                         <div className="text-sm text-slate-300">
-                            Open <span className="font-semibold text-white">{cloudPairing?.portalBaseUrl || 'http://192.168.1.220:3000'}</span>,
+                            Open <span className="font-semibold text-white">{portalUrlDisplay}</span>,
                             sign in, and enter this pairing code.
                         </div>
                         <div className="rounded-lg border border-slate-600 bg-slate-900 px-4 py-5 text-center font-mono text-4xl font-bold tracking-[0.18em] text-white">
