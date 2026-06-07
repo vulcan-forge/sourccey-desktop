@@ -13,3 +13,10 @@ pub fn get_kiosk_cloud_pairing_info(
 ) -> Result<KioskCloudPairingInfo, String> {
     KioskPairingService::get_kiosk_cloud_pairing_info(state.inner().clone())
 }
+
+#[command]
+pub fn get_kiosk_cloud_pairing_status(
+    state: State<'_, KioskPairingState>,
+) -> Result<KioskCloudPairingInfo, String> {
+    KioskPairingService::get_kiosk_cloud_pairing_status(state.inner().clone())
+}

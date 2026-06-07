@@ -27,6 +27,7 @@ export const WelcomeRegistrationSection = ({
         cloudPairing?.status === 'claimed' ? 'Refresh Status' : cloudPairing?.pairingCode ? 'Refresh Code' : 'Start Registration';
     const portalUrlDisplay = cloudPairing?.portalBaseUrl || DEFAULT_PRODUCTION_PORTAL_BASE_URL;
     const isRegistered = cloudPairing?.status === 'claimed';
+    const isRegistrationPending = cloudPairing?.status === 'pending' || Boolean(cloudPairing?.pairingCode);
 
     const cloudCountdown = useMemo(() => {
         if (!cloudPairing?.expiresAtMs) return null;
@@ -156,7 +157,7 @@ export const WelcomeRegistrationSection = ({
                         </div>
                     ) : null}
                 </div>
-            ) : (
+            ) : isRegistrationPending ? (
                 <div className="space-y-4">
                     <div className="inline-flex items-center gap-2 rounded-full bg-sky-500/10 px-3 py-1 text-sm font-semibold text-sky-200">
                         <FaCloud className="h-4 w-4" />
@@ -172,6 +173,17 @@ export const WelcomeRegistrationSection = ({
                         <span>{cloudCountdown || 'Waiting for a fresh code…'}</span>
                         <span>Model: {cloudPairing?.robotModelName || 'sourccey'}</span>
                         <span className="font-mono text-xs">Device: {cloudPairing?.deviceId || 'Generating…'}</span>
+                    </div>
+                    {cloudPairing?.errorMessage ? (
+                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                            {cloudPairing.errorMessage}
+                        </div>
+                    ) : null}
+                </div>
+            ) : (
+                <div className="space-y-3">
+                    <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 text-sm text-slate-300">
+                        Click <span className="font-semibold text-white">Start Registration</span> to generate a pairing code for this robot.
                     </div>
                     {cloudPairing?.errorMessage ? (
                         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
