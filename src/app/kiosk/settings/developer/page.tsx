@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCheckCircle, FaCodeBranch, FaGlobe, FaSave, FaSpinner } from 'react-icons/fa';
+import { FaArrowLeft, FaCheckCircle, FaCodeBranch, FaGlobe, FaSpinner } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import {
@@ -85,13 +85,17 @@ export default function KioskDeveloperSettingsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [environment, customAppBaseUrl, customApiBaseUrl]);
 
-    const handleSave = async () => {
+    const persistEnvironmentSettings = async (
+        nextEnvironment: KioskEnvironment,
+        nextCustomAppBaseUrl = customAppBaseUrl,
+        nextCustomApiBaseUrl = customApiBaseUrl
+    ) => {
         setIsSaving(true);
         try {
             const saved = await saveKioskEnvironmentSettings({
-                environment,
-                customAppBaseUrl,
-                customApiBaseUrl,
+                environment: nextEnvironment,
+                customAppBaseUrl: nextCustomAppBaseUrl,
+                customApiBaseUrl: nextCustomApiBaseUrl,
             });
             setResolvedSettings(saved);
             setEnvironment(saved.environment);
@@ -124,6 +128,18 @@ export default function KioskDeveloperSettingsPage() {
         } finally {
             setIsSaving(false);
         }
+    };
+
+    const handleEnvironmentSelect = async (nextEnvironment: KioskEnvironment) => {
+        setEnvironment(nextEnvironment);
+        await persistEnvironmentSettings(nextEnvironment, customAppBaseUrl, customApiBaseUrl);
+    };
+
+    const handleLocalInputsBlur = async () => {
+        if (environment !== 'local') {
+            return;
+        }
+        await persistEnvironmentSettings('local', customAppBaseUrl, customApiBaseUrl);
     };
 
     return (
@@ -168,12 +184,13 @@ export default function KioskDeveloperSettingsPage() {
                                         <button
                                             key={card.value}
                                             type="button"
-                                            onClick={() => setEnvironment(card.value)}
+                                            onClick={() => void handleEnvironmentSelect(card.value)}
+                                            disabled={isSaving}
                                             className={`cursor-pointer rounded-xl border p-4 text-left transition ${
                                                 active
                                                     ? 'border-amber-400/60 bg-amber-500/10 shadow-[0_0_0_1px_rgba(251,191,36,0.15)]'
                                                     : 'border-slate-600 bg-slate-700/40 hover:border-slate-500 hover:bg-slate-700/60'
-                                            }`}
+                                            } disabled:cursor-not-allowed disabled:opacity-60`}
                                         >
                                             <div className="flex items-center justify-between">
                                                 <div className="text-lg font-semibold text-white">{card.title}</div>
@@ -196,6 +213,12 @@ export default function KioskDeveloperSettingsPage() {
                                             type="text"
                                             value={customAppBaseUrl}
                                             onChange={(event) => setCustomAppBaseUrl(event.target.value)}
+                                            onBlur={() => void handleLocalInputsBlur()}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') {
+                                                    event.currentTarget.blur();
+                                                }
+                                            }}
                                             placeholder="192.168.1.220:3000 or http://192.168.1.220:3000"
                                             disabled={isSaving}
                                             className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
@@ -215,6 +238,12 @@ export default function KioskDeveloperSettingsPage() {
                                             type="text"
                                             value={customApiBaseUrl}
                                             onChange={(event) => setCustomApiBaseUrl(event.target.value)}
+                                            onBlur={() => void handleLocalInputsBlur()}
+                                            onKeyDown={(event) => {
+                                                if (event.key === 'Enter') {
+                                                    event.currentTarget.blur();
+                                                }
+                                            }}
                                             placeholder="192.168.1.220:5200 or http://192.168.1.220:5200"
                                             disabled={isSaving}
                                             className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
@@ -241,21 +270,6 @@ export default function KioskDeveloperSettingsPage() {
                             </div>
 
                             {error ? <div className="text-sm text-red-300">Failed to load environment settings.</div> : null}
-
-                            <div className="flex items-center gap-3">
-                                <button
-                                    type="button"
-                                    onClick={() => void handleSave()}
-                                    disabled={isSaving}
-                                    className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-green-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
-                                >
-                                    {isSaving ? <FaSpinner className="h-4 w-4 animate-spin" /> : <FaSave className="h-4 w-4" />}
-                                    {isSaving ? 'Saving...' : 'Save Environment'}
-                                </button>
-                                <span className="text-xs text-slate-400">
-                                    Saving updates the kiosk environment that the backend uses when it writes pairing state and websocket credential files.
-                                </span>
-                            </div>
                         </div>
                     )}
                 </div>
