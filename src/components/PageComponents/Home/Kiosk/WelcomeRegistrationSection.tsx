@@ -51,7 +51,7 @@ export const WelcomeRegistrationSection = ({
                     </p>
                 </div>
                 <div className="flex flex-col items-end gap-3">
-                    <div className="inline-flex items-center gap-2 rounded-full border border-slate-600 bg-slate-800/70 px-3 py-1 text-sm">
+                    <div className="inline-flex min-w-[11rem] items-center justify-center gap-2 rounded-full border border-slate-600 bg-slate-800/70 px-4 py-1 text-sm whitespace-nowrap">
                         {isRegistered ? (
                             <>
                                 <FaCheckCircle className="h-4 w-4 text-emerald-300" />
