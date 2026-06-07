@@ -138,6 +138,19 @@ impl KioskPairingService {
     pub fn get_kiosk_cloud_pairing_info(
         state: KioskPairingState,
     ) -> Result<KioskCloudPairingInfo, String> {
+        Self::resolve_kiosk_cloud_pairing_info(state, true)
+    }
+
+    pub fn get_kiosk_cloud_pairing_status(
+        state: KioskPairingState,
+    ) -> Result<KioskCloudPairingInfo, String> {
+        Self::resolve_kiosk_cloud_pairing_info(state, false)
+    }
+
+    fn resolve_kiosk_cloud_pairing_info(
+        state: KioskPairingState,
+        start_if_missing: bool,
+    ) -> Result<KioskCloudPairingInfo, String> {
         let environment_settings = Self::cloud_environment_settings();
         let api_base_url = environment_settings.api_base_url.clone();
         let portal_base_url = environment_settings.app_base_url.clone();
@@ -277,6 +290,24 @@ impl KioskPairingService {
                     });
                 }
             }
+        }
+
+        let _ = Self::save_persisted_cloud_pairing_state(&persisted);
+
+        if !start_if_missing {
+            return Ok(KioskCloudPairingInfo {
+                environment: environment_settings.environment,
+                portal_base_url,
+                api_base_url,
+                device_id,
+                robot_model_name,
+                pairing_code: None,
+                expires_at_ms: None,
+                status: "idle".to_string(),
+                owned_robot_id: persisted.owned_robot_id.clone(),
+                claimed_at_ms: persisted.claimed_at_ms,
+                error_message: None,
+            });
         }
 
         match Self::start_cloud_bootstrap(
