@@ -435,9 +435,9 @@ impl KioskPairingService {
             .map_err(|e| format!("Failed to start cloud pairing bootstrap: {}", e))?;
 
         if !response.status().is_success() {
-            return Err(format!(
-                "Relay bootstrap request failed ({})",
-                response.status()
+            return Err(Self::format_http_error(
+                "Relay bootstrap request failed",
+                response,
             ));
         }
 
@@ -465,9 +465,9 @@ impl KioskPairingService {
             .map_err(|e| format!("Failed to fetch cloud pairing status: {}", e))?;
 
         if !response.status().is_success() {
-            return Err(format!(
-                "Relay bootstrap status request failed ({})",
-                response.status()
+            return Err(Self::format_http_error(
+                "Relay bootstrap status request failed",
+                response,
             ));
         }
 
@@ -631,15 +631,26 @@ impl KioskPairingService {
             return Ok(());
         }
 
+        let payload = match Self::build_cloud_device_credentials(state) {
+            Ok(payload) => payload,
+            Err(message) => {
+                Self::log_pairing_error(message);
+                return Ok(());
+            }
+        };
+
+        Self::save_cloud_device_credentials(&payload)
+    }
+
+    fn build_cloud_device_credentials(
+        state: &PersistedCloudPairingState,
+    ) -> Result<PersistedCloudDeviceCredentials, &'static str> {
         let Some(device_id) = state
             .device_id
             .clone()
             .filter(|value| !value.trim().is_empty())
         else {
-            Self::log_pairing_error(
-                "Cloud pairing claim is missing device_id; skipping credential file update.",
-            );
-            return Ok(());
+            return Err("Cloud pairing claim is missing device_id; skipping credential file update.");
         };
 
         let Some(owned_robot_id) = state
@@ -647,10 +658,9 @@ impl KioskPairingService {
             .clone()
             .filter(|value| !value.trim().is_empty())
         else {
-            Self::log_pairing_error(
+            return Err(
                 "Cloud pairing claim is missing owned_robot_id; skipping credential file update.",
             );
-            return Ok(());
         };
 
         let Some(relay_http_base_url) = state
@@ -658,21 +668,7 @@ impl KioskPairingService {
             .clone()
             .filter(|value| !value.trim().is_empty())
         else {
-            Self::log_pairing_error(
-                "Cloud pairing claim is missing api_base_url; skipping credential file update.",
-            );
-            return Ok(());
-        };
-
-        let Some(relay_portal_base_url) = state
-            .portal_base_url
-            .clone()
-            .filter(|value| !value.trim().is_empty())
-        else {
-            Self::log_pairing_error(
-                "Cloud pairing claim is missing portal_base_url; skipping credential file update.",
-            );
-            return Ok(());
+            return Err("Cloud pairing claim is missing api_base_url; skipping credential file update.");
         };
 
         let Some(device_auth_token) = state
@@ -680,17 +676,18 @@ impl KioskPairingService {
             .clone()
             .filter(|value| !value.trim().is_empty())
         else {
-            Self::log_pairing_error("Cloud pairing claim is missing device_auth_token; skipping credential file update.");
-            return Ok(());
+            return Err(
+                "Cloud pairing claim is missing device_auth_token; skipping credential file update.",
+            );
         };
 
-        let payload = PersistedCloudDeviceCredentials {
+        Ok(PersistedCloudDeviceCredentials {
             version: 1,
             device_id,
             owned_robot_id,
             robot_model_name: state.robot_model_name.clone(),
             relay_http_base_url: relay_http_base_url.clone(),
-            relay_ws_base_url: Self::cloud_pairing_ws_base_url(&relay_portal_base_url),
+            relay_ws_base_url: Self::cloud_pairing_ws_base_url(&relay_http_base_url),
             active_session_id: state
                 .active_session_id
                 .clone()
@@ -698,9 +695,7 @@ impl KioskPairingService {
             device_auth_token,
             claimed_at_ms: state.claimed_at_ms,
             saved_at_ms: Self::now_ms(),
-        };
-
-        Self::save_cloud_device_credentials(&payload)
+        })
     }
 
     fn save_cloud_device_credentials(
@@ -779,6 +774,23 @@ impl KioskPairingService {
         Ok(cache_dir.join("pairing").join(storage_key))
     }
 
+    fn format_http_error(prefix: &str, response: reqwest::blocking::Response) -> String {
+        let status = response.status();
+        let body = response.text().unwrap_or_default();
+        let body = body.trim();
+        if body.is_empty() {
+            return format!("{} ({})", prefix, status);
+        }
+
+        let condensed = body.split_whitespace().collect::<Vec<_>>().join(" ");
+        let truncated = if condensed.len() > 300 {
+            format!("{}...", &condensed[..300])
+        } else {
+            condensed
+        };
+        format!("{} ({}): {}", prefix, status, truncated)
+    }
+
     fn now_ms() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -795,5 +807,33 @@ impl KioskPairingService {
     fn pairing_log_path() -> Result<std::path::PathBuf, String> {
         let base_dir = DirectoryService::get_current_dir()?;
         Ok(base_dir.join("logs").join("pairing.log"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{KioskPairingService, PersistedCloudPairingState};
+
+    #[test]
+    fn build_cloud_device_credentials_uses_api_origin_for_websocket_base_url() {
+        let state = PersistedCloudPairingState {
+            device_id: Some("device-123".to_string()),
+            active_session_id: Some("session-456".to_string()),
+            pairing_code: None,
+            expires_at_ms: None,
+            owned_robot_id: Some("robot-789".to_string()),
+            claimed_at_ms: Some(123),
+            status: Some("claimed".to_string()),
+            api_base_url: Some("http://192.168.1.220:5200".to_string()),
+            portal_base_url: Some("http://192.168.1.220:3000".to_string()),
+            robot_model_name: Some("sourccey".to_string()),
+            device_auth_token: Some("auth-token".to_string()),
+        };
+
+        let payload = KioskPairingService::build_cloud_device_credentials(&state)
+            .expect("expected credentials payload");
+
+        assert_eq!(payload.relay_http_base_url, "http://192.168.1.220:5200");
+        assert_eq!(payload.relay_ws_base_url, "ws://192.168.1.220:5200");
     }
 }
