@@ -106,7 +106,6 @@ export const KioskTopNavbar = () => {
 
     const runtimeEnvironment = kioskEnvironment?.environment ?? 'local';
     const environmentBadgeLabel = kioskEnvironment?.badgeLabel;
-    const isDevMode = runtimeEnvironment !== 'production' || process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -138,19 +137,6 @@ export const KioskTopNavbar = () => {
                     <div className="grow" />
 
                     <div className="ml-auto flex items-center gap-4">
-                        {isDevMode && (
-                            <button
-                                onClick={async () => {
-                                    await exit();
-                                }}
-                                className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-slate-600/60 px-4 py-2 text-sm font-semibold text-slate-300 transition-all duration-300 hover:bg-slate-600/80 hover:text-white"
-                                title="Close Application"
-                            >
-                                <FaWindowClose className="h-5 w-5" />
-                                <span className="hidden sm:inline">Close</span>
-                            </button>
-                        )}
-
                         {showUpdateButton && (
                             <LinkButton
                                 href="/kiosk/setup"
