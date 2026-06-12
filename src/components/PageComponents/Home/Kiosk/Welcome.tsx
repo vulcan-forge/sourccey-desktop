@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import { useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
 import { WelcomeRegistrationSection } from './WelcomeRegistrationSection';
 import { WelcomeSystemStatus } from './WelcomeSystemStatus';
 import {
@@ -24,20 +24,6 @@ export const HomeWelcome = () => {
     const [cloudPairing, setCloudPairing] = useState<KioskCloudPairingInfo | null>(null);
     const [isLoadingCloudPairing, setIsLoadingCloudPairing] = useState(false);
     const [nowMs, setNowMs] = useState(() => Date.now());
-
-    const fetchSystemInfo = useCallback(async () => {
-        try {
-            const info = await invoke<{ ip_address: string; temperature: string; battery_data: BatteryData }>('get_system_info');
-            const nextSystemInfo = {
-                ipAddress: info.ip_address,
-                temperature: info.temperature,
-                batteryData: info.battery_data,
-            };
-            setSystemInfo(nextSystemInfo);
-        } catch (error) {
-            console.error('Failed to get system info:', error);
-        }
-    }, []);
 
     const fetchCloudPairing = useCallback(async () => {
         setIsLoadingCloudPairing(true);
@@ -89,14 +75,6 @@ export const HomeWelcome = () => {
             setIsLoadingCloudPairing(false);
         }
     }, [cloudPairing?.status]);
-
-    useEffect(() => {
-        void fetchSystemInfo();
-        const interval = setInterval(() => {
-            void fetchSystemInfo();
-        }, 60000);
-        return () => clearInterval(interval);
-    }, [fetchSystemInfo]);
 
     useEffect(() => {
         void fetchCloudPairing();

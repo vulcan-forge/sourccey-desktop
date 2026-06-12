@@ -14,6 +14,7 @@
         "windows": [
             {
                 "title": "Vulcan Studio",
+                "backgroundColor": [15, 23, 42, 255],
                 "decorations": true,
                 "fullscreen": false,
                 "resizable": true,

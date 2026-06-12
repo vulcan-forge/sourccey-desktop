@@ -4,11 +4,20 @@ import { queryClient } from '@/hooks/default';
 
 export const APP_MODE_KEY = ['app-mode'];
 
-const inferAppModeFromPathname = (): boolean => {
+const inferAppModeFromPathname = (): boolean | undefined => {
     if (typeof window === 'undefined') {
+        return undefined;
+    }
+
+    const { pathname } = window.location;
+    if (pathname.startsWith('/kiosk')) {
+        return true;
+    }
+    if (pathname.startsWith('/desktop')) {
         return false;
     }
-    return window.location.pathname.startsWith('/kiosk');
+
+    return undefined;
 };
 
 // Get app mode from cache or invoke
@@ -25,17 +34,21 @@ const getAppMode = async (): Promise<boolean> => {
     } catch (error) {
         console.error('Failed to get app mode:', error);
         // In dev/startup races, fallback to current route instead of forcing desktop.
-        return inferAppModeFromPathname();
+        return inferAppModeFromPathname() ?? false;
     }
 };
 
 export const useAppMode = () => {
-    const { data: isKioskMode = false, isLoading } = useQuery({
+    const routeMode = inferAppModeFromPathname();
+    const { data, isLoading } = useQuery({
         queryKey: APP_MODE_KEY,
         queryFn: getAppMode,
         staleTime: Infinity, // Never refetch since app mode doesn't change
         gcTime: Infinity, // Keep in cache for 24 hours
     });
 
-    return { isKioskMode, isLoading };
+    return {
+        isKioskMode: data ?? routeMode ?? false,
+        isLoading: routeMode === undefined ? isLoading : false,
+    };
 };

@@ -1,12 +1,12 @@
 'use client';
 
-import { Spinner } from '@/components/Elements/Spinner';
+import { AppBootScreen } from '@/components/Elements/AppBootScreen';
 import { SideNavbar as KioskSideNavbar } from '@/components/Layouts/Navbar/Layout/Kiosk/SideNavbar';
 import { KioskTopNavbar } from '@/components/Layouts/Navbar/Layout/Kiosk/TopNavbar';
 import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { initFrontendLogger } from '@/utils/logs/frontend-logger';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { safeNavigate } from '@/utils/navigation';
 import { getAppModeRedirectPath } from '@/utils/app-mode-route';
@@ -15,14 +15,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
     const pathname = usePathname();
     const router = useRouter();
-    const [isHydrated, setIsHydrated] = useState(false);
 
     useEffect(() => {
         initFrontendLogger();
-    }, []);
-
-    useEffect(() => {
-        setIsHydrated(true);
     }, []);
 
     useEffect(() => {
@@ -32,20 +27,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }
     }, [isLoadingAppMode, isKioskMode, pathname, router]);
 
-    if (!isHydrated || isLoadingAppMode) {
-        return (
-            <div className="flex h-screen items-center justify-center">
-                <Spinner />
-            </div>
-        );
+    if (isLoadingAppMode) {
+        return <AppBootScreen message="Preparing kiosk controls..." />;
     }
 
     if (!isKioskMode) {
-        return (
-            <div className="flex h-screen items-center justify-center">
-                <Spinner />
-            </div>
-        );
+        return <AppBootScreen message="Switching to desktop mode..." />;
     }
 
     if (pathname?.startsWith('/kiosk/setup')) {
