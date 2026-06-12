@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import { hasLoadedSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
 import { WelcomeRegistrationSection } from './WelcomeRegistrationSection';
 import { WelcomeSystemStatus } from './WelcomeSystemStatus';
 import {
@@ -21,8 +21,9 @@ export const HomeWelcome = () => {
         temperature: '...',
         batteryData: {} as BatteryData,
     };
+    const isSystemInfoLoading = !hasLoadedSystemInfo(systemInfo);
     const [cloudPairing, setCloudPairing] = useState<KioskCloudPairingInfo | null>(null);
-    const [isLoadingCloudPairing, setIsLoadingCloudPairing] = useState(false);
+    const [isLoadingCloudPairing, setIsLoadingCloudPairing] = useState(true);
     const [nowMs, setNowMs] = useState(() => Date.now());
 
     const fetchCloudPairing = useCallback(async () => {
@@ -87,7 +88,12 @@ export const HomeWelcome = () => {
 
     return (
         <>
-            <WelcomeSystemStatus nickname={nickname} robotType={robotType} systemInfo={systemInfo} />
+            <WelcomeSystemStatus
+                nickname={nickname}
+                robotType={robotType}
+                systemInfo={systemInfo}
+                isLoadingSystemInfo={isSystemInfoLoading}
+            />
             <WelcomeRegistrationSection
                 cloudPairing={cloudPairing}
                 isLoadingCloudPairing={isLoadingCloudPairing}

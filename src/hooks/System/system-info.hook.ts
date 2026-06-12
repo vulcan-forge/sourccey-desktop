@@ -74,6 +74,24 @@ export const getBatteryLevelStep = (percent: number): BatteryLevelStep => {
     return 100;
 };
 
+export const hasLoadedSystemInfo = (systemInfo?: Partial<SystemInfo> | null): boolean => {
+    if (!systemInfo) {
+        return false;
+    }
+
+    const battery = systemInfo.batteryData;
+    const hasBattery =
+        !!battery &&
+        ((Number.isFinite(battery.voltage) && battery.voltage >= 0) ||
+            (Number.isFinite(battery.state_of_charge) && battery.state_of_charge >= 0) ||
+            (typeof battery.error === 'string' && battery.error.trim().length > 0));
+
+    const hasIpAddress = typeof systemInfo.ipAddress === 'string' && systemInfo.ipAddress !== '...';
+    const hasTemperature = typeof systemInfo.temperature === 'string' && systemInfo.temperature !== '...';
+
+    return hasBattery || hasIpAddress || hasTemperature;
+};
+
 //---------------------------------------------------------------------------------------------------//
 // System Info Functions
 //---------------------------------------------------------------------------------------------------//

@@ -16,9 +16,19 @@ interface WelcomeSystemStatusProps {
     nickname: string;
     robotType: string;
     systemInfo: WelcomeSystemInfo;
+    isLoadingSystemInfo?: boolean;
 }
 
-export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo }: WelcomeSystemStatusProps) => {
+const LoadingLine = ({ className = '' }: { className?: string }) => (
+    <div className={`skeleton-shimmer rounded-full ${className}`} />
+);
+
+export const WelcomeSystemStatus = ({
+    nickname,
+    robotType,
+    systemInfo,
+    isLoadingSystemInfo = false,
+}: WelcomeSystemStatusProps) => {
     const getBatteryIcon = (percent: number) => {
         const level = getBatteryLevelStep(percent);
         if (level === 100) return FaBatteryFull;
@@ -60,10 +70,18 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo }: Welcome
                                 <BatteryIcon className={`h-4 w-4 ${batteryColor}`} />
                                 Battery Life
                             </div>
-                            <div className={`mt-2 text-3xl font-bold ${batteryColor}`}>{batteryPercentString}</div>
+                            {isLoadingSystemInfo ? (
+                                <LoadingLine className="mt-3 h-9 w-24" />
+                            ) : (
+                                <div className={`mt-2 text-3xl font-bold ${batteryColor}`}>{batteryPercentString}</div>
+                            )}
                         </div>
                         <div className="text-right text-xs text-slate-500">
-                            {batteryPercent >= 0 && <>{batteryPercent > 50 ? 'Good' : batteryPercent > 20 ? 'Low' : 'Critical'}</>}
+                            {isLoadingSystemInfo ? (
+                                <LoadingLine className="h-4 w-12" />
+                            ) : (
+                                batteryPercent >= 0 && <>{batteryPercent > 50 ? 'Good' : batteryPercent > 20 ? 'Low' : 'Critical'}</>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -75,9 +93,13 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo }: Welcome
                                 <FaThermometerHalf className="h-4 w-4 text-orange-400" />
                                 Temperature
                             </div>
-                            <div className="mt-2 text-3xl font-bold text-white">
-                                {systemInfo.temperature !== '...' ? systemInfo.temperature : 'N/A'}
-                            </div>
+                            {isLoadingSystemInfo ? (
+                                <LoadingLine className="mt-3 h-9 w-28" />
+                            ) : (
+                                <div className="mt-2 text-3xl font-bold text-white">
+                                    {systemInfo.temperature !== '...' ? systemInfo.temperature : 'N/A'}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -89,14 +111,18 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo }: Welcome
                                 <FaNetworkWired className="h-4 w-4 text-blue-400" />
                                 IP Address
                             </div>
-                            <div className="mt-2 font-mono text-lg font-bold text-white">
-                                {systemInfo.ipAddress &&
-                                systemInfo.ipAddress.trim() !== '' &&
-                                systemInfo.ipAddress.toLowerCase() !== 'unknown' &&
-                                systemInfo.ipAddress !== '...'
-                                    ? systemInfo.ipAddress
-                                    : 'Disconnected'}
-                            </div>
+                            {isLoadingSystemInfo ? (
+                                <LoadingLine className="mt-3 h-7 w-36" />
+                            ) : (
+                                <div className="mt-2 font-mono text-lg font-bold text-white">
+                                    {systemInfo.ipAddress &&
+                                    systemInfo.ipAddress.trim() !== '' &&
+                                    systemInfo.ipAddress.toLowerCase() !== 'unknown' &&
+                                    systemInfo.ipAddress !== '...'
+                                        ? systemInfo.ipAddress
+                                        : 'Disconnected'}
+                                </div>
+                            )}
                         </div>
                     </div>
                 </div>
