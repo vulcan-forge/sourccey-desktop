@@ -1,5 +1,6 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { useQuery } from '@tanstack/react-query';
+import type { UseQueryOptions } from '@tanstack/react-query';
 
 export const KIOSK_UPDATE_KEY = ['kiosk', 'update-status'];
 
@@ -25,10 +26,13 @@ const fetchKioskUpdateStatus = async (): Promise<KioskUpdateStatus> => {
     return await invoke<KioskUpdateStatus>('kiosk_update_check');
 };
 
-export const useKioskUpdateStatus = () =>
+type KioskUpdateQueryOptions = Pick<UseQueryOptions<KioskUpdateStatus>, 'enabled'>;
+
+export const useKioskUpdateStatus = (options?: KioskUpdateQueryOptions) =>
     useQuery({
         queryKey: KIOSK_UPDATE_KEY,
         queryFn: fetchKioskUpdateStatus,
+        enabled: options?.enabled ?? true,
         staleTime: 60 * 60 * 1000,
         refetchInterval: 60 * 60 * 1000,
         refetchOnMount: true,
