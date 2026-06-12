@@ -26,6 +26,17 @@
     --drop-shadow-logo: 0 0px 4px rgba(251, 146, 60, 0.4);
 }
 
+html,
+body {
+    min-height: 100%;
+    background: oklch(20.8% 0.042 265.755);
+    color: white;
+}
+
+body {
+    margin: 0;
+}
+
 @layer utilities {
     /* Default scrollbar width - 8px */
     ::-webkit-scrollbar {

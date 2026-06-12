@@ -1,11 +1,11 @@
 'use client';
 
-import { Spinner } from '@/components/Elements/Spinner';
+import { AppBootScreen } from '@/components/Elements/AppBootScreen';
 import { SideNavbar as DesktopSideNavbar } from '@/components/Layouts/Navbar/Layout/Desktop/SideNavbar';
 import { DesktopTopNavbar } from '@/components/Layouts/Navbar/Layout/Desktop/TopNavbar';
 import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
 import { initFrontendLogger } from '@/utils/logs/frontend-logger';
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { safeNavigate } from '@/utils/navigation';
@@ -15,14 +15,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
-    const [isHydrated, setIsHydrated] = useState(false);
 
     useEffect(() => {
         initFrontendLogger();
-    }, []);
-
-    useEffect(() => {
-        setIsHydrated(true);
     }, []);
 
     useEffect(() => {
@@ -32,20 +27,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         }
     }, [isLoadingAppMode, isKioskMode, pathname, router]);
 
-    if (!isHydrated || isLoadingAppMode) {
-        return (
-            <div className="flex h-screen items-center justify-center">
-                <Spinner />
-            </div>
-        );
+    if (isLoadingAppMode) {
+        return <AppBootScreen message="Preparing desktop controls..." />;
     }
 
     if (!isLoadingAppMode && isKioskMode) {
-        return (
-            <div className="flex h-screen items-center justify-center">
-                <Spinner />
-            </div>
-        );
+        return <AppBootScreen message="Switching to kiosk mode..." />;
     }
 
     if (pathname?.startsWith('/desktop/setup')) {
