@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { FaCheckCircle, FaChevronDown, FaChevronUp, FaCloud, FaSpinner } from 'react-icons/fa';
+import { FaCheckCircle, FaChevronDown, FaChevronUp, FaCloud } from 'react-icons/fa';
 import {
     DEFAULT_PRODUCTION_API_BASE_URL,
     DEFAULT_PRODUCTION_PORTAL_BASE_URL,
@@ -15,6 +15,10 @@ interface WelcomeRegistrationSectionProps {
     onRefresh: () => void;
 }
 
+const LoadingLine = ({ className = '' }: { className?: string }) => (
+    <div className={`skeleton-shimmer rounded-full ${className}`} />
+);
+
 export const WelcomeRegistrationSection = ({
     cloudPairing,
     isLoadingCloudPairing,
@@ -22,6 +26,7 @@ export const WelcomeRegistrationSection = ({
     onRefresh,
 }: WelcomeRegistrationSectionProps) => {
     const [showClaimedRegistrationInfo, setShowClaimedRegistrationInfo] = useState(false);
+    const isInitialCloudPairingLoad = isLoadingCloudPairing && !cloudPairing;
 
     const registrationActionLabel =
         cloudPairing?.status === 'claimed' ? 'Refresh Status' : cloudPairing?.pairingCode ? 'Refresh Code' : 'Start Registration';
@@ -32,7 +37,7 @@ export const WelcomeRegistrationSection = ({
     const cloudCountdown = useMemo(() => {
         if (!cloudPairing?.expiresAtMs) return null;
         const remainingMs = cloudPairing.expiresAtMs - nowMs;
-        if (remainingMs <= 0) return 'Refreshing code…';
+        if (remainingMs <= 0) return 'Refreshing code...';
         const totalSeconds = Math.floor(remainingMs / 1000);
         const minutes = Math.floor(totalSeconds / 60);
         const seconds = totalSeconds % 60;
@@ -67,9 +72,10 @@ export const WelcomeRegistrationSection = ({
                     </div>
                     <button
                         onClick={onRefresh}
-                        className="cursor-pointer whitespace-nowrap rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-400"
+                        disabled={isInitialCloudPairingLoad}
+                        className="cursor-pointer whitespace-nowrap rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-400 disabled:cursor-default disabled:opacity-70"
                     >
-                        {registrationActionLabel}
+                        {isInitialCloudPairingLoad ? 'Checking Status...' : registrationActionLabel}
                     </button>
                 </div>
             </div>
@@ -94,14 +100,21 @@ export const WelcomeRegistrationSection = ({
                 <div className="mt-2 break-all font-mono text-sm text-sky-200">{portalUrlDisplay}</div>
             </div>
 
-            {!cloudPairing && !isLoadingCloudPairing ? (
+            {isInitialCloudPairingLoad ? (
+                <div className="space-y-4">
+                    <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+                        <LoadingLine className="h-4 w-56 bg-slate-700/70" />
+                        <LoadingLine className="mt-3 h-3 w-full max-w-xl bg-slate-700/60" />
+                    </div>
+                    <div className="flex flex-wrap items-center gap-4">
+                        <LoadingLine className="h-3 w-28 bg-slate-700/60" />
+                        <LoadingLine className="h-3 w-24 bg-slate-700/50" />
+                        <LoadingLine className="h-3 w-36 bg-slate-700/50" />
+                    </div>
+                </div>
+            ) : !cloudPairing && !isLoadingCloudPairing ? (
                 <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4 text-sm text-slate-300">
                     Click <span className="font-semibold text-white">Start Registration</span> to generate a pairing code for this robot.
-                </div>
-            ) : isLoadingCloudPairing && !cloudPairing ? (
-                <div className="flex items-center gap-2 text-slate-300">
-                    <FaSpinner className="h-4 w-4 animate-spin" />
-                    <span className="text-sm">Loading cloud pairing…</span>
                 </div>
             ) : cloudPairing?.status === 'claimed' ? (
                 <div className="space-y-3">
@@ -170,9 +183,9 @@ export const WelcomeRegistrationSection = ({
                         {cloudPairing?.pairingCode || '------'}
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-slate-400">
-                        <span>{cloudCountdown || 'Waiting for a fresh code…'}</span>
+                        <span>{cloudCountdown || 'Waiting for a fresh code...'}</span>
                         <span>Model: {cloudPairing?.robotModelName || 'sourccey'}</span>
-                        <span className="font-mono text-xs">Device: {cloudPairing?.deviceId || 'Generating…'}</span>
+                        <span className="font-mono text-xs">Device: {cloudPairing?.deviceId || 'Generating...'}</span>
                     </div>
                     {cloudPairing?.errorMessage ? (
                         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">

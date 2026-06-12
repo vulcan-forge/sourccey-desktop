@@ -20,6 +20,7 @@ import { RobotStatusModal } from '@/components/Elements/Modals/KioskRobotModals/
 import {
     calculateBatteryPercent,
     getBatteryLevelStep,
+    hasLoadedSystemInfo,
     setSystemInfo,
     useGetSystemInfo,
     type BatteryData,
@@ -41,6 +42,7 @@ export const KioskTopNavbar = () => {
     const { data: kioskUpdateStatus } = useKioskUpdateStatus({ enabled: shouldCheckUpdates });
     const { data: desktopAppUpdateStatus } = useDesktopAppUpdateStatus({ enabled: shouldCheckUpdates });
     const hasConfirmedUpdate = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable || desktopAppUpdateStatus?.updateAvailable);
+    const isSystemInfoLoading = !hasLoadedSystemInfo(systemInfo);
 
     // Fetch Raspberry Pi credentials when opening the modal
     const handleOpenCreds = async () => {
@@ -123,6 +125,13 @@ export const KioskTopNavbar = () => {
 
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
+    const networkLabel =
+        systemInfo.ipAddress &&
+        systemInfo.ipAddress.trim() !== '' &&
+        systemInfo.ipAddress.toLowerCase() !== 'unknown' &&
+        systemInfo.ipAddress !== '...'
+            ? systemInfo.ipAddress
+            : 'Disconnected';
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -176,7 +185,11 @@ export const KioskTopNavbar = () => {
                             title={isStatusModalOpen ? 'Close Robot Status' : 'View Robot Status'}
                         >
                             {getBatteryIcon(batteryPercent)}
-                            <span className="font-semibold">{batteryPercentString}</span>
+                            {isSystemInfoLoading ? (
+                                <span className="skeleton-shimmer h-4 w-10 rounded-full bg-slate-500/60" />
+                            ) : (
+                                <span className="font-semibold">{batteryPercentString}</span>
+                            )}
                         </button>
 
                         {/* WiFi button - show in kiosk mode */}
@@ -187,14 +200,11 @@ export const KioskTopNavbar = () => {
                         >
                             <FaWifi className="h-5 w-5" />
                             <span className="hidden sm:inline">WiFi</span>
-                            <span className="text-xs text-slate-400">
-                                {systemInfo.ipAddress &&
-                                systemInfo.ipAddress.trim() !== '' &&
-                                systemInfo.ipAddress.toLowerCase() !== 'unknown' &&
-                                systemInfo.ipAddress !== '...'
-                                    ? systemInfo.ipAddress
-                                    : 'Disconnected'}
-                            </span>
+                            {isSystemInfoLoading ? (
+                                <span className="skeleton-shimmer h-3 w-20 rounded-full bg-slate-500/50" />
+                            ) : (
+                                <span className="text-xs text-slate-400">{networkLabel}</span>
+                            )}
                         </button>
                     </div>
                 </div>
