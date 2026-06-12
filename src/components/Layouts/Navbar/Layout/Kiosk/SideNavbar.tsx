@@ -3,11 +3,9 @@ import { usePathname } from 'next/navigation';
 import { HiHome } from 'react-icons/hi';
 import { FaRobot, FaCog } from 'react-icons/fa';
 import Link from 'next/link';
-import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 
 export const SideNavbar = () => {
     const pathname = usePathname();
-    const { isKioskMode } = useAppMode();
 
     const navItems = [
         {
@@ -22,15 +20,13 @@ export const SideNavbar = () => {
         },
     ];
 
-    const bottomNavItems: any = isKioskMode
-        ? [
-              {
-                  href: '/kiosk/settings/',
-                  label: 'Settings',
-                  icon: FaCog,
-              },
-          ]
-        : [];
+    const bottomNavItems = [
+        {
+            href: '/kiosk/settings/',
+            label: 'Settings',
+            icon: FaCog,
+        },
+    ];
     const normalizePath = (value: string) => value.replace(/\/+$/, '') || '/';
     const normalizedPathname = normalizePath(pathname);
 

@@ -1,15 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { invoke } from '@tauri-apps/api/core';
 import { queryClient } from '@/hooks/default';
+import { usePathname } from 'next/navigation';
 
 export const APP_MODE_KEY = ['app-mode'];
 
-const inferAppModeFromPathname = (): boolean | undefined => {
-    if (typeof window === 'undefined') {
+const inferAppModeFromPathname = (pathname?: string | null): boolean | undefined => {
+    if (!pathname) {
         return undefined;
     }
 
-    const { pathname } = window.location;
     if (pathname.startsWith('/kiosk')) {
         return true;
     }
@@ -18,6 +18,14 @@ const inferAppModeFromPathname = (): boolean | undefined => {
     }
 
     return undefined;
+};
+
+const inferAppModeFromWindow = (): boolean | undefined => {
+    if (typeof window === 'undefined') {
+        return undefined;
+    }
+
+    return inferAppModeFromPathname(window.location.pathname);
 };
 
 // Get app mode from cache or invoke
@@ -34,12 +42,13 @@ const getAppMode = async (): Promise<boolean> => {
     } catch (error) {
         console.error('Failed to get app mode:', error);
         // In dev/startup races, fallback to current route instead of forcing desktop.
-        return inferAppModeFromPathname() ?? false;
+        return inferAppModeFromWindow() ?? false;
     }
 };
 
 export const useAppMode = () => {
-    const routeMode = inferAppModeFromPathname();
+    const pathname = usePathname();
+    const routeMode = inferAppModeFromPathname(pathname);
     const { data, isLoading } = useQuery({
         queryKey: APP_MODE_KEY,
         queryFn: getAppMode,

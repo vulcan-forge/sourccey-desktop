@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState, type ReactElement } from 'react';
+import React, { useEffect, type ReactElement } from 'react';
 import { Spinner } from '@/components/Elements/Spinner';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
@@ -11,7 +11,6 @@ import { safeNavigate } from '@/utils/navigation';
 const HomePage = (): ReactElement => {
     const router = useRouter();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
-    const [setupCheckComplete, setSetupCheckComplete] = useState(false);
 
     type SetupStatus = {
         installed: boolean;
@@ -26,7 +25,6 @@ const HomePage = (): ReactElement => {
 
         if (isKioskMode) {
             console.log('Kiosk mode: pushing to /kiosk');
-            setSetupCheckComplete(true);
             safeNavigate(router, '/kiosk/');
         } else {
             const checkSetup = async () => {
@@ -46,8 +44,6 @@ const HomePage = (): ReactElement => {
                 } catch (error) {
                     console.error('Failed to check setup status:', error);
                     safeNavigate(router, '/desktop/');
-                } finally {
-                    setSetupCheckComplete(true);
                 }
             };
 

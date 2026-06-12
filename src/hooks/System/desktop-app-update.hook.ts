@@ -1,6 +1,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { useQuery } from '@tanstack/react-query';
+import type { UseQueryOptions } from '@tanstack/react-query';
 
 export const DESKTOP_APP_UPDATE_KEY = ['desktop', 'app-update-status'];
 
@@ -52,10 +53,13 @@ const fetchDesktopAppUpdateStatus = async (): Promise<DesktopAppUpdateStatus> =>
     }
 };
 
-export const useDesktopAppUpdateStatus = () =>
+type DesktopAppUpdateQueryOptions = Pick<UseQueryOptions<DesktopAppUpdateStatus>, 'enabled'>;
+
+export const useDesktopAppUpdateStatus = (options?: DesktopAppUpdateQueryOptions) =>
     useQuery({
         queryKey: DESKTOP_APP_UPDATE_KEY,
         queryFn: fetchDesktopAppUpdateStatus,
+        enabled: options?.enabled ?? true,
         staleTime: 30 * 60 * 1000,
         refetchInterval: 30 * 60 * 1000,
         refetchOnMount: true,

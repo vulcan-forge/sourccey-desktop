@@ -24,17 +24,13 @@ import {
     useGetSystemInfo,
     type BatteryData,
 } from '@/hooks/System/system-info.hook';
-import { exit } from '@tauri-apps/plugin-process';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
 import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
-import { useKioskEnvironmentSettings } from '@/hooks/System/kiosk-environment.hook';
 
 export const KioskTopNavbar = () => {
     const { isRobotStarted } = useRobotStatus();
-    const { data: kioskUpdateStatus } = useKioskUpdateStatus();
-    const { data: desktopAppUpdateStatus } = useDesktopAppUpdateStatus();
-    const { data: kioskEnvironment } = useKioskEnvironmentSettings();
+    const [shouldCheckUpdates, setShouldCheckUpdates] = useState(false);
     const [isWiFiModalOpen, setIsWiFiModalOpen] = useState(false);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
@@ -42,9 +38,9 @@ export const KioskTopNavbar = () => {
     const [piCredentials, setPiCredentials] = useState({ username: '...', password: '...' });
 
     const { data: systemInfo }: any = useGetSystemInfo();
-    const hasModuleUpdate = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable);
-    const hasTauriAppUpdate = Boolean(desktopAppUpdateStatus?.updateAvailable);
-    const showUpdateButton = hasModuleUpdate || hasTauriAppUpdate;
+    const { data: kioskUpdateStatus } = useKioskUpdateStatus({ enabled: shouldCheckUpdates });
+    const { data: desktopAppUpdateStatus } = useDesktopAppUpdateStatus({ enabled: shouldCheckUpdates });
+    const hasConfirmedUpdate = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable || desktopAppUpdateStatus?.updateAvailable);
 
     // Fetch Raspberry Pi credentials when opening the modal
     const handleOpenCreds = async () => {
@@ -82,6 +78,30 @@ export const KioskTopNavbar = () => {
         return () => clearInterval(interval);
     }, []);
 
+    useEffect(() => {
+        let timeoutId: ReturnType<typeof setTimeout> | undefined;
+        let idleId: number | undefined;
+
+        const enableChecks = () => setShouldCheckUpdates(true);
+
+        if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+            idleId = window.requestIdleCallback(() => {
+                timeoutId = setTimeout(enableChecks, 250);
+            });
+        } else {
+            timeoutId = setTimeout(enableChecks, 750);
+        }
+
+        return () => {
+            if (idleId !== undefined && typeof window !== 'undefined' && 'cancelIdleCallback' in window) {
+                window.cancelIdleCallback(idleId);
+            }
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+            }
+        };
+    }, []);
+
     const getBatteryStyles = (percent: number) => {
         if (percent > 75) {
             return 'bg-slate-600/60 text-green-400 hover:bg-slate-600/80 hover:text-green-300';
@@ -103,9 +123,6 @@ export const KioskTopNavbar = () => {
 
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
-
-    const runtimeEnvironment = kioskEnvironment?.environment ?? 'local';
-    const environmentBadgeLabel = kioskEnvironment?.badgeLabel;
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -124,20 +141,10 @@ export const KioskTopNavbar = () => {
                         </span>
                     </Link>
 
-                    {environmentBadgeLabel ? (
-                        <LinkButton
-                            href="/kiosk/settings/developer"
-                            className="ml-4 inline-flex items-center rounded-full border border-amber-400/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-[0.22em] text-amber-200 uppercase transition hover:border-amber-300/60 hover:bg-amber-500/20 hover:text-amber-100"
-                            tooltip="Open developer settings"
-                        >
-                            {environmentBadgeLabel}
-                        </LinkButton>
-                    ) : null}
-
                     <div className="grow" />
 
                     <div className="ml-auto flex items-center gap-4">
-                        {showUpdateButton && (
+                        {hasConfirmedUpdate ? (
                             <LinkButton
                                 href="/kiosk/setup"
                                 className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition-all duration-300 hover:bg-amber-500/20 hover:text-amber-100"
@@ -146,7 +153,7 @@ export const KioskTopNavbar = () => {
                                 <FaSyncAlt className="h-5 w-5" />
                                 <span className="hidden sm:inline">Update</span>
                             </LinkButton>
-                        )}
+                        ) : null}
 
                         {/* Connect Details button - kiosk mode */}
                         <button
