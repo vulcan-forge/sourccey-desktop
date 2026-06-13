@@ -2,8 +2,8 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FaTools } from 'react-icons/fa';
-import { RobotCalibration } from '@/components/Elements/RemoteRobot/RobotCalibration';
-import { RobotStartSection } from '@/components/Elements/RemoteRobot/RobotStart';
+import { RobotCalibration } from '@/components/Elements/Robot/RobotCalibration';
+import { RobotStartSection } from '@/components/Elements/Robot/RobotStart';
 import { useKioskRobotStartStop } from '@/hooks/Kiosk/robot-start-stop.hook';
 
 interface RobotControlProps {

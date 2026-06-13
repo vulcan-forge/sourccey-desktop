@@ -1,8 +1,8 @@
 'use client';
 
 import React from 'react';
-import { RobotControl } from '@/components/Elements/RemoteRobot/RobotControl';
-import { KioskManualDrivePad } from '@/components/Elements/RemoteRobot/KioskManualDrivePad';
+import { RobotControl } from '@/components/Elements/Robot/RobotControl';
+import { KioskManualDrivePad } from '@/components/Elements/Robot/KioskManualDrivePad';
 import { useGetCalibration } from '@/hooks/Control/config.hook';
 import { useSelectedRobot } from '@/hooks/Robot/selected-robot.hook';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';

@@ -13,7 +13,7 @@ import {
     releaseManualDriveKeys,
     type ManualDriveKey,
     type ManualDriveSourceMap,
-} from '@/components/Elements/RemoteRobot/manual-drive-keys';
+} from '@/components/Elements/Robot/manual-drive-keys';
 
 type KioskManualDrivePadProps = {
     nickname: string;

@@ -9,8 +9,9 @@ import {
     CONTROL_CALIBRATION_KEY,
     CONTROL_CALIBRATION_MODIFIED_AT_KEY,
 } from '@/hooks/Control/config.hook';
+import { CalibrationDebugLogs } from '@/components/Elements/Robot/CalibrationDebugLogs';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import { getCalibrationErrorMessage, getCalibrationToastErrorMessage } from '@/components/Elements/RemoteRobot/calibration-error';
+import { getCalibrationErrorMessage, getCalibrationToastErrorMessage } from '@/components/Elements/Robot/calibration-error';
 
 interface CalibrationSectionProps {
     nickname: string;
@@ -185,6 +186,10 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
                         </>
                     )}
                 </button>
+            </div>
+
+            <div className="mt-4">
+                <CalibrationDebugLogs nickname={nickname} robotType={robotType} isRunning={isCalibrating} />
             </div>
         </div>
     );

@@ -4,6 +4,7 @@ import { useMemo } from 'react';
 import { FaCheckCircle, FaExclamationTriangle, FaTools } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { Spinner } from '@/components/Elements/Spinner';
+import { CalibrationDebugLogs } from '@/components/Elements/Robot/CalibrationDebugLogs';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import {
     DEFAULT_DESKTOP_TELEOP_TYPE,
@@ -12,7 +13,7 @@ import {
 } from '@/hooks/Control/desktop-calibration.hook';
 import { setContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import { getCalibrationErrorMessage, getCalibrationToastErrorMessage } from '@/components/Elements/RemoteRobot/calibration-error';
+import { getCalibrationErrorMessage, getCalibrationToastErrorMessage } from '@/components/Elements/Robot/calibration-error';
 
 export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { ownedRobot: any; embedded?: boolean }) => {
     const nickname = ownedRobot?.nickname ?? '';
@@ -158,6 +159,14 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
                     </>
                 )}
             </button>
+
+            <CalibrationDebugLogs
+                nickname={normalizedNickname}
+                teleopType={teleopType}
+                leftArmPort={leftArmPort}
+                rightArmPort={rightArmPort}
+                isRunning={isPending}
+            />
         </div>
     );
 };
