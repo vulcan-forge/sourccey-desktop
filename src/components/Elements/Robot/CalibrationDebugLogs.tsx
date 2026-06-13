@@ -39,7 +39,7 @@ type CalibrationDebugLogsProps = {
     isActive?: boolean;
     isRunning?: boolean;
     sessionKey?: number;
-    baselineLogCount?: number;
+    baselineLogs?: string[];
 };
 
 const normalizeToken = (value?: string) => value?.trim().toLowerCase() ?? '';
@@ -66,7 +66,7 @@ export const CalibrationDebugLogs = ({
     isActive = false,
     isRunning = false,
     sessionKey = 0,
-    baselineLogCount = 0,
+    baselineLogs = [],
 }: CalibrationDebugLogsProps) => {
     const tauriAvailable = isTauri();
     const [isExpanded, setIsExpanded] = useState(isActive);
@@ -100,9 +100,29 @@ export const CalibrationDebugLogs = ({
     }, [leftArmPort, nickname, rightArmPort, robotType, teleopType]);
 
     const sessionLogs = useMemo(() => {
-        const safeBaseline = Math.max(0, Math.min(baselineLogCount, allLogs.length));
-        return allLogs.slice(safeBaseline);
-    }, [allLogs, baselineLogCount]);
+        if (baselineLogs.length === 0) {
+            return allLogs;
+        }
+
+        const maxOverlap = Math.min(baselineLogs.length, allLogs.length);
+
+        for (let overlap = maxOverlap; overlap >= 1; overlap -= 1) {
+            let matches = true;
+
+            for (let index = 0; index < overlap; index += 1) {
+                if (baselineLogs[baselineLogs.length - overlap + index] !== allLogs[index]) {
+                    matches = false;
+                    break;
+                }
+            }
+
+            if (matches) {
+                return allLogs.slice(overlap);
+            }
+        }
+
+        return allLogs;
+    }, [allLogs, baselineLogs]);
 
     const recentRelevantLogs = useMemo(() => {
         const recent = sessionLogs.slice(-300);

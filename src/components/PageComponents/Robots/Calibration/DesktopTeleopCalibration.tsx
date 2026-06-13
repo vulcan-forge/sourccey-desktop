@@ -25,7 +25,7 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
     const { mutateAsync: autoCalibrate, isPending } = useDesktopTeleopAutoCalibrate();
     const [isLogsVisible, setIsLogsVisible] = useState(false);
     const [logSessionKey, setLogSessionKey] = useState(0);
-    const [logBaselineCount, setLogBaselineCount] = useState(0);
+    const [logBaselineLogs, setLogBaselineLogs] = useState<string[]>([]);
 
     const leftArmPort = remoteConfig?.left_arm_port ?? '';
     const rightArmPort = remoteConfig?.right_arm_port ?? '';
@@ -39,9 +39,9 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
                 maxLines: 400,
                 maxLinesPerFile: 200,
             });
-            setLogBaselineCount(existingLogs.length);
+            setLogBaselineLogs(existingLogs);
         } catch {
-            setLogBaselineCount(0);
+            setLogBaselineLogs([]);
         }
         setLogSessionKey((current) => current + 1);
     };
@@ -188,7 +188,7 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
                 isActive={isLogsVisible}
                 isRunning={isPending}
                 sessionKey={logSessionKey}
-                baselineLogCount={logBaselineCount}
+                baselineLogs={logBaselineLogs}
             />
         </div>
     );
