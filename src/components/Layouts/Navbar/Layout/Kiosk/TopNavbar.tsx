@@ -180,11 +180,13 @@ export const KioskTopNavbar = () => {
                             className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300 ${
                                 isStatusModalOpen
                                     ? 'bg-gradient-to-r from-orange-500 to-yellow-500 text-white hover:from-orange-600 hover:to-yellow-600'
-                                    : getBatteryStyles(batteryPercent)
+                                    : isSystemInfoLoading
+                                      ? 'bg-slate-600/60 text-white hover:bg-slate-600/80 hover:text-white'
+                                      : getBatteryStyles(batteryPercent)
                             }`}
                             title={isStatusModalOpen ? 'Close Robot Status' : 'View Robot Status'}
                         >
-                            {getBatteryIcon(batteryPercent)}
+                            {isSystemInfoLoading ? <FaBatteryFull className="h-5 w-5 text-white" /> : getBatteryIcon(batteryPercent)}
                             {isSystemInfoLoading ? (
                                 <span className="skeleton-shimmer h-4 w-10 rounded-full bg-slate-500/60" />
                             ) : (
