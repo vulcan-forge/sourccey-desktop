@@ -1,10 +1,13 @@
 'use client';
 
-import { useMemo } from 'react';
-import { isTauri } from '@tauri-apps/api/core';
-import { FaBug, FaExclamationTriangle, FaSyncAlt } from 'react-icons/fa';
+import { useMemo, useState } from 'react';
+import { invoke, isTauri } from '@tauri-apps/api/core';
+import { FaBug, FaTrash } from 'react-icons/fa';
+import { toast } from 'react-toastify';
 import { Spinner } from '@/components/Elements/Spinner';
-import { useCalibrationDebugLogs } from '@/hooks/Control/calibration-debug-logs.hook';
+import { CALIBRATION_DEBUG_LOGS_KEY, useCalibrationDebugLogs } from '@/hooks/Control/calibration-debug-logs.hook';
+import { queryClient } from '@/hooks/default';
+import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 
 const CALIBRATION_KEYWORDS = [
     'calibration',
@@ -27,22 +30,6 @@ const CALIBRATION_KEYWORDS = [
     'dxl',
 ];
 
-const HIGH_SIGNAL_KEYWORDS = [
-    'disconnected',
-    'disconnect',
-    'not connected',
-    'missing',
-    'failed',
-    'error',
-    'exception',
-    'traceback',
-    'timeout',
-    'unavailable',
-    'unable',
-    'not found',
-    'dxl',
-];
-
 type CalibrationDebugLogsProps = {
     nickname?: string;
     robotType?: string;
@@ -59,28 +46,12 @@ const matchesAny = (line: string, values: string[]) => {
     return values.some((value) => value.length > 0 && lower.includes(value));
 };
 
-const getHighSignalTone = (line: string) => {
-    const lower = line.toLowerCase();
-    if (
-        lower.includes('disconnected') ||
-        lower.includes('not connected') ||
-        lower.includes('missing') ||
-        lower.includes('unavailable')
-    ) {
-        return 'border-red-500/30 bg-red-500/10 text-red-100';
+const getErrorMessage = (error: unknown) => {
+    if (error instanceof Error) {
+        return error.message;
     }
 
-    if (
-        lower.includes('failed') ||
-        lower.includes('error') ||
-        lower.includes('exception') ||
-        lower.includes('traceback') ||
-        lower.includes('timeout')
-    ) {
-        return 'border-amber-500/30 bg-amber-500/10 text-amber-100';
-    }
-
-    return 'border-cyan-500/30 bg-cyan-500/10 text-cyan-100';
+    return String(error ?? 'Unknown error');
 };
 
 export const CalibrationDebugLogs = ({
@@ -92,10 +63,11 @@ export const CalibrationDebugLogs = ({
     isRunning = false,
 }: CalibrationDebugLogsProps) => {
     const tauriAvailable = isTauri();
+    const [isClearingLogs, setIsClearingLogs] = useState(false);
+    const [clearErrorMessage, setClearErrorMessage] = useState('');
     const {
         data: allLogs = [],
         isLoading,
-        isFetching,
         error,
         refetch,
     } = useCalibrationDebugLogs({
@@ -132,12 +104,33 @@ export const CalibrationDebugLogs = ({
         return filtered.slice(-80);
     }, [allLogs, contextTokens]);
 
-    const highSignalLogs = useMemo(() => {
-        const source = recentRelevantLogs.length > 0 ? recentRelevantLogs : allLogs.slice(-120);
-        return source.filter((line) => matchesAny(line, HIGH_SIGNAL_KEYWORDS)).slice(-8);
-    }, [allLogs, recentRelevantLogs]);
+    const queryErrorMessage = error instanceof Error ? error.message : error ? String(error) : '';
 
-    const errorMessage = error instanceof Error ? error.message : error ? String(error) : '';
+    const handleClearLogs = async () => {
+        if (!tauriAvailable) {
+            setClearErrorMessage('Calibration logs are only available inside the desktop or kiosk app.');
+            return;
+        }
+
+        setIsClearingLogs(true);
+        setClearErrorMessage('');
+
+        try {
+            await invoke('clear_log_dir');
+            queryClient.setQueryData([CALIBRATION_DEBUG_LOGS_KEY, 400, 200], []);
+            toast.success('Calibration logs cleared.', {
+                ...toastSuccessDefaults,
+            });
+        } catch (clearError: unknown) {
+            const message = `Failed to clear logs: ${getErrorMessage(clearError)}`;
+            setClearErrorMessage(message);
+            toast.error(message, {
+                ...toastErrorDefaults,
+            });
+        } finally {
+            setIsClearingLogs(false);
+        }
+    };
 
     return (
         <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
@@ -147,18 +140,16 @@ export const CalibrationDebugLogs = ({
                         <FaBug className="h-4 w-4 text-cyan-300" />
                         Calibration Debug Logs
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">
-                        Focused recent logs for calibration, ports, and disconnect-related failures.
-                    </p>
+                    <p className="mt-1 text-xs text-slate-400">Recent calibration-related logs for this robot.</p>
                 </div>
                 <button
                     type="button"
-                    onClick={() => void refetch()}
-                    disabled={!tauriAvailable || isFetching}
-                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    onClick={() => void handleClearLogs()}
+                    disabled={!tauriAvailable || isClearingLogs}
+                    className="inline-flex items-center justify-center gap-2 rounded-lg border border-red-500/60 px-3 py-2 text-xs font-semibold text-red-200 transition hover:border-red-400/80 disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                    {isFetching ? <Spinner color="white" width="w-3.5" height="h-3.5" /> : <FaSyncAlt className="h-3.5 w-3.5" />}
-                    {isFetching ? 'Refreshing...' : 'Refresh Logs'}
+                    {isClearingLogs ? <Spinner color="white" width="w-3.5" height="h-3.5" /> : <FaTrash className="h-3.5 w-3.5" />}
+                    {isClearingLogs ? 'Clearing...' : 'Clear Logs'}
                 </button>
             </div>
 
@@ -168,39 +159,17 @@ export const CalibrationDebugLogs = ({
                 </div>
             ) : (
                 <>
-                    {errorMessage && (
+                    {queryErrorMessage && (
                         <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
-                            Failed to load logs: {errorMessage}
+                            Failed to load logs: {queryErrorMessage}
                         </div>
                     )}
 
-                    <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/70 p-4">
-                        <div className="flex items-center gap-2 text-xs font-semibold tracking-[0.12em] text-slate-400 uppercase">
-                            <FaExclamationTriangle className="h-3.5 w-3.5 text-amber-300" />
-                            High Signal
+                    {clearErrorMessage && (
+                        <div className="mt-4 rounded-lg border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-100">
+                            {clearErrorMessage}
                         </div>
-                        <div className="mt-3 space-y-2">
-                            {isLoading ? (
-                                <div className="flex items-center gap-2 text-sm text-slate-300">
-                                    <Spinner color="yellow" width="w-4" height="h-4" />
-                                    Loading calibration logs...
-                                </div>
-                            ) : highSignalLogs.length === 0 ? (
-                                <div className="text-sm text-slate-400">
-                                    No disconnects, missing motors, or calibration failures were detected in the latest logs yet.
-                                </div>
-                            ) : (
-                                highSignalLogs.map((line, index) => (
-                                    <div
-                                        key={`${line}-${index}`}
-                                        className={`rounded-lg border px-3 py-2 font-mono text-[11px] leading-5 break-words whitespace-pre-wrap ${getHighSignalTone(line)}`}
-                                    >
-                                        {line}
-                                    </div>
-                                ))
-                            )}
-                        </div>
-                    </div>
+                    )}
 
                     <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/70 p-4">
                         <div className="flex items-center justify-between gap-2">
