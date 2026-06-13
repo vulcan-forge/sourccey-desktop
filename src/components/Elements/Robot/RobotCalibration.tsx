@@ -9,6 +9,7 @@ import {
     CONTROL_CALIBRATION_KEY,
     CONTROL_CALIBRATION_MODIFIED_AT_KEY,
 } from '@/hooks/Control/config.hook';
+import { getCalibrationDebugLogs } from '@/hooks/Control/calibration-debug-logs.hook';
 import { CalibrationDebugLogs } from '@/components/Elements/Robot/CalibrationDebugLogs';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getCalibrationErrorMessage, getCalibrationToastErrorMessage } from '@/components/Elements/Robot/calibration-error';
@@ -30,7 +31,24 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
 }) => {
     const [isCalibrating, setIsCalibrating] = useState(false);
     const [calibrationType, setCalibrationType] = useState<'auto' | 'full' | null>(null);
+    const [isLogsVisible, setIsLogsVisible] = useState(false);
+    const [logSessionKey, setLogSessionKey] = useState(0);
+    const [logBaselineCount, setLogBaselineCount] = useState(0);
     const canCalibrate = !!nickname && !!robotType;
+
+    const startCalibrationLogSession = async () => {
+        setIsLogsVisible(true);
+        try {
+            const existingLogs = await getCalibrationDebugLogs({
+                maxLines: 400,
+                maxLinesPerFile: 200,
+            });
+            setLogBaselineCount(existingLogs.length);
+        } catch {
+            setLogBaselineCount(0);
+        }
+        setLogSessionKey((current) => current + 1);
+    };
 
     const refreshCalibrationQueries = async () => {
         const queries = [
@@ -64,6 +82,7 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
     const handleCalibration = async (fullReset: boolean) => {
         if (!canCalibrate) return;
 
+        await startCalibrationLogSession();
         setIsCalibrating(true);
         setCalibrationType(fullReset ? 'full' : 'auto');
 
@@ -189,7 +208,14 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
             </div>
 
             <div className="mt-4">
-                <CalibrationDebugLogs nickname={nickname} robotType={robotType} isRunning={isCalibrating} />
+                <CalibrationDebugLogs
+                    nickname={nickname}
+                    robotType={robotType}
+                    isActive={isLogsVisible}
+                    isRunning={isCalibrating}
+                    sessionKey={logSessionKey}
+                    baselineLogCount={logBaselineCount}
+                />
             </div>
         </div>
     );

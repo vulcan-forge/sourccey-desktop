@@ -1,10 +1,11 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { FaCheckCircle, FaExclamationTriangle, FaTools } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { Spinner } from '@/components/Elements/Spinner';
 import { CalibrationDebugLogs } from '@/components/Elements/Robot/CalibrationDebugLogs';
+import { getCalibrationDebugLogs } from '@/hooks/Control/calibration-debug-logs.hook';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import {
     DEFAULT_DESKTOP_TELEOP_TYPE,
@@ -22,11 +23,28 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
     const { data: remoteConfig } = useGetRemoteConfig(nickname);
     const { data: calibrationStatus, isLoading, refetch } = useDesktopTeleopCalibrationStatus(normalizedNickname, teleopType, !!normalizedNickname);
     const { mutateAsync: autoCalibrate, isPending } = useDesktopTeleopAutoCalibrate();
+    const [isLogsVisible, setIsLogsVisible] = useState(false);
+    const [logSessionKey, setLogSessionKey] = useState(0);
+    const [logBaselineCount, setLogBaselineCount] = useState(0);
 
     const leftArmPort = remoteConfig?.left_arm_port ?? '';
     const rightArmPort = remoteConfig?.right_arm_port ?? '';
     const isCalibrated = calibrationStatus?.isCalibrated === true;
     const canRunCalibration = normalizedNickname.length > 0 && leftArmPort.length > 0 && rightArmPort.length > 0;
+
+    const startCalibrationLogSession = async () => {
+        setIsLogsVisible(true);
+        try {
+            const existingLogs = await getCalibrationDebugLogs({
+                maxLines: 400,
+                maxLinesPerFile: 200,
+            });
+            setLogBaselineCount(existingLogs.length);
+        } catch {
+            setLogBaselineCount(0);
+        }
+        setLogSessionKey((current) => current + 1);
+    };
 
     const runCalibration = async () => {
         if (!canRunCalibration) {
@@ -37,6 +55,7 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
         }
 
         try {
+            await startCalibrationLogSession();
             await autoCalibrate({
                 nickname: normalizedNickname,
                 teleopType,
@@ -165,7 +184,10 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
                 teleopType={teleopType}
                 leftArmPort={leftArmPort}
                 rightArmPort={rightArmPort}
+                isActive={isLogsVisible}
                 isRunning={isPending}
+                sessionKey={logSessionKey}
+                baselineLogCount={logBaselineCount}
             />
         </div>
     );
