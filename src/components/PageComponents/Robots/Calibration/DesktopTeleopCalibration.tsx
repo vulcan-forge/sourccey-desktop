@@ -71,7 +71,8 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
         } catch (error: unknown) {
             const errorMessage = getCalibrationErrorMessage(error);
             const toastErrorMessage = getCalibrationToastErrorMessage(error);
-            console.error('Desktop teleoperator calibration failed:', errorMessage);
+            console.error(`Desktop teleoperator calibration failed: ${toastErrorMessage}`);
+            console.debug('Desktop teleoperator calibration failure details:', errorMessage);
             toast.error(`Calibration failed: ${toastErrorMessage}`, {
                 ...toastErrorDefaults,
             });
