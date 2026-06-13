@@ -33,7 +33,7 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
     const [calibrationType, setCalibrationType] = useState<'auto' | 'full' | null>(null);
     const [isLogsVisible, setIsLogsVisible] = useState(false);
     const [logSessionKey, setLogSessionKey] = useState(0);
-    const [logBaselineCount, setLogBaselineCount] = useState(0);
+    const [logBaselineLogs, setLogBaselineLogs] = useState<string[]>([]);
     const canCalibrate = !!nickname && !!robotType;
 
     const startCalibrationLogSession = async () => {
@@ -43,9 +43,9 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
                 maxLines: 400,
                 maxLinesPerFile: 200,
             });
-            setLogBaselineCount(existingLogs.length);
+            setLogBaselineLogs(existingLogs);
         } catch {
-            setLogBaselineCount(0);
+            setLogBaselineLogs([]);
         }
         setLogSessionKey((current) => current + 1);
     };
@@ -214,7 +214,7 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
                     isActive={isLogsVisible}
                     isRunning={isCalibrating}
                     sessionKey={logSessionKey}
-                    baselineLogCount={logBaselineCount}
+                    baselineLogs={logBaselineLogs}
                 />
             </div>
         </div>
