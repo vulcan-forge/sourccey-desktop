@@ -77,10 +77,10 @@ export const CalibrationDebugLogs = ({
         isLoading,
         error,
     } = useCalibrationDebugLogs({
-        enabled: tauriAvailable && isActive,
+        enabled: tauriAvailable && isExpanded && isActive,
         maxLines: 400,
         maxLinesPerFile: 200,
-        refetchIntervalMs: isActive && isRunning ? 2000 : false,
+        refetchIntervalMs: isExpanded && isActive && isRunning ? 2000 : false,
     });
 
     useEffect(() => {
@@ -121,10 +121,6 @@ export const CalibrationDebugLogs = ({
 
     const queryErrorMessage = error instanceof Error ? error.message : error ? String(error) : '';
 
-    if (!isActive) {
-        return null;
-    }
-
     const handleClearLogs = async () => {
         if (!tauriAvailable) {
             setClearErrorMessage('Calibration logs are only available inside the desktop or kiosk app.');
@@ -159,7 +155,9 @@ export const CalibrationDebugLogs = ({
                         <FaTerminal className="h-4 w-4 text-cyan-300" />
                         Calibration Debug Logs
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">Logs captured for the current calibration run.</p>
+                    <p className="mt-1 text-xs text-slate-400">
+                        {isActive ? 'Logs captured for the current calibration run.' : 'Run calibration to start a fresh log session.'}
+                    </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                     <button
@@ -212,11 +210,13 @@ export const CalibrationDebugLogs = ({
                     {isExpanded && (
                         <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/70 p-4">
                             <div className="flex items-center justify-between gap-2">
-                                <div className="text-xs font-semibold tracking-[0.12em] text-slate-400 uppercase">Current Calibration Logs</div>
-                                <div className="text-[11px] text-slate-500">{recentRelevantLogs.length} lines</div>
-                            </div>
-                            <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-[11px] leading-5 text-slate-200">
-                                {isLoading ? (
+                            <div className="text-xs font-semibold tracking-[0.12em] text-slate-400 uppercase">Current Calibration Logs</div>
+                            <div className="text-[11px] text-slate-500">{recentRelevantLogs.length} lines</div>
+                        </div>
+                        <div className="mt-3 max-h-72 overflow-auto rounded-lg border border-slate-800 bg-slate-950 px-3 py-2 font-mono text-[11px] leading-5 text-slate-200">
+                                {!isActive ? (
+                                    <div className="text-slate-400">Run auto calibrate or full calibrate to capture logs for this session.</div>
+                                ) : isLoading ? (
                                     <div className="text-slate-400">Loading calibration logs...</div>
                                 ) : recentRelevantLogs.length === 0 ? (
                                     <div className="text-slate-400">
