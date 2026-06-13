@@ -45,8 +45,8 @@ export const WelcomeSystemStatus = ({
     };
 
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
-    const BatteryIcon = getBatteryIcon(batteryPercent);
-    const batteryColor = getBatteryColor(batteryPercent);
+    const BatteryIcon = isLoadingSystemInfo ? FaBatteryFull : getBatteryIcon(batteryPercent);
+    const batteryColor = isLoadingSystemInfo ? 'text-white' : getBatteryColor(batteryPercent);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
 
     return (
