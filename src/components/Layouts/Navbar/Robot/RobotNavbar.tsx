@@ -1,20 +1,20 @@
 import { FaGamepad, FaSlidersH } from 'react-icons/fa';
 
 import { setContent, useGetContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
-import { FaArrowLeft, FaCog, FaMicrochip } from 'react-icons/fa';
+import { FaArrowLeft, FaDatabase, FaRobot } from 'react-icons/fa';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 export const RobotNavbar = () => {
     const { data: content } = useGetContent();
 
-    const overview = 'overview';
     const teleoperate = 'teleoperate';
-    const aiModels = 'ai';
+    const recording = 'recording';
+    const rollout = 'rollout';
     const config = 'config';
 
-    const isOverviewActive = content === overview;
     const isTeleoperateActive = content === teleoperate;
-    const isAiModelsActive = content === aiModels;
+    const isRecordingActive = content === recording;
+    const isRolloutActive = content === rollout;
     const isConfigActive = content === config;
 
     return (
@@ -31,18 +31,18 @@ export const RobotNavbar = () => {
                 <div className="bg-slate-725 mx-4 h-8 w-0.5" />
 
                 <div className="flex w-full gap-2">
-                    <NavButton content={overview} icon={FaCog} isActive={isOverviewActive}>
-                        Overview
-                    </NavButton>
                     <NavButton content={teleoperate} icon={FaGamepad} isActive={isTeleoperateActive}>
-                        Teleoperate
+                        Teleoperation
                     </NavButton>
-                    <NavButton content={aiModels} icon={FaMicrochip} isActive={isAiModelsActive}>
-                        AI Models
+                    <NavButton content={recording} icon={FaDatabase} isActive={isRecordingActive}>
+                        Record Data
+                    </NavButton>
+                    <NavButton content={rollout} icon={FaRobot} isActive={isRolloutActive}>
+                        Rollout
                     </NavButton>
                     <div className="grow"></div>
                     <NavButton content={config} icon={FaSlidersH} isActive={isConfigActive}>
-                        Config
+                        Setup
                     </NavButton>
                 </div>
             </div>

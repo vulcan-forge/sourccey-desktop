@@ -11,7 +11,13 @@ import { DesktopExtrasGate } from '@/components/Elements/Setup/DesktopExtrasGate
 import { Spinner } from '@/components/Elements/Spinner';
 import { DownloadModelButton } from '@/components/Elements/AIModel/DownloadModelButton';
 
-export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
+export const AIModelContainer = ({
+    ownedRobot,
+    mode = 'ai',
+}: {
+    ownedRobot: any;
+    mode?: 'ai' | 'rollout';
+}) => {
     const pageSize = 20;
     const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
     const { data, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage, refetch } = useGetAiModelsInfinite(pageSize, true);
@@ -24,6 +30,7 @@ export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
     const selectedModel: any = models.find((model) => model.id === selectedModelId) ?? null;
     const nickname = ownedRobot?.nickname ?? '';
     const { data: remoteConfig } = useGetRemoteConfig(nickname);
+    const isRolloutMode = mode === 'rollout';
 
     useEffect(() => {
         if (!sentinelRef.current) return;
@@ -56,8 +63,10 @@ export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
             <div className="flex flex-col gap-6">
                 <div className="flex items-center justify-between rounded-xl border-2 border-slate-700/50 bg-slate-900/40 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.28)]">
                     <div>
-                        <h2 className="text-lg font-semibold text-white">AI Models</h2>
-                        <p className="text-xs text-slate-400">Synced from your local cache directory.</p>
+                        <h2 className="text-lg font-semibold text-white">{isRolloutMode ? 'Rollout Models' : 'AI Models'}</h2>
+                        <p className="text-xs text-slate-400">
+                            {isRolloutMode ? 'Pick a local model to run on this robot.' : 'Synced from your local cache directory.'}
+                        </p>
                     </div>
                     <div className="flex items-center gap-2">
                         <DownloadModelButton onCompleteAction={() => void refetch()} />
@@ -142,6 +151,7 @@ export const AIModelContainer = ({ ownedRobot }: { ownedRobot: any }) => {
                         model={selectedModel}
                         ownedRobot={ownedRobot}
                         remoteConfig={remoteConfig}
+                        mode={mode}
                         onClearAction={() => setSelectedModelId(null)}
                     />
                 )}

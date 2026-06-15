@@ -1,19 +1,20 @@
 'use client';
 
 import { Spinner } from '@/components/Elements/Spinner';
-import { RemoteTeleopContainer } from '@/components/PageComponents/Robots/Teleop/TeleopContainer';
-import { Overview } from '@/components/PageComponents/Robots/Overview/Overview';
 import { RemoteConfigSection } from '@/components/PageComponents/Robots/Config/RemoteConfigSection';
 import { RobotLayout } from '@/components/PageComponents/Robots/RobotLayout';
 import { useSelectedOwnedRobot } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { useGetContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
-import { AIModelContainer } from '@/components/PageComponents/Robots/AI/AIContainer';
+import { RobotOperationsWorkspace } from '@/components/PageComponents/Robots/Operations/RobotOperationsWorkspace';
 
 export const RobotDetailsPage = () => {
     const { data: ownedRobot } = useSelectedOwnedRobot();
     const { data: content } = useGetContent();
-    const activeContent = (content as string) ?? 'overview';
+    const activeContent = (content as string) ?? 'teleoperate';
     const showConfigContent = activeContent === 'config' || activeContent === 'calibration';
+    const showOperationsWorkspace =
+        activeContent === 'overview' || activeContent === 'teleoperate' || activeContent === 'recording' || activeContent === 'rollout';
+    const workspaceContent = activeContent === 'overview' ? 'teleoperate' : activeContent;
 
     if (!ownedRobot) {
         return (
@@ -25,12 +26,12 @@ export const RobotDetailsPage = () => {
 
     return (
         <RobotLayout>
-            <div className="flex h-full w-full flex-col space-y-4 overflow-y-auto p-4">
-                {activeContent === 'overview' && <Overview ownedRobot={ownedRobot} />}
-                {activeContent === 'teleoperate' && <RemoteTeleopContainer ownedRobot={ownedRobot} />}
-                {activeContent === 'ai' && <AIModelContainer ownedRobot={ownedRobot} />}
-                {showConfigContent && <RemoteConfigSection ownedRobot={ownedRobot} embedded={true} showHeader={false} isOpen={true} />}
-            </div>
+            {showOperationsWorkspace && <RobotOperationsWorkspace ownedRobot={ownedRobot} activeContent={workspaceContent} />}
+            {showConfigContent && (
+                <div className="flex h-full w-full flex-col space-y-4 overflow-y-auto p-4">
+                    <RemoteConfigSection ownedRobot={ownedRobot} embedded={true} showHeader={false} isOpen={true} />
+                </div>
+            )}
         </RobotLayout>
     );
 };

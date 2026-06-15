@@ -89,6 +89,26 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
             }
             unlistenFns.push(unlistenTeleop);
 
+            const unlistenRecord = await listen<string>('record-log', (event) => {
+                if (!isActive) return;
+                appendLog(event.payload);
+            });
+            if (!isActive) {
+                unlistenRecord();
+                return;
+            }
+            unlistenFns.push(unlistenRecord);
+
+            const unlistenRollout = await listen<string>('rollout-log', (event) => {
+                if (!isActive) return;
+                appendLog(event.payload);
+            });
+            if (!isActive) {
+                unlistenRollout();
+                return;
+            }
+            unlistenFns.push(unlistenRollout);
+
             const unlistenInference = await listen<string>('inference-log', (event) => {
                 if (!isActive) return;
                 appendLog(event.payload);
@@ -109,34 +129,30 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
     }, [appendLog, isControlling, nickname]);
 
     const containerClassName = embedded
-        ? 'bg-slate-825 overflow-hidden rounded-lg border-2 border-slate-700'
-        : 'bg-slate-825 overflow-hidden rounded-xl border-2 border-slate-700 backdrop-blur-sm';
+        ? 'overflow-hidden rounded-2xl border-2 border-slate-700/70 bg-slate-900/60 shadow-[0_18px_40px_rgba(15,23,42,0.22)]'
+        : 'overflow-hidden rounded-2xl border-2 border-slate-700/70 bg-slate-900/60 shadow-[0_18px_40px_rgba(15,23,42,0.22)]';
     const headerClassName = embedded
-        ? 'bg-slate-825 flex items-center justify-between border-b border-slate-700 px-4 py-3'
-        : 'bg-slate-825 flex items-center justify-between border-b border-slate-700 p-4';
+        ? 'flex items-center justify-between border-b border-slate-700/70 px-5 py-4'
+        : 'flex items-center justify-between border-b border-slate-700/70 px-5 py-4';
 
     return (
         <div className={containerClassName}>
             <div className={headerClassName}>
                 <div className="flex items-center gap-3">
-                    <FaTerminal className="h-5 w-5 text-slate-400" />
-                    <h3 className="text-lg font-semibold text-white">Robot Logs</h3>
-                    {isControlling && (
-                        <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
-                            <span className="text-sm text-slate-400">Live</span>
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-950/45 text-slate-400">
+                        <FaTerminal className="h-4 w-4" />
+                    </div>
+                    <div>
+                        <h3 className="text-base font-semibold text-white">Session Logs</h3>
+                        <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
+                            <div className={`h-2 w-2 rounded-full ${isControlling ? 'animate-pulse bg-emerald-400' : 'bg-slate-500'}`} />
+                            <span>{isControlling ? 'Live output' : 'Idle'}</span>
                         </div>
-                    )}
-                    {!isControlling && (
-                        <div className="flex items-center gap-2">
-                            <div className="h-2 w-2 rounded-full bg-red-400" />
-                            <span className="text-sm text-slate-400">Inactive</span>
-                        </div>
-                    )}
+                    </div>
                 </div>
                 <button
                     onClick={() => setIsExpanded(!isExpanded)}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-slate-700/60"
+                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/45 px-3 py-2 text-sm font-medium text-slate-100 transition-all hover:border-slate-600 hover:bg-slate-900"
                 >
                     {isExpanded ? (
                         <>
@@ -154,11 +170,11 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
 
             {isExpanded && (
                 <>
-                    <div className="scrollbar scrollbar-thumb-slate-600 scrollbar-track-slate-800 h-[500px] overflow-y-auto bg-slate-900/50 font-mono">
-                        <div className="space-y-0.5 p-4">
+                    <div className="scrollbar scrollbar-thumb-slate-600 scrollbar-track-slate-800 h-[320px] overflow-y-auto bg-slate-950/45 font-mono">
+                        <div className="space-y-1 p-5">
                             {controlLogs.length > 0 ? (
                                 controlLogs.slice(-50).map((log, index) => (
-                                    <div key={index} className="text-xs leading-relaxed text-slate-400">
+                                    <div key={index} className="rounded-lg bg-slate-900/55 px-3 py-2 text-xs leading-relaxed text-slate-300">
                                         {log}
                                     </div>
                                 ))
@@ -170,9 +186,9 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
                         </div>
                     </div>
 
-                    <div className="bg-slate-825 border-t border-slate-700 p-3">
-                        <div className="flex items-center justify-between font-mono text-xs text-slate-400">
-                            <span>ENTRIES: {controlLogs.length}</span>
+                    <div className="border-t border-slate-700/70 px-5 py-3">
+                        <div className="flex items-center justify-between text-xs text-slate-400">
+                            <span>{controlLogs.length} entries</span>
                         </div>
                     </div>
                 </>

@@ -166,6 +166,8 @@ class ProcessShutdownManager {
     private async _doSetup(): Promise<void> {
         const shutdownEvents = [
             { event: 'teleop-process-shutdown', controlType: ControlType.TELEOP, name: 'Teleop' },
+            { event: 'record-process-shutdown', controlType: ControlType.RECORDING, name: 'Recording' },
+            { event: 'rollout-process-shutdown', controlType: ControlType.ROLLOUT, name: 'Rollout' },
             { event: 'inference-process-shutdown', controlType: ControlType.AIMODEL, name: 'Inference' },
         ];
 
