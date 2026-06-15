@@ -4,6 +4,7 @@ import { mutateLogin } from '@/api/GraphQL/Account/Mutations/LoginMutation';
 import { queryProfile } from '@/api/GraphQL/Profile/Query';
 import { queryAccountSummary } from '@/api/Account/account-summary';
 import { clearAuthSession, setAuthSession, useAuthSession, type AuthProvider } from '@/hooks/Auth/auth-session.hook';
+import { useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
 import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getReCaptchaSiteKey, getReCaptchaToken } from '@/utils/recaptcha';
 import { useMutation } from '@tanstack/react-query';
@@ -108,6 +109,7 @@ function AccountPageContent() {
     const router = useRouter();
     const searchParams = useSearchParams();
     const { data: authSession } = useAuthSession();
+    const { data: desktopEnvironmentSettings } = useDesktopEnvironmentSettings();
 
     const [email, setEmail] = useState(authSession?.email ?? '');
     const [password, setPassword] = useState('');
@@ -116,9 +118,9 @@ function AccountPageContent() {
 
     const isAuthenticated = Boolean(authSession?.isAuthenticated && authSession?.accountId);
     const accountId = authSession?.accountId ?? null;
-    const googleLoginUrl = process.env.NEXT_PUBLIC_AUTH_GOOGLE_URL;
-    const githubLoginUrl = process.env.NEXT_PUBLIC_AUTH_GITHUB_URL;
-    const hasSummaryEndpoint = Boolean(process.env.NEXT_PUBLIC_ACCOUNT_SUMMARY_URL);
+    const googleLoginUrl = desktopEnvironmentSettings?.authGoogleUrl ?? null;
+    const githubLoginUrl = desktopEnvironmentSettings?.authGithubUrl ?? null;
+    const hasSummaryEndpoint = Boolean(desktopEnvironmentSettings?.accountSummaryUrl);
 
     const providerLabel = useMemo(() => {
         if (!authSession?.provider) return 'Not set';
@@ -143,7 +145,7 @@ function AccountPageContent() {
             });
 
             if (!summary) {
-                toast.info('Account summary endpoint not configured yet. Set NEXT_PUBLIC_ACCOUNT_SUMMARY_URL to enable it.', {
+                toast.info('Account summary endpoint not configured yet for the active desktop environment.', {
                     ...toastInfoDefaults,
                 });
                 return;
@@ -250,7 +252,7 @@ function AccountPageContent() {
         if (oauthPendingProvider) return;
         const endpoint = provider === 'google' ? googleLoginUrl : githubLoginUrl;
         if (!endpoint) {
-            toast.error(`Set NEXT_PUBLIC_AUTH_${provider.toUpperCase()}_URL in your env file before using ${provider} login.`, {
+            toast.error(`Configure the ${provider} login URL in Desktop Developer Settings before using ${provider} login.`, {
                 ...toastErrorDefaults,
             });
             return;
@@ -426,7 +428,7 @@ function AccountPageContent() {
                             </button>
                             {!hasSummaryEndpoint && (
                                 <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                                    Set `NEXT_PUBLIC_ACCOUNT_SUMMARY_URL` to enable entitlement refresh.
+                                    Configure the account summary URL in Desktop Developer Settings to enable entitlement refresh.
                                 </div>
                             )}
                         </div>

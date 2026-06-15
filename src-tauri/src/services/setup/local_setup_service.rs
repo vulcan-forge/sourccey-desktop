@@ -1,6 +1,7 @@
 use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
+use std::cmp::Ordering;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -38,11 +39,22 @@ pub struct DesktopExtrasStatus {
 #[derive(Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LerobotUpdateStatus {
+    pub state: LerobotReleaseState,
     pub up_to_date: bool,
     pub current_commit: Option<String>,
     pub latest_commit: Option<String>,
     pub current_tag: Option<String>,
     pub latest_tag: Option<String>,
+    pub message: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum LerobotReleaseState {
+    UpToDate,
+    UpdateAvailable,
+    CustomBuild,
+    Unknown,
 }
 
 #[derive(Clone, Deserialize)]
@@ -71,7 +83,34 @@ struct LerobotCommitMarker {
 #[derive(Clone)]
 struct LerobotTagCacheEntry {
     fetched_at: Instant,
-    latest_tag: Option<String>,
+    latest_tag: Option<LatestLerobotTagInfo>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct LatestLerobotTagInfo {
+    name: String,
+    commit_sha: Option<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct ManifestLerobotReleaseInfo {
+    tag: Option<String>,
+    commit: Option<String>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum CurrentLerobotReleaseSource {
+    GitTagged,
+    GitUntagged,
+    Marker,
+    Missing,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct CurrentLerobotReleaseInfo {
+    source: CurrentLerobotReleaseSource,
+    tag: Option<String>,
+    commit: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Ord, PartialEq, PartialOrd)]
@@ -211,19 +250,38 @@ impl LocalSetupService {
     }
 
     pub fn check_lerobot_update(app_handle: &AppHandle) -> Result<LerobotUpdateStatus, String> {
-        let latest_tag = Self::resolve_latest_lerobot_tag();
-        let current_tag = Self::resolve_current_lerobot_tag(app_handle);
-        let current_commit = Self::resolve_current_lerobot_commit(app_handle);
-        let latest_commit = latest_tag.clone();
-        let up_to_date =
-            Self::is_current_tag_up_to_date(current_tag.as_deref(), latest_tag.as_deref());
+        let current_release = Self::resolve_current_lerobot_release_info(app_handle);
+        let latest_release = Self::resolve_latest_lerobot_tag();
+        let manifest_release = match Self::read_manifest_lerobot_release_info() {
+            Ok(release) => release,
+            Err(error) => {
+                eprintln!(
+                    "[setup] Failed to read updater manifest release metadata: {}",
+                    error
+                );
+                None
+            }
+        };
+        let latest_tag = latest_release.as_ref().map(|release| release.name.clone());
+        let latest_commit = latest_release
+            .as_ref()
+            .and_then(|release| release.commit_sha.clone())
+            .or_else(|| manifest_release.as_ref().and_then(|release| release.commit.clone()));
+        let (state, message) = Self::resolve_lerobot_release_state(
+            &current_release,
+            latest_release.as_ref(),
+            manifest_release.as_ref(),
+        );
+        let up_to_date = matches!(state, LerobotReleaseState::UpToDate);
 
         Ok(LerobotUpdateStatus {
+            state,
             up_to_date,
-            current_commit,
+            current_commit: current_release.commit,
             latest_commit,
-            current_tag,
+            current_tag: current_release.tag,
             latest_tag,
+            message,
         })
     }
 
@@ -659,7 +717,7 @@ impl LocalSetupService {
         Ok(())
     }
 
-    fn fetch_latest_lerobot_commit() -> Result<Option<String>, String> {
+    fn read_updater_manifest() -> Result<UpdaterManifest, String> {
         let url = std::env::var("SOURCCEY_UPDATER_URL")
             .unwrap_or_else(|_| Self::DEFAULT_UPDATER_URL.to_string());
         let response = reqwest::blocking::get(&url)
@@ -671,16 +729,25 @@ impl LocalSetupService {
                 url
             ));
         }
-        let manifest: UpdaterManifest = response
+        response
             .json()
-            .map_err(|e| format!("Invalid updater manifest JSON: {}", e))?;
+            .map_err(|e| format!("Invalid updater manifest JSON: {}", e))
+    }
+
+    fn read_manifest_lerobot_release_info() -> Result<Option<ManifestLerobotReleaseInfo>, String> {
+        let manifest = Self::read_updater_manifest()?;
         Ok(manifest
             .modules
             .and_then(|modules| modules.lerobot_vulcan)
-            .and_then(|module| module.tag.or(module.commit)))
+            .map(|module| ManifestLerobotReleaseInfo {
+                tag: module.tag.and_then(|tag| Self::normalize_vulcan_tag(&tag)),
+                commit: module
+                    .commit
+                    .and_then(|commit| Self::normalize_git_commit_sha(&commit)),
+            }))
     }
 
-    fn resolve_latest_lerobot_tag() -> Option<String> {
+    fn resolve_latest_lerobot_tag() -> Option<LatestLerobotTagInfo> {
         let now = Instant::now();
         let mut cache_guard = match LEROBOT_TAG_CACHE.lock() {
             Ok(guard) => guard,
@@ -704,9 +771,9 @@ impl LocalSetupService {
         cache: &mut Option<LerobotTagCacheEntry>,
         now: Instant,
         fetch_latest_tag: F,
-    ) -> Result<Option<String>, String>
+    ) -> Result<Option<LatestLerobotTagInfo>, String>
     where
-        F: FnOnce() -> Result<Option<String>, String>,
+        F: FnOnce() -> Result<Option<LatestLerobotTagInfo>, String>,
     {
         if let Some(entry) = cache.as_ref() {
             if now.duration_since(entry.fetched_at) <= Self::LEROBOT_TAG_CACHE_TTL {
@@ -722,7 +789,7 @@ impl LocalSetupService {
         Ok(latest_tag)
     }
 
-    fn fetch_latest_lerobot_tag_from_api() -> Result<Option<String>, String> {
+    fn fetch_latest_lerobot_tag_from_api() -> Result<Option<LatestLerobotTagInfo>, String> {
         let url = std::env::var("SOURCCEY_LEROBOT_TAGS_URL")
             .unwrap_or_else(|_| Self::DEFAULT_LEROBOT_TAGS_URL.to_string());
 
@@ -749,40 +816,66 @@ impl LocalSetupService {
         let payload: serde_json::Value = response
             .json()
             .map_err(|e| format!("Invalid lerobot tags payload: {}", e))?;
-        let tags = Self::extract_tag_names_from_value(&payload);
+        let tags = Self::extract_tag_infos_from_value(&payload);
         Ok(Self::select_latest_vulcan_tag(tags))
     }
 
-    fn extract_tag_names_from_value(value: &serde_json::Value) -> Vec<String> {
+    fn extract_tag_infos_from_value(value: &serde_json::Value) -> Vec<LatestLerobotTagInfo> {
         match value {
             serde_json::Value::Array(items) => items
                 .iter()
                 .filter_map(|item| {
                     if let Some(name) = item.as_str() {
-                        return Some(name.trim().to_string());
+                        let normalized_name = name.trim().to_string();
+                        if normalized_name.is_empty() {
+                            return None;
+                        }
+                        return Some(LatestLerobotTagInfo {
+                            name: normalized_name,
+                            commit_sha: None,
+                        });
                     }
                     if let Some(name) = item.get("name").and_then(|v| v.as_str()) {
-                        return Some(name.trim().to_string());
+                        let normalized_name = name.trim().to_string();
+                        if normalized_name.is_empty() {
+                            return None;
+                        }
+                        let commit_sha = item
+                            .get("commit")
+                            .and_then(|commit| commit.get("sha"))
+                            .and_then(|sha| sha.as_str())
+                            .and_then(Self::normalize_git_commit_sha);
+                        return Some(LatestLerobotTagInfo {
+                            name: normalized_name,
+                            commit_sha,
+                        });
                     }
-                    item.get("tag")
-                        .and_then(|v| v.as_str())
-                        .map(|tag| tag.trim().to_string())
+                    item.get("tag").and_then(|v| v.as_str()).and_then(|tag| {
+                        let normalized_name = tag.trim().to_string();
+                        if normalized_name.is_empty() {
+                            None
+                        } else {
+                            Some(LatestLerobotTagInfo {
+                                name: normalized_name,
+                                commit_sha: None,
+                            })
+                        }
+                    })
                 })
-                .filter(|name| !name.is_empty())
                 .collect(),
             serde_json::Value::Object(_) => value
                 .get("tags")
-                .map(Self::extract_tag_names_from_value)
+                .map(Self::extract_tag_infos_from_value)
                 .unwrap_or_default(),
             _ => Vec::new(),
         }
     }
 
-    fn select_latest_vulcan_tag(tags: Vec<String>) -> Option<String> {
-        let mut best_semver: Option<(SimpleSemver, String)> = None;
+    fn select_latest_vulcan_tag(tags: Vec<LatestLerobotTagInfo>) -> Option<LatestLerobotTagInfo> {
+        let mut best_semver: Option<(SimpleSemver, LatestLerobotTagInfo)> = None;
 
         for tag in tags {
-            let trimmed = tag.trim();
+            let trimmed = tag.name.trim();
             if !trimmed.starts_with("vulcan/") {
                 continue;
             }
@@ -791,7 +884,13 @@ impl LocalSetupService {
                 match best_semver.as_ref() {
                     Some((best_version, _)) if &version <= best_version => {}
                     _ => {
-                        best_semver = Some((version, normalized.clone()));
+                        best_semver = Some((
+                            version,
+                            LatestLerobotTagInfo {
+                                name: normalized.clone(),
+                                commit_sha: tag.commit_sha.clone(),
+                            },
+                        ));
                     }
                 }
             }
@@ -833,34 +932,88 @@ impl LocalSetupService {
         Some(trimmed.to_string())
     }
 
-    fn is_current_tag_up_to_date(current_tag: Option<&str>, latest_tag: Option<&str>) -> bool {
-        match (current_tag, latest_tag) {
-            (Some(current), Some(latest)) => match (
-                Self::parse_vulcan_semver(current),
-                Self::parse_vulcan_semver(latest),
-            ) {
-                (Some(current_version), Some(latest_version)) => current_version >= latest_version,
-                _ => current == latest,
-            },
-            (None, Some(_)) => false,
-            _ => true,
+    fn compare_vulcan_release_tags(current_tag: &str, latest_tag: &str) -> Option<Ordering> {
+        let current_version = Self::parse_vulcan_semver(current_tag)?;
+        let latest_version = Self::parse_vulcan_semver(latest_tag)?;
+        Some(current_version.cmp(&latest_version))
+    }
+
+    fn resolve_lerobot_release_state(
+        current_release: &CurrentLerobotReleaseInfo,
+        latest_release: Option<&LatestLerobotTagInfo>,
+        manifest_release: Option<&ManifestLerobotReleaseInfo>,
+    ) -> (LerobotReleaseState, Option<String>) {
+        if current_release.source == CurrentLerobotReleaseSource::GitUntagged {
+            return (
+                LerobotReleaseState::CustomBuild,
+                Some("This runtime is on an untagged local checkout.".to_string()),
+            );
+        }
+
+        let manifest_tag = manifest_release.and_then(|release| release.tag.as_deref());
+        if manifest_tag.is_none() {
+            return (
+                LerobotReleaseState::Unknown,
+                Some("Release metadata is incomplete because latest.json is missing modules.lerobot-vulcan.tag.".to_string()),
+            );
+        }
+
+        let latest_release = match latest_release {
+            Some(release) => release,
+            None => {
+                return (
+                    LerobotReleaseState::Unknown,
+                    Some("Unable to resolve the latest released LeRobot tag.".to_string()),
+                );
+            }
+        };
+
+        let current_tag = match current_release.tag.as_deref() {
+            Some(tag) => tag,
+            None => {
+                return (
+                    LerobotReleaseState::Unknown,
+                    Some("Installed LeRobot release metadata could not be determined.".to_string()),
+                );
+            }
+        };
+
+        match Self::compare_vulcan_release_tags(current_tag, &latest_release.name) {
+            Some(Ordering::Less) => (
+                LerobotReleaseState::UpdateAvailable,
+                Some(format!(
+                    "A newer LeRobot release tag is available: {}.",
+                    latest_release.name
+                )),
+            ),
+            Some(Ordering::Equal | Ordering::Greater) => (
+                LerobotReleaseState::UpToDate,
+                Some("Your LeRobot runtime is on the latest released tag.".to_string()),
+            ),
+            None => (
+                LerobotReleaseState::Unknown,
+                Some("LeRobot release tags could not be compared.".to_string()),
+            ),
         }
     }
 
     fn persist_current_lerobot_marker(setup_dir: &Path, app_handle: &AppHandle) {
-        let current_tag = Self::read_current_lerobot_git_tag(app_handle);
-        let latest_tag = if current_tag.is_some() {
-            None
-        } else {
-            Self::resolve_latest_lerobot_tag()
-        };
-        let marker_tag = current_tag.or(latest_tag);
-        let marker_commit = Self::read_current_lerobot_git_commit(app_handle)
-            .or_else(|| Self::fetch_latest_lerobot_commit().ok().flatten())
-            .or_else(|| marker_tag.clone());
+        let manifest_release = Self::read_manifest_lerobot_release_info().ok().flatten();
+        let marker_tag = Self::read_current_lerobot_git_tag(app_handle).or_else(|| {
+            manifest_release
+                .as_ref()
+                .and_then(|release| release.tag.clone())
+        });
+        let marker_commit = Self::read_current_lerobot_git_commit(app_handle).or_else(|| {
+            manifest_release
+                .as_ref()
+                .and_then(|release| release.commit.clone())
+        });
 
         if let Some(commit) = marker_commit {
             let _ = Self::write_current_lerobot_commit_with_tag(setup_dir, &commit, marker_tag);
+        } else if let Some(tag) = marker_tag {
+            let _ = Self::write_current_lerobot_commit_with_tag(setup_dir, &tag, Some(tag.clone()));
         }
     }
 
@@ -881,14 +1034,37 @@ impl LocalSetupService {
         Ok(())
     }
 
-    fn resolve_current_lerobot_commit(app_handle: &AppHandle) -> Option<String> {
-        Self::read_current_lerobot_git_commit(app_handle)
-            .or_else(|| Self::read_current_lerobot_commit_marker(app_handle))
-    }
+    fn resolve_current_lerobot_release_info(app_handle: &AppHandle) -> CurrentLerobotReleaseInfo {
+        let git_commit = Self::read_current_lerobot_git_commit(app_handle);
+        let git_tag = Self::read_current_lerobot_git_tag(app_handle);
 
-    fn resolve_current_lerobot_tag(app_handle: &AppHandle) -> Option<String> {
-        Self::read_current_lerobot_git_tag(app_handle)
-            .or_else(|| Self::read_current_lerobot_tag_marker(app_handle))
+        if let Some(commit) = git_commit {
+            return CurrentLerobotReleaseInfo {
+                source: if git_tag.is_some() {
+                    CurrentLerobotReleaseSource::GitTagged
+                } else {
+                    CurrentLerobotReleaseSource::GitUntagged
+                },
+                tag: git_tag,
+                commit: Some(commit),
+            };
+        }
+
+        let marker_tag = Self::read_current_lerobot_tag_marker(app_handle);
+        let marker_commit = Self::read_current_lerobot_commit_marker(app_handle);
+        if marker_tag.is_some() || marker_commit.is_some() {
+            return CurrentLerobotReleaseInfo {
+                source: CurrentLerobotReleaseSource::Marker,
+                tag: marker_tag,
+                commit: marker_commit,
+            };
+        }
+
+        CurrentLerobotReleaseInfo {
+            source: CurrentLerobotReleaseSource::Missing,
+            tag: None,
+            commit: None,
+        }
     }
 
     fn read_current_lerobot_marker(app_handle: &AppHandle) -> Option<LerobotCommitMarker> {
@@ -902,8 +1078,7 @@ impl LocalSetupService {
 
     fn read_current_lerobot_commit_marker(app_handle: &AppHandle) -> Option<String> {
         let marker = Self::read_current_lerobot_marker(app_handle)?;
-        // Prefer tag if present, else commit
-        marker.tag.or(Some(marker.commit))
+        Self::normalize_git_commit_sha(&marker.commit)
     }
 
     fn read_current_lerobot_tag_marker(app_handle: &AppHandle) -> Option<String> {
@@ -933,7 +1108,15 @@ impl LocalSetupService {
             .map(|line| line.trim().to_string())
             .filter(|line| !line.is_empty())
             .collect::<Vec<_>>();
-        Self::select_latest_vulcan_tag(tags)
+        Self::select_latest_vulcan_tag(
+            tags.into_iter()
+                .map(|name| LatestLerobotTagInfo {
+                    name,
+                    commit_sha: None,
+                })
+                .collect(),
+        )
+        .map(|tag| tag.name)
     }
 
     fn resolve_lerobot_dir(app_handle: &AppHandle) -> Option<PathBuf> {
@@ -966,8 +1149,19 @@ impl LocalSetupService {
         if commit.is_empty() {
             None
         } else {
-            Some(commit)
+            Self::normalize_git_commit_sha(&commit)
         }
+    }
+
+    fn normalize_git_commit_sha(value: &str) -> Option<String> {
+        let trimmed = value.trim();
+        if trimmed.len() < 7 || trimmed.len() > 40 {
+            return None;
+        }
+        if !trimmed.chars().all(|char| char.is_ascii_hexdigit()) {
+            return None;
+        }
+        Some(trimmed.to_ascii_lowercase())
     }
 
     fn reinstall_dependencies(

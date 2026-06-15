@@ -1,4 +1,4 @@
-import { graphQLClient } from '@/api/Api';
+import { requestGraphQL } from '@/api/Api';
 import { calculateStringFromParameters } from '@/api/GraphQL/Parameters';
 import type { GraphQLPaginationParameters } from '@/types/GraphQL/GraphQLPaginationParameters';
 import { gql } from 'graphql-request';
@@ -9,7 +9,7 @@ import { gql } from 'graphql-request';
 
 export const queryActiveCartItems = async (accountId: string, p0?: { first: number; }) => {
     // Use the basic cartItems query that we know works, then filter client-side
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             query {
                 cartItems {
@@ -114,7 +114,7 @@ export interface AddToCartResponse {
 }
 
 export const mutationAddToCart = async (input: AddToCartInput): Promise<AddToCartResponse> => {
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             mutation AddToCart($input: AddCartInput!) {
                 addToCart(input: $input) {
@@ -172,7 +172,7 @@ export interface UpdateCartItemResponse {
 }
 
 export const mutationUpdateCartItem = async (input: UpdateCartItemInput): Promise<UpdateCartItemResponse> => {
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             mutation UpdateCartItem($input: UpdateCartInput!) {
                 updateCartItem(input: $input) {
@@ -213,7 +213,7 @@ export interface RemoveFromCartResponse {
 }
 
 export const mutationRemoveFromCart = async (input: RemoveFromCartInput): Promise<RemoveFromCartResponse> => {
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             mutation RemoveFromCart($input: DeleteCartInput!) {
                 removeFromCart(input: $input) {
@@ -330,7 +330,7 @@ export interface CheckoutCartResponse {
 }
 
 export const mutationCheckoutCart = async (input: CheckoutCartRequest): Promise<CheckoutCartResponse> => {
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             mutation CheckoutCart($input: CheckoutInput!) {
                 checkoutCart(input: $input) {
@@ -403,7 +403,7 @@ export interface GetSavedPaymentMethodsResponse {
 }
 
 export const queryGetSavedPaymentMethods = async (accountId: string): Promise<GetSavedPaymentMethodsResponse> => {
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             query GetSavedPaymentMethods($accountId: String!) {
                 getSavedPaymentMethods(accountId: $accountId) {
@@ -453,7 +453,7 @@ export interface OffSessionPaymentResponse {
 }
 
 export const mutationCreateOffSessionPayment = async (input: OffSessionPaymentInput): Promise<OffSessionPaymentResponse> => {
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             mutation CreateOffSessionPayment($input: OffSessionPaymentInput!) {
                 createOffSessionPayment(input: $input) {

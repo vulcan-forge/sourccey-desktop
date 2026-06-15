@@ -1,3 +1,5 @@
+import { getDesktopEnvironmentSettings } from '@/environments/environment';
+
 export type AccountSummary = {
     subscriptionTier: string | null;
     tokenBalance: number | null;
@@ -49,7 +51,7 @@ const getTokenBalance = (payload: any) => {
 };
 
 export const queryAccountSummary = async (accountId: string) => {
-    const endpoint = process.env.NEXT_PUBLIC_ACCOUNT_SUMMARY_URL;
+    const endpoint = (await getDesktopEnvironmentSettings()).accountSummaryUrl;
     if (!endpoint || !accountId) return null;
 
     const url = new URL(endpoint, typeof window !== 'undefined' ? window.location.origin : 'http://localhost');

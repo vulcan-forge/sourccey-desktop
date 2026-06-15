@@ -1,4 +1,4 @@
-import { graphQLClient } from '@/api/Api';
+import { requestGraphQL } from '@/api/Api';
 import { calculateStringFromParameters } from '@/api/GraphQL/Parameters';
 import type { GraphQLPaginationParameters } from '@/types/GraphQL/GraphQLPaginationParameters';
 import { gql } from 'graphql-request';
@@ -12,7 +12,7 @@ export const queryProfile = async (id?: string | null, handle?: string | null, e
 
     const parameters = { id: id, handle: handle, email: email };
 
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             query Profile($id: String, $handle: String, $email: String) {
                 profile(id: $id, handle: $handle, email: $email) {
@@ -35,7 +35,7 @@ export const queryProfile = async (id?: string | null, handle?: string | null, e
 };
 
 export const queryProfiles = async (paginationParameters?: GraphQLPaginationParameters) => {
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             query {
                 profiles(${calculateStringFromParameters(paginationParameters)}) {
@@ -64,7 +64,7 @@ export const queryIsProfileHandleAvailable = async (profileHandle: string) => {
     if (!profileHandle) return false;
 
     const parameters = { profileHandle };
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             query IsProfileHandleAvailable($profileHandle: String!) {
                 isProfileHandleAvailable(profileHandle: $profileHandle)

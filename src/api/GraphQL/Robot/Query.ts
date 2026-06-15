@@ -1,4 +1,4 @@
-import { graphQLClient } from '@/api/Api';
+import { requestGraphQL } from '@/api/Api';
 import { calculateStringFromParameters } from '@/api/GraphQL/Parameters';
 import type { GetRobotInput } from '@/api/GraphQL/Robot/Types/GetRobot/GetInput';
 import type { GraphQLPaginationParameters } from '@/types/GraphQL/GraphQLPaginationParameters';
@@ -9,7 +9,7 @@ import { gql } from 'graphql-request';
 //---------------------------------------------------------------------------------------------------//
 export const queryRobot = async (input: GetRobotInput) => {
     const parameters = { input: input };
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             query Robot($input: GetRobotInput!) {
                 robot(input: $input) {
@@ -56,7 +56,7 @@ export const queryRobot = async (input: GetRobotInput) => {
 
 export const queryRobots = async (paginationParameters?: GraphQLPaginationParameters) => {
     const parameters = calculateStringFromParameters(paginationParameters);
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             query {
                 robots(${parameters}) {

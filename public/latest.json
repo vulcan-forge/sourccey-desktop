@@ -10,11 +10,11 @@
     },
     "modules": {
         "lerobot-vulcan": {
-            "commit": "3d1fdc8ccba1286f680ef4825791af1623a3ab22",
+            "tag": "vulcan/0.1.4",
             "git_url": "https://github.com/vulcan-forge/lerobot-vulcan.git",
             "branch": "main",
             "zip_url": "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip",
-            "notes": "Pinned lerobot-vulcan commit for this app release"
+            "notes": "Released lerobot-vulcan tag for this app release"
         }
     },
     "notes": "Initial release\n- Robot control\n- AI Control\n- Kiosk mode"

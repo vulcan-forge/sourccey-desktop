@@ -1,4 +1,4 @@
-import { graphQLClient } from '@/api/Api';
+import { requestGraphQL } from '@/api/Api';
 import { calculateStringFromParameters } from '@/api/GraphQL/Parameters';
 import type { GraphQLPaginationParameters } from '@/types/GraphQL/GraphQLPaginationParameters';
 import { gql } from 'graphql-request';
@@ -46,7 +46,7 @@ export const queryStoreItems = async (paginationParameters?: GraphQLPaginationPa
     console.info('📡 Sending GraphQL Query:', query);
     
     try {
-        const response: any = await graphQLClient.request(query);
+        const response: any = await requestGraphQL(query);
         console.info('📨 Raw GraphQL Response:', response);
 
         const payload = response?.activeStoreItems || [];

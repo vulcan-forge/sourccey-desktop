@@ -1,11 +1,11 @@
 import { calculateStringFromParameters } from '@/api/GraphQL/Parameters';
 
-import { graphQLClient } from '@/api/Api';
+import { requestGraphQL } from '@/api/Api';
 import { gql } from 'graphql-request';
 import type { GraphQLPaginationParameters } from '@/types/GraphQL/GraphQLPaginationParameters';
 
 export const queryOwnedRobot = async (id: string) => {
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             query GetOwnedRobot($id: String!) {
                 ownedRobot(id: $id) {
@@ -31,7 +31,7 @@ export const queryOwnedRobot = async (id: string) => {
 };
 
 export const queryOwnedRobots = async (paginationParameters?: GraphQLPaginationParameters) => {
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             query {
                 ownedRobots(${calculateStringFromParameters(paginationParameters)}) {

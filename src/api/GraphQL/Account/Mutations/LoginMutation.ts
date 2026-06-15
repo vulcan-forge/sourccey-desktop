@@ -1,4 +1,4 @@
-import { graphQLClient } from '@/api/Api';
+import { requestGraphQL } from '@/api/Api';
 import type { ForgotPasswordInput } from '@/api/GraphQL/Account/Types/ForgotPassword/ForgotPasswordInput';
 import type { LoginInput } from '@/api/GraphQL/Account/Types/Login/LoginInput';
 import type { ResetPasswordInput } from '@/api/GraphQL/Account/Types/ResetPassword/ResetPasswordInput';
@@ -9,7 +9,7 @@ import { gql } from 'graphql-request';
 //---------------------------------------------------------------------------------------------------//
 export const mutateLogin = async (input: LoginInput) => {
     const parameters = { input: input };
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             mutation Login($input: LoginInput!) {
                 login(input: $input) {
@@ -39,7 +39,7 @@ export const mutateLogin = async (input: LoginInput) => {
 
 export const mutateForgotPassword = async (input: ForgotPasswordInput) => {
     const parameters = { input: input };
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             mutation ForgotPassword($input: ForgotPasswordInput!) {
                 forgotPassword(input: $input) {
@@ -58,7 +58,7 @@ export const mutateForgotPassword = async (input: ForgotPasswordInput) => {
 
 export const mutateResetPassword = async (input: ResetPasswordInput) => {
     const parameters = { input: input };
-    const response: any = await graphQLClient.request(
+    const response: any = await requestGraphQL(
         gql`
             mutation ResetPassword($input: ResetPasswordInput!) {
                 resetPassword(input: $input) {
