@@ -3,17 +3,21 @@ import { useQuery } from '@tanstack/react-query';
 
 export const LEROBOT_UPDATE_KEY = ['lerobot', 'update-status'];
 
+export type LerobotReleaseState = 'up_to_date' | 'update_available' | 'custom_build' | 'unknown';
+
 export interface LerobotUpdateStatus {
+    state: LerobotReleaseState;
     upToDate: boolean;
     currentCommit?: string | null;
     latestCommit?: string | null;
     currentTag?: string | null;
     latestTag?: string | null;
+    message?: string | null;
 }
 
 const fetchLerobotUpdateStatus = async (): Promise<LerobotUpdateStatus> => {
     if (!isTauri()) {
-        return { upToDate: true };
+        return { state: 'up_to_date', upToDate: true };
     }
     return await invoke<LerobotUpdateStatus>('check_lerobot_update');
 };

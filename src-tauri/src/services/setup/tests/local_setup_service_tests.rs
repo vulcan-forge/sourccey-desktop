@@ -29,48 +29,193 @@ fn parses_vulcan_semver_tags() {
 #[test]
 fn selects_highest_vulcan_semver_and_ignores_other_tags() {
     let selected = LocalSetupService::select_latest_vulcan_tag(vec![
-        "release/5.0.0".to_string(),
-        "1.9.9".to_string(),
-        "v2.0.0".to_string(),
-        "vulcan/0.1.0".to_string(),
-        "vulcan/0.3.0".to_string(),
-        "vulcan/0.2.5".to_string(),
+        LatestLerobotTagInfo {
+            name: "release/5.0.0".to_string(),
+            commit_sha: None,
+        },
+        LatestLerobotTagInfo {
+            name: "1.9.9".to_string(),
+            commit_sha: None,
+        },
+        LatestLerobotTagInfo {
+            name: "vulcan/0.1.0".to_string(),
+            commit_sha: Some("1111111".to_string()),
+        },
+        LatestLerobotTagInfo {
+            name: "vulcan/0.3.0".to_string(),
+            commit_sha: Some("3333333".to_string()),
+        },
+        LatestLerobotTagInfo {
+            name: "vulcan/0.2.5".to_string(),
+            commit_sha: Some("2222222".to_string()),
+        },
     ]);
-    assert_eq!(selected, Some("vulcan/0.3.0".to_string()));
+
+    assert_eq!(
+        selected,
+        Some(LatestLerobotTagInfo {
+            name: "vulcan/0.3.0".to_string(),
+            commit_sha: Some("3333333".to_string()),
+        })
+    );
 }
 
 #[test]
 fn ignores_non_semver_vulcan_tags_when_selecting_latest() {
     let selected = LocalSetupService::select_latest_vulcan_tag(vec![
-        "vulcan/latest".to_string(),
-        "vulcan/release".to_string(),
-        "other/1.0.0".to_string(),
+        LatestLerobotTagInfo {
+            name: "vulcan/latest".to_string(),
+            commit_sha: None,
+        },
+        LatestLerobotTagInfo {
+            name: "vulcan/release".to_string(),
+            commit_sha: None,
+        },
+        LatestLerobotTagInfo {
+            name: "other/1.0.0".to_string(),
+            commit_sha: None,
+        },
     ]);
     assert_eq!(selected, None);
 }
 
 #[test]
-fn compares_tags_with_semver_and_exact_fallback() {
-    assert!(LocalSetupService::is_current_tag_up_to_date(
-        Some("vulcan/0.1.0"),
-        Some("vulcan/0.1.0")
-    ));
-    assert!(LocalSetupService::is_current_tag_up_to_date(
-        Some("vulcan/0.2.0"),
-        Some("vulcan/0.1.0")
-    ));
-    assert!(!LocalSetupService::is_current_tag_up_to_date(
-        Some("vulcan/0.1.0"),
-        Some("vulcan/0.2.0")
-    ));
-    assert!(LocalSetupService::is_current_tag_up_to_date(
-        Some("vulcan/release"),
-        Some("vulcan/release")
-    ));
-    assert!(!LocalSetupService::is_current_tag_up_to_date(
-        Some("vulcan/release-a"),
-        Some("vulcan/release-b")
-    ));
+fn compares_release_tags_with_semver() {
+    assert_eq!(
+        LocalSetupService::compare_vulcan_release_tags("vulcan/0.1.0", "vulcan/0.1.0"),
+        Some(Ordering::Equal)
+    );
+    assert_eq!(
+        LocalSetupService::compare_vulcan_release_tags("vulcan/0.2.0", "vulcan/0.1.0"),
+        Some(Ordering::Greater)
+    );
+    assert_eq!(
+        LocalSetupService::compare_vulcan_release_tags("vulcan/0.1.0", "vulcan/0.2.0"),
+        Some(Ordering::Less)
+    );
+    assert_eq!(
+        LocalSetupService::compare_vulcan_release_tags("vulcan/custom", "vulcan/0.2.0"),
+        None
+    );
+}
+
+#[test]
+fn resolves_up_to_date_when_current_tag_matches_latest_release() {
+    let current_release = CurrentLerobotReleaseInfo {
+        source: CurrentLerobotReleaseSource::Marker,
+        tag: Some("vulcan/0.3.0".to_string()),
+        commit: Some("abc1234".to_string()),
+    };
+    let latest_release = LatestLerobotTagInfo {
+        name: "vulcan/0.3.0".to_string(),
+        commit_sha: Some("abc1234".to_string()),
+    };
+    let manifest_release = ManifestLerobotReleaseInfo {
+        tag: Some("vulcan/0.3.0".to_string()),
+        commit: Some("abc1234".to_string()),
+    };
+
+    let (state, message) = LocalSetupService::resolve_lerobot_release_state(
+        &current_release,
+        Some(&latest_release),
+        Some(&manifest_release),
+    );
+
+    assert_eq!(state, LerobotReleaseState::UpToDate);
+    assert_eq!(
+        message,
+        Some("Your LeRobot runtime is on the latest released tag.".to_string())
+    );
+}
+
+#[test]
+fn resolves_update_available_when_current_tag_is_behind() {
+    let current_release = CurrentLerobotReleaseInfo {
+        source: CurrentLerobotReleaseSource::Marker,
+        tag: Some("vulcan/0.2.0".to_string()),
+        commit: Some("abc1234".to_string()),
+    };
+    let latest_release = LatestLerobotTagInfo {
+        name: "vulcan/0.3.0".to_string(),
+        commit_sha: Some("def5678".to_string()),
+    };
+    let manifest_release = ManifestLerobotReleaseInfo {
+        tag: Some("vulcan/0.3.0".to_string()),
+        commit: Some("def5678".to_string()),
+    };
+
+    let (state, message) = LocalSetupService::resolve_lerobot_release_state(
+        &current_release,
+        Some(&latest_release),
+        Some(&manifest_release),
+    );
+
+    assert_eq!(state, LerobotReleaseState::UpdateAvailable);
+    assert_eq!(
+        message,
+        Some("A newer LeRobot release tag is available: vulcan/0.3.0.".to_string())
+    );
+}
+
+#[test]
+fn resolves_custom_build_for_untagged_git_checkout() {
+    let current_release = CurrentLerobotReleaseInfo {
+        source: CurrentLerobotReleaseSource::GitUntagged,
+        tag: None,
+        commit: Some("abc1234".to_string()),
+    };
+    let latest_release = LatestLerobotTagInfo {
+        name: "vulcan/0.3.0".to_string(),
+        commit_sha: Some("def5678".to_string()),
+    };
+    let manifest_release = ManifestLerobotReleaseInfo {
+        tag: Some("vulcan/0.3.0".to_string()),
+        commit: Some("def5678".to_string()),
+    };
+
+    let (state, message) = LocalSetupService::resolve_lerobot_release_state(
+        &current_release,
+        Some(&latest_release),
+        Some(&manifest_release),
+    );
+
+    assert_eq!(state, LerobotReleaseState::CustomBuild);
+    assert_eq!(
+        message,
+        Some("This runtime is on an untagged local checkout.".to_string())
+    );
+}
+
+#[test]
+fn resolves_unknown_when_manifest_is_missing_release_tag() {
+    let current_release = CurrentLerobotReleaseInfo {
+        source: CurrentLerobotReleaseSource::Marker,
+        tag: Some("vulcan/0.2.0".to_string()),
+        commit: Some("abc1234".to_string()),
+    };
+    let latest_release = LatestLerobotTagInfo {
+        name: "vulcan/0.3.0".to_string(),
+        commit_sha: Some("def5678".to_string()),
+    };
+    let manifest_release = ManifestLerobotReleaseInfo {
+        tag: None,
+        commit: Some("def5678".to_string()),
+    };
+
+    let (state, message) = LocalSetupService::resolve_lerobot_release_state(
+        &current_release,
+        Some(&latest_release),
+        Some(&manifest_release),
+    );
+
+    assert_eq!(state, LerobotReleaseState::Unknown);
+    assert_eq!(
+        message,
+        Some(
+            "Release metadata is incomplete because latest.json is missing modules.lerobot-vulcan.tag."
+                .to_string()
+        )
+    );
 }
 
 #[test]
@@ -81,10 +226,19 @@ fn reuses_cached_latest_tag_inside_ttl() {
 
     let first = LocalSetupService::resolve_latest_tag_with_cache(&mut cache, start, || {
         fetch_calls += 1;
-        Ok(Some("vulcan/0.2.0".to_string()))
+        Ok(Some(LatestLerobotTagInfo {
+            name: "vulcan/0.2.0".to_string(),
+            commit_sha: Some("abc1234".to_string()),
+        }))
     })
     .expect("first cache resolution should succeed");
-    assert_eq!(first, Some("vulcan/0.2.0".to_string()));
+    assert_eq!(
+        first,
+        Some(LatestLerobotTagInfo {
+            name: "vulcan/0.2.0".to_string(),
+            commit_sha: Some("abc1234".to_string()),
+        })
+    );
     assert_eq!(fetch_calls, 1);
 
     let second = LocalSetupService::resolve_latest_tag_with_cache(
@@ -92,11 +246,20 @@ fn reuses_cached_latest_tag_inside_ttl() {
         start + Duration::from_secs(60),
         || {
             fetch_calls += 1;
-            Ok(Some("vulcan/0.9.0".to_string()))
+            Ok(Some(LatestLerobotTagInfo {
+                name: "vulcan/0.9.0".to_string(),
+                commit_sha: Some("def5678".to_string()),
+            }))
         },
     )
     .expect("second cache resolution should reuse cache");
-    assert_eq!(second, Some("vulcan/0.2.0".to_string()));
+    assert_eq!(
+        second,
+        Some(LatestLerobotTagInfo {
+            name: "vulcan/0.2.0".to_string(),
+            commit_sha: Some("abc1234".to_string()),
+        })
+    );
     assert_eq!(fetch_calls, 1);
 
     let third = LocalSetupService::resolve_latest_tag_with_cache(
@@ -104,12 +267,33 @@ fn reuses_cached_latest_tag_inside_ttl() {
         start + LocalSetupService::LEROBOT_TAG_CACHE_TTL + Duration::from_secs(1),
         || {
             fetch_calls += 1;
-            Ok(Some("vulcan/0.9.0".to_string()))
+            Ok(Some(LatestLerobotTagInfo {
+                name: "vulcan/0.9.0".to_string(),
+                commit_sha: Some("def5678".to_string()),
+            }))
         },
     )
     .expect("third cache resolution should refresh after ttl");
-    assert_eq!(third, Some("vulcan/0.9.0".to_string()));
+    assert_eq!(
+        third,
+        Some(LatestLerobotTagInfo {
+            name: "vulcan/0.9.0".to_string(),
+            commit_sha: Some("def5678".to_string()),
+        })
+    );
     assert_eq!(fetch_calls, 2);
+}
+
+#[test]
+fn normalizes_real_git_commits_and_rejects_tags() {
+    assert_eq!(
+        LocalSetupService::normalize_git_commit_sha("ABCDEF1234"),
+        Some("abcdef1234".to_string())
+    );
+    assert_eq!(
+        LocalSetupService::normalize_git_commit_sha("vulcan/0.3.0"),
+        None
+    );
 }
 
 #[test]

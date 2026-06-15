@@ -7,6 +7,7 @@ import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client
 import React from 'react';
 import { RobotStatusProvider } from '@/context/robot-status-context';
 import { VirtualKeyboardProvider } from '@/context/virtual-keyboard-context';
+import { primeDesktopEnvironmentSettings } from '@/environments/environment';
 import { ACCESS_POINT_ENABLED_KEY, ACCESS_POINT_PASSWORD_KEY, ACCESS_POINT_SSID_KEY } from '@/hooks/WIFI/access-point.hook';
 import { SAVED_WIFI_SSIDS_KEY } from '@/hooks/WIFI/wifi.hook';
 import { SELECTED_ROBOT_KEY } from '@/hooks/Robot/selected-robot.hook';
@@ -74,6 +75,7 @@ export default function Provider({ children }: { children: React.ReactNode }) {
         for (const key of sensitiveQueryKeys) {
             queryClient.removeQueries({ queryKey: key, exact: true });
         }
+        void primeDesktopEnvironmentSettings();
     }, []);
 
     return (

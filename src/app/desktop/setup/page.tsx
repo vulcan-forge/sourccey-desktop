@@ -9,6 +9,11 @@ import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
 import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
+import { installAvailableDesktopUpdate } from '@/utils/updater/updater';
+import {
+    formatLerobotRuntimeVersionLabel,
+    getLerobotRuntimeStatusMessage,
+} from '@/utils/updater/lerobot-runtime';
 
 const steps = [
     { id: 'reset', label: 'Reset modules' },
@@ -50,6 +55,7 @@ export default function SetupPage() {
     const [isRunning, setIsRunning] = useState(false);
     const [isComplete, setIsComplete] = useState(false);
     const [isInstalled, setIsInstalled] = useState(false);
+    const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [log, setLog] = useState<string[]>([]);
     const hasMarkedInstalledRef = useRef(false);
@@ -208,25 +214,29 @@ export default function SetupPage() {
         }
     };
 
-    const formatVersionLabel = (tag?: string | null, commit?: string | null) => {
-        if (tag && tag.trim().length > 0) {
-            const normalizedTag = tag.trim().replace(/^vulcan\//, '').replace(/^kiosk\//, '');
-            return normalizedTag;
+    const installAppUpdate = async () => {
+        const targetVersion = desktopAppUpdateStatus?.targetVersion ?? null;
+        if (!targetVersion || isInstallingAppUpdate) {
+            return;
         }
-        if (commit && commit.trim().length > 0) {
-            return commit.slice(0, 10);
+
+        setIsInstallingAppUpdate(true);
+        try {
+            await installAvailableDesktopUpdate({ expectedVersion: targetVersion });
+        } finally {
+            setIsInstallingAppUpdate(false);
+            await refetchDesktopAppUpdateStatus();
         }
-        return 'unknown';
     };
+
+    const formatVersionLabel = (tag?: string | null, commit?: string | null) =>
+        formatLerobotRuntimeVersionLabel(tag, commit);
 
     const runtimeCurrent = formatVersionLabel(lerobotStatus?.currentTag, lerobotStatus?.currentCommit);
     const runtimeAvailable = formatVersionLabel(lerobotStatus?.latestTag, lerobotStatus?.latestCommit);
-    const runtimeOutdated = lerobotStatus ? !lerobotStatus.upToDate : false;
-    const runtimeStatusMessage = isLoadingLerobotStatus
-        ? 'Checking runtime version status...'
-        : runtimeOutdated
-          ? 'Out of date because your local LeRobot runtime is behind the latest available commit/tag.'
-          : 'Up to date. Your local LeRobot runtime matches the latest available commit/tag.';
+    const runtimeState = lerobotStatus?.state ?? 'unknown';
+    const runtimeOutdated = runtimeState === 'update_available';
+    const runtimeStatusMessage = getLerobotRuntimeStatusMessage(lerobotStatus, isLoadingLerobotStatus);
 
     const appCurrent = formatVersionLabel(desktopAppUpdateStatus?.currentVersion, null);
     const appAvailable = formatVersionLabel(desktopAppUpdateStatus?.targetVersion, null);
@@ -266,8 +276,8 @@ export default function SetupPage() {
                                         className="drop-shadow-logo"
                                     />
                                     <div>
-                                        <h1 className="text-3xl font-semibold text-white">Setup & Updates</h1>
-                                        <p className="mt-1 text-sm text-slate-200">App update on top, LeRobot modules below.</p>
+                                        <h1 className="text-3xl font-semibold text-white">Desktop Setup & Updates</h1>
+                                        <p className="mt-1 text-sm text-slate-200">App update on top and LeRobot runtime below for the same flow as kiosk.</p>
                                     </div>
                                 </div>
                                 <LinkButton
@@ -278,21 +288,41 @@ export default function SetupPage() {
                                 </LinkButton>
                             </div>
 
-                            <div className="rounded-2xl border border-amber-500/45 bg-amber-400/10 px-5 py-4 text-xs text-amber-100">
-                                <div className="font-semibold text-amber-100">App Update</div>
-                                <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
-                                <div className="text-amber-100/90">Available: {appAvailable}</div>
-                                <div className={`mt-2 text-[11px] ${appOutdated ? 'text-amber-100' : 'text-emerald-200'}`}>{appStatusMessage}</div>
-                                {appError && <div className="mt-2 whitespace-pre-wrap break-words text-[11px] text-red-200">{appError}</div>}
+                            <div className="rounded-2xl border border-amber-500/45 bg-slate-950/50 p-6">
+                                <h2 className="mb-1 text-lg font-semibold text-amber-100">App Update</h2>
+                                <p className="mb-4 text-xs text-amber-200/90">
+                                    Install the latest signed desktop app update while keeping the current top-bar update chip behavior.
+                                </p>
+                                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
+                                    <div className="font-semibold text-amber-100">App version status</div>
+                                    <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
+                                    <div className="text-amber-100/90">Available: {appAvailable}</div>
+                                    <div className={`mt-2 text-[11px] ${appOutdated ? 'text-amber-100' : 'text-emerald-200'}`}>{appStatusMessage}</div>
+                                    {appError && (
+                                        <div className="mt-2 whitespace-pre-wrap break-words text-[11px] text-red-200">{appError}</div>
+                                    )}
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => void installAppUpdate()}
+                                    disabled={!appOutdated || isInstallingAppUpdate}
+                                    className="mt-4 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-amber-500/60 bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {isInstallingAppUpdate
+                                        ? 'Installing App Update...'
+                                        : appOutdated
+                                          ? `Install App Update${desktopAppUpdateStatus?.targetVersion ? ` ${desktopAppUpdateStatus.targetVersion}` : ''}`
+                                          : 'App Is Up To Date'}
+                                </button>
                             </div>
 
                             <div className="rounded-2xl border border-slate-600/70 bg-slate-950/45 p-6">
-                                <h2 className="text-lg font-semibold text-slate-100">LeRobot Modules</h2>
-                                <p className="mt-2 text-xs text-slate-300">
-                                    Download lerobot-vulcan, create the Python environment, and configure runtime tools.
+                                <h2 className="mb-1 text-lg font-semibold text-slate-100">LeRobot Runtime</h2>
+                                <p className="mb-4 text-xs text-slate-300">
+                                    Download lerobot-vulcan, create the Python environment, and repair or refresh local runtime tools.
                                 </p>
 
-                                <div className="mt-4 grid gap-3">
+                                <div className="grid gap-3">
                                     {orderedSteps.map((step, index) => {
                                         const status = stepState[step.id] ?? 'pending';
                                         return (
@@ -312,17 +342,21 @@ export default function SetupPage() {
                                     })}
                                 </div>
 
-                                {error && (
-                                    <div className="mt-4 rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                                        <pre className="overflow-x-auto whitespace-pre-wrap break-words font-sans">{error}</pre>
-                                    </div>
-                                )}
-
                                 <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
-                                    <div className="font-semibold text-slate-100">Lerobot Vulcan version</div>
+                                    <div className="font-semibold text-slate-100">LeRobot runtime release</div>
                                     <div className="mt-1 text-slate-300">Current: {runtimeCurrent}</div>
                                     <div className="text-slate-300">Available: {runtimeAvailable}</div>
-                                    <div className={`mt-2 text-[11px] ${runtimeOutdated ? 'text-amber-200' : 'text-emerald-200'}`}>
+                                    <div
+                                        className={`mt-2 text-[11px] ${
+                                            runtimeOutdated
+                                                ? 'text-amber-200'
+                                                : runtimeState === 'custom_build'
+                                                  ? 'text-sky-200'
+                                                  : runtimeState === 'unknown'
+                                                    ? 'text-slate-300'
+                                                    : 'text-emerald-200'
+                                        }`}
+                                    >
                                         {runtimeStatusMessage}
                                     </div>
                                 </div>
@@ -362,6 +396,12 @@ export default function SetupPage() {
                                     )}
                                 </div>
                             </div>
+
+                            {error && (
+                                <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
+                                    <pre className="overflow-x-auto whitespace-pre-wrap break-words font-sans">{error}</pre>
+                                </div>
+                            )}
 
                             <div className="border-t border-slate-700/60 pt-4">
                                 {isComplete && !isRunning && (

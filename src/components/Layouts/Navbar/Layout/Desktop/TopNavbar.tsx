@@ -5,12 +5,14 @@ import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
 import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
+import { useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useAuthSession } from '@/hooks/Auth/auth-session.hook';
 import { usePathname } from 'next/navigation';
 import { toast } from 'react-toastify';
 import { toastInfoDefaults } from '@/utils/toast/toast-utils';
 import { installAvailableDesktopUpdate } from '@/utils/updater/updater';
+import { isLerobotRuntimeUpdateAvailable } from '@/utils/updater/lerobot-runtime';
 
 const DISMISSED_VERSION_KEY = 'desktop_app_update_dismissed_version';
 const SEEN_VERSION_KEY = 'desktop_app_update_seen_version';
@@ -18,13 +20,14 @@ const SEEN_VERSION_KEY = 'desktop_app_update_seen_version';
 export const DesktopTopNavbar = () => {
     const { data: lerobotStatus } = useLerobotUpdateStatus();
     const { data: desktopAppUpdateStatus, refetch: refetchDesktopAppUpdateStatus } = useDesktopAppUpdateStatus();
+    const { data: desktopEnvironmentSettings } = useDesktopEnvironmentSettings();
     const { data: authSession } = useAuthSession();
     const pathname = usePathname();
     const [isUpdateDismissed, setIsUpdateDismissed] = useState(false);
     const [shouldHighlightUpdate, setShouldHighlightUpdate] = useState(false);
     const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
 
-    const needsRuntimeUpdate = lerobotStatus ? !lerobotStatus.upToDate : false;
+    const needsRuntimeUpdate = isLerobotRuntimeUpdateAvailable(lerobotStatus);
     const targetVersion = desktopAppUpdateStatus?.targetVersion ?? null;
     const isForceUpdate = desktopAppUpdateStatus?.force === true;
     const hasAppUpdate = Boolean(desktopAppUpdateStatus?.updateAvailable) && Boolean(targetVersion);
@@ -112,7 +115,8 @@ export const DesktopTopNavbar = () => {
 
     const isAuthenticated = Boolean(authSession?.isAuthenticated && authSession?.accountId);
     const isAccountPage = pathname?.startsWith('/desktop/account');
-    const isDevMode = process.env.NEXT_PUBLIC_ENVIRONMENT === 'local';
+    const environmentBadgeLabel = desktopEnvironmentSettings?.badgeLabel ?? null;
+    const showRuntimeUpdateButton = needsRuntimeUpdate;
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -131,56 +135,60 @@ export const DesktopTopNavbar = () => {
                         </span>
                     </Link>
 
-                    {isDevMode && (
-                        <span className="ml-3 inline-flex items-center rounded-full border border-amber-400/60 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-amber-200">
-                            DEV MODE
-                        </span>
-                    )}
-
                     <div className="grow" />
 
-                    {appUpdateVisible && (
-                        <div
-                            className={`inline-flex items-center rounded-lg border ${appUpdateButtonClass} transition`}
-                            title={
-                                targetVersion
-                                    ? `Desktop app update ${targetVersion} available${desktopAppUpdateStatus?.releaseNotes ? '. Click to review and install.' : '.'}`
-                                    : 'Desktop app update available'
-                            }
-                        >
-                            <button
-                                type="button"
-                                onClick={() => void installUpdate()}
-                                disabled={isInstallingUpdate}
-                                className="cursor-pointer px-4 py-2 text-sm font-semibold disabled:cursor-wait disabled:opacity-70"
+                    <div className="ml-3 flex items-center gap-2">
+                        {environmentBadgeLabel && (
+                            <LinkButton
+                                href="/desktop/settings/developer"
+                                tooltip="Open desktop developer settings"
+                                className="inline-flex cursor-pointer items-center rounded-full border border-amber-400/60 bg-amber-500/10 px-3 py-1 text-xs font-semibold tracking-[0.18em] text-amber-200 transition hover:border-amber-300 hover:bg-amber-500/15 hover:text-amber-100"
                             >
-                                {isInstallingUpdate ? 'Installing...' : `App Update${targetVersion ? ` ${targetVersion}` : ''}`}
-                            </button>
-                            {!isForceUpdate && (
+                                {environmentBadgeLabel}
+                            </LinkButton>
+                        )}
+
+                        {appUpdateVisible && (
+                            <div
+                                className={`inline-flex items-center rounded-lg border ${appUpdateButtonClass} transition`}
+                                title={
+                                    targetVersion
+                                        ? `Desktop app update ${targetVersion} available${desktopAppUpdateStatus?.releaseNotes ? '. Click to review and install.' : '.'}`
+                                        : 'Desktop app update available'
+                                }
+                            >
                                 <button
                                     type="button"
-                                    onClick={hideUpdateChip}
-                                    className="cursor-pointer border-l border-amber-300/40 px-2 py-2 text-xs font-bold text-amber-200 transition hover:text-amber-50"
-                                    aria-label="Hide this app update version"
-                                    title="Hide this version"
+                                    onClick={() => void installUpdate()}
+                                    disabled={isInstallingUpdate}
+                                    className="cursor-pointer px-4 py-2 text-sm font-semibold disabled:cursor-wait disabled:opacity-70"
                                 >
-                                    X
+                                    {isInstallingUpdate ? 'Installing...' : `App Update${targetVersion ? ` ${targetVersion}` : ''}`}
                                 </button>
-                            )}
-                        </div>
-                    )}
+                                {!isForceUpdate && (
+                                    <button
+                                        type="button"
+                                        onClick={hideUpdateChip}
+                                        className="cursor-pointer border-l border-amber-300/40 px-2 py-2 text-xs font-bold text-amber-200 transition hover:text-amber-50"
+                                        aria-label="Hide this app update version"
+                                        title="Hide this version"
+                                    >
+                                        X
+                                    </button>
+                                )}
+                            </div>
+                        )}
 
-                    {needsRuntimeUpdate && (
-                        <LinkButton
-                            href="/desktop/setup"
-                            tooltip="Update available for lerobot-vulcan. Open setup to repair or update modules."
-                            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-400/70 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:border-amber-300 hover:text-amber-100"
-                        >
-                            Update Available
-                        </LinkButton>
-                    )}
+                        {showRuntimeUpdateButton && (
+                            <LinkButton
+                                href="/desktop/setup"
+                                tooltip="A newer LeRobot release tag is available. Open Desktop Updates to repair or refresh modules."
+                                className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-400/70 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:border-amber-300 hover:text-amber-100"
+                            >
+                                Update Available
+                            </LinkButton>
+                        )}
 
-                    <div className="ml-3 flex items-center gap-2">
                         <LinkButton
                             href="/desktop/account"
                             className={`inline-flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition ${
