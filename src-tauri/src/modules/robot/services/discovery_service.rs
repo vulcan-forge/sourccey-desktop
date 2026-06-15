@@ -7,8 +7,8 @@ use std::time::{Duration, Instant};
 
 const DISCOVERY_MAGIC: &str = "SOURCCEY_DISCOVER_V1";
 const DISCOVERY_PORT: u16 = 42111;
-const DEFAULT_COMMAND_PORT: u16 = 5555;
-const DEFAULT_OBSERVATION_PORT: u16 = 5556;
+const SOURCCEY_COMMAND_PORT: u16 = 5555;
+const SOURCCEY_OBSERVATION_PORT: u16 = 5556;
 const DISCOVERY_TIMEOUT_MS: u64 = 2_500;
 const DISCOVERY_READ_TIMEOUT_MS: u64 = 250;
 const DISCOVERY_SEND_INTERVAL_MS: u64 = 200;
@@ -21,9 +21,12 @@ pub struct DiscoveredLanRobotHost {
     pub command_port: u16,
     pub observation_port: u16,
     pub source: String,
+    pub protocol_version: Option<u16>,
     pub robot_name: Option<String>,
     pub nickname: Option<String>,
     pub robot_type: Option<String>,
+    pub hostname: Option<String>,
+    pub capabilities: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq, Eq)]
@@ -36,14 +39,9 @@ pub struct LanRobotDiscoveryResult {
 }
 
 #[derive(Debug, Deserialize)]
-struct LegacyDiscoveredRobot {
-    #[serde(rename = "host")]
-    _host: Option<String>,
-    robot_name: Option<String>,
-    nickname: Option<String>,
-    robot_type: Option<String>,
-    port_zmq_cmd: Option<u16>,
-    port_zmq_observations: Option<u16>,
+struct SourcceyDiscoveredRobot {
+    discovery_magic: String,
+    robot_type: String,
 }
 
 pub struct LanRobotDiscoveryService;
@@ -124,7 +122,15 @@ fn broadcast_discover(local_ip: Ipv4Addr) -> Result<Vec<DiscoveredLanRobotHost>,
 }
 
 fn parse_discovery_response(payload: &str, source_ip: IpAddr) -> Option<DiscoveredLanRobotHost> {
-    let parsed = serde_json::from_str::<LegacyDiscoveredRobot>(payload).ok()?;
+    let parsed = serde_json::from_str::<SourcceyDiscoveredRobot>(payload).ok()?;
+    if parsed.discovery_magic.trim() != DISCOVERY_MAGIC {
+        return None;
+    }
+    let robot_type = parsed.robot_type.trim();
+    if !robot_type.eq_ignore_ascii_case("sourccey") {
+        return None;
+    }
+
     let ip_address = match source_ip {
         IpAddr::V4(ip) => ip.to_string(),
         IpAddr::V6(ip) => ip.to_string(),
@@ -132,14 +138,15 @@ fn parse_discovery_response(payload: &str, source_ip: IpAddr) -> Option<Discover
 
     Some(DiscoveredLanRobotHost {
         ip_address,
-        command_port: parsed.port_zmq_cmd.unwrap_or(DEFAULT_COMMAND_PORT),
-        observation_port: parsed
-            .port_zmq_observations
-            .unwrap_or(DEFAULT_OBSERVATION_PORT),
+        command_port: SOURCCEY_COMMAND_PORT,
+        observation_port: SOURCCEY_OBSERVATION_PORT,
         source: "udp-discovery".to_string(),
-        robot_name: parsed.robot_name.filter(|value| !value.trim().is_empty()),
-        nickname: parsed.nickname.filter(|value| !value.trim().is_empty()),
-        robot_type: parsed.robot_type.filter(|value| !value.trim().is_empty()),
+        protocol_version: None,
+        robot_name: None,
+        nickname: None,
+        robot_type: Some("sourccey".to_string()),
+        hostname: None,
+        capabilities: None,
     })
 }
 
@@ -262,8 +269,8 @@ mod tests {
     }
 
     #[test]
-    fn parses_legacy_discovery_response() {
-        let payload = r#"{"host":"","robot_name":"Sourccey","nickname":"sourccey","robot_type":"sourccey","port_zmq_cmd":5555,"port_zmq_observations":5556}"#;
+    fn parses_structured_discovery_response() {
+        let payload = r#"{"discovery_magic":"SOURCCEY_DISCOVER_V1","robot_type":"sourccey"}"#;
         let parsed = parse_discovery_response(payload, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 42)))
             .expect("expected discovery response");
 
@@ -271,8 +278,41 @@ mod tests {
         assert_eq!(parsed.command_port, 5555);
         assert_eq!(parsed.observation_port, 5556);
         assert_eq!(parsed.source, "udp-discovery");
-        assert_eq!(parsed.robot_name.as_deref(), Some("Sourccey"));
-        assert_eq!(parsed.nickname.as_deref(), Some("sourccey"));
+        assert_eq!(parsed.protocol_version, None);
+        assert_eq!(parsed.robot_name, None);
+        assert_eq!(parsed.nickname, None);
         assert_eq!(parsed.robot_type.as_deref(), Some("sourccey"));
+        assert_eq!(parsed.hostname, None);
+        assert_eq!(parsed.capabilities, None);
+    }
+
+    #[test]
+    fn rejects_payload_without_discovery_magic() {
+        let payload = r#"{"robot_name":"Sourccey","nickname":"sourccey","robot_type":"sourccey","port_zmq_cmd":5555,"port_zmq_observations":5556}"#;
+        let parsed = parse_discovery_response(payload, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 42)));
+
+        assert!(parsed.is_none());
+    }
+
+    #[test]
+    fn accepts_minimal_discovery_payload() {
+        let payload = r#"{"discovery_magic":"SOURCCEY_DISCOVER_V1","robot_type":"sourccey"}"#;
+        let parsed = parse_discovery_response(payload, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 42)))
+            .expect("expected discovery response");
+
+        assert_eq!(parsed.ip_address, "192.168.1.42");
+        assert_eq!(parsed.command_port, 5555);
+        assert_eq!(parsed.observation_port, 5556);
+        assert_eq!(parsed.robot_name, None);
+        assert_eq!(parsed.nickname, None);
+        assert_eq!(parsed.robot_type.as_deref(), Some("sourccey"));
+    }
+
+    #[test]
+    fn rejects_payload_without_robot_type() {
+        let payload = r#"{"discovery_magic":"SOURCCEY_DISCOVER_V1"}"#;
+        let parsed = parse_discovery_response(payload, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 42)));
+
+        assert!(parsed.is_none());
     }
 }
