@@ -18,6 +18,7 @@ const DISCOVERY_MAX_SEND_ATTEMPTS: usize = 3;
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredLanRobotHost {
     pub ip_address: String,
+    pub host_running: bool,
     pub command_port: u16,
     pub observation_port: u16,
     pub source: String,
@@ -42,6 +43,9 @@ pub struct LanRobotDiscoveryResult {
 struct SourcceyDiscoveredRobot {
     discovery_magic: String,
     robot_type: String,
+    host_running: Option<bool>,
+    command_port: Option<u16>,
+    observation_port: Option<u16>,
 }
 
 pub struct LanRobotDiscoveryService;
@@ -138,8 +142,11 @@ fn parse_discovery_response(payload: &str, source_ip: IpAddr) -> Option<Discover
 
     Some(DiscoveredLanRobotHost {
         ip_address,
-        command_port: SOURCCEY_COMMAND_PORT,
-        observation_port: SOURCCEY_OBSERVATION_PORT,
+        host_running: parsed.host_running.unwrap_or(true),
+        command_port: parsed.command_port.unwrap_or(SOURCCEY_COMMAND_PORT),
+        observation_port: parsed
+            .observation_port
+            .unwrap_or(SOURCCEY_OBSERVATION_PORT),
         source: "udp-discovery".to_string(),
         protocol_version: None,
         robot_name: None,
@@ -275,6 +282,7 @@ mod tests {
             .expect("expected discovery response");
 
         assert_eq!(parsed.ip_address, "192.168.1.42");
+        assert_eq!(parsed.host_running, true);
         assert_eq!(parsed.command_port, 5555);
         assert_eq!(parsed.observation_port, 5556);
         assert_eq!(parsed.source, "udp-discovery");
@@ -301,11 +309,24 @@ mod tests {
             .expect("expected discovery response");
 
         assert_eq!(parsed.ip_address, "192.168.1.42");
+        assert!(parsed.host_running);
         assert_eq!(parsed.command_port, 5555);
         assert_eq!(parsed.observation_port, 5556);
         assert_eq!(parsed.robot_name, None);
         assert_eq!(parsed.nickname, None);
         assert_eq!(parsed.robot_type.as_deref(), Some("sourccey"));
+    }
+
+    #[test]
+    fn accepts_extended_discovery_payload_with_host_status() {
+        let payload = r#"{"discovery_magic":"SOURCCEY_DISCOVER_V1","robot_type":"sourccey","host_running":false,"command_port":5555,"observation_port":5556}"#;
+        let parsed = parse_discovery_response(payload, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 42)))
+            .expect("expected discovery response");
+
+        assert_eq!(parsed.ip_address, "192.168.1.42");
+        assert!(!parsed.host_running);
+        assert_eq!(parsed.command_port, 5555);
+        assert_eq!(parsed.observation_port, 5556);
     }
 
     #[test]
