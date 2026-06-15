@@ -15,6 +15,7 @@ use tauri::Emitter;
 use tauri::Manager;
 
 // Create a struct to hold our processes, shutdown flags, and command log info
+#[derive(Clone)]
 pub struct KioskHostProcess(Arc<Mutex<HashMap<String, (Child, Arc<AtomicBool>, String)>>>);
 
 pub struct KioskHostService;
@@ -315,14 +316,15 @@ impl KioskHostService {
             return true;
         }
 
-        // 2) Externally started (Linux): check for the module name in cmdline
-        // Use a specific match to avoid false positives.
-        // Example: the module you spawn contains "sourccey_host"
-        let status = Command::new("pgrep")
-            .args(&["-f", "sourccey_host"])
-            .status();
+        Self::has_external_kiosk_host_process()
+    }
 
-        status.map(|s| s.success()).unwrap_or(false)
+    pub fn is_any_kiosk_host_active(state: &KioskHostProcess) -> bool {
+        if !state.0.lock().unwrap().is_empty() {
+            return true;
+        }
+
+        Self::has_external_kiosk_host_process()
     }
 
     fn build_envs() -> Result<HashMap<String, String>, String> {
@@ -374,5 +376,63 @@ impl KioskHostService {
 
     fn cloud_device_credentials_path() -> Result<std::path::PathBuf, String> {
         KioskPairingService::current_cloud_device_credentials_file_path()
+    }
+
+    fn has_external_kiosk_host_process() -> bool {
+        // Externally started (Linux): check for the module name in cmdline.
+        let status = Command::new("pgrep")
+            .args(["-f", "sourccey_host"])
+            .status();
+
+        status.map(|s| s.success()).unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::KioskHostService;
+    use std::process::{Child, Command};
+    use std::sync::atomic::AtomicBool;
+    use std::sync::Arc;
+
+    #[test]
+    fn empty_kiosk_host_state_reports_inactive() {
+        let state = KioskHostService::init_kiosk_host();
+        assert!(!KioskHostService::is_any_kiosk_host_active(&state));
+    }
+
+    #[test]
+    fn populated_kiosk_host_state_reports_active() {
+        let state = KioskHostService::init_kiosk_host();
+        let child = spawn_test_process();
+
+        state.0.lock().unwrap().insert(
+            "sourccey".to_string(),
+            (child, Arc::new(AtomicBool::new(false)), "test-log".to_string()),
+        );
+
+        assert!(KioskHostService::is_any_kiosk_host_active(&state));
+
+        let removed = { state.0.lock().unwrap().remove("sourccey") };
+        if let Some((mut child, _, _)) = removed {
+            let _ = child.kill();
+            let _ = child.wait();
+        }
+    }
+
+    #[cfg(windows)]
+    fn spawn_test_process() -> Child {
+        Command::new("cmd")
+            .args(["/C", "ping", "127.0.0.1", "-n", "5"])
+            .spawn()
+            .expect("test process should spawn")
+    }
+
+    #[cfg(not(windows))]
+    fn spawn_test_process() -> Child {
+        Command::new("sh")
+            .args(["-c", "sleep 5"])
+            .spawn()
+            .expect("test process should spawn")
     }
 }

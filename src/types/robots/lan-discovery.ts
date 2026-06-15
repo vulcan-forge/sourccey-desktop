@@ -1,5 +1,6 @@
 export type DiscoveredLanRobot = {
     ipAddress: string;
+    hostRunning?: boolean | null;
     source: string;
     commandPort: number;
     observationPort: number;

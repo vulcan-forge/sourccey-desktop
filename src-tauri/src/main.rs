@@ -78,6 +78,7 @@ use modules::control::controllers::remote_control::remote_teleop_controller::{
 use modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
 };
+use modules::control::services::kiosk_control::discovery_responder_service::KioskDiscoveryResponderService;
 use modules::settings::controllers::access_point::access_point_controller::{
     get_access_point_credentials, is_access_point_active, save_access_point_credentials,
     set_access_point,
@@ -445,6 +446,8 @@ async fn kiosk_update_check(app: tauri::AppHandle) -> Result<KioskUpdateStatus, 
 fn main() {
     // Default desktop; --kiosk enables kiosk mode
     let kiosk = is_kiosk_from_args();
+    let kiosk_host_state = init_kiosk_host();
+    let kiosk_host_state_for_setup = kiosk_host_state.clone();
     println!("kiosk_detected={}", kiosk);
 
     tauri::Builder::default()
@@ -504,6 +507,11 @@ fn main() {
             // Start process monitor in kiosk mode (after app is initialized)
             if kiosk {
                 KioskPairingService::register_kiosk_runtime(app.handle().clone());
+                if let Err(error) =
+                    KioskDiscoveryResponderService::start(kiosk_host_state_for_setup.clone())
+                {
+                    eprintln!("Failed to start kiosk discovery responder: {}", error);
+                }
             }
 
             Ok(())
@@ -522,7 +530,7 @@ fn main() {
         .manage(init_remote_record())
         .manage(init_remote_rollout())
         .manage(init_remote_inference())
-        .manage(init_kiosk_host())
+        .manage(kiosk_host_state)
         .manage(init_kiosk_manual_drive())
         .manage(init_kiosk_pairing())
         .invoke_handler(tauri::generate_handler![

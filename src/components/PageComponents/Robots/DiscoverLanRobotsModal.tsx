@@ -65,8 +65,8 @@ export const DiscoverLanRobotsModal = ({ isOpen, onClose, onSelectRobot }: Disco
     return (
         <GeneralModal isOpen={isOpen} onClose={() => !isDiscovering && onClose()} title="Discover Robots on This LAN" size="lg">
             <div className="rounded-xl border border-slate-700/70 bg-slate-900/60 p-4 text-sm text-slate-300">
-                Discovery sends the Sourccey LAN broadcast and waits for robots to announce themselves back. This matches the older
-                desktop discovery flow instead of scanning generic SSH hosts.
+                Discovery sends the Sourccey LAN broadcast and waits for kiosk devices on your local network to reply. A robot can show
+                up here even if its host process is currently stopped.
             </div>
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-900/40 p-4">
@@ -114,9 +114,25 @@ export const DiscoverLanRobotsModal = ({ isOpen, onClose, onSelectRobot }: Disco
                                     <FaNetworkWired className="h-4 w-4" />
                                 </div>
                                 <div>
-                                    <div className="text-base font-semibold text-white">{robot.robotName || robot.ipAddress}</div>
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <div className="text-base font-semibold text-white">{robot.robotName || robot.ipAddress}</div>
+                                        <div
+                                            className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                                                (robot.hostRunning ?? true)
+                                                    ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+                                                    : 'border-amber-500/40 bg-amber-500/10 text-amber-100'
+                                            }`}
+                                        >
+                                            {(robot.hostRunning ?? true) ? 'Running' : 'Stopped'}
+                                        </div>
+                                    </div>
                                     <div className="mt-1 text-sm text-slate-300">
                                         {robot.nickname ? `@${robot.nickname} on ` : ''}{robot.ipAddress} with ZMQ cmd {robot.commandPort} and obs {robot.observationPort}.
+                                    </div>
+                                    <div className="mt-1 text-xs text-slate-400">
+                                        {(robot.hostRunning ?? true)
+                                            ? 'Robot host is running and ready for LAN control.'
+                                            : 'Robot host is stopped right now, but you can still save this LAN address.'}
                                     </div>
                                 </div>
                             </div>
