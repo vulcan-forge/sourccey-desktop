@@ -31,6 +31,7 @@ use modules::robot::controllers::owned_robot_controller::{
     add_owned_robot, delete_owned_robot, get_owned_robot_by_id, get_owned_robot_by_nickname,
     get_owned_robots,
 };
+use modules::robot::controllers::discovery_controller::discover_lan_robots;
 use modules::robot::controllers::robot_controller::{
     get_all_robots, get_robot_by_id, upsert_robot_template,
 };
@@ -533,6 +534,7 @@ fn main() {
             get_robot_by_id,
             get_all_robots,
             upsert_robot_template,
+            discover_lan_robots,
 
             //----------------------------------------------------------//
             // Owned Robot API

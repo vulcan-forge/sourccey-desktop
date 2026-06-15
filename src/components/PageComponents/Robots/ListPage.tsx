@@ -4,16 +4,26 @@ import { deleteOwnedRobot } from '@/api/Local/Robot/owned_robot';
 import { Spinner } from '@/components/Elements/Spinner';
 import { BASE_OWNED_ROBOT_KEY, useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 import { queryClient } from '@/hooks/default';
+import type { DiscoveredLanRobot } from '@/types/robots/lan-discovery';
 import { safeNavigate } from '@/utils/navigation';
-import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
+import { buildLanRobotDraftFromHost, type LanRobotDraft } from '@/utils/robots/lan-robot';
+import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { FaCloud, FaEllipsisH } from 'react-icons/fa';
+import { FaCompass, FaEllipsisH, FaInfoCircle, FaNetworkWired } from 'react-icons/fa';
 import { toast } from 'react-toastify';
+import { AddLanRobotModal } from '@/components/PageComponents/Robots/AddLanRobotModal';
+import { DiscoverLanRobotsModal } from '@/components/PageComponents/Robots/DiscoverLanRobotsModal';
+import { RobotSetupHelpModal } from '@/components/PageComponents/Robots/RobotSetupHelpModal';
 
 export const RobotListPage = () => {
     const { data: ownedRobots, isLoading: isLoadingOwnedRobots }: any = useGetOwnedRobots(true);
     const [unpairingId, setUnpairingId] = useState<string | null>(null);
+    const [isAddLanRobotOpen, setIsAddLanRobotOpen] = useState(false);
+    const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
+    const [isSetupHelpOpen, setIsSetupHelpOpen] = useState(false);
+    const [draftOverride, setDraftOverride] = useState<Partial<LanRobotDraft> | null>(null);
+    const router = useRouter();
 
     const robotsToRender = (ownedRobots || []).map((ownedRobot: any) => ({
         id: ownedRobot?.owned_robot?.id || ownedRobot.id,
@@ -21,6 +31,17 @@ export const RobotListPage = () => {
         nickname: ownedRobot?.owned_robot?.nickname || ownedRobot?.nickname || '',
         robotType: ownedRobot?.robot?.robot_type || 'Unknown',
     }));
+    const existingNicknames = robotsToRender.map((robot: any) => robot.nickname).filter(Boolean);
+
+    const openAddRobotModal = (initialDraft?: Partial<LanRobotDraft> | null) => {
+        setDraftOverride(initialDraft ?? null);
+        setIsAddLanRobotOpen(true);
+    };
+
+    const handleUseDiscoveredRobot = (robot: DiscoveredLanRobot) => {
+        setIsDiscoverOpen(false);
+        openAddRobotModal(buildLanRobotDraftFromHost(robot.ipAddress, existingNicknames));
+    };
 
     const handleUnpairRobot = async (robot: any) => {
         if (!robot?.id) {
@@ -51,31 +72,51 @@ export const RobotListPage = () => {
         <div className="min-h-screen bg-slate-900/30 p-8">
             <div className="mx-auto max-w-7xl">
                 <div className="mb-4">
-                    <h1 className="text-3xl font-bold text-white">Robots</h1>
-                    <p className="mt-2 text-slate-300">Manage the robots configured on this desktop.</p>
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                        <div>
+                            <h1 className="text-3xl font-bold text-white">Robots</h1>
+                            <p className="mt-2 text-slate-300">Manage the robots configured on this desktop for LAN teleoperation.</p>
+                        </div>
+                    </div>
                 </div>
 
                 <div className="mb-6 rounded-2xl border-2 border-slate-700 bg-slate-900 p-4 shadow-xl">
                     <div className="flex items-start gap-3">
-                        <FaCloud className="mt-1 h-4 w-4 text-sky-300" />
-                        <div>
-                            <h2 className="text-base font-semibold text-white">Cloud Pairing Only</h2>
+                        <FaNetworkWired className="mt-1 h-4 w-4 shrink-0 text-amber-300" />
+                        <div className="min-w-0 flex-1">
+                            <h2 className="text-base font-semibold text-white">LAN Teleop Connection</h2>
                             <p className="mt-1 text-sm text-slate-300">
-                                Nearby LAN pairing has been retired. Register robots from the kiosk home screen and claim
-                                them in Vulcan Studio using the cloud pairing code.
+                                Discover a robot on your network or add it directly with its LAN address, then open Manage Robot to
+                                calibrate and teleoperate it. Kiosk keeps the cloud pairing flow, but desktop stays LAN-first.
                             </p>
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    toast.info(
-                                        'Open the robot kiosk home screen, start registration, then claim the code in Vulcan Studio.',
-                                        { ...toastInfoDefaults }
-                                    )
-                                }
-                                className="mt-3 inline-flex cursor-pointer items-center rounded-md border border-slate-600 px-3 py-1.5 text-sm font-semibold text-slate-100 transition hover:border-slate-400"
-                            >
-                                How Pairing Works
-                            </button>
+                            <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsSetupHelpOpen(true)}
+                                    className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-slate-600 px-3 py-1.5 text-sm font-semibold text-slate-100 transition hover:border-slate-400"
+                                >
+                                    <FaInfoCircle className="h-4 w-4" />
+                                    How Setup Works
+                                </button>
+                                <div className="ml-auto flex flex-wrap items-center justify-end gap-3">
+                                    <button
+                                        type="button"
+                                        onClick={() => setIsDiscoverOpen(true)}
+                                        className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-emerald-500/50 bg-emerald-500/10 px-3 py-1.5 text-sm font-semibold text-emerald-100 transition hover:border-emerald-400/70"
+                                    >
+                                        <FaCompass className="h-4 w-4" />
+                                        Discover
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => openAddRobotModal()}
+                                        className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-amber-500/50 bg-amber-500/10 px-3 py-1.5 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70"
+                                    >
+                                        <FaNetworkWired className="h-4 w-4" />
+                                        Add Manually
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -89,8 +130,25 @@ export const RobotListPage = () => {
                     </div>
                 ) : robotsToRender.length === 0 ? (
                     <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-8 text-center text-slate-300 shadow-xl">
-                        No local robots yet. Pair a robot in Vulcan Studio, then configure its remote host on this desktop if
-                        you want to teleoperate it here.
+                        No LAN robots added yet. Add a robot on this desktop, save its LAN address, and you can teleoperate it here.
+                        <div className="mt-4 flex flex-wrap justify-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setIsDiscoverOpen(true)}
+                                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-emerald-500/50 bg-emerald-500/10 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-400/70"
+                            >
+                                <FaCompass className="h-4 w-4" />
+                                Discover Robots
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => openAddRobotModal()}
+                                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70"
+                            >
+                                <FaNetworkWired className="h-4 w-4" />
+                                Add Manually
+                            </button>
+                        </div>
                     </div>
                 ) : (
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
@@ -104,6 +162,26 @@ export const RobotListPage = () => {
                         ))}
                     </div>
                 )}
+
+                <AddLanRobotModal
+                    isOpen={isAddLanRobotOpen}
+                    initialDraft={draftOverride}
+                    existingNicknames={existingNicknames}
+                    onClose={() => {
+                        setIsAddLanRobotOpen(false);
+                        setDraftOverride(null);
+                    }}
+                    onSuccess={async (ownedRobotId) => {
+                        await queryClient.invalidateQueries({ queryKey: [BASE_OWNED_ROBOT_KEY] });
+                        safeNavigate(router, `/desktop/robot?id=${ownedRobotId}`);
+                    }}
+                />
+                <DiscoverLanRobotsModal
+                    isOpen={isDiscoverOpen}
+                    onClose={() => setIsDiscoverOpen(false)}
+                    onSelectRobot={handleUseDiscoveredRobot}
+                />
+                <RobotSetupHelpModal isOpen={isSetupHelpOpen} onClose={() => setIsSetupHelpOpen(false)} />
             </div>
         </div>
     );

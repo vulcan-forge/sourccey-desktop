@@ -1,5 +1,5 @@
-import { ControlType, setControlledRobot } from '@/hooks/Control/control.hook';
-import { getRemoteRobotState, setRemoteRobotState } from '@/hooks/Control/remote-control.hook';
+import { clearControlledRobot, ControlType } from '@/hooks/Control/control.hook';
+import { clearRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { listen } from '@tauri-apps/api/event';
 import { toast } from 'react-toastify';
@@ -9,6 +9,11 @@ export interface ProcessFailurePayload {
     exit_code: number | null;
     message: string;
 }
+
+export const handleProcessShutdownStateReset = (nickname: string) => {
+    clearControlledRobot(nickname);
+    clearRemoteRobotState(nickname);
+};
 
 export const filterLogs = (logs: string[]) => {
     return logs.filter((log) => {
@@ -190,14 +195,7 @@ class ProcessShutdownManager {
                     });
                 }
 
-                // Set controlled Robot
-                setControlledRobot(nickname, controlType as ControlType, null);
-
-                // Set remote controlled Robot
-                const remoteRobotState = getRemoteRobotState(nickname);
-                if (remoteRobotState) {
-                    setRemoteRobotState(nickname, remoteRobotState.status, null, remoteRobotState.controlledRobot);
-                }
+                handleProcessShutdownStateReset(nickname);
             });
 
             return unlisten;

@@ -52,6 +52,10 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
         <div className="flex flex-col gap-4">
             <div className={'flex flex-col gap-3 rounded-xl border-2 border-slate-700/60 bg-slate-900/50 p-4'}>
                 {showHeader && !embedded && <h3 className="text-lg font-semibold text-white">Remote Config</h3>}
+                <p className="text-sm text-slate-300">
+                    Fill in the robot host, arm ports, and input device once. Teleoperation will stay locked until these are set and
+                    calibration is complete.
+                </p>
 
                 {isConfigsVisible && draftConfig && (
                     <div className="mt-2 rounded-lg p-4">

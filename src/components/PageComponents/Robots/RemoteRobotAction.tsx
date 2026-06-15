@@ -1,8 +1,9 @@
-import { FaGamepad, FaStop, FaPlay, FaWifi } from 'react-icons/fa';
+import { FaGamepad, FaPlay, FaStop, FaWifi } from 'react-icons/fa';
 import { Tooltip } from 'react-tooltip';
 import { RemoteControlType, RemoteRobotStatus } from '@/hooks/Control/remote-control.hook';
 import { setContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
 import { DEFAULT_DESKTOP_TELEOP_TYPE, useDesktopTeleopCalibrationStatus } from '@/hooks/Control/desktop-calibration.hook';
+import { Spinner } from '@/components/Elements/Spinner';
 
 const ConnectRobotComponent = ({ nickname }: { nickname: string }) => {
     return (
@@ -67,24 +68,20 @@ export const RemoteRobotAction = ({
     const isTeleopCalibrated = teleopCalibrationStatus?.isCalibrated === true;
     const showCalibrationButton = !isCalibrationLoading && !isTeleopCalibrated;
 
-    // State Variables
     const isConnected = robotStatus == RemoteRobotStatus.CONNECTED || robotStatus == RemoteRobotStatus.STARTED;
     const isRobotStarted = robotStatus == RemoteRobotStatus.STARTED;
     const requiresConnection = !allowUnconnectedControl;
     const isControlDisabled =
         isLoading || isLoadingCalibration || !isTeleopCalibrated || (requiresConnection && robotStatus == RemoteRobotStatus.NONE);
 
-    // Show connect component if not connected
     if (requiresConnection && !isConnected) {
         return <ConnectRobotComponent nickname={nickname} />;
     }
 
-    // Show start robot component if connected but not started
     if (requiresConnection && isConnected && !isRobotStarted) {
         return <StartRobotComponent nickname={nickname} />;
     }
 
-    // Show the full control interface when connected and started
     return (
         <div className="flex flex-col gap-4 rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
             <div className="flex items-center justify-start gap-4">
@@ -94,7 +91,6 @@ export const RemoteRobotAction = ({
                 </h2>
                 <div className="grow"></div>
 
-                {/* Episode control buttons - only show when recording */}
                 {isControlling && saveEpisode && resetEpisode && (
                     <>
                         <button
@@ -149,7 +145,7 @@ export const RemoteRobotAction = ({
                     }`}
                 >
                     {isCalibrationLoading ? (
-                        <span className="animate-spin">⌛</span>
+                        <Spinner color="white" width="w-4" height="h-4" />
                     ) : isControlling ? (
                         <>
                             <FaStop className="h-4 w-4" /> {remoteStopControlText[controlType as keyof typeof remoteStopControlText]}
@@ -161,14 +157,13 @@ export const RemoteRobotAction = ({
                     )}
                 </button>
 
-                {/* Tooltip for disabled control button */}
                 <Tooltip
                     id="control-button-tooltip"
                     place="top"
                     className="custom-tooltip !z-[1000] !max-w-xs !rounded-lg !border-2 !border-slate-600 !bg-slate-700 !px-3 !py-2 !text-sm !break-words !whitespace-pre-wrap !text-slate-100"
-                    border="2px solid #475569" // slate-600
-                    arrowColor="#334155" // slate-700 (matches bg)
-                    classNameArrow="!shadow-none" // optional: prevents tiny inner seam
+                    border="2px solid #475569"
+                    arrowColor="#334155"
+                    classNameArrow="!shadow-none"
                 />
             </div>
         </div>
