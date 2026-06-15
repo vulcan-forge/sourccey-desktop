@@ -1,4 +1,4 @@
-import { FaRobot, FaGamepad } from 'react-icons/fa';
+import { FaRobot, FaGamepad, FaDatabase } from 'react-icons/fa';
 import { setContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
 
 export const Overview = ({ ownedRobot }: { ownedRobot: any }) => {
@@ -9,12 +9,10 @@ export const Overview = ({ ownedRobot }: { ownedRobot: any }) => {
             <div className="rounded-2xl border-2 border-slate-700 bg-slate-900/60 p-6 shadow-[0_18px_40px_rgba(15,23,42,0.35)]">
                 <div className="mb-3 text-xs font-semibold tracking-[0.3em] text-slate-500 uppercase">Overview</div>
                 <h1 className="text-2xl font-semibold text-white sm:text-3xl">{ownedRobot?.robot?.name ?? 'Robot Overview'}</h1>
-                <p className="mt-2 text-sm text-slate-300">
-                    Choose how you want to operate your robot: direct manual control or AI-driven behavior.
-                </p>
+                <p className="mt-2 text-sm text-slate-300">Choose a workflow for teleoperation, demonstration capture, or rollout.</p>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-2">
+            <div className="grid gap-6 lg:grid-cols-3">
                 <button
                     type="button"
                     onClick={() => setContent('teleoperate')}
@@ -37,7 +35,27 @@ export const Overview = ({ ownedRobot }: { ownedRobot: any }) => {
 
                 <button
                     type="button"
-                    onClick={() => setContent('ai')}
+                    onClick={() => setContent('recording')}
+                    className="group cursor-pointer rounded-2xl border-2 border-slate-700/70 bg-slate-900/60 p-6 text-left shadow-[0_18px_40px_rgba(15,23,42,0.25)] transition hover:border-sky-400/40 hover:bg-slate-900/80"
+                >
+                    <div className="flex items-center gap-3">
+                        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-sky-500/20 to-cyan-500/20 text-sky-300">
+                            <FaDatabase className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h2 className="text-lg font-semibold text-white">Record Data</h2>
+                            <p className="text-xs text-slate-400">Collect demonstrations</p>
+                        </div>
+                    </div>
+                    <p className="mt-4 text-sm text-slate-300">
+                        Use manual teleoperation as a guided recording workflow when you are collecting data for later training and
+                        evaluation.
+                    </p>
+                </button>
+
+                <button
+                    type="button"
+                    onClick={() => setContent('rollout')}
                     className="group cursor-pointer rounded-2xl border-2 border-slate-700/70 bg-slate-900/60 p-6 text-left shadow-[0_18px_40px_rgba(15,23,42,0.25)] transition hover:border-emerald-400/40 hover:bg-slate-900/80"
                 >
                     <div className="flex items-center gap-3">
@@ -45,7 +63,7 @@ export const Overview = ({ ownedRobot }: { ownedRobot: any }) => {
                             <FaRobot className="h-5 w-5" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold text-white">AI Models</h2>
+                            <h2 className="text-lg font-semibold text-white">Rollout</h2>
                             <p className="text-xs text-slate-400">Autonomous control</p>
                         </div>
                     </div>

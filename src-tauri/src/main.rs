@@ -66,6 +66,12 @@ use modules::control::controllers::local_control::teleop_controller::{
 use modules::control::controllers::remote_control::remote_inference_controller::{
     init_remote_inference, start_remote_inference, stop_remote_inference,
 };
+use modules::control::controllers::remote_control::remote_record_controller::{
+    init_remote_record, start_remote_record, stop_remote_record,
+};
+use modules::control::controllers::remote_control::remote_rollout_controller::{
+    init_remote_rollout, start_remote_rollout, stop_remote_rollout,
+};
 use modules::control::controllers::remote_control::remote_teleop_controller::{
     init_remote_teleop, start_remote_teleop, stop_remote_teleop,
 };
@@ -513,6 +519,8 @@ fn main() {
         // Initialize all services
         .manage(init_teleop())
         .manage(init_remote_teleop())
+        .manage(init_remote_record())
+        .manage(init_remote_rollout())
         .manage(init_remote_inference())
         .manage(init_kiosk_host())
         .manage(init_kiosk_manual_drive())
@@ -574,6 +582,10 @@ fn main() {
             get_active_teleop_sessions,
             start_remote_teleop,
             stop_remote_teleop,
+            start_remote_record,
+            stop_remote_record,
+            start_remote_rollout,
+            stop_remote_rollout,
             start_remote_inference,
             stop_remote_inference,
 

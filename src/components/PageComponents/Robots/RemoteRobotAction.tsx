@@ -172,10 +172,14 @@ export const RemoteRobotAction = ({
 
 export const remoteStartControlText = {
     [RemoteControlType.TELEOP]: 'Start Control',
+    [RemoteControlType.RECORDING]: 'Start Recording',
+    [RemoteControlType.ROLLOUT]: 'Start Rollout',
     [RemoteControlType.INFERENCE]: 'Start Inference',
 };
 
 export const remoteStopControlText = {
     [RemoteControlType.TELEOP]: 'Stop Control',
+    [RemoteControlType.RECORDING]: 'Stop Recording',
+    [RemoteControlType.ROLLOUT]: 'Stop Rollout',
     [RemoteControlType.INFERENCE]: 'Stop Inference',
 };

@@ -24,6 +24,8 @@ export enum RemoteRobotStatus {
 export enum RemoteControlType {
     NONE = 'none',
     TELEOP = 'teleop',
+    RECORDING = 'recording',
+    ROLLOUT = 'rollout',
     INFERENCE = 'inference',
 }
 
