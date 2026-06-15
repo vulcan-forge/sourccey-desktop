@@ -20,6 +20,14 @@ export const setControlledRobot = (nickname: string | null, controlType: Control
     queryClient.setQueryData(ALL_CONTROLLED_ROBOTS_CONFIG_KEY, { ...getControlledRobots(), [nickname ?? '']: { controlType, ownedRobot } });
 };
 
+export const clearControlledRobot = (nickname: string | null) => {
+    const key = nickname ?? '';
+    queryClient.setQueryData(CONTROLLED_ROBOT_CONFIG_KEY(key), null);
+    const allControlled: Record<string, any> = { ...getControlledRobots() };
+    allControlled[key] = null;
+    queryClient.setQueryData(ALL_CONTROLLED_ROBOTS_CONFIG_KEY, allControlled);
+};
+
 export const useGetControlledRobot = (nickname: string | null) =>
     useQuery({ queryKey: CONTROLLED_ROBOT_CONFIG_KEY(nickname ?? ''), queryFn: () => getControlledRobot(nickname) });
 

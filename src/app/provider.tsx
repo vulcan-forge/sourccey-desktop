@@ -14,6 +14,7 @@ import { SELECTED_ROBOT_KEY } from '@/hooks/Robot/selected-robot.hook';
 import { SELECTED_MODEL_KEY } from '@/hooks/AI/selected-model.hook';
 import { DESKTOP_EXTRAS_KEY } from '@/hooks/System/setup-desktop-extras.hook';
 import { AUTH_SESSION_KEY } from '@/hooks/Auth/auth-session.hook';
+import { setupProcessShutdownListeners } from '@/utils/logs/control-logs/control-logs';
 
 // SSH password status is now persisted via file system (not React Query)
 const persistQueries: QueryKey[] = [
@@ -76,6 +77,7 @@ export default function Provider({ children }: { children: React.ReactNode }) {
             queryClient.removeQueries({ queryKey: key, exact: true });
         }
         void primeDesktopEnvironmentSettings();
+        void setupProcessShutdownListeners();
     }, []);
 
     return (

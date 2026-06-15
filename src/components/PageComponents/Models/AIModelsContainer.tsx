@@ -202,7 +202,7 @@ export const AIModelsContainer = () => {
                         {isLoadingRobots && <div className="col-span-full text-xs text-slate-400">Loading robots...</div>}
                         {!isLoadingRobots && (!ownedRobots || ownedRobots.length === 0) && (
                             <div className="col-span-full rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-4 text-sm text-slate-400">
-                                No robots found. Add or discover a robot first.
+                                No robots found. Add a LAN robot first.
                                 <div className="mt-3">
                                     <Link
                                         href="/desktop/robot"

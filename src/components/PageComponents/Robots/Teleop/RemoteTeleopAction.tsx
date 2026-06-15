@@ -2,13 +2,17 @@ import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-ut
 import { invoke } from '@tauri-apps/api/core';
 import { useState } from 'react';
 import { toast } from 'react-toastify';
-import { FaGamepad, FaPlay, FaStop } from 'react-icons/fa';
+import { FaCheckCircle, FaExclamationTriangle, FaGamepad, FaPlay, FaStop } from 'react-icons/fa';
 import { Tooltip } from 'react-tooltip';
 import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { Spinner } from '@/components/Elements/Spinner';
 import { setContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
 import { DEFAULT_DESKTOP_TELEOP_TYPE, useDesktopTeleopCalibrationStatus } from '@/hooks/Control/desktop-calibration.hook';
+import {
+    getRemoteTeleopBlockingMessage,
+    getRemoteTeleopReadiness,
+} from '@/utils/teleop/remote-teleop-readiness';
 
 export enum RobotControlStatus {
     STARTED = 'Robot is being controlled',
@@ -41,12 +45,18 @@ export const RemoteTeleopAction = ({
     const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == RemoteControlType.TELEOP;
     const isTeleopCalibrated = teleopCalibrationStatus?.isCalibrated === true;
     const isCalibrationLoading = isLoading || isLoadingCalibration;
-    const isControlDisabled = isCalibrationLoading || !isTeleopCalibrated;
+    const readiness = getRemoteTeleopReadiness(remoteConfig, teleopCalibrationStatus);
+    const readinessMessage = getRemoteTeleopBlockingMessage(readiness);
+    const isControlDisabled = isCalibrationLoading || !readiness.ready;
     const showCalibrationButton = !isCalibrationLoading && !isTeleopCalibrated;
 
     const startTeleop = async (normalized: string) => {
         if (isControlling) {
             return;
+        }
+
+        if (!readiness.ready) {
+            throw new Error(readinessMessage || 'Teleoperation setup is incomplete.');
         }
 
         const remoteTeleopConfig: RemoteTeleopConfig = {
@@ -119,7 +129,7 @@ export const RemoteTeleopAction = ({
                         onClick={toggleControl}
                         disabled={isControlDisabled}
                         data-tooltip-id="teleop-control-tooltip"
-                        data-tooltip-content={isControlDisabled ? 'Calibration required before controlling' : ''}
+                        data-tooltip-content={isControlDisabled ? readinessMessage || 'Teleoperation setup is incomplete.' : ''}
                         className={`inline-flex w-36 items-center justify-center gap-2 rounded-lg py-2 text-sm font-medium transition-all ${
                             isControlDisabled
                                 ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
@@ -140,6 +150,46 @@ export const RemoteTeleopAction = ({
                             </>
                         )}
                     </button>
+                </div>
+            </div>
+            <div
+                className={`rounded-xl border px-4 py-3 ${
+                    readiness.ready
+                        ? 'border-emerald-400/40 bg-emerald-500/10'
+                        : 'border-amber-400/40 bg-amber-500/10'
+                }`}
+            >
+                <div className="flex flex-wrap items-center gap-2">
+                    <span
+                        className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${
+                            readiness.ready
+                                ? 'border-emerald-400/50 bg-emerald-500/15 text-emerald-100'
+                                : 'border-amber-400/50 bg-amber-500/15 text-amber-100'
+                        }`}
+                    >
+                        {readiness.ready ? <FaCheckCircle className="h-3.5 w-3.5" /> : <FaExclamationTriangle className="h-3.5 w-3.5" />}
+                        {readiness.ready ? 'Ready to Teleoperate' : 'Finish Setup Before Starting'}
+                    </span>
+                    <span className="text-xs text-slate-300">
+                        {readiness.ready
+                            ? 'Everything needed for teleoperation is configured.'
+                            : readinessMessage}
+                    </span>
+                </div>
+                <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                    {readiness.checks.map((check) => (
+                        <div
+                            key={check.key}
+                            className={`rounded-lg border px-3 py-2 text-xs ${
+                                check.ready
+                                    ? 'border-emerald-500/30 bg-slate-900/40 text-emerald-100'
+                                    : 'border-amber-500/30 bg-slate-900/40 text-amber-100'
+                            }`}
+                        >
+                            <div className="font-semibold">{check.label}</div>
+                            <div className={check.ready ? 'text-emerald-200/80' : 'text-amber-200/90'}>{check.detail}</div>
+                        </div>
+                    ))}
                 </div>
             </div>
             {logsSlot}

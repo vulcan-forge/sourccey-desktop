@@ -31,6 +31,8 @@ impl RemoteTeleopService {
         state: &RemoteTeleopProcess,
         config: RemoteTeleopConfig,
     ) -> Result<String, String> {
+        Self::validate_config(&config)?;
+
         // Check if a process with this nickname is already running
         {
             let processes = state.0.lock().unwrap();
@@ -264,15 +266,37 @@ impl RemoteTeleopService {
     fn build_command_args(config: &RemoteTeleopConfig) -> Vec<String> {
         let mut command_parts = vec!["python".to_string()];
         command_parts.push("src/lerobot/control/sourccey/sourccey/teleoperate.py".to_string());
-        command_parts.push(format!("--id={}", config.nickname));
-        command_parts.push(format!("--remote_ip={}", config.remote_ip));
-        command_parts.push(format!("--left_arm_port={}", config.left_arm_port));
-        command_parts.push(format!("--right_arm_port={}", config.right_arm_port));
-        command_parts.push(format!("--keyboard_port={}", config.keyboard));
+        command_parts.push(format!("--id={}", config.nickname.trim()));
+        command_parts.push(format!("--remote_ip={}", config.remote_ip.trim()));
+        command_parts.push(format!("--left_arm_port={}", config.left_arm_port.trim()));
+        command_parts.push(format!("--right_arm_port={}", config.right_arm_port.trim()));
+        command_parts.push(format!("--keyboard_port={}", config.keyboard.trim()));
         command_parts.push(format!("--fps={}", config.fps));
         command_parts.push(format!("--reverse={}", "True"));
 
         command_parts
+    }
+
+    fn validate_config(config: &RemoteTeleopConfig) -> Result<(), String> {
+        if config.nickname.trim().is_empty() {
+            return Err("Teleoperation requires a robot nickname.".to_string());
+        }
+        if config.remote_ip.trim().is_empty() {
+            return Err("Teleoperation requires a robot host or IP address.".to_string());
+        }
+        if config.left_arm_port.trim().is_empty() {
+            return Err("Teleoperation requires a left arm port.".to_string());
+        }
+        if config.right_arm_port.trim().is_empty() {
+            return Err("Teleoperation requires a right arm port.".to_string());
+        }
+        if config.keyboard.trim().is_empty() {
+            return Err("Teleoperation requires a keyboard or input device.".to_string());
+        }
+        if config.fps <= 0 {
+            return Err("Teleoperation requires FPS greater than 0.".to_string());
+        }
+        Ok(())
     }
 
     fn build_envs() -> Result<HashMap<String, String>, String> {
@@ -317,5 +341,40 @@ impl RemoteTeleopService {
     fn teleop_log_path() -> Result<std::path::PathBuf, String> {
         let base_dir = DirectoryService::get_current_dir()?;
         Ok(base_dir.join("logs").join("teleop.log"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> RemoteTeleopConfig {
+        RemoteTeleopConfig {
+            nickname: "robot-1".to_string(),
+            remote_ip: "192.168.1.100".to_string(),
+            left_arm_port: "COM3".to_string(),
+            right_arm_port: "COM4".to_string(),
+            keyboard: "keyboard".to_string(),
+            fps: 30,
+        }
+    }
+
+    #[test]
+    fn validates_remote_teleop_start_config() {
+        assert!(RemoteTeleopService::validate_config(&valid_config()).is_ok());
+
+        let mut missing_host = valid_config();
+        missing_host.remote_ip = "   ".to_string();
+        assert_eq!(
+            RemoteTeleopService::validate_config(&missing_host),
+            Err("Teleoperation requires a robot host or IP address.".to_string())
+        );
+
+        let mut invalid_fps = valid_config();
+        invalid_fps.fps = 0;
+        assert_eq!(
+            RemoteTeleopService::validate_config(&invalid_fps),
+            Err("Teleoperation requires FPS greater than 0.".to_string())
+        );
     }
 }

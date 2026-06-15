@@ -55,6 +55,23 @@ export const setRemoteRobotState = (
     });
 };
 
+export const clearRemoteRobotState = (nickname: string | null) => {
+    const key = nickname ?? '';
+    queryClient.setQueryData(REMOTE_ROBOT_STATE_CONFIG_KEY(key), {
+        status: RemoteRobotStatus.NONE,
+        controlType: RemoteControlType.NONE,
+        controlledRobot: null,
+    });
+
+    const allStates: Record<string, any> = { ...getRemoteRobotsState() };
+    allStates[key] = {
+        status: RemoteRobotStatus.NONE,
+        controlType: RemoteControlType.NONE,
+        controlledRobot: null,
+    };
+    queryClient.setQueryData(ALL_REMOTE_ROBOT_STATE_CONFIG_KEY, allStates);
+};
+
 export const useGetRemoteRobotState = (nickname: string | null) =>
     useQuery({ queryKey: REMOTE_ROBOT_STATE_CONFIG_KEY(nickname ?? ''), queryFn: () => getRemoteRobotState(nickname) });
 
