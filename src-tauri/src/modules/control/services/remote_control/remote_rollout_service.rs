@@ -1,28 +1,27 @@
 use crate::modules::control::controllers::remote_control::remote_rollout_controller::RemoteRolloutConfig;
-use crate::modules::log::services::command_log_service::CommandLogService;
-use crate::services::directory::directory_service::DirectoryService;
+use crate::modules::control::services::remote_control::remote_command_utils::{
+    create_command_log, format_command_for_display, init_managed_processes, process_log_path,
+    resolve_uv_runtime, write_process_log, ManagedRemoteProcesses,
+};
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Emitter;
-use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
 const DEFAULT_ROLLOUT_FPS: i32 = 30;
 
-pub struct RemoteRolloutProcess(
-    Arc<Mutex<HashMap<String, (CommandChild, Arc<AtomicBool>, String)>>>,
-);
+pub struct RemoteRolloutProcess(ManagedRemoteProcesses);
 
 pub struct RemoteRolloutService;
 
 impl RemoteRolloutService {
     pub fn init_remote_rollout() -> RemoteRolloutProcess {
-        RemoteRolloutProcess(Arc::new(Mutex::new(HashMap::new())))
+        RemoteRolloutProcess(init_managed_processes())
     }
 
     pub async fn start_rollout(
@@ -37,88 +36,65 @@ impl RemoteRolloutService {
             let processes = state.0.lock().unwrap();
             if processes.contains_key(&config.nickname) {
                 drop(processes);
-                match Self::stop_rollout(
+                let _ = Self::stop_rollout(
                     &app_handle,
                     db_connection.clone(),
                     state,
                     config.nickname.clone(),
-                ) {
-                    Ok(_msg) => std::thread::sleep(std::time::Duration::from_millis(500)),
-                    Err(_e) => {}
-                }
+                );
+                std::thread::sleep(std::time::Duration::from_millis(500));
             }
         }
 
-        let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
-
-        if !lerobot_dir.exists() {
-            let message = format!("LeRobot directory not found at: {:?}", lerobot_dir);
+        let runtime = resolve_uv_runtime(&app_handle).map_err(|message| {
             Self::log_rollout_error(&message);
-            return Err(message);
-        }
-
-        if !python_path.exists() {
-            let message = format!("Python executable not found at: {:?}", python_path);
-            Self::log_rollout_error(&message);
-            return Err(message);
-        }
-
-        let lerobot_dir_str = lerobot_dir.to_string_lossy().to_string();
-        let python_path_str = python_path.to_string_lossy().to_string();
+            message
+        })?;
+        let executable = runtime.executable.clone();
+        let working_dir = runtime.working_dir.clone();
+        let envs = runtime.envs;
         let command_parts = Self::build_command_args(&config);
+        let command_display = format_command_for_display(&command_parts);
 
         let start_message = format!(
             "Starting rollout: nickname={}, remote_ip={}, model_path={}, duration={}, task={}",
             config.nickname, config.remote_ip, config.model_path, config.duration, config.task
         );
         Self::log_rollout_info(&start_message);
+        Self::log_rollout_info(&format!("Command: {}", command_display));
         Self::emit_rollout_info(&app_handle, &config.nickname, &start_message);
-
-        let envs = Self::build_envs()?;
 
         let cmd = app_handle
             .shell()
-            .command(python_path_str.clone())
-            .args(command_parts[1..].iter())
-            .current_dir(lerobot_dir_str.clone())
+            .command(executable)
+            .args(command_parts.iter())
+            .current_dir(working_dir.clone())
             .envs(envs);
 
         let (mut rx, child) = cmd.spawn().map_err(|e| {
             let message = format!(
-                "Failed to start rollout (shell): {}. Python: {}, Working dir: {}",
-                e, python_path_str, lerobot_dir_str
+                "Failed to start rollout (shell): {}. Command: {}. Working dir: {}",
+                e, command_display, working_dir
             );
             Self::log_rollout_error(&message);
             message
         })?;
 
         let shutdown_flag = Arc::new(AtomicBool::new(false));
-
-        let command_string = command_parts.join(" ");
-        let command_log_service = CommandLogService::new(db_connection.clone());
-        let command_log = match command_log_service
-            .add_robot_command_log(
-                &command_string,
-                Some("sourccey-rollout".to_string()),
-                Some(config.nickname.clone()),
-            )
-            .await
-        {
-            Ok(log) => log,
-            Err(e) => {
-                let message = format!("Failed to add command log: {}", e);
-                Self::log_rollout_error(&message);
-                return Err(message);
-            }
-        };
+        let command_log_id = create_command_log(
+            db_connection.clone(),
+            &command_display,
+            "sourccey-rollout",
+            &config.nickname,
+            "rollout",
+        )
+        .await?;
 
         let pid = child.pid();
-        let command_log_id = command_log.id.clone();
         let nickname_for_logs = config.nickname.clone();
         let app_handle_for_logs = app_handle.clone();
         let shutdown_for_logs = shutdown_flag.clone();
-        let rollout_log_path = Self::rollout_log_path()
+        let rollout_log_path = process_log_path("rollout")
             .ok()
             .map(|p| p.to_string_lossy().to_string());
 
@@ -231,7 +207,7 @@ impl RemoteRolloutService {
             }
 
             Ok(format!(
-                "Rollout stop command sent for nickname: {}",
+                "Rollout command stop sent for nickname: {}",
                 nickname
             ))
         } else {
@@ -246,11 +222,12 @@ impl RemoteRolloutService {
 
     fn build_command_args(config: &RemoteRolloutConfig) -> Vec<String> {
         vec![
-            "python".to_string(),
-            "src/lerobot/scripts/lerobot_rollout.py".to_string(),
+            "run".to_string(),
+            "lerobot-rollout".to_string(),
             "--strategy.type=base".to_string(),
             format!("--policy.path={}", config.model_path.trim()),
             "--robot.type=sourccey_client".to_string(),
+            "--robot.id=sourccey".to_string(),
             format!("--robot.remote_ip={}", config.remote_ip.trim()),
             format!("--task={}", config.task.trim()),
             "--display_data=true".to_string(),
@@ -278,47 +255,55 @@ impl RemoteRolloutService {
         Ok(())
     }
 
-    fn build_envs() -> Result<HashMap<String, String>, String> {
-        let mut envs: HashMap<String, String> = std::env::vars().collect();
-        let venv_path = DirectoryService::get_virtual_env_path()?;
-        envs.insert(
-            "VIRTUAL_ENV".to_string(),
-            venv_path.to_string_lossy().to_string(),
-        );
-
-        let venv_bin_path = DirectoryService::get_virtual_env_bin_path()?
-            .display()
-            .to_string();
-        let separator = if cfg!(windows) { ";" } else { ":" };
-        let base_path = std::env::var("PATH").unwrap_or_default();
-        envs.insert(
-            "PATH".to_string(),
-            format!("{}{}{}", venv_bin_path, separator, base_path),
-        );
-
-        envs.insert("DISPLAY".to_string(), ":0".to_string());
-        Ok(envs)
-    }
-
     fn log_rollout_error(message: &str) {
-        if let Ok(path) = Self::rollout_log_path() {
-            LogService::write_log_line(path.to_string_lossy().as_ref(), Some("rollout"), message);
-        }
+        write_process_log("rollout", message);
     }
 
     fn log_rollout_info(message: &str) {
-        if let Ok(path) = Self::rollout_log_path() {
-            LogService::write_log_line(path.to_string_lossy().as_ref(), Some("rollout"), message);
-        }
+        write_process_log("rollout", message);
     }
 
     fn emit_rollout_info(app_handle: &AppHandle, nickname: &str, message: &str) {
         let formatted = format!("[{}] {}", nickname, message);
         let _ = app_handle.emit("rollout-log", &formatted);
     }
+}
 
-    fn rollout_log_path() -> Result<std::path::PathBuf, String> {
-        let base_dir = DirectoryService::get_current_dir()?;
-        Ok(base_dir.join("logs").join("rollout.log"))
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> RemoteRolloutConfig {
+        RemoteRolloutConfig {
+            nickname: "robot-1".to_string(),
+            remote_ip: "192.168.1.100".to_string(),
+            model_path: "outputs/train/test/checkpoints/last/pretrained_model".to_string(),
+            task: "Fold the shirt".to_string(),
+            duration: 300.0,
+        }
+    }
+
+    #[test]
+    fn validates_remote_rollout_config() {
+        assert!(RemoteRolloutService::validate_config(&valid_config()).is_ok());
+
+        let mut invalid_duration = valid_config();
+        invalid_duration.duration = 0.0;
+        assert_eq!(
+            RemoteRolloutService::validate_config(&invalid_duration),
+            Err("Rollout duration must be greater than 0.".to_string())
+        );
+    }
+
+    #[test]
+    fn builds_uv_remote_rollout_command() {
+        let command_parts = RemoteRolloutService::build_command_args(&valid_config());
+        assert_eq!(command_parts[0], "run");
+        assert_eq!(command_parts[1], "lerobot-rollout");
+        assert!(
+            command_parts
+                .iter()
+                .any(|part| part == "--strategy.type=base")
+        );
     }
 }

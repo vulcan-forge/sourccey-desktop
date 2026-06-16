@@ -125,6 +125,14 @@ lazy_static! {
 }
 
 impl LocalSetupService {
+    pub fn resolve_uv_binary(app_handle: &AppHandle) -> Result<PathBuf, String> {
+        let app_data_dir = app_handle
+            .path()
+            .app_data_dir()
+            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+        Self::ensure_uv_binary(app_handle, &app_data_dir)
+    }
+
     const DEFAULT_LEROBOT_ZIP_URL: &str =
         "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
     const DEFAULT_LEROBOT_ZIP_SHA256_URL: &str =

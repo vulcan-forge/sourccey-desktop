@@ -60,9 +60,6 @@ use modules::control::controllers::kiosk_control::manual_drive_controller::{
 use modules::control::controllers::kiosk_control::pairing_controller::{
     get_kiosk_cloud_pairing_info, get_kiosk_cloud_pairing_status, init_kiosk_pairing,
 };
-use modules::control::controllers::local_control::teleop_controller::{
-    get_active_teleop_sessions, init_teleop, is_teleop_active, start_teleop, stop_teleop,
-};
 use modules::control::controllers::remote_control::remote_inference_controller::{
     init_remote_inference, start_remote_inference, stop_remote_inference,
 };
@@ -525,7 +522,6 @@ fn main() {
             }
         })
         // Initialize all services
-        .manage(init_teleop())
         .manage(init_remote_teleop())
         .manage(init_remote_record())
         .manage(init_remote_rollout())
@@ -584,11 +580,7 @@ fn main() {
             desktop_get_teleop_calibration_status,
             desktop_auto_calibrate_teleoperator,
 
-            // Teleoperation Functions
-            start_teleop,
-            stop_teleop,
-            is_teleop_active,
-            get_active_teleop_sessions,
+            // Remote Control Functions
             start_remote_teleop,
             stop_remote_teleop,
             start_remote_record,
