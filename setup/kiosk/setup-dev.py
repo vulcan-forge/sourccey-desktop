@@ -48,7 +48,7 @@ from setup_git import GitSetupManager  # type: ignore
 from components.setup_swap import setup_swap_for_build  # type: ignore
 
 LEROBOT_VULCAN_SUBMODULE_PATH = "modules/lerobot-vulcan"
-LEROBOT_VULCAN_TAG = "vulcan/0.1.4"
+LEROBOT_VULCAN_TAG = "vulcan/0.1.5"
 
 class Colors:
     """ANSI color codes for terminal output"""
