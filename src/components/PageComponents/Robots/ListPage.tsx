@@ -282,6 +282,8 @@ const RobotCard = ({ robot, onUnpair, isUnpairing }: RobotCardProps) => {
                         className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
                             !host
                                 ? 'border-slate-600 bg-slate-800 text-slate-300'
+                                : isDiscoveryLoading && !discoveryResult
+                                  ? 'border-slate-600 bg-slate-800 text-slate-200'
                                 : isOnline
                                   ? hostRunning
                                       ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
