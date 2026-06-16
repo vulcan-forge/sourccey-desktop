@@ -12,7 +12,7 @@ import { toast } from 'react-toastify';
 type DiscoverLanRobotsModalProps = {
     isOpen: boolean;
     onClose: () => void;
-    onSelectRobot: (robot: DiscoveredLanRobot) => void;
+    onSelectRobot: (robot: DiscoveredLanRobot) => Promise<void> | void;
 };
 
 type DiscoverState = {
@@ -32,6 +32,7 @@ const EMPTY_STATE: DiscoverState = {
 export const DiscoverLanRobotsModal = ({ isOpen, onClose, onSelectRobot }: DiscoverLanRobotsModalProps) => {
     const [state, setState] = useState<DiscoverState>(EMPTY_STATE);
     const [isDiscovering, setIsDiscovering] = useState(false);
+    const [pendingRobotIp, setPendingRobotIp] = useState<string | null>(null);
 
     const runDiscovery = async () => {
         setIsDiscovering(true);
@@ -56,6 +57,7 @@ export const DiscoverLanRobotsModal = ({ isOpen, onClose, onSelectRobot }: Disco
         if (!isOpen) {
             setState(EMPTY_STATE);
             setIsDiscovering(false);
+            setPendingRobotIp(null);
             return;
         }
 
@@ -139,10 +141,22 @@ export const DiscoverLanRobotsModal = ({ isOpen, onClose, onSelectRobot }: Disco
 
                             <button
                                 type="button"
-                                onClick={() => onSelectRobot(robot)}
-                                className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-gradient-to-r from-emerald-500 to-teal-500 px-4 py-2 text-sm font-semibold text-white transition hover:from-emerald-500/90 hover:to-teal-500/90"
+                                onClick={async () => {
+                                    setPendingRobotIp(robot.ipAddress);
+                                    try {
+                                        await onSelectRobot(robot);
+                                    } finally {
+                                        setPendingRobotIp((current) => (current === robot.ipAddress ? null : current));
+                                    }
+                                }}
+                                disabled={pendingRobotIp === robot.ipAddress}
+                                className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white transition ${
+                                    pendingRobotIp === robot.ipAddress
+                                        ? 'cursor-not-allowed bg-slate-600'
+                                        : 'cursor-pointer bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-500/90 hover:to-teal-500/90'
+                                }`}
                             >
-                                Use This Host
+                                {pendingRobotIp === robot.ipAddress ? 'Adding...' : 'Add Robot'}
                             </button>
                         </div>
                     ))}

@@ -97,6 +97,46 @@ impl CalibrationService {
         Ok(Some(since_epoch.as_millis() as u64))
     }
 
+    pub fn rename_nickname_references(old_nickname: &str, new_nickname: &str) -> Result<(), String> {
+        let old_name = Self::normalize_nickname(old_nickname);
+        let new_name = Self::normalize_nickname(new_nickname);
+        if old_name.is_empty() || old_name == new_name {
+            return Ok(());
+        }
+
+        let cache_dir = DirectoryService::get_lerobot_cache_dir()?;
+        let calibration_root = cache_dir.join("calibration");
+        if !calibration_root.exists() {
+            return Ok(());
+        }
+
+        let teleoperators_root = calibration_root.join("teleoperators");
+        if teleoperators_root.exists() {
+            for entry in fs::read_dir(&teleoperators_root).map_err(|e| e.to_string())? {
+                let entry = entry.map_err(|e| e.to_string())?;
+                let source = entry.path().join(format!("{}.json", old_name));
+                let target = entry.path().join(format!("{}.json", new_name));
+                if source.exists() && !target.exists() {
+                    fs::rename(&source, &target).map_err(|e| e.to_string())?;
+                }
+            }
+        }
+
+        let robots_root = calibration_root.join("robots");
+        if robots_root.exists() {
+            for entry in fs::read_dir(&robots_root).map_err(|e| e.to_string())? {
+                let entry = entry.map_err(|e| e.to_string())?;
+                let source = entry.path().join(format!("{}.json", old_name));
+                let target = entry.path().join(format!("{}.json", new_name));
+                if source.exists() && !target.exists() {
+                    fs::rename(&source, &target).map_err(|e| e.to_string())?;
+                }
+            }
+        }
+
+        Ok(())
+    }
+
     fn normalize_nickname(nickname: &str) -> String {
         nickname.trim().trim_start_matches('@').to_string()
     }

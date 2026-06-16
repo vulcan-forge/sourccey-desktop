@@ -2,11 +2,14 @@
 
 import { deleteOwnedRobot } from '@/api/Local/Robot/owned_robot';
 import { Spinner } from '@/components/Elements/Spinner';
+import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { BASE_OWNED_ROBOT_KEY, useGetOwnedRobots } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
+import { useLanRobotDiscovery } from '@/hooks/Robot/lan-discovery.hook';
 import { queryClient } from '@/hooks/default';
 import type { DiscoveredLanRobot } from '@/types/robots/lan-discovery';
 import { safeNavigate } from '@/utils/navigation';
 import { buildLanRobotDraftFromHost, type LanRobotDraft } from '@/utils/robots/lan-robot';
+import { saveLanRobotDraft } from '@/utils/robots/save-lan-robot';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
@@ -38,9 +41,21 @@ export const RobotListPage = () => {
         setIsAddLanRobotOpen(true);
     };
 
-    const handleUseDiscoveredRobot = (robot: DiscoveredLanRobot) => {
-        setIsDiscoverOpen(false);
-        openAddRobotModal(buildLanRobotDraftFromHost(robot.ipAddress, existingNicknames));
+    const handleUseDiscoveredRobot = async (robot: DiscoveredLanRobot) => {
+        const draft = buildLanRobotDraftFromHost(robot.ipAddress, existingNicknames);
+
+        try {
+            const ownedRobotId = await saveLanRobotDraft(draft);
+            await queryClient.invalidateQueries({ queryKey: [BASE_OWNED_ROBOT_KEY] });
+            toast.success(`Added ${draft.nickname} from ${robot.ipAddress}.`, {
+                ...toastSuccessDefaults,
+            });
+            setIsDiscoverOpen(false);
+            safeNavigate(router, `/desktop/robot?id=${ownedRobotId}`);
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to add LAN robot.';
+            toast.error(message, { ...toastErrorDefaults });
+        }
     };
 
     const handleUnpairRobot = async (robot: any) => {
@@ -196,13 +211,35 @@ type RobotCardProps = {
 const RobotCard = ({ robot, onUnpair, isUnpairing }: RobotCardProps) => {
     const [isMenuOpen, setIsMenuOpen] = useState(false);
     const router = useRouter();
+    const nickname = robot.nickname || '';
+    const displayTitle = nickname || robot.name || 'Robot';
+    const formattedRobotType =
+        robot.robotType && robot.robotType !== 'Unknown'
+            ? `${robot.robotType.charAt(0).toUpperCase()}${robot.robotType.slice(1)}`
+            : 'Sourccey';
+    const displayRobotType = formattedRobotType;
+    const { data: remoteConfig } = useGetRemoteConfig(nickname);
+    const { data: discoveryResult, isLoading: isDiscoveryLoading } = useLanRobotDiscovery(!!nickname);
+    const host = remoteConfig?.remote_ip?.trim() ?? '';
+    const discoveredHost = discoveryResult?.hosts.find((entry) => entry.ipAddress.trim() === host);
+    const isOnline = Boolean(discoveredHost);
+    const hostRunning = discoveredHost?.hostRunning ?? false;
+    const statusLabel = !host
+        ? 'IP not configured'
+        : isDiscoveryLoading && !discoveryResult
+          ? 'Checking LAN status...'
+          : isOnline
+            ? hostRunning
+                ? 'Online • Host running'
+                : 'Online • Host stopped'
+            : 'Offline';
 
     return (
         <div className="flex w-full flex-col gap-4 rounded-2xl border-2 border-slate-700 bg-slate-900 p-4 shadow-xl transition-colors">
             <div className="flex w-full gap-2">
                 <div className="flex flex-col items-start">
-                    <div className="text-lg font-semibold text-white">{robot.name || 'Robot'}</div>
-                    <div className="text-xs text-slate-400">{robot.nickname || 'unnamed'}</div>
+                    <div className="text-lg font-semibold text-white">{displayTitle}</div>
+                    <div className="text-xs font-medium uppercase tracking-[0.16em] text-slate-400">{displayRobotType}</div>
                 </div>
                 <div className="grow" />
                 <div className="relative">
@@ -236,7 +273,26 @@ const RobotCard = ({ robot, onUnpair, isUnpairing }: RobotCardProps) => {
                 </div>
             </div>
 
-            <div className="text-xs uppercase tracking-[0.16em] text-slate-500">{robot.robotType || 'Unknown'}</div>
+            <div className="flex flex-col gap-1">
+                <div className="font-mono text-sm font-semibold tracking-[0.12em] text-cyan-100">
+                    {host || 'IP not configured'}
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                    <div
+                        className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
+                            !host
+                                ? 'border-slate-600 bg-slate-800 text-slate-300'
+                                : isOnline
+                                  ? hostRunning
+                                      ? 'border-emerald-500/40 bg-emerald-500/10 text-emerald-100'
+                                      : 'border-amber-500/40 bg-amber-500/10 text-amber-100'
+                                  : 'border-rose-500/40 bg-rose-500/10 text-rose-100'
+                        }`}
+                    >
+                        {statusLabel}
+                    </div>
+                </div>
+            </div>
 
             <button
                 type="button"
