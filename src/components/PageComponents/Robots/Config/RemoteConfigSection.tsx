@@ -29,8 +29,8 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
     const [isSavingConfig, setIsSavingConfig] = useState(false);
     const [nicknameDraft, setNicknameDraft] = useState(nickname);
     const [isSavingNickname, setIsSavingNickname] = useState(false);
-    const [isIdentityOpen, setIsIdentityOpen] = useState(true);
-    const [isConnectionOpen, setIsConnectionOpen] = useState(true);
+    const [isIdentityOpen, setIsIdentityOpen] = useState(false);
+    const [isConnectionOpen, setIsConnectionOpen] = useState(false);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
     const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
     const currentHost = draftConfig?.remote_ip?.trim() ?? remoteConfig?.remote_ip?.trim() ?? '';

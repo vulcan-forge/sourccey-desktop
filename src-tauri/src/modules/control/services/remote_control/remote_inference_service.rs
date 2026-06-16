@@ -1,26 +1,25 @@
 use crate::modules::control::controllers::remote_control::remote_inference_controller::RemoteInferenceConfig;
-use crate::modules::log::services::command_log_service::CommandLogService;
-use crate::services::directory::directory_service::DirectoryService;
+use crate::modules::control::services::remote_control::remote_command_utils::{
+    create_command_log, format_command_for_display, init_managed_processes, process_log_path,
+    resolve_uv_runtime, write_process_log, ManagedRemoteProcesses,
+};
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
-use std::collections::HashMap;
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Emitter;
-use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
-pub struct RemoteInferenceProcess(
-    Arc<Mutex<HashMap<String, (CommandChild, Arc<AtomicBool>, String)>>>,
-);
+pub struct RemoteInferenceProcess(ManagedRemoteProcesses);
 
 pub struct RemoteInferenceService;
 
 impl RemoteInferenceService {
     pub fn init_remote_inference() -> RemoteInferenceProcess {
-        RemoteInferenceProcess(Arc::new(Mutex::new(HashMap::new())))
+        RemoteInferenceProcess(init_managed_processes())
     }
 
     pub async fn start_inference(
@@ -29,85 +28,78 @@ impl RemoteInferenceService {
         state: &RemoteInferenceProcess,
         config: RemoteInferenceConfig,
     ) -> Result<String, String> {
+        Self::validate_config(&config)?;
+
         {
             let processes = state.0.lock().unwrap();
             if processes.contains_key(&config.nickname) {
                 drop(processes);
-                println!(
-                    "Process already exists for nickname: {}, stopping it first...",
-                    config.nickname
-                );
-                match Self::stop_inference(
+                let _ = Self::stop_inference(
                     &app_handle,
                     db_connection.clone(),
                     state,
                     config.nickname.clone(),
-                ) {
-                    Ok(_msg) => {
-                        std::thread::sleep(std::time::Duration::from_millis(500));
-                    }
-                    Err(_e) => {}
-                }
+                );
+                std::thread::sleep(std::time::Duration::from_millis(500));
             }
         }
 
-        let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
-
-        if !lerobot_dir.exists() {
-            return Err(format!("LeRobot directory not found at: {:?}", lerobot_dir));
-        }
-
-        if !python_path.exists() {
-            return Err(format!("Python executable not found at: {:?}", python_path));
-        }
-
-        let lerobot_dir_str = lerobot_dir.to_string_lossy().to_string();
-        let python_path_str = python_path.to_string_lossy().to_string();
-
-        let robot_type = "sourccey".to_string();
+        let runtime = resolve_uv_runtime(&app_handle).map_err(|message| {
+            Self::log_inference_error(&message);
+            message
+        })?;
+        let executable = runtime.executable.clone();
+        let working_dir = runtime.working_dir.clone();
+        let envs = runtime.envs;
         let command_parts = Self::build_command_args(&config);
-        let envs = Self::build_envs()?;
+        let command_display = format_command_for_display(&command_parts);
+
+        let start_message = format!(
+            "Starting inference: nickname={}, remote_ip={}, model_path={}, task={}, fps={}, duration={:?}",
+            config.nickname,
+            config.remote_ip,
+            config.model_path,
+            config.single_task,
+            config.fps,
+            config.episode_time_s
+        );
+        Self::log_inference_info(&start_message);
+        Self::log_inference_info(&format!("Command: {}", command_display));
+        Self::emit_inference_info(&app_handle, &config.nickname, &start_message);
 
         let cmd = app_handle
             .shell()
-            .command(python_path_str.clone())
-            .args(command_parts[1..].iter())
-            .current_dir(lerobot_dir_str.clone())
+            .command(executable)
+            .args(command_parts.iter())
+            .current_dir(working_dir.clone())
             .envs(envs);
 
         let (mut rx, child) = cmd.spawn().map_err(|e| {
-            format!(
-                "Failed to start inference (shell): {}. Python: {}, Working dir: {}",
-                e, python_path_str, lerobot_dir_str
-            )
+            let message = format!(
+                "Failed to start inference (shell): {}. Command: {}. Working dir: {}",
+                e, command_display, working_dir
+            );
+            Self::log_inference_error(&message);
+            message
         })?;
 
         let shutdown_flag = Arc::new(AtomicBool::new(false));
-
-        let command_string = command_parts.join(" ");
-        let command_log_service = CommandLogService::new(db_connection.clone());
-        let command_log = match command_log_service
-            .add_robot_command_log(
-                &command_string,
-                Some(robot_type),
-                Some(config.nickname.clone()),
-            )
-            .await
-        {
-            Ok(log) => log,
-            Err(e) => {
-                eprintln!("Failed to add command log: {}", e);
-                return Err(format!("Failed to add command log: {}", e));
-            }
-        };
+        let command_log_id = create_command_log(
+            db_connection.clone(),
+            &command_display,
+            "sourccey-inference",
+            &config.nickname,
+            "inference",
+        )
+        .await?;
 
         let pid = child.pid();
-        let command_log_id = command_log.id.clone();
-
         let nickname_for_logs = config.nickname.clone();
         let app_handle_for_logs = app_handle.clone();
         let shutdown_for_logs = shutdown_flag.clone();
+        let inference_log_path = process_log_path("inference")
+            .ok()
+            .map(|p| p.to_string_lossy().to_string());
 
         tauri::async_runtime::spawn(async move {
             while let Some(event) = rx.recv().await {
@@ -122,6 +114,9 @@ impl RemoteInferenceService {
                         if !line.is_empty() {
                             let formatted = format!("[{}] {}", nickname_for_logs, line);
                             let _ = app_handle_for_logs.emit("inference-log", &formatted);
+                            if let Some(path) = &inference_log_path {
+                                LogService::write_log_line(path, Some("inference"), line);
+                            }
                         }
                     }
                     CommandEvent::Stderr(line_bytes) => {
@@ -130,6 +125,9 @@ impl RemoteInferenceService {
                         if !line.is_empty() {
                             let formatted = format!("[{}] {}", nickname_for_logs, line);
                             let _ = app_handle_for_logs.emit("inference-log", &formatted);
+                            if let Some(path) = &inference_log_path {
+                                LogService::write_log_line(path, Some("inference"), line);
+                            }
                         }
                     }
                     CommandEvent::Error(err) => {
@@ -138,6 +136,9 @@ impl RemoteInferenceService {
                             "inference-log",
                             &format!("[{}] {}", nickname_for_logs, message),
                         );
+                        if let Some(path) = &inference_log_path {
+                            LogService::write_log_line(path, Some("inference"), &message);
+                        }
                     }
                     CommandEvent::Terminated(payload) => {
                         let message = format!(
@@ -148,6 +149,9 @@ impl RemoteInferenceService {
                             "inference-log",
                             &format!("[{}] {}", nickname_for_logs, message),
                         );
+                        if let Some(path) = &inference_log_path {
+                            LogService::write_log_line(path, Some("inference"), &message);
+                        }
                         break;
                     }
                     _ => {}
@@ -177,7 +181,7 @@ impl RemoteInferenceService {
         );
 
         Ok(format!(
-            "Inference script started successfully for nickname: {}",
+            "Inference command started successfully for nickname: {}",
             config.nickname
         ))
     }
@@ -202,28 +206,29 @@ impl RemoteInferenceService {
 
             if let Err(err) = child.kill() {
                 let message = format!("Failed to kill inference process: {}", err);
-                LogService::write_log_line("inference.log", Some("inference"), &message);
+                Self::log_inference_error(&message);
             }
 
             Ok(format!(
-                "Inference script stop command sent for nickname: {}",
+                "Inference command stop sent for nickname: {}",
                 nickname
             ))
         } else {
-            Err(format!(
-                "No inference process found for nickname: {}",
+            let message = format!(
+                "Inference process not found. Stop command sent for nickname: {}",
                 nickname
-            ))
+            );
+            Self::log_inference_error(&message);
+            Ok(message)
         }
     }
 
     fn build_command_args(config: &RemoteInferenceConfig) -> Vec<String> {
-        let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/control/sourccey/sourccey/inference.py".to_string());
-        command_parts.push(format!("--id={}", config.nickname));
-        command_parts.push(format!("--remote_ip={}", config.remote_ip));
-        command_parts.push(format!("--model_path={}", config.model_path));
-        command_parts.push(format!("--single_task={}", config.single_task));
+        let mut command_parts = vec!["run".to_string(), "lerobot-inference".to_string()];
+        command_parts.push(format!("--id={}", config.nickname.trim()));
+        command_parts.push(format!("--remote_ip={}", config.remote_ip.trim()));
+        command_parts.push(format!("--model_path={}", config.model_path.trim()));
+        command_parts.push(format!("--single_task={}", config.single_task.trim()));
         command_parts.push(format!("--fps={}", config.fps));
         if let Some(episode_time_s) = config.episode_time_s {
             command_parts.push(format!("--episode_time_s={}", episode_time_s));
@@ -232,11 +237,11 @@ impl RemoteInferenceService {
         command_parts.push(format!("--display_data={}", config.display_data));
 
         if let Some(display_ip) = &config.display_ip {
-            if !display_ip.is_empty() {
-                command_parts.push(format!("--display_ip={}", display_ip));
+            if !display_ip.trim().is_empty() {
+                command_parts.push(format!("--display_ip={}", display_ip.trim()));
             }
         }
-        if let Some(display_port) = &config.display_port {
+        if let Some(display_port) = config.display_port {
             command_parts.push(format!("--display_port={}", display_port));
         }
         if config.display_compressed_images {
@@ -246,25 +251,89 @@ impl RemoteInferenceService {
         command_parts
     }
 
-    fn build_envs() -> Result<HashMap<String, String>, String> {
-        let mut envs: HashMap<String, String> = std::env::vars().collect();
-        let venv_path = DirectoryService::get_virtual_env_path()?;
-        envs.insert(
-            "VIRTUAL_ENV".to_string(),
-            venv_path.to_string_lossy().to_string(),
-        );
+    fn validate_config(config: &RemoteInferenceConfig) -> Result<(), String> {
+        if config.nickname.trim().is_empty() {
+            return Err("Inference requires a robot nickname.".to_string());
+        }
+        if config.remote_ip.trim().is_empty() {
+            return Err("Inference requires a robot host or IP address.".to_string());
+        }
+        if config.model_path.trim().is_empty() {
+            return Err("Inference requires a model path.".to_string());
+        }
+        if config.single_task.trim().is_empty() {
+            return Err("Inference requires a task description.".to_string());
+        }
+        if config.fps <= 0 {
+            return Err("Inference requires FPS greater than 0.".to_string());
+        }
+        if let Some(episode_time_s) = config.episode_time_s {
+            if episode_time_s <= 0.0 {
+                return Err("Inference duration must be greater than 0 when provided.".to_string());
+            }
+        }
+        if let Some(display_port) = config.display_port {
+            if display_port <= 0 {
+                return Err("Inference display port must be greater than 0 when provided.".to_string());
+            }
+        }
+        Ok(())
+    }
 
-        let venv_bin_path = DirectoryService::get_virtual_env_bin_path()?
-            .display()
-            .to_string();
-        let separator = if cfg!(windows) { ";" } else { ":" };
-        let base_path = std::env::var("PATH").unwrap_or_default();
-        envs.insert(
-            "PATH".to_string(),
-            format!("{}{}{}", venv_bin_path, separator, base_path),
-        );
+    fn log_inference_error(message: &str) {
+        write_process_log("inference", message);
+    }
 
-        envs.insert("DISPLAY".to_string(), ":0".to_string());
-        Ok(envs)
+    fn log_inference_info(message: &str) {
+        write_process_log("inference", message);
+    }
+
+    fn emit_inference_info(app_handle: &AppHandle, nickname: &str, message: &str) {
+        let formatted = format!("[{}] {}", nickname, message);
+        let _ = app_handle.emit("inference-log", &formatted);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn valid_config() -> RemoteInferenceConfig {
+        RemoteInferenceConfig {
+            nickname: "robot-1".to_string(),
+            remote_ip: "192.168.1.100".to_string(),
+            model_path: "outputs/train/test/checkpoints/last/pretrained_model".to_string(),
+            single_task: "Fold the shirt".to_string(),
+            fps: 30,
+            episode_time_s: Some(60.0),
+            display_data: true,
+            display_ip: None,
+            display_port: None,
+            display_compressed_images: false,
+        }
+    }
+
+    #[test]
+    fn validates_remote_inference_config() {
+        assert!(RemoteInferenceService::validate_config(&valid_config()).is_ok());
+
+        let mut invalid_fps = valid_config();
+        invalid_fps.fps = 0;
+        assert_eq!(
+            RemoteInferenceService::validate_config(&invalid_fps),
+            Err("Inference requires FPS greater than 0.".to_string())
+        );
+    }
+
+    #[test]
+    fn builds_uv_remote_inference_command() {
+        let command_parts = RemoteInferenceService::build_command_args(&valid_config());
+        assert_eq!(command_parts[0], "run");
+        assert_eq!(command_parts[1], "lerobot-inference");
+        assert!(
+            command_parts
+                .iter()
+                .any(|part| part == "--display_data=true")
+        );
     }
 }

@@ -2,6 +2,12 @@ export const extractScriptName = (command: string): string => {
     // Split by whitespace to get individual arguments
     const parts = command.split(/\s+/);
 
+    // Prefer the modern CLI entrypoint when present.
+    const cliCommand = parts.find((part) => part.startsWith('lerobot-'));
+    if (cliCommand) {
+        return cliCommand;
+    }
+
     // Find the part that ends with .py
     const pyFile = parts.find((part) => part.endsWith('.py'));
 

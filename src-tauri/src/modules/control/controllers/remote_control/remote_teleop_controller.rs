@@ -1,7 +1,6 @@
 use crate::modules::control::services::remote_control::remote_teleop_service::{
     RemoteTeleopProcess, RemoteTeleopService,
 };
-use crate::services::camera::camera_service::CameraConfig;
 use serde::{Deserialize, Serialize};
 use tauri::command;
 use tauri::{AppHandle, Manager, State};
