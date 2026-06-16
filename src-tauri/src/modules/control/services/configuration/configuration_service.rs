@@ -232,4 +232,32 @@ impl ConfigurationService {
             fps: 30,
         }
     }
+
+    pub fn rename_robot_cache_dir(old_nickname: &str, new_nickname: &str) -> Result<(), String> {
+        let old_remote_config_path = DirectoryService::get_remote_config_path(old_nickname)?;
+        let new_remote_config_path = DirectoryService::get_remote_config_path(new_nickname)?;
+        let old_robot_dir = old_remote_config_path
+            .parent()
+            .ok_or("Failed to resolve old robot cache directory".to_string())?
+            .to_path_buf();
+        let new_robot_dir = new_remote_config_path
+            .parent()
+            .ok_or("Failed to resolve new robot cache directory".to_string())?
+            .to_path_buf();
+
+        if !old_robot_dir.exists() || old_robot_dir == new_robot_dir {
+            return Ok(());
+        }
+        if new_robot_dir.exists() {
+            return Err(format!(
+                "Cannot rename robot cache from '{}' to '{}': destination already exists",
+                old_nickname, new_nickname
+            ));
+        }
+
+        if let Some(parent) = new_robot_dir.parent() {
+            fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+        }
+        fs::rename(old_robot_dir, new_robot_dir).map_err(|e| e.to_string())
+    }
 }

@@ -29,7 +29,7 @@ use modules::log::controllers::command_log_controller::{
 };
 use modules::robot::controllers::owned_robot_controller::{
     add_owned_robot, delete_owned_robot, get_owned_robot_by_id, get_owned_robot_by_nickname,
-    get_owned_robots,
+    get_owned_robots, update_owned_robot_nickname,
 };
 use modules::robot::controllers::discovery_controller::discover_lan_robots;
 use modules::robot::controllers::robot_controller::{
@@ -559,6 +559,7 @@ fn main() {
             get_owned_robot_by_nickname,
             get_owned_robots,
             add_owned_robot,
+            update_owned_robot_nickname,
             delete_owned_robot,
 
             //----------------------------------------------------------//

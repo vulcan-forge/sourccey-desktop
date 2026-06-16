@@ -35,6 +35,15 @@ export const addOwnedRobot = async (robot_id: string, nickname: string) => {
     return result;
 };
 
+export const updateOwnedRobotNickname = async (id: string, nickname: string) => {
+    const request = {
+        id,
+        nickname,
+    };
+    const result = await invoke('update_owned_robot_nickname', { request });
+    return result;
+};
+
 //-------------------------------------------------//
 // DELETE Robot Functions
 //-------------------------------------------------//

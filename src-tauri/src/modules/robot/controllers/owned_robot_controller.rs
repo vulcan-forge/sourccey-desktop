@@ -13,6 +13,12 @@ pub struct AddOwnedRobotRequest {
     pub nickname: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct UpdateOwnedRobotNicknameRequest {
+    pub id: String,
+    pub nickname: String,
+}
+
 //----------------------------------------------------------//
 // GET Robot Functions
 //----------------------------------------------------------//
@@ -92,6 +98,22 @@ pub async fn add_owned_robot(
         .add_owned_robot(active_owned_robot)
         .await
         .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn update_owned_robot_nickname(
+    app_handle: AppHandle,
+    request: UpdateOwnedRobotNicknameRequest,
+) -> Result<OwnedRobot, String> {
+    let db_manager = match app_handle.try_state::<crate::database::connection::DatabaseManager>() {
+        Some(manager) => manager,
+        None => return Err("Database not initialized".to_string()),
+    };
+
+    let owned_robot_service = OwnedRobotService::new(db_manager.get_connection().clone());
+    owned_robot_service
+        .update_owned_robot_nickname(request.id, request.nickname)
+        .await
 }
 
 //----------------------------------------------------------//

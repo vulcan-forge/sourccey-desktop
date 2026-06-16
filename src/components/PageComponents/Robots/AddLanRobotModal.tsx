@@ -1,15 +1,12 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
 import { GeneralModal } from '@/components/Elements/Modals/GeneralModal';
 import { Spinner } from '@/components/Elements/Spinner';
-import { addOwnedRobot, deleteOwnedRobot } from '@/api/Local/Robot/owned_robot';
-import { upsertRobotTemplate } from '@/api/Local/Robot/robot';
-import { setRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getLanRobotValidationErrors, normalizeLanRobotDraft, type LanRobotDraft } from '@/utils/robots/lan-robot';
+import { saveLanRobotDraft } from '@/utils/robots/save-lan-robot';
 
 type AddLanRobotModalProps = {
     existingNicknames: string[];
@@ -63,34 +60,13 @@ export const AddLanRobotModal = ({ existingNicknames, initialDraft, isOpen, onCl
         const normalized = normalizeLanRobotDraft(draft);
 
         try {
-            const robotTemplate = await upsertRobotTemplate('sourccey', 'Sourccey');
-            const ownedRobot = (await addOwnedRobot(robotTemplate.id, normalized.nickname)) as { id: string };
-
-            try {
-                const remoteConfig = {
-                    remote_ip: normalized.host,
-                    remote_port: '22',
-                    left_arm_port: normalized.leftArmPort,
-                    right_arm_port: normalized.rightArmPort,
-                    keyboard: 'keyboard',
-                    fps: 30,
-                };
-
-                await invoke('write_remote_config', {
-                    nickname: normalized.nickname,
-                    config: remoteConfig,
-                });
-                setRemoteConfig(normalized.nickname, remoteConfig);
-            } catch (configError) {
-                await deleteOwnedRobot(ownedRobot.id);
-                throw configError;
-            }
+            const ownedRobotId = await saveLanRobotDraft(normalized);
 
             toast.success('LAN robot added. You can teleoperate it from this desktop now.', {
                 ...toastSuccessDefaults,
             });
             onClose();
-            onSuccess(ownedRobot.id);
+            onSuccess(ownedRobotId);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to add LAN robot.';
             toast.error(message, { ...toastErrorDefaults });

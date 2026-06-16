@@ -5,6 +5,8 @@ use crate::modules::robot::models::owned_robot::{
     OwnedRobotWithRelations,
 };
 use crate::modules::robot::models::robot::Entity as RobotEntity;
+use crate::modules::control::services::configuration::configuration_service::ConfigurationService;
+use crate::modules::control::services::configuration::calibration_service::CalibrationService;
 use sea_orm::*;
 
 pub struct OwnedRobotService {
@@ -89,6 +91,34 @@ impl OwnedRobotService {
         owned_robot: ActiveOwnedRobot,
     ) -> Result<OwnedRobot, DbErr> {
         owned_robot.insert(&self.connection).await
+    }
+
+    pub async fn update_owned_robot_nickname(
+        &self,
+        id: String,
+        nickname: String,
+    ) -> Result<OwnedRobot, String> {
+        let owned_robot = OwnedRobotEntity::find_by_id(id.clone())
+            .one(&self.connection)
+            .await
+            .map_err(|e| e.to_string())?
+            .ok_or_else(|| format!("Owned robot not found for id {}", id))?;
+
+        let old_nickname = owned_robot.nickname.clone().unwrap_or_default();
+        let trimmed_nickname = nickname.trim().to_string();
+        if trimmed_nickname.is_empty() {
+            return Err("Nickname cannot be empty".to_string());
+        }
+
+        if !old_nickname.is_empty() && old_nickname != trimmed_nickname {
+            ConfigurationService::rename_robot_cache_dir(&old_nickname, &trimmed_nickname)?;
+            CalibrationService::rename_nickname_references(&old_nickname, &trimmed_nickname)?;
+        }
+
+        let mut active_model: ActiveOwnedRobot = owned_robot.into();
+        active_model.nickname = Set(Some(trimmed_nickname));
+        active_model.updated_at = Set(Some(chrono::Utc::now()));
+        active_model.update(&self.connection).await.map_err(|e| e.to_string())
     }
 
     //----------------------------------------------------------//
