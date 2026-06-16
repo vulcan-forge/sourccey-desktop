@@ -7,7 +7,6 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::services::directory::directory_service::DirectoryService;
-use crate::services::environment::env_service::EnvService;
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct BatteryData {
