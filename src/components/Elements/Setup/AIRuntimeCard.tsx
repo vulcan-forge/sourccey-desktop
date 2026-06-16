@@ -6,7 +6,12 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import { useDesktopExtrasStatus, useGetLerobotVulcanDir, useInstallDesktopExtras } from '@/hooks/System/setup-desktop-extras.hook';
+import {
+    formatSetupInvokeError,
+    useDesktopExtrasStatus,
+    useGetLerobotVulcanDir,
+    useInstallDesktopExtras,
+} from '@/hooks/System/setup-desktop-extras.hook';
 import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
@@ -21,7 +26,7 @@ type AIRuntimeCardProps = {
 };
 
 const DEFAULT_TITLE = 'AI Runtime';
-const DEFAULT_DESCRIPTION = 'Install or repair the AI runtime modules needed to download and run models locally.';
+const DEFAULT_DESCRIPTION = 'Install or repair the Sourccey runtime packages needed to download and run models locally.';
 
 export const AIRuntimeCard = ({
     title = DEFAULT_TITLE,
@@ -43,13 +48,18 @@ export const AIRuntimeCard = ({
     const installed = data?.installed ?? false;
     const missing = data?.missing ?? [];
     const baseRuntimeMissing = missing.some((item) => item.includes('modules/lerobot-vulcan') || item.includes('.venv'));
-    const isRuntimeActionDisabled = isPending || baseRuntimeMissing || isBaseLoading;
+    const isRuntimeActionDisabled = isPending || isBaseLoading;
 
     const orderedSteps = useMemo(
         () => [
-            { id: 'check', label: 'Verify base runtime' },
+            { id: 'check', label: 'Verify runtime' },
+            { id: 'download', label: 'Download runtime' },
+            { id: 'verify', label: 'Verify archive' },
+            { id: 'extract', label: 'Extract modules' },
             { id: 'uv', label: 'Prepare uv runtime' },
-            { id: 'deps', label: 'Install desktop extras' },
+            { id: 'venv', label: 'Create environment' },
+            { id: 'deps', label: 'Install Sourccey packages' },
+            { id: 'protobuf', label: 'Compile protobuf' },
             { id: 'xvla', label: 'Verify XVLA bindings' },
             { id: 'complete', label: 'Finalize' },
         ],
@@ -72,6 +82,7 @@ export const AIRuntimeCard = ({
 
     useEffect(() => {
         let unlisten: UnlistenFn | undefined;
+        let unlistenBase: UnlistenFn | undefined;
         let cancelled = false;
         const startListener = async () => {
             unlisten = await listen<{ step: string; status: string; message?: string | null }>('setup:desktop-extras-progress', (event) => {
@@ -79,8 +90,16 @@ export const AIRuntimeCard = ({
                 const mapped = status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
                 updateStep(step, mapped, message ?? undefined);
             });
+            unlistenBase = await listen<{ step: string; status: string; message?: string | null }>('setup:progress', (event) => {
+                const { step, status, message } = event.payload;
+                const mapped = status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
+                updateStep(step, mapped, message ?? undefined);
+            });
             if (cancelled && unlisten) {
                 unlisten();
+            }
+            if (cancelled && unlistenBase) {
+                unlistenBase();
             }
         };
 
@@ -89,6 +108,9 @@ export const AIRuntimeCard = ({
             cancelled = true;
             if (unlisten) {
                 unlisten();
+            }
+            if (unlistenBase) {
+                unlistenBase();
             }
         };
     }, [updateStep]);
@@ -119,13 +141,16 @@ export const AIRuntimeCard = ({
 
     const handleInstall = async () => {
         setLog([]);
-        setStepState({ check: baseInstalled && !baseRuntimeMissing ? 'success' : 'pending' });
+        setBaseError('');
+        setStepState(baseInstalled && !baseRuntimeMissing ? { check: 'success' } : {});
         try {
             await installExtras();
             await refetch();
             toast.success('AI runtime modules installed.', { ...toastSuccessDefaults });
-        } catch (error: any) {
-            const message = error?.message || 'Failed to install AI runtime modules.';
+        } catch (error) {
+            const message = formatSetupInvokeError(error) || 'Failed to install AI runtime modules.';
+            setBaseError(message);
+            appendLog(message);
             toast.error(message, { ...toastErrorDefaults });
         }
     };
@@ -158,10 +183,10 @@ export const AIRuntimeCard = ({
                 )}
                 {!isBaseLoading && !baseInstalled && (
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                        Clean re-run the base setup to access the AI runtime.
+                        Base runtime is missing. Installing AI modules will bootstrap the Sourccey runtime first, then add the desktop AI package.
                     </div>
                 )}
-                {(isBaseLoading || baseInstalled) && (
+                {!isBaseLoading && (
                     <>
                         <div className="flex flex-wrap items-center gap-3">
                             <button
@@ -203,7 +228,7 @@ export const AIRuntimeCard = ({
                         )}
                         {baseRuntimeMissing && (
                             <div className="flex flex-wrap items-center gap-2 text-xs text-amber-200/90">
-                                <span>Default runtime is missing. Install the base venv from Settings.</span>
+                                <span>Default runtime is missing. Installing AI modules will set up the Sourccey runtime first.</span>
                                 {showSettingsLink && (
                                     <LinkButton
                                         href="/desktop/settings"
@@ -217,7 +242,7 @@ export const AIRuntimeCard = ({
                         {isPending && (
                             <>
                                 <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-[11px] text-slate-400">
-                                    Installing desktop extras. This can take a few minutes.
+                                    Installing Sourccey AI modules. This can take a few minutes.
                                 </div>
                                 <div className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 text-xs text-slate-300 shadow-inner">
                                     <div className="mb-2 text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">

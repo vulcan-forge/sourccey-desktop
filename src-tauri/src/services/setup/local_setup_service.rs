@@ -2,6 +2,7 @@ use lazy_static::lazy_static;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
+use std::ffi::OsString;
 use std::fs;
 use std::io::{self, Read};
 use std::path::{Path, PathBuf};
@@ -125,6 +126,9 @@ lazy_static! {
 }
 
 impl LocalSetupService {
+    const SOURCCEY_RUNTIME_EXTRA: &str = "sourccey";
+    const SOURCCEY_DESKTOP_EXTRA: &str = "sourccey-desktop";
+
     pub fn resolve_uv_binary(app_handle: &AppHandle) -> Result<PathBuf, String> {
         let app_data_dir = app_handle
             .path()
@@ -247,7 +251,11 @@ impl LocalSetupService {
                 return Ok(());
             }
             if status.installed && force {
-                return Self::reinstall_dependencies(app_handle, Some(&emit));
+                let result = Self::reinstall_dependencies(app_handle, Some(&emit));
+                if let Err(error) = &result {
+                    Self::write_setup_log(app_handle, error);
+                }
+                return result;
             }
         }
         if let Err(error) = Self::ensure_installed(app_handle, Some(&emit), false) {
@@ -358,100 +366,103 @@ impl LocalSetupService {
         let emit = |progress: SetupProgress| {
             let _ = app_handle.emit("setup:desktop-extras-progress", progress);
         };
-        let app_data_dir = app_handle
-            .path()
-            .app_data_dir()
-            .map_err(|e| format!("Failed to get app data directory: {}", e))?;
+        let result = (|| {
+            let app_data_dir = app_handle
+                .path()
+                .app_data_dir()
+                .map_err(|e| format!("Failed to get app data directory: {}", e))?;
 
-        let setup_dir = app_data_dir.join("setup");
-        let marker_path = Self::desktop_extras_marker_path(&setup_dir);
-        let lerobot_dir = if BuildService::is_dev_mode() {
-            DirectoryService::get_current_dir_dev()?
-                .join("modules")
-                .join("lerobot-vulcan")
-        } else {
-            app_data_dir.join("modules").join("lerobot-vulcan")
-        };
-        let python_path = Self::python_path_for(&lerobot_dir);
+            let setup_dir = app_data_dir.join("setup");
+            let marker_path = Self::desktop_extras_marker_path(&setup_dir);
+            let lerobot_dir = if BuildService::is_dev_mode() {
+                DirectoryService::get_current_dir_dev()?
+                    .join("modules")
+                    .join("lerobot-vulcan")
+            } else {
+                app_data_dir.join("modules").join("lerobot-vulcan")
+            };
+            let python_path = Self::python_path_for(&lerobot_dir);
 
-        if !lerobot_dir.exists() {
-            Self::emit_step(
-                Some(&emit),
-                "check",
-                "error",
-                Some("lerobot-vulcan not found. Run the initial setup first.".to_string()),
-            );
-            return Err("lerobot-vulcan not found. Run the initial setup first.".to_string());
-        }
-        if !python_path.exists() {
-            Self::emit_step(
-                Some(&emit),
-                "check",
-                "error",
-                Some(
+            if !lerobot_dir.exists() {
+                let message = "lerobot-vulcan not found. Run the initial setup first.".to_string();
+                Self::emit_step(Some(&emit), "check", "error", Some(message.clone()));
+                return Err(message);
+            }
+            if !python_path.exists() {
+                let message =
                     "lerobot-vulcan virtual environment not found. Run the initial setup first."
-                        .to_string(),
-                ),
+                        .to_string();
+                Self::emit_step(Some(&emit), "check", "error", Some(message.clone()));
+                return Err(message);
+            }
+
+            fs::create_dir_all(&setup_dir)
+                .map_err(|e| format!("Failed to create setup directory: {}", e))?;
+
+            Self::emit_step(
+                Some(&emit),
+                "uv",
+                "started",
+                Some("Preparing uv runtime".to_string()),
             );
-            return Err(
-                "lerobot-vulcan virtual environment not found. Run the initial setup first."
-                    .to_string(),
+            let uv_target = Self::ensure_uv_binary(app_handle, &app_data_dir).map_err(|e| {
+                Self::emit_step(Some(&emit), "uv", "error", Some(e.clone()));
+                e
+            })?;
+            Self::emit_step(Some(&emit), "uv", "success", None);
+
+            Self::emit_step(
+                Some(&emit),
+                "deps",
+                "started",
+                Some("Installing Sourccey desktop AI modules".to_string()),
             );
-        }
+            Self::install_lerobot_extra(
+                &uv_target,
+                &lerobot_dir,
+                Self::SOURCCEY_DESKTOP_EXTRA,
+            )
+            .map_err(|e| {
+                Self::emit_step(Some(&emit), "deps", "error", Some(e.clone()));
+                e
+            })?;
+            Self::emit_step(Some(&emit), "deps", "success", None);
 
-        fs::create_dir_all(&setup_dir)
-            .map_err(|e| format!("Failed to create setup directory: {}", e))?;
-
-        Self::emit_step(
-            Some(&emit),
-            "uv",
-            "started",
-            Some("Preparing uv runtime".to_string()),
-        );
-        let uv_target = Self::ensure_uv_binary(app_handle, &app_data_dir)?;
-        Self::emit_step(Some(&emit), "uv", "success", None);
-
-        Self::emit_step(
-            Some(&emit),
-            "deps",
-            "started",
-            Some("Installing Sourccey desktop extras".to_string()),
-        );
-        Self::run_command(
-            &uv_target,
-            &["pip", "install", "-e", ".[sourccey-desktop,xvla]"],
-            &lerobot_dir,
-            "uv pip install sourccey-desktop",
-        )?;
-        Self::emit_step(Some(&emit), "deps", "success", None);
-
-        Self::emit_step(
-            Some(&emit),
-            "xvla",
-            "started",
-            Some("Verifying XVLA bindings".to_string()),
-        );
-        if !Self::python_can_import(&python_path, "transformers") {
             Self::emit_step(
                 Some(&emit),
                 "xvla",
-                "error",
-                Some("XVLA bindings missing (transformers import failed)".to_string()),
+                "started",
+                Some("Verifying XVLA bindings".to_string()),
             );
-            return Err("XVLA bindings missing. Ensure xvla extras are installed.".to_string());
+            if !Self::python_can_import(&python_path, "transformers") {
+                let message = "XVLA bindings missing. Ensure xvla extras are installed.".to_string();
+                Self::emit_step(
+                    Some(&emit),
+                    "xvla",
+                    "error",
+                    Some("XVLA bindings missing (transformers import failed)".to_string()),
+                );
+                return Err(message);
+            }
+            Self::emit_step(Some(&emit), "xvla", "success", None);
+
+            fs::write(&marker_path, "ok")
+                .map_err(|e| format!("Failed to write desktop extras marker: {}", e))?;
+
+            Self::emit_step(
+                Some(&emit),
+                "complete",
+                "success",
+                Some("Desktop AI modules installed".to_string()),
+            );
+            Ok(())
+        })();
+
+        if let Err(error) = &result {
+            Self::write_setup_log(app_handle, error);
         }
-        Self::emit_step(Some(&emit), "xvla", "success", None);
 
-        fs::write(&marker_path, "ok")
-            .map_err(|e| format!("Failed to write desktop extras marker: {}", e))?;
-
-        Self::emit_step(
-            Some(&emit),
-            "complete",
-            "success",
-            Some("Desktop extras installed".to_string()),
-        );
-        Ok(())
+        result
     }
 
     fn ensure_installed(
@@ -623,43 +634,17 @@ impl LocalSetupService {
             emit,
             "deps",
             "started",
-            Some("Installing dependencies".to_string()),
+            Some("Installing Sourccey robot runtime".to_string()),
         );
-        if let Err(err) = Self::run_command(
+        Self::install_lerobot_extra(
             &uv_target,
-            &["pip", "install", "-e", ".[sourccey]"],
             &lerobot_dir,
-            "uv pip install",
-        ) {
-            let lower = err.to_lowercase();
-            let is_macos_or_windows = cfg!(target_os = "macos") || cfg!(target_os = "windows");
-            if is_macos_or_windows
-                && (lower.contains("vosk") || lower.contains("no solution found"))
-            {
-                Self::emit_step(
-                    emit,
-                    "deps",
-                    "started",
-                    Some(
-                        "vosk not available on this platform; installing core dependencies"
-                            .to_string(),
-                    ),
-                );
-                Self::run_command(
-                    &uv_target,
-                    &["pip", "install", "-e", "."],
-                    &lerobot_dir,
-                    "uv pip install (core)",
-                )
-                .map_err(|e| {
-                    Self::emit_step(emit, "deps", "error", Some(e.clone()));
-                    e
-                })?;
-            } else {
-                Self::emit_step(emit, "deps", "error", Some(err.clone()));
-                return Err(err);
-            }
-        }
+            Self::SOURCCEY_RUNTIME_EXTRA,
+        )
+        .map_err(|e| {
+            Self::emit_step(emit, "deps", "error", Some(e.clone()));
+            e
+        })?;
         Self::emit_step(emit, "deps", "success", None);
 
         let compile_script = lerobot_dir
@@ -1232,43 +1217,17 @@ impl LocalSetupService {
             emit,
             "deps",
             "started",
-            Some("Reinstalling dependencies".to_string()),
+            Some("Refreshing Sourccey robot runtime".to_string()),
         );
-        if let Err(err) = Self::run_command(
+        Self::install_lerobot_extra(
             &uv_target,
-            &["pip", "install", "-e", ".[sourccey]"],
             &lerobot_dir,
-            "uv pip install",
-        ) {
-            let lower = err.to_lowercase();
-            let is_macos_or_windows = cfg!(target_os = "macos") || cfg!(target_os = "windows");
-            if is_macos_or_windows
-                && (lower.contains("vosk") || lower.contains("no solution found"))
-            {
-                Self::emit_step(
-                    emit,
-                    "deps",
-                    "started",
-                    Some(
-                        "vosk not available on this platform; installing core dependencies"
-                            .to_string(),
-                    ),
-                );
-                Self::run_command(
-                    &uv_target,
-                    &["pip", "install", "-e", "."],
-                    &lerobot_dir,
-                    "uv pip install (core)",
-                )
-                .map_err(|e| {
-                    Self::emit_step(emit, "deps", "error", Some(e.clone()));
-                    e
-                })?;
-            } else {
-                Self::emit_step(emit, "deps", "error", Some(err.clone()));
-                return Err(err);
-            }
-        }
+            Self::SOURCCEY_RUNTIME_EXTRA,
+        )
+        .map_err(|e| {
+            Self::emit_step(emit, "deps", "error", Some(e.clone()));
+            e
+        })?;
         Self::emit_step(emit, "deps", "success", None);
 
         let compile_script = lerobot_dir
@@ -1335,11 +1294,10 @@ impl LocalSetupService {
             return Err(format!("{} executable not found at: {:?}", label, exe));
         }
 
-        let output = Command::new(exe)
-            .args(args)
-            .current_dir(working_dir)
-            .env("PYTHONIOENCODING", "utf-8")
-            .env("PYTHONUTF8", "1")
+        let mut command = Command::new(exe);
+        command.args(args).current_dir(working_dir);
+        Self::configure_setup_command_env(&mut command);
+        let output = command
             .output()
             .map_err(|e| format!("Failed to run {}: {}", label, e))?;
 
@@ -1362,6 +1320,52 @@ impl LocalSetupService {
         Ok(())
     }
 
+    fn run_uv_pip_install(
+        uv_target: &Path,
+        working_dir: &Path,
+        extras: Option<&str>,
+        label: &str,
+    ) -> Result<(), String> {
+        let args = Self::uv_pip_install_args(extras);
+        let arg_refs: Vec<&str> = args.iter().map(|arg| arg.as_str()).collect();
+        Self::run_command(uv_target, &arg_refs, working_dir, label)
+    }
+
+    fn install_lerobot_extra(
+        uv_target: &Path,
+        working_dir: &Path,
+        extra: &str,
+    ) -> Result<(), String> {
+        let label = format!("uv pip install {}", extra);
+        Self::run_uv_pip_install(uv_target, working_dir, Some(extra), label.as_str())
+            .map_err(|error| {
+                format!(
+                    "Failed to install lerobot-vulcan package `{}': {}",
+                    extra, error
+                )
+            })
+    }
+
+    fn uv_pip_install_args(extras: Option<&str>) -> Vec<String> {
+        let mut args = vec!["pip".to_string(), "install".to_string()];
+
+        #[cfg(windows)]
+        {
+            // NumPy has a Windows wheel for our Python 3.12 venv; forcing binary avoids
+            // falling back to a local MSVC build when toolchains are partially configured.
+            args.push("--only-binary".to_string());
+            args.push("numpy".to_string());
+        }
+
+        args.push("-e".to_string());
+        args.push(match extras {
+            Some(extras) => format!(".[{}]", extras),
+            None => ".".to_string(),
+        });
+
+        args
+    }
+
     fn uv_venv_args() -> [&'static str; 4] {
         ["venv", "--clear", "--python", Self::UV_VENV_PYTHON_VERSION]
     }
@@ -1378,11 +1382,42 @@ impl LocalSetupService {
             return false;
         }
         let code = format!("import {}", module);
-        Command::new(python_path)
-            .args(["-c", code.as_str()])
+        let mut command = Command::new(python_path);
+        command.args(["-c", code.as_str()]);
+        Self::configure_setup_command_env(&mut command);
+        command
             .status()
             .map(|status| status.success())
             .unwrap_or(false)
+    }
+
+    fn configure_setup_command_env(cmd: &mut Command) {
+        cmd.env("PYTHONIOENCODING", "utf-8");
+        cmd.env("PYTHONUTF8", "1");
+
+        #[cfg(windows)]
+        if let Some(path) = Self::sanitized_windows_setup_path() {
+            cmd.env("PATH", path);
+        }
+    }
+
+    #[cfg(windows)]
+    fn sanitized_windows_setup_path() -> Option<OsString> {
+        let path_var = std::env::var_os("PATH")?;
+        let filtered: Vec<PathBuf> = std::env::split_paths(&path_var)
+            .filter(|path| !Self::is_git_usr_bin_path(path))
+            .collect();
+
+        std::env::join_paths(filtered).ok()
+    }
+
+    #[cfg(windows)]
+    fn is_git_usr_bin_path(path: &Path) -> bool {
+        let normalized = path
+            .to_string_lossy()
+            .replace('/', "\\")
+            .to_ascii_lowercase();
+        normalized.ends_with("\\git\\usr\\bin")
     }
 
     fn download_file(url: &str, dest: &Path) -> Result<(), String> {
