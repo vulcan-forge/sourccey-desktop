@@ -7,7 +7,38 @@ export type DesktopExtrasStatus = {
     missing: string[];
 };
 
+export type BaseSetupStatus = {
+    installed: boolean;
+    missing: string[];
+};
+
 export const DESKTOP_EXTRAS_KEY = ['setup', 'desktop-extras'];
+
+export const formatSetupInvokeError = (error: unknown): string => {
+    if (typeof error === 'string') {
+        return error;
+    }
+    if (error instanceof Error) {
+        return error.message;
+    }
+    if (error && typeof error === 'object') {
+        const maybeMessage =
+            'message' in error && typeof error.message === 'string'
+                ? error.message
+                : 'error' in error && typeof error.error === 'string'
+                  ? error.error
+                  : null;
+        if (maybeMessage) {
+            return maybeMessage;
+        }
+        try {
+            return JSON.stringify(error, null, 2);
+        } catch {
+            return 'Unknown setup error.';
+        }
+    }
+    return 'Unknown setup error.';
+};
 
 export const getDesktopExtrasCachedStatus = () =>
     queryClient.getQueryData<DesktopExtrasStatus | null>(DESKTOP_EXTRAS_KEY) ?? null;
@@ -30,8 +61,16 @@ export const getDesktopExtrasStatus = async (): Promise<DesktopExtrasStatus> => 
 
 export const runDesktopExtrasSetup = async (): Promise<void> => {
     if (!isTauri()) return;
-    await invoke('setup_desktop_extras_run');
-    setDesktopExtrasCachedStatus({ installed: true, missing: [] });
+    try {
+        const baseStatus = await invoke<BaseSetupStatus>('setup_check');
+        if (!baseStatus.installed) {
+            await invoke('setup_run', { force: false });
+        }
+        await invoke('setup_desktop_extras_run');
+        setDesktopExtrasCachedStatus({ installed: true, missing: [] });
+    } catch (error) {
+        throw new Error(formatSetupInvokeError(error));
+    }
 };
 
 export const getLerobotVulcanDir = async (): Promise<string | null> => {

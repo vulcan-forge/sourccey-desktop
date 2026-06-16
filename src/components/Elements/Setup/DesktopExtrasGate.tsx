@@ -5,7 +5,11 @@ import Link from 'next/link';
 import { FaTools } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import { useDesktopExtrasStatus, useInstallDesktopExtras } from '@/hooks/System/setup-desktop-extras.hook';
+import {
+    formatSetupInvokeError,
+    useDesktopExtrasStatus,
+    useInstallDesktopExtras,
+} from '@/hooks/System/setup-desktop-extras.hook';
 
 type DesktopExtrasGateProps = {
     children: React.ReactNode;
@@ -38,8 +42,8 @@ export const DesktopExtrasGate = ({
             await installExtras();
             await refetch();
             toast.success('AI runtime modules installed.', { ...toastSuccessDefaults });
-        } catch (error: any) {
-            const message = error?.message || 'Failed to install AI runtime modules.';
+        } catch (error) {
+            const message = formatSetupInvokeError(error) || 'Failed to install AI runtime modules.';
             toast.error(message, { ...toastErrorDefaults });
         }
     };
@@ -79,15 +83,19 @@ export const DesktopExtrasGate = ({
                     </div>
                 )}
 
-                {baseMissing && <div className="text-xs text-amber-200/90">Base runtime is missing. Run the initial setup first.</div>}
+                {baseMissing && (
+                    <div className="text-xs text-amber-200/90">
+                        Base runtime is missing. Installing AI modules will set up the runtime first.
+                    </div>
+                )}
 
                 <div className="flex flex-wrap items-center gap-3">
                     <button
                         type="button"
                         onClick={handleInstall}
-                        disabled={isPending || baseMissing}
+                        disabled={isPending}
                         className={`inline-flex items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition-colors ${
-                            isPending || baseMissing
+                            isPending
                                 ? 'cursor-not-allowed border-slate-700/60 bg-slate-800/60 text-slate-400'
                                 : 'cursor-pointer border-amber-500/50 bg-amber-500/10 text-amber-100 hover:border-amber-400/70'
                         }`}
