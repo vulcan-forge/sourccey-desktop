@@ -17,6 +17,8 @@ from typing import Callable, Optional
 
 from setup_helper import should_run_as_user, wrap_command
 
+GIT_SUBMODULE_INIT_TIMEOUT_SECONDS = 60
+
 #################################################################
 # Git Progress Tracker
 #################################################################
@@ -602,8 +604,79 @@ class GitSetupManager:
     # Submodule Management
     #################################################################
 
+    def _get_submodule_admin_path(self, submodule_relative_path: str) -> Path:
+        """Return the internal git metadata path for a submodule."""
+        return self.project_root / ".git" / "modules" / Path(submodule_relative_path)
+
+    def _is_valid_submodule_repo(self, submodule_relative_path: str) -> bool:
+        """Check whether a submodule path is a usable git repository."""
+        submodule_path = self.project_root / submodule_relative_path
+        if not submodule_path.exists():
+            return False
+
+        git_dir_check = self._run_git_command(
+            ["git", "rev-parse", "--git-dir"],
+            submodule_path,
+            capture_output=True,
+            text=True,
+        )
+        if git_dir_check.returncode != 0:
+            return False
+
+        head_check = self._run_git_command(
+            ["git", "rev-parse", "--verify", "HEAD"],
+            submodule_path,
+            capture_output=True,
+            text=True,
+        )
+        return head_check.returncode == 0
+
+    def cleanup_stale_submodule_checkout(
+        self,
+        submodule_relative_path: str = "modules/lerobot-vulcan",
+    ) -> bool:
+        """Remove a broken submodule checkout so git can clone it again cleanly."""
+        submodule_path = self.project_root / submodule_relative_path
+        submodule_admin_path = self._get_submodule_admin_path(submodule_relative_path)
+        submodule_git_path = submodule_path / ".git"
+
+        if self._is_valid_submodule_repo(submodule_relative_path):
+            self.print_status(
+                f"Submodule {submodule_relative_path} looks valid; skipping stale cleanup."
+            )
+            return False
+
+        if not submodule_path.exists() and not submodule_admin_path.exists():
+            return False
+
+        if not submodule_admin_path.exists() and not submodule_git_path.exists():
+            self.print_warning(
+                f"Submodule path {submodule_relative_path} does not look git-managed; "
+                "skipping automatic cleanup."
+            )
+            return False
+
+        self.print_warning(
+            f"Cleaning stale submodule checkout at {submodule_relative_path} before retrying."
+        )
+
+        try:
+            if submodule_path.exists():
+                shutil.rmtree(submodule_path)
+            if submodule_admin_path.exists():
+                shutil.rmtree(submodule_admin_path)
+            self.print_success(
+                f"Removed stale submodule state for {submodule_relative_path}"
+            )
+            return True
+        except Exception as e:
+            self.print_warning(
+                f"Failed to clean stale submodule state for {submodule_relative_path}: {e}"
+            )
+            return False
+
     def initialize_git_submodules(self) -> bool:
-        """Initialize git submodules with 30-second timeout"""
+        """Initialize git submodules with a bounded timeout."""
         self.print_status("Initializing git submodules...")
 
         try:
@@ -621,17 +694,22 @@ class GitSetupManager:
 
             # Show timeout information with clear spacing
             print()
-            self.print_status("⏱️  30-second timeout for git submodule init")
+            self.print_status(
+                f"Submodule init timeout: {GIT_SUBMODULE_INIT_TIMEOUT_SECONDS} seconds"
+            )
             print()
 
-            # Initialize submodules with progress tracking and 30-second timeout
+            # Initialize submodules with progress tracking and bounded timeout
             if not self.run_git_command_with_progress(
                 ["git", "submodule", "init"],
                 self.project_root,
                 "Initializing submodules",
-                timeout=30
+                timeout=GIT_SUBMODULE_INIT_TIMEOUT_SECONDS
             ):
-                self.print_error("Git submodule initialization failed or timed out after 30 seconds")
+                self.print_error(
+                    "Git submodule initialization failed or timed out after "
+                    f"{GIT_SUBMODULE_INIT_TIMEOUT_SECONDS} seconds"
+                )
                 self.print_error("This may be due to network issues or repository access problems")
                 self.print_error("Please check your internet connection and try again")
                 return False
@@ -682,50 +760,51 @@ class GitSetupManager:
         self.print_status("Cloning and updating git submodules...")
 
         try:
-            if not self.run_git_command_with_progress(
-                ["git", "submodule", "update", "--init", "--recursive"],
+            update_command = ["git", "submodule", "update", "--init", "--recursive"]
+            if self.run_git_command_with_progress(
+                update_command,
                 self.project_root,
                 "Cloning submodules"
             ):
-                # Check if submodule actually exists and is valid despite error code
-                submodule_path = self.project_root / "modules" / "lerobot-vulcan"
-                git_dir = submodule_path / ".git"
+                self.print_success("Git submodules updated to recorded commits")
+                return True
 
-                # Check if submodule exists and has valid git directory/file
-                if submodule_path.exists():
-                    # Check if it's a valid git repo (either .git directory or .git file pointing to .git/modules)
-                    nested_git_dir = self.project_root / ".git" / "modules" / "modules" / "lerobot-vulcan"
-                    if git_dir.exists() or (git_dir.is_file() and nested_git_dir.exists()):
-                        # Submodule exists and is valid, consider it success even if return code != 0
-                        self.print_status("Submodule validation: submodule directory exists and appears valid")
-                        self.print_success("Git submodules updated to recorded commits")
-                        return True
+            if self._is_valid_submodule_repo("modules/lerobot-vulcan"):
+                self.print_status("Submodule validation: submodule directory exists and appears valid")
+                self.print_success("Git submodules updated to recorded commits")
+                return True
 
-                self.print_error("Git submodule update failed")
-                self.print_error("This may be due to:")
-                self.print_error("  - Network connectivity issues")
-                self.print_error("  - Repository access permissions")
-                self.print_error("  - Invalid submodule URLs")
-                self.print_error("  - Authentication problems")
-                self.print_error("Please check your internet connection and repository access")
-                return False
-
-            self.print_success("Git submodules updated to recorded commits")
-            return True
-
-        except subprocess.CalledProcessError as e:
-            # Check if submodule actually exists and is valid despite exception
-            submodule_path = self.project_root / "modules" / "lerobot-vulcan"
-            git_dir = submodule_path / ".git"
-
-            if submodule_path.exists():
-                # Check if it's a valid git repo (either .git directory or .git file)
-                nested_git_dir = self.project_root / ".git" / "modules" / "modules" / "lerobot-vulcan"
-                if git_dir.exists() or (git_dir.is_file() and nested_git_dir.exists()):
-                    # Submodule exists and is valid, consider it success even if exception occurred
-                    self.print_status("Submodule validation: submodule directory exists and appears valid")
+            if self.cleanup_stale_submodule_checkout("modules/lerobot-vulcan"):
+                self.print_status("Retrying git submodule update after cleaning stale checkout...")
+                if self.run_git_command_with_progress(
+                    update_command,
+                    self.project_root,
+                    "Retrying submodule clone"
+                ):
                     self.print_success("Git submodules updated to recorded commits")
                     return True
+
+                if self._is_valid_submodule_repo("modules/lerobot-vulcan"):
+                    self.print_status(
+                        "Submodule validation: submodule directory exists and appears valid after retry"
+                    )
+                    self.print_success("Git submodules updated to recorded commits")
+                    return True
+
+            self.print_error("Git submodule update failed")
+            self.print_error("This may be due to:")
+            self.print_error("  - Network connectivity issues")
+            self.print_error("  - Repository access permissions")
+            self.print_error("  - Invalid submodule URLs")
+            self.print_error("  - Authentication problems")
+            self.print_error("Please check your internet connection and repository access")
+            return False
+
+        except subprocess.CalledProcessError as e:
+            if self._is_valid_submodule_repo("modules/lerobot-vulcan"):
+                self.print_status("Submodule validation: submodule directory exists and appears valid")
+                self.print_success("Git submodules updated to recorded commits")
+                return True
 
             self.print_error(f"Failed to update git submodules: {e}")
             return False
@@ -1135,14 +1214,16 @@ class GitSetupManager:
 
             # Show timeout information with clear spacing
             print()
-            self.print_status("⏱️  30-second timeout for git submodule init")
+            self.print_status(
+                f"Submodule init timeout: {GIT_SUBMODULE_INIT_TIMEOUT_SECONDS} seconds"
+            )
             print()
 
             if not self.run_git_command_with_progress(
                 ["git", "submodule", "init"],
                 self.project_root,
                 "Re-initializing submodules with HTTPS",
-                timeout=30
+                timeout=GIT_SUBMODULE_INIT_TIMEOUT_SECONDS
             ):
                 self.print_error("Failed to re-initialize submodules with HTTPS URLs")
                 return False
