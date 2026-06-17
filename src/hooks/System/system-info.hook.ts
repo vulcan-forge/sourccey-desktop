@@ -22,10 +22,12 @@ export interface BatteryData {
 }
 
 export type BatteryLevelStep = 0 | 25 | 50 | 75 | 100;
+export type BatteryChargeState = 'charging' | 'discharging' | 'idle' | 'unknown';
 
 const BATTERY_VOLTAGE_MIN = 11.5;
 const BATTERY_VOLTAGE_MAX = 13.6;
 const MAX_ERROR_VOLTAGE_FALLBACK_THRESHOLD = 80;
+const BATTERY_CHARGE_CURRENT_THRESHOLD_A = 0.05;
 
 const clampBatteryPercent = (value: number) => Math.max(0, Math.min(100, Math.round(value)));
 
@@ -73,6 +75,25 @@ export const getBatteryLevelStep = (percent: number): BatteryLevelStep => {
 
     return 100;
 };
+
+export const getBatteryChargeState = (batteryData: BatteryData): BatteryChargeState => {
+    if (!Number.isFinite(batteryData.current_a)) {
+        return 'unknown';
+    }
+
+    if (batteryData.current_a > BATTERY_CHARGE_CURRENT_THRESHOLD_A) {
+        return 'charging';
+    }
+
+    if (batteryData.current_a < -BATTERY_CHARGE_CURRENT_THRESHOLD_A) {
+        return 'discharging';
+    }
+
+    return 'idle';
+};
+
+export const isBatteryCharging = (batteryData: BatteryData): boolean =>
+    getBatteryChargeState(batteryData) === 'charging';
 
 export const hasLoadedSystemInfo = (systemInfo?: Partial<SystemInfo> | null): boolean => {
     if (!systemInfo) {
