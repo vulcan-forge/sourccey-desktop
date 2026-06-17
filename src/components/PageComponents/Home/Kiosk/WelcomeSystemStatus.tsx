@@ -6,10 +6,11 @@ import {
     FaBatteryHalf,
     FaBatteryQuarter,
     FaBatteryThreeQuarters,
+    FaBolt,
     FaNetworkWired,
     FaThermometerHalf,
 } from 'react-icons/fa';
-import { calculateBatteryPercent, getBatteryLevelStep } from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, getBatteryLevelStep, isBatteryCharging } from '@/hooks/System/system-info.hook';
 import type { WelcomeSystemInfo } from './welcome.types';
 
 interface WelcomeSystemStatusProps {
@@ -45,6 +46,7 @@ export const WelcomeSystemStatus = ({
     };
 
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
+    const batteryIsCharging = isBatteryCharging(systemInfo.batteryData);
     const BatteryIcon = isLoadingSystemInfo ? FaBatteryFull : getBatteryIcon(batteryPercent);
     const batteryColor = isLoadingSystemInfo ? 'text-white' : getBatteryColor(batteryPercent);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
@@ -67,7 +69,12 @@ export const WelcomeSystemStatus = ({
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2 text-sm text-slate-400">
-                                <BatteryIcon className={`h-4 w-4 ${batteryColor}`} />
+                                <span className="relative inline-flex">
+                                    <BatteryIcon className={`h-4 w-4 ${batteryColor}`} />
+                                    {!isLoadingSystemInfo && batteryIsCharging ? (
+                                        <FaBolt className="absolute -top-1 -right-1 h-2.5 w-2.5 text-amber-300" />
+                                    ) : null}
+                                </span>
                                 Battery Life
                             </div>
                             {isLoadingSystemInfo ? (

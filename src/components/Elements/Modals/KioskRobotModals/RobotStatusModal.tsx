@@ -11,8 +11,9 @@ import {
     FaBatteryQuarter,
     FaBatteryEmpty,
     FaBatteryThreeQuarters,
+    FaBolt,
 } from 'react-icons/fa';
-import { calculateBatteryPercent, getBatteryLevelStep, type SystemInfo } from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, getBatteryLevelStep, isBatteryCharging, type SystemInfo } from '@/hooks/System/system-info.hook';
 import { BatteryDetailsView } from '@/components/Elements/Modals/KioskRobotModals/BatteryDetailsView';
 interface RobotStatusModalProps {
     isOpen: boolean;
@@ -51,6 +52,7 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
     };
 
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
+    const batteryIsCharging = isBatteryCharging(systemInfo.batteryData);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
 
     return (
@@ -102,7 +104,12 @@ export const RobotStatusModal = ({ isOpen, onClose, systemInfo, isRobotStarted }
                                 className="flex w-full cursor-pointer items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4 text-left transition-colors hover:bg-slate-700"
                             >
                                 <div className="flex items-center gap-3">
-                                    <div className={getBatteryTextColor(batteryPercent)}>{getBatteryIcon(batteryPercent)}</div>
+                                    <div className={`${getBatteryTextColor(batteryPercent)} relative inline-flex`}>
+                                        {getBatteryIcon(batteryPercent)}
+                                        {batteryIsCharging ? (
+                                            <FaBolt className="absolute -top-1 -right-1 h-2.5 w-2.5 text-amber-300" />
+                                        ) : null}
+                                    </div>
                                     <span className="text-sm font-medium text-slate-300">Battery Life</span>
                                 </div>
                                 <div className="flex flex-col items-end gap-1">

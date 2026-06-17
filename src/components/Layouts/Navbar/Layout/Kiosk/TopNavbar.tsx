@@ -10,6 +10,7 @@ import {
     FaWindowClose,
     FaBatteryEmpty,
     FaBatteryThreeQuarters,
+    FaBolt,
     FaSyncAlt,
 } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
@@ -21,6 +22,7 @@ import {
     calculateBatteryPercent,
     getBatteryLevelStep,
     hasLoadedSystemInfo,
+    isBatteryCharging,
     setSystemInfo,
     useGetSystemInfo,
     type BatteryData,
@@ -124,6 +126,7 @@ export const KioskTopNavbar = () => {
     };
 
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
+    const batteryIsCharging = isBatteryCharging(systemInfo.batteryData);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
     const networkLabel =
         systemInfo.ipAddress &&
@@ -186,7 +189,16 @@ export const KioskTopNavbar = () => {
                             }`}
                             title={isStatusModalOpen ? 'Close Robot Status' : 'View Robot Status'}
                         >
-                            {isSystemInfoLoading ? <FaBatteryFull className="h-5 w-5 text-white" /> : getBatteryIcon(batteryPercent)}
+                            {isSystemInfoLoading ? (
+                                <FaBatteryFull className="h-5 w-5 text-white" />
+                            ) : (
+                                <span className="relative inline-flex">
+                                    {getBatteryIcon(batteryPercent)}
+                                    {batteryIsCharging ? (
+                                        <FaBolt className="absolute -top-1 -right-1 h-2.5 w-2.5 text-amber-300" />
+                                    ) : null}
+                                </span>
+                            )}
                             {isSystemInfoLoading ? (
                                 <span className="skeleton-shimmer h-4 w-10 rounded-full bg-slate-500/60" />
                             ) : (

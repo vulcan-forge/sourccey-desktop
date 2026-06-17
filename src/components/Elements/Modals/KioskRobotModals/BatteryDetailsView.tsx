@@ -1,7 +1,7 @@
 'use client';
 
 import { FaArrowLeft } from 'react-icons/fa';
-import { calculateBatteryPercent, type BatteryData } from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, getBatteryChargeState, type BatteryData } from '@/hooks/System/system-info.hook';
 
 interface BatteryDetailsViewProps {
     batteryData: BatteryData;
@@ -20,8 +20,15 @@ const formatValue = (value: number, digits = 2, unit?: string) => {
 export const BatteryDetailsView = ({ batteryData, onBack }: BatteryDetailsViewProps) => {
     const batteryPercent = calculateBatteryPercent(batteryData);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
-    const current = Number.isFinite(batteryData.current_a) ? batteryData.current_a : -1;
-    const chargingStatus = current > 0.05 ? 'Charging' : current < -0.05 ? 'Discharging' : 'Idle';
+    const chargeState = getBatteryChargeState(batteryData);
+    const chargingStatus =
+        chargeState === 'charging'
+            ? 'Charging'
+            : chargeState === 'discharging'
+              ? 'Discharging'
+              : chargeState === 'idle'
+                ? 'Idle'
+                : 'Unknown';
     const details = [
         { label: 'Battery Level', value: batteryPercentString },
         { label: 'State of Charge', value: formatValue(batteryData.state_of_charge, 0, '%') },
