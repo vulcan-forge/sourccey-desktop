@@ -608,6 +608,33 @@ class GitSetupManager:
         """Return the internal git metadata path for a submodule."""
         return self.project_root / ".git" / "modules" / Path(submodule_relative_path)
 
+    def _get_submodule_status_line(self, submodule_relative_path: str) -> Optional[str]:
+        """Return the `git submodule status` line for one submodule."""
+        result = self._run_git_command(
+            ["git", "submodule", "status", "--", submodule_relative_path],
+            self.project_root,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            return None
+
+        for line in result.stdout.splitlines():
+            if submodule_relative_path in line:
+                return line
+
+        return None
+
+    def _is_submodule_initialized(self, submodule_relative_path: str) -> bool:
+        """Check whether a submodule has been initialized locally."""
+        status_line = self._get_submodule_status_line(submodule_relative_path)
+        return bool(status_line) and not status_line.startswith("-")
+
+    def _is_submodule_at_recorded_commit(self, submodule_relative_path: str) -> bool:
+        """Check whether a submodule is checked out at the commit pinned by the parent repo."""
+        status_line = self._get_submodule_status_line(submodule_relative_path)
+        return bool(status_line) and status_line.startswith(" ")
+
     def _is_valid_submodule_repo(self, submodule_relative_path: str) -> bool:
         """Check whether a submodule path is a usable git repository."""
         submodule_path = self.project_root / submodule_relative_path
@@ -630,6 +657,41 @@ class GitSetupManager:
             text=True,
         )
         return head_check.returncode == 0
+
+    def sync_git_submodules(self) -> bool:
+        """Sync submodule URLs from .gitmodules into git config."""
+        self.print_status("Syncing git submodule URLs...")
+        result = self._run_git_command(
+            ["git", "submodule", "sync", "--recursive"],
+            self.project_root,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            self.print_error(f"Failed to sync submodule URLs: {result.stderr.strip()}")
+            return False
+
+        self.print_success("Git submodule URLs synced")
+        return True
+
+    def deinitialize_submodule(self, submodule_relative_path: str) -> bool:
+        """Best-effort deinit to clear stale git submodule metadata before retrying."""
+        result = self._run_git_command(
+            ["git", "submodule", "deinit", "-f", "--", submodule_relative_path],
+            self.project_root,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            stderr = result.stderr.strip()
+            if stderr:
+                self.print_warning(
+                    f"Could not deinitialize {submodule_relative_path} before cleanup: {stderr}"
+                )
+            return False
+
+        self.print_status(f"Deinitialized {submodule_relative_path} before cleanup")
+        return True
 
     def cleanup_stale_submodule_checkout(
         self,
@@ -661,6 +723,7 @@ class GitSetupManager:
         )
 
         try:
+            self.deinitialize_submodule(submodule_relative_path)
             if submodule_path.exists():
                 shutil.rmtree(submodule_path)
             if submodule_admin_path.exists():
@@ -678,17 +741,10 @@ class GitSetupManager:
     def initialize_git_submodules(self) -> bool:
         """Initialize git submodules with a bounded timeout."""
         self.print_status("Initializing git submodules...")
+        submodule_relative_path = "modules/lerobot-vulcan"
 
         try:
-            # Check if submodules are already initialized
-            result = self._run_git_command(
-                ["git", "submodule", "status"],
-                self.project_root,
-                capture_output=True,
-                text=True
-            )
-
-            if result.returncode == 0:
+            if self._is_submodule_initialized(submodule_relative_path):
                 self.print_status("Git submodules already initialized")
                 return True
 
@@ -730,24 +786,31 @@ class GitSetupManager:
 
         try:
             # Check if there are uncommitted changes
-            status_result = subprocess.run(
+            status_result = self._run_git_command(
                 ["git", "status", "--porcelain"],
-                cwd=submodule_path,
+                submodule_path,
                 capture_output=True,
                 text=True,
-                env=self._get_git_env()
             )
 
             if status_result.returncode == 0 and status_result.stdout.strip():
                 # Stash any uncommitted changes
-                subprocess.run(
+                stash_result = self._run_git_command(
                     ["git", "stash", "push", "-m", "Setup script stash"],
-                    cwd=submodule_path,
-                    check=True,
-                    env=self._get_git_env()
+                    submodule_path,
+                    capture_output=True,
+                    text=True,
                 )
-                self.print_success("Changes stashed successfully")
-                self.submodule_changes_stashed = True
+                if stash_result.returncode != 0:
+                    raise subprocess.CalledProcessError(
+                        stash_result.returncode,
+                        ["git", "stash", "push", "-m", "Setup script stash"],
+                        output=stash_result.stdout,
+                        stderr=stash_result.stderr,
+                    )
+                if "No local changes to save" not in stash_result.stdout:
+                    self.print_success("Changes stashed successfully")
+                    self.submodule_changes_stashed = True
 
             return True
 
@@ -758,6 +821,7 @@ class GitSetupManager:
     def update_git_submodules(self) -> bool:
         """Update git submodules to the versions pinned in the repo"""
         self.print_status("Cloning and updating git submodules...")
+        submodule_relative_path = "modules/lerobot-vulcan"
 
         try:
             update_command = ["git", "submodule", "update", "--init", "--recursive"]
@@ -766,27 +830,45 @@ class GitSetupManager:
                 self.project_root,
                 "Cloning submodules"
             ):
+                if self._is_submodule_at_recorded_commit(submodule_relative_path):
+                    self.print_success("Git submodules updated to recorded commits")
+                    return True
+
+                self.print_warning(
+                    f"Submodule {submodule_relative_path} cloned, but it is not at the recorded commit yet."
+                )
+
+            if (
+                self._is_valid_submodule_repo(submodule_relative_path)
+                and self._is_submodule_at_recorded_commit(submodule_relative_path)
+            ):
+                self.print_status(
+                    "Submodule validation: submodule directory exists and is at the recorded commit"
+                )
                 self.print_success("Git submodules updated to recorded commits")
                 return True
 
-            if self._is_valid_submodule_repo("modules/lerobot-vulcan"):
-                self.print_status("Submodule validation: submodule directory exists and appears valid")
-                self.print_success("Git submodules updated to recorded commits")
-                return True
-
-            if self.cleanup_stale_submodule_checkout("modules/lerobot-vulcan"):
+            if self.cleanup_stale_submodule_checkout(submodule_relative_path):
                 self.print_status("Retrying git submodule update after cleaning stale checkout...")
                 if self.run_git_command_with_progress(
                     update_command,
                     self.project_root,
                     "Retrying submodule clone"
                 ):
-                    self.print_success("Git submodules updated to recorded commits")
-                    return True
+                    if self._is_submodule_at_recorded_commit(submodule_relative_path):
+                        self.print_success("Git submodules updated to recorded commits")
+                        return True
 
-                if self._is_valid_submodule_repo("modules/lerobot-vulcan"):
+                    self.print_warning(
+                        f"Retry finished, but {submodule_relative_path} is still not at the recorded commit."
+                    )
+
+                if (
+                    self._is_valid_submodule_repo(submodule_relative_path)
+                    and self._is_submodule_at_recorded_commit(submodule_relative_path)
+                ):
                     self.print_status(
-                        "Submodule validation: submodule directory exists and appears valid after retry"
+                        "Submodule validation: submodule directory exists and is at the recorded commit after retry"
                     )
                     self.print_success("Git submodules updated to recorded commits")
                     return True
@@ -801,8 +883,13 @@ class GitSetupManager:
             return False
 
         except subprocess.CalledProcessError as e:
-            if self._is_valid_submodule_repo("modules/lerobot-vulcan"):
-                self.print_status("Submodule validation: submodule directory exists and appears valid")
+            if (
+                self._is_valid_submodule_repo(submodule_relative_path)
+                and self._is_submodule_at_recorded_commit(submodule_relative_path)
+            ):
+                self.print_status(
+                    "Submodule validation: submodule directory exists and is at the recorded commit"
+                )
                 self.print_success("Git submodules updated to recorded commits")
                 return True
 
@@ -1033,9 +1120,9 @@ class GitSetupManager:
             return
 
         try:
-            stash_list = subprocess.run(
+            stash_list = self._run_git_command(
                 ["git", "stash", "list"],
-                cwd=submodule_path,
+                submodule_path,
                 capture_output=True,
                 text=True
             )
@@ -1058,18 +1145,18 @@ class GitSetupManager:
             return
 
         try:
-            stash_list = subprocess.run(
+            stash_list = self._run_git_command(
                 ["git", "stash", "list"],
-                cwd=submodule_path,
+                submodule_path,
                 capture_output=True,
                 text=True
             )
 
             first_entry = stash_list.stdout.splitlines()[0] if stash_list.stdout else ""
             if "Setup script stash" in first_entry:
-                pop_result = subprocess.run(
+                pop_result = self._run_git_command(
                     ["git", "stash", "pop"],
-                    cwd=submodule_path,
+                    submodule_path,
                     capture_output=True,
                     text=True
                 )
@@ -1185,72 +1272,76 @@ class GitSetupManager:
             use_https: If True, force HTTPS URLs instead of SSH
         """
         self.print_status("Setting up git submodules...")
+        gitmodules_path = self.project_root / ".gitmodules"
 
-        if use_https:
-            self.print_status("Using HTTPS URLs for git operations")
-            # Convert .gitmodules to HTTPS before any operations
-            gitmodules_path = self.project_root / ".gitmodules"
-            if gitmodules_path.exists():
-                self.convert_gitmodules_to_https(gitmodules_path)
-        else:
-            self.print_status("Using SSH URLs for git operations (with HTTPS fallback)")
+        try:
+            if use_https:
+                self.print_status("Using HTTPS URLs for git operations")
+                # Convert .gitmodules to HTTPS before any operations
+                if gitmodules_path.exists():
+                    self.convert_gitmodules_to_https(gitmodules_path)
+            else:
+                self.print_status("Using SSH URLs for git operations (with HTTPS fallback)")
 
-        # Check git installation first
-        if not self.check_git_installed():
-            return False
-
-        # Ensure Git LFS is available
-        if not self.ensure_git_lfs():
-            self.print_error("Git LFS setup failed")
-            return False
-
-        # Initialize submodules
-        if not self.initialize_git_submodules():
-            return False
-
-        # If using HTTPS, we need to re-initialize submodules after URL conversion
-        if use_https:
-            self.print_status("Re-initializing submodules with HTTPS URLs...")
-
-            # Show timeout information with clear spacing
-            print()
-            self.print_status(
-                f"Submodule init timeout: {GIT_SUBMODULE_INIT_TIMEOUT_SECONDS} seconds"
-            )
-            print()
-
-            if not self.run_git_command_with_progress(
-                ["git", "submodule", "init"],
-                self.project_root,
-                "Re-initializing submodules with HTTPS",
-                timeout=GIT_SUBMODULE_INIT_TIMEOUT_SECONDS
-            ):
-                self.print_error("Failed to re-initialize submodules with HTTPS URLs")
+            # Check git installation first
+            if not self.check_git_installed():
                 return False
 
-        # Handle any uncommitted changes
-        if not self.handle_submodule_changes():
-            return False
+            # Ensure Git LFS is available
+            if not self.ensure_git_lfs():
+                self.print_error("Git LFS setup failed")
+                return False
 
-        # Update submodules
-        if not self.update_git_submodules():
+            if not self.sync_git_submodules():
+                return False
+
+            # Initialize submodules
+            if not self.initialize_git_submodules():
+                return False
+
+            # If using HTTPS, we need to re-initialize submodules after URL conversion
             if use_https:
-                self.print_error("HTTPS submodule update failed. Running debug information...")
-                self.debug_submodule_config()
+                self.print_status("Re-initializing submodules with HTTPS URLs...")
+
+                # Show timeout information with clear spacing
+                print()
+                self.print_status(
+                    f"Submodule init timeout: {GIT_SUBMODULE_INIT_TIMEOUT_SECONDS} seconds"
+                )
+                print()
+
+                if not self.run_git_command_with_progress(
+                    ["git", "submodule", "init"],
+                    self.project_root,
+                    "Re-initializing submodules with HTTPS",
+                    timeout=GIT_SUBMODULE_INIT_TIMEOUT_SECONDS
+                ):
+                    self.print_error("Failed to re-initialize submodules with HTTPS URLs")
+                    return False
+
+                if not self.sync_git_submodules():
+                    return False
+
+            # Handle any uncommitted changes
+            if not self.handle_submodule_changes():
+                return False
+
+            # Update submodules
+            if not self.update_git_submodules():
+                if use_https:
+                    self.print_error("HTTPS submodule update failed. Running debug information...")
+                    self.debug_submodule_config()
+                self.restore_stashed_changes()
+                return False
+
+            # Notify about stashed changes
+            self.notify_stashed_changes()
             self.restore_stashed_changes()
-            return False
-
-        # Notify about stashed changes
-        self.notify_stashed_changes()
-        self.restore_stashed_changes()
-
-        # Restore original .gitmodules if we converted to HTTPS
-        if use_https:
-            gitmodules_path = self.project_root / ".gitmodules"
-            if gitmodules_path.exists():
+            return True
+        finally:
+            # Restore original .gitmodules if we converted to HTTPS
+            if use_https and gitmodules_path.exists():
                 self.restore_gitmodules_from_backup(gitmodules_path)
-
-        return True
 
 
 #################################################################
