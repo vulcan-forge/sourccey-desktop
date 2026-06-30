@@ -756,6 +756,44 @@ class GitSetupManager:
             )
             return False
 
+    def force_reclone_submodule_checkout(
+        self,
+        submodule_relative_path: str = "modules/lerobot-vulcan",
+    ) -> bool:
+        """Force-remove a submodule checkout and its admin metadata unless it is already correct."""
+        submodule_path = self.project_root / submodule_relative_path
+        submodule_admin_path = self._get_submodule_admin_path(submodule_relative_path)
+
+        if self._is_submodule_at_recorded_commit(submodule_relative_path):
+            self.print_status(
+                f"Submodule {submodule_relative_path} is already at the recorded commit; skipping forced reclone."
+            )
+            return False
+
+        if not submodule_path.exists() and not submodule_admin_path.exists():
+            return False
+
+        self.print_warning(
+            f"Submodule {submodule_relative_path} exists but is not at the recorded commit. "
+            "Removing it before cloning a fresh submodule checkout."
+        )
+
+        try:
+            self.deinitialize_submodule(submodule_relative_path)
+            if submodule_path.exists():
+                self._remove_path(submodule_path)
+            if submodule_admin_path.exists():
+                self._remove_path(submodule_admin_path)
+            self.print_success(
+                f"Removed existing checkout for {submodule_relative_path} before fresh clone"
+            )
+            return True
+        except Exception as e:
+            self.print_warning(
+                f"Failed to force-remove {submodule_relative_path} before reclone: {e}"
+            )
+            return False
+
     def initialize_git_submodules(self) -> bool:
         """Initialize git submodules with a bounded timeout."""
         self.print_status("Initializing git submodules...")
@@ -842,6 +880,7 @@ class GitSetupManager:
         submodule_relative_path = "modules/lerobot-vulcan"
 
         try:
+            self.force_reclone_submodule_checkout(submodule_relative_path)
             self.cleanup_stale_submodule_checkout(submodule_relative_path)
 
             update_command = ["git", "submodule", "update", "--init", "--recursive"]
