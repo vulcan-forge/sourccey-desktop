@@ -658,9 +658,12 @@ class GitSetupManager:
         )
         return head_check.returncode == 0
 
-    def _is_empty_directory(self, path: Path) -> bool:
-        """Return whether a directory exists and has no children."""
-        return path.is_dir() and not any(path.iterdir())
+    def _remove_path(self, path: Path) -> None:
+        """Remove a file or directory tree."""
+        if path.is_dir():
+            shutil.rmtree(path)
+        elif path.exists():
+            path.unlink()
 
     def sync_git_submodules(self) -> bool:
         """Sync submodule URLs from .gitmodules into git config."""
@@ -716,27 +719,22 @@ class GitSetupManager:
             return False
 
         if not submodule_admin_path.exists() and not submodule_git_path.exists():
-            if self._is_empty_directory(submodule_path):
-                self.print_warning(
-                    f"Removing empty placeholder directory at {submodule_relative_path} before retrying."
-                )
-                try:
-                    shutil.rmtree(submodule_path)
-                    self.print_success(
-                        f"Removed empty placeholder directory for {submodule_relative_path}"
-                    )
-                    return True
-                except Exception as e:
-                    self.print_warning(
-                        f"Failed to remove empty placeholder directory for {submodule_relative_path}: {e}"
-                    )
-                    return False
-
             self.print_warning(
-                f"Submodule path {submodule_relative_path} does not look git-managed; "
-                "skipping automatic cleanup."
+                f"Submodule path {submodule_relative_path} exists but is not git-managed. "
+                "Removing it before retrying submodule clone."
             )
-            return False
+            try:
+                if submodule_path.exists():
+                    self._remove_path(submodule_path)
+                self.print_success(
+                    f"Removed placeholder path for {submodule_relative_path}"
+                )
+                return True
+            except Exception as e:
+                self.print_warning(
+                    f"Failed to remove placeholder path for {submodule_relative_path}: {e}"
+                )
+                return False
 
         self.print_warning(
             f"Cleaning stale submodule checkout at {submodule_relative_path} before retrying."
@@ -745,9 +743,9 @@ class GitSetupManager:
         try:
             self.deinitialize_submodule(submodule_relative_path)
             if submodule_path.exists():
-                shutil.rmtree(submodule_path)
+                self._remove_path(submodule_path)
             if submodule_admin_path.exists():
-                shutil.rmtree(submodule_admin_path)
+                self._remove_path(submodule_admin_path)
             self.print_success(
                 f"Removed stale submodule state for {submodule_relative_path}"
             )
