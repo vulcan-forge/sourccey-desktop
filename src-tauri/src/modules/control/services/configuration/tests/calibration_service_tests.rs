@@ -66,3 +66,22 @@ fn validate_calibration_output_rejects_python_thread_traceback() {
     let error = result.err().unwrap_or_default();
     assert!(error.contains("RuntimeError: left arm failed"));
 }
+
+#[test]
+fn format_process_output_log_lines_splits_multiline_tracebacks() {
+    let lines = CalibrationService::format_process_output_log_lines(
+        "Desktop teleoperator auto calibrate",
+        "stderr",
+        "Traceback (most recent call last):\nValueError: broken calibration\n",
+    );
+
+    assert_eq!(
+        lines,
+        vec![
+            "Desktop teleoperator auto calibrate stderr: Traceback (most recent call last):"
+                .to_string(),
+            "Desktop teleoperator auto calibrate stderr | ValueError: broken calibration"
+                .to_string(),
+        ]
+    );
+}

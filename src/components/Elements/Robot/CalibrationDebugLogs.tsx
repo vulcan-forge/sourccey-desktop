@@ -1,34 +1,14 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { FaChevronDown, FaChevronUp, FaTerminal, FaTrash } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { Spinner } from '@/components/Elements/Spinner';
 import { CALIBRATION_DEBUG_LOGS_KEY, useCalibrationDebugLogs } from '@/hooks/Control/calibration-debug-logs.hook';
 import { queryClient } from '@/hooks/default';
+import { getVisibleCalibrationLogs } from '@/utils/logs/calibration-debug-logs';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-
-const CALIBRATION_KEYWORDS = [
-    'calibration',
-    'auto calibrate',
-    'auto_calibrate',
-    'teleoperator',
-    'traceback',
-    'exception',
-    'python script failed',
-    'failed',
-    'error',
-    'stderr',
-    'stdout',
-    'motor',
-    'port',
-    'disconnect',
-    'disconnected',
-    'not connected',
-    'missing',
-    'dxl',
-];
 
 type CalibrationDebugLogsProps = {
     nickname?: string;
@@ -72,10 +52,12 @@ export const CalibrationDebugLogs = ({
     const [isExpanded, setIsExpanded] = useState(isActive);
     const [isClearingLogs, setIsClearingLogs] = useState(false);
     const [clearErrorMessage, setClearErrorMessage] = useState('');
+    const wasRunningRef = useRef(isRunning);
     const {
         data: allLogs = [],
         isLoading,
         error,
+        refetch,
     } = useCalibrationDebugLogs({
         enabled: tauriAvailable && isExpanded && isActive,
         maxLines: 400,
@@ -86,6 +68,19 @@ export const CalibrationDebugLogs = ({
     useEffect(() => {
         setIsExpanded(isActive);
     }, [isActive, sessionKey]);
+
+    useEffect(() => {
+        if (tauriAvailable && isActive && isExpanded) {
+            void refetch();
+        }
+    }, [isActive, isExpanded, refetch, sessionKey, tauriAvailable]);
+
+    useEffect(() => {
+        if (wasRunningRef.current && !isRunning && tauriAvailable && isActive && isExpanded) {
+            void refetch();
+        }
+        wasRunningRef.current = isRunning;
+    }, [isActive, isExpanded, isRunning, refetch, tauriAvailable]);
 
     const contextTokens = useMemo(() => {
         const tokens = [
@@ -124,20 +119,10 @@ export const CalibrationDebugLogs = ({
         return allLogs;
     }, [allLogs, baselineLogs]);
 
-    const recentRelevantLogs = useMemo(() => {
-        const recent = sessionLogs.slice(-300);
-        const contextMatches = recent.filter((line) => matchesAny(line, contextTokens));
-
-        const filtered = recent.filter((line) => {
-            if (contextMatches.length > 0 && matchesAny(line, contextTokens)) {
-                return true;
-            }
-
-            return matchesAny(line, CALIBRATION_KEYWORDS);
-        });
-
-        return filtered.slice(-80);
-    }, [contextTokens, sessionLogs]);
+    const recentRelevantLogs = useMemo(
+        () => getVisibleCalibrationLogs(sessionLogs, contextTokens),
+        [contextTokens, sessionLogs]
+    );
 
     const queryErrorMessage = error instanceof Error ? error.message : error ? String(error) : '';
 

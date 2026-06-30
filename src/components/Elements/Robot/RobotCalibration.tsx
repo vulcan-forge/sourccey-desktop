@@ -107,7 +107,7 @@ export const RobotCalibration: React.FC<CalibrationSectionProps> = ({
             const toastErrorMessage = getCalibrationToastErrorMessage(error);
             console.error(`Calibration failed: ${toastErrorMessage}`);
             console.debug('Calibration failure details:', errorMessage);
-            toast.error(`${fullReset ? 'Full Calibrate' : 'Auto calibrate'} failed: ${toastErrorMessage}`, {
+            toast.error(toastErrorMessage, {
                 ...toastErrorDefaults,
                 style: {
                     ...(toastErrorDefaults.style || {}),

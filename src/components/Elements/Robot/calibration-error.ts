@@ -15,18 +15,6 @@ export const getCalibrationErrorMessage = (error: unknown): string => {
     return 'Unknown error';
 };
 
-const MAX_TOAST_ERROR_CHARS = 480;
+export const CALIBRATION_TOAST_ERROR_MESSAGE = 'Calibration error. See logs for details.';
 
-export const getCalibrationToastErrorMessage = (error: unknown): string => {
-    const raw = getCalibrationErrorMessage(error);
-    const compact = raw
-        .split(/\r?\n/)
-        .map((line) => line.trim())
-        .filter(Boolean)
-        .slice(0, 3)
-        .join('\n');
-    if (compact.length <= MAX_TOAST_ERROR_CHARS) {
-        return compact;
-    }
-    return `${compact.slice(0, MAX_TOAST_ERROR_CHARS - 3)}...`;
-};
+export const getCalibrationToastErrorMessage = (_error: unknown): string => CALIBRATION_TOAST_ERROR_MESSAGE;
