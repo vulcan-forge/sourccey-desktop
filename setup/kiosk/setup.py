@@ -41,7 +41,7 @@ from setup_rust import RustSetupManager  # type: ignore
 from setup_git import GitSetupManager  # type: ignore
 
 LEROBOT_VULCAN_SUBMODULE_PATH = "modules/lerobot-vulcan"
-LEROBOT_VULCAN_TAG = "vulcan/0.1.5"
+LEROBOT_VULCAN_TAG = "vulcan/0.1.6"
 
 class Colors:
     """ANSI color codes for terminal output"""
