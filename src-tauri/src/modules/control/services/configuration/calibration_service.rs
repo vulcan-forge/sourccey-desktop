@@ -304,21 +304,40 @@ impl CalibrationService {
     ) {
         let (stdout, stderr) = Self::decode_output_text(output);
         if !stdout.is_empty() {
-            let _ = LogService::write_app_log_line(
-                app_handle,
-                "robot-actions.log",
-                Some("calibration"),
-                &format!("{} stdout: {}", context, stdout),
-            );
+            for line in Self::format_process_output_log_lines(context, "stdout", &stdout) {
+                let _ = LogService::write_app_log_line(
+                    app_handle,
+                    "robot-actions.log",
+                    Some("calibration"),
+                    &line,
+                );
+            }
         }
         if !stderr.is_empty() {
-            let _ = LogService::write_app_log_line(
-                app_handle,
-                "robot-actions.log",
-                Some("calibration"),
-                &format!("{} stderr: {}", context, stderr),
-            );
+            for line in Self::format_process_output_log_lines(context, "stderr", &stderr) {
+                let _ = LogService::write_app_log_line(
+                    app_handle,
+                    "robot-actions.log",
+                    Some("calibration"),
+                    &line,
+                );
+            }
         }
+    }
+
+    fn format_process_output_log_lines(context: &str, stream_name: &str, text: &str) -> Vec<String> {
+        text.lines()
+            .map(str::trim_end)
+            .filter(|line| !line.is_empty())
+            .enumerate()
+            .map(|(index, line)| {
+                if index == 0 {
+                    format!("{} {}: {}", context, stream_name, line)
+                } else {
+                    format!("{} {} | {}", context, stream_name, line)
+                }
+            })
+            .collect()
     }
 
     pub async fn auto_calibrate(
