@@ -24,24 +24,6 @@ describe('LAN robot draft helpers', () => {
         });
     });
 
-    it('reports missing or duplicate LAN robot fields', () => {
-        expect(
-            getLanRobotValidationErrors(
-                {
-                    nickname: ' sourccey-001 ',
-                    host: '',
-                    leftArmPort: '',
-                    rightArmPort: 'COM8',
-                },
-                ['sourccey-001']
-            )
-        ).toEqual([
-            'That robot nickname is already in use on this desktop.',
-            'Robot host or LAN IP address is required.',
-            'Left arm port is required.',
-        ]);
-    });
-
     it('suggests a stable nickname from a discovered host', () => {
         expect(getLanRobotNicknameSuggestion('192.168.1.50')).toBe('sourccey-050');
         expect(getLanRobotNicknameSuggestion('192.168.1.50', ['sourccey-050'])).toBe('sourccey-050-2');

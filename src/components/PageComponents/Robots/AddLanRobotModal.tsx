@@ -19,8 +19,8 @@ type AddLanRobotModalProps = {
 const DEFAULT_DRAFT: LanRobotDraft = {
     nickname: 'sourccey-001',
     host: '',
-    leftArmPort: 'COM3',
-    rightArmPort: 'COM8',
+    leftArmPort: '',
+    rightArmPort: '',
 };
 
 export const AddLanRobotModal = ({ existingNicknames, initialDraft, isOpen, onClose, onSuccess }: AddLanRobotModalProps) => {
@@ -82,13 +82,13 @@ export const AddLanRobotModal = ({ existingNicknames, initialDraft, isOpen, onCl
             </div>
             {initialDraft?.host ? (
                 <div className="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-4 text-sm text-emerald-100">
-                    Discovery found <span className="font-semibold">{initialDraft.host}</span>. Review the nickname and ports, then save it
-                    to this desktop.
+                    Discovery found <span className="font-semibold">{initialDraft.host}</span>. Review the nickname, then save it to this
+                    desktop.
                 </div>
             ) : null}
 
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div className="grid grid-cols-1 gap-4">
                     <label className="flex flex-col gap-1 text-sm text-slate-200 md:col-span-2">
                         Robot Nickname
                         <input
@@ -110,31 +110,11 @@ export const AddLanRobotModal = ({ existingNicknames, initialDraft, isOpen, onCl
                             className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
                         />
                     </label>
-
-                    <label className="flex flex-col gap-1 text-sm text-slate-200">
-                        Left Arm Port
-                        <input
-                            value={draft.leftArmPort}
-                            onChange={(event) => updateDraft('leftArmPort', event.target.value)}
-                            disabled={isSubmitting}
-                            className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
-                        />
-                    </label>
-
-                    <label className="flex flex-col gap-1 text-sm text-slate-200">
-                        Right Arm Port
-                        <input
-                            value={draft.rightArmPort}
-                            onChange={(event) => updateDraft('rightArmPort', event.target.value)}
-                            disabled={isSubmitting}
-                            className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none"
-                        />
-                    </label>
                 </div>
 
                 <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 px-3 py-3 text-xs text-slate-400">
                     Robot model: <span className="font-semibold text-slate-200">Sourccey</span>
-                    <div className="mt-1">You can change ports and advanced teleop settings later from the robot Config page.</div>
+                    <div className="mt-1">Teleop arm ports will be requested the first time you open teleoperate for this robot.</div>
                 </div>
 
                 {validationErrors.length > 0 && (
