@@ -658,6 +658,10 @@ class GitSetupManager:
         )
         return head_check.returncode == 0
 
+    def _is_empty_directory(self, path: Path) -> bool:
+        """Return whether a directory exists and has no children."""
+        return path.is_dir() and not any(path.iterdir())
+
     def sync_git_submodules(self) -> bool:
         """Sync submodule URLs from .gitmodules into git config."""
         self.print_status("Syncing git submodule URLs...")
@@ -712,6 +716,22 @@ class GitSetupManager:
             return False
 
         if not submodule_admin_path.exists() and not submodule_git_path.exists():
+            if self._is_empty_directory(submodule_path):
+                self.print_warning(
+                    f"Removing empty placeholder directory at {submodule_relative_path} before retrying."
+                )
+                try:
+                    shutil.rmtree(submodule_path)
+                    self.print_success(
+                        f"Removed empty placeholder directory for {submodule_relative_path}"
+                    )
+                    return True
+                except Exception as e:
+                    self.print_warning(
+                        f"Failed to remove empty placeholder directory for {submodule_relative_path}: {e}"
+                    )
+                    return False
+
             self.print_warning(
                 f"Submodule path {submodule_relative_path} does not look git-managed; "
                 "skipping automatic cleanup."
@@ -824,6 +844,8 @@ class GitSetupManager:
         submodule_relative_path = "modules/lerobot-vulcan"
 
         try:
+            self.cleanup_stale_submodule_checkout(submodule_relative_path)
+
             update_command = ["git", "submodule", "update", "--init", "--recursive"]
             if self.run_git_command_with_progress(
                 update_command,
