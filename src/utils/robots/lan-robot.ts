@@ -16,10 +16,7 @@ export const normalizeLanRobotDraft = (draft: LanRobotDraft): LanRobotDraft => (
     rightArmPort: normalizeText(draft.rightArmPort),
 });
 
-export const getLanRobotValidationErrors = (
-    draft: LanRobotDraft,
-    existingNicknames: string[] = []
-) => {
+export const getLanRobotValidationErrors = (draft: LanRobotDraft, existingNicknames: string[] = []) => {
     const normalized = normalizeLanRobotDraft(draft);
     const existing = new Set(existingNicknames.map((nickname) => nickname.trim().toLowerCase()).filter(Boolean));
     const errors: string[] = [];
@@ -28,18 +25,6 @@ export const getLanRobotValidationErrors = (
         errors.push('Robot nickname is required.');
     } else if (existing.has(normalized.nickname.toLowerCase())) {
         errors.push('That robot nickname is already in use on this desktop.');
-    }
-
-    if (!normalized.host) {
-        errors.push('Robot host or LAN IP address is required.');
-    }
-
-    if (!normalized.leftArmPort) {
-        errors.push('Left arm port is required.');
-    }
-
-    if (!normalized.rightArmPort) {
-        errors.push('Right arm port is required.');
     }
 
     return errors;
@@ -68,6 +53,6 @@ export const getLanRobotNicknameSuggestion = (host: string, existingNicknames: s
 export const buildLanRobotDraftFromHost = (host: string, existingNicknames: string[] = []): LanRobotDraft => ({
     nickname: getLanRobotNicknameSuggestion(host, existingNicknames),
     host: normalizeText(host),
-    leftArmPort: 'COM3',
-    rightArmPort: 'COM8',
+    leftArmPort: '',
+    rightArmPort: '',
 });

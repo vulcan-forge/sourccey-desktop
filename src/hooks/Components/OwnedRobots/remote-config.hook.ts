@@ -20,8 +20,8 @@ export const useGetRemoteTeleopConfig = (nickname: string) =>
 const defaultRemoteTeleopConfig = (): RemoteTeleopConfig => ({
     nickname: 'sourccey',
     remote_ip: '192.168.1.225',
-    left_arm_port: 'COM3',
-    right_arm_port: 'COM8',
+    left_arm_port: '',
+    right_arm_port: '',
     keyboard: 'keyboard',
     fps: 30,
 });

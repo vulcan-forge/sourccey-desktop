@@ -33,13 +33,17 @@ export const getRemoteTeleopReadiness = (
             key: 'leftArm',
             label: 'Left Arm Port',
             ready: hasValue(remoteConfig?.left_arm_port),
-            detail: hasValue(remoteConfig?.left_arm_port) ? `Using ${remoteConfig?.left_arm_port?.trim()}` : 'Set the left arm port in Config.',
+            detail: hasValue(remoteConfig?.left_arm_port)
+                ? `Using ${remoteConfig?.left_arm_port?.trim()}`
+                : 'Set the left arm port below or in Config.',
         },
         {
             key: 'rightArm',
             label: 'Right Arm Port',
             ready: hasValue(remoteConfig?.right_arm_port),
-            detail: hasValue(remoteConfig?.right_arm_port) ? `Using ${remoteConfig?.right_arm_port?.trim()}` : 'Set the right arm port in Config.',
+            detail: hasValue(remoteConfig?.right_arm_port)
+                ? `Using ${remoteConfig?.right_arm_port?.trim()}`
+                : 'Set the right arm port below or in Config.',
         },
         {
             key: 'keyboard',

@@ -13,8 +13,8 @@ export const REMOTE_CONFIG_KEY = (nickname: string) => [BASE_REMOTE_CONTROL_CONF
 export const defaultRemoteConfig: RemoteConfig = {
     remote_ip: '',
     remote_port: '22',
-    left_arm_port: 'COM3',
-    right_arm_port: 'COM8',
+    left_arm_port: '',
+    right_arm_port: '',
     keyboard: 'keyboard',
     fps: 30,
 };
