@@ -21,6 +21,7 @@ fn default_settings_use_production_defaults() {
 
     assert_eq!(settings.environment, "production");
     assert_eq!(settings.display_name, "Production");
+    assert_eq!(settings.teleop_log_level, "warning");
     assert_eq!(
         settings.graphql_api_url,
         "https://api.studio.vulcanrobotics.ai/graphql"
@@ -49,6 +50,7 @@ fn save_and_load_roundtrip_preserves_local_custom_urls() {
         custom_auth_google_url: Some("dev-box.local:5200/api/v1/auth/google".to_string()),
         custom_auth_github_url: Some("dev-box.local:5200/api/v1/auth/github".to_string()),
         custom_updater_manifest_url: Some("dev-box.local:3000/latest.json".to_string()),
+        teleop_log_level: Some("error".to_string()),
     };
 
     let saved =
@@ -58,6 +60,7 @@ fn save_and_load_roundtrip_preserves_local_custom_urls() {
     assert_eq!(saved.environment, "local");
     assert_eq!(saved.display_name, "Developer");
     assert_eq!(saved.badge_label.as_deref(), Some("DEV MODE"));
+    assert_eq!(saved.teleop_log_level, "error");
     assert_eq!(loaded.graphql_api_url, "http://dev-box.local:5200/graphql");
     assert_eq!(
         loaded.account_summary_url,
@@ -99,6 +102,7 @@ fn non_local_persistence_uses_local_defaults_for_custom_fields() {
             custom_auth_google_url: Some("http://ignored/google".to_string()),
             custom_auth_github_url: Some("http://ignored/github".to_string()),
             custom_updater_manifest_url: Some("http://ignored/latest.json".to_string()),
+            teleop_log_level: None,
         },
     )
     .unwrap();
@@ -124,6 +128,48 @@ fn non_local_persistence_uses_local_defaults_for_custom_fields() {
     assert_eq!(
         saved.custom_updater_manifest_url,
         DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL
+    );
+
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn updating_only_teleop_log_level_preserves_existing_local_urls() {
+    let path = test_file_path("desktop_environment_log_level_only");
+
+    DesktopEnvironmentService::save_settings_to_path(
+        &path,
+        SaveDesktopEnvironmentSettingsRequest {
+            environment: "local".to_string(),
+            custom_graphql_api_url: Some("dev-box.local:5200/graphql".to_string()),
+            custom_account_summary_url: Some("dev-box.local:5200/api/account-summary".to_string()),
+            custom_auth_google_url: Some("dev-box.local:5200/api/v1/auth/google".to_string()),
+            custom_auth_github_url: Some("dev-box.local:5200/api/v1/auth/github".to_string()),
+            custom_updater_manifest_url: Some("dev-box.local:3000/latest.json".to_string()),
+            teleop_log_level: Some("warning".to_string()),
+        },
+    )
+    .unwrap();
+
+    let updated = DesktopEnvironmentService::save_settings_to_path(
+        &path,
+        SaveDesktopEnvironmentSettingsRequest {
+            environment: "local".to_string(),
+            custom_graphql_api_url: None,
+            custom_account_summary_url: None,
+            custom_auth_google_url: None,
+            custom_auth_github_url: None,
+            custom_updater_manifest_url: None,
+            teleop_log_level: Some("error".to_string()),
+        },
+    )
+    .unwrap();
+
+    assert_eq!(updated.teleop_log_level, "error");
+    assert_eq!(updated.graphql_api_url, "http://dev-box.local:5200/graphql");
+    assert_eq!(
+        updated.account_summary_url,
+        "http://dev-box.local:5200/api/account-summary"
     );
 
     let _ = std::fs::remove_file(path);

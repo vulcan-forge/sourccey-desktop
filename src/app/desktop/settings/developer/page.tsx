@@ -71,6 +71,7 @@ export default function DesktopDeveloperSettingsPage() {
             environment,
             displayName: environment === 'production' ? 'Production' : environment === 'staging' ? 'Staging' : 'Developer',
             badgeLabel: environment === 'production' ? null : environment === 'staging' ? 'STAGING' : 'DEV MODE',
+            teleopLogLevel: resolvedSettings.teleopLogLevel,
             customGraphqlApiUrl,
             customAccountSummaryUrl,
             customAuthGoogleUrl,
@@ -129,6 +130,7 @@ export default function DesktopDeveloperSettingsPage() {
         try {
             const saved = await saveDesktopEnvironmentSettings({
                 environment: nextEnvironment,
+                teleopLogLevel: resolvedSettings?.teleopLogLevel,
                 customGraphqlApiUrl: nextCustomGraphqlApiUrl,
                 customAccountSummaryUrl: nextCustomAccountSummaryUrl,
                 customAuthGoogleUrl: nextCustomAuthGoogleUrl,

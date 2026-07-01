@@ -1,6 +1,8 @@
 'use client';
 
-import { filterLogs } from '@/utils/logs/control-logs/control-logs';
+import { useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
+import type { DesktopEnvironmentSettings } from '@/types/desktop-environment';
+import { appendCondensedLogs } from '@/utils/logs/control-logs/log-stream';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { FaTerminal, FaChevronDown, FaChevronUp } from 'react-icons/fa';
@@ -23,32 +25,104 @@ const formatMessage = (label: string, message: string) => {
     return trimmed ? `[${label}] ${trimmed}` : `[${label}]`;
 };
 
+const LOG_LEVEL_PRIORITY: Record<DesktopEnvironmentSettings['teleopLogLevel'], number> = {
+    debug: 10,
+    info: 20,
+    warning: 30,
+    error: 40,
+};
+
+const getLogLevelForLine = (log: string): DesktopEnvironmentSettings['teleopLogLevel'] | null => {
+    const match = log.match(/(?:^\[[^\]]+\]\s*)?(DEBUG|INFO|WARNING|ERROR)\b/i);
+    if (!match) {
+        return null;
+    }
+
+    const matchedLevel = match[1];
+    if (!matchedLevel) {
+        return null;
+    }
+
+    const normalized = matchedLevel.toLowerCase();
+    if (normalized === 'warn' || normalized === 'warning') {
+        return 'warning';
+    }
+
+    if (normalized === 'debug' || normalized === 'info' || normalized === 'error') {
+        return normalized;
+    }
+
+    return null;
+};
+
+const MAX_STORED_LOGS = 60;
+const MAX_RENDERED_LOGS = 40;
+const LOG_FLUSH_INTERVAL_MS = 200;
+
 export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: RobotDesktopLogsProps) => {
+    const { data: desktopEnvironmentSettings } = useDesktopEnvironmentSettings();
     const [controlLogs, setControlLogs] = useState<string[]>([]);
     const [isExpanded, setIsExpanded] = useState(isControlling);
     const logsRef = useRef<string[]>([]);
+    const pendingLogsRef = useRef<string[]>([]);
+    const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const teleopLogLevel = desktopEnvironmentSettings?.teleopLogLevel ?? 'warning';
+
+    const flushPendingLogs = useCallback(() => {
+        flushTimerRef.current = null;
+
+        if (pendingLogsRef.current.length === 0) {
+            return;
+        }
+
+        const nextLogs = appendCondensedLogs(logsRef.current, pendingLogsRef.current, MAX_STORED_LOGS);
+        pendingLogsRef.current = [];
+        logsRef.current = nextLogs;
+        setControlLogs(nextLogs);
+    }, []);
 
     const appendLog = useCallback(
         (log: string) => {
             if (nickname && !log.includes(`[${nickname}]`)) {
                 return;
             }
-            const filteredLogs = filterLogs([...logsRef.current, log]);
-            const newLogs = filteredLogs.slice(-100);
-            logsRef.current = newLogs;
-            setControlLogs(newLogs);
+
+            const lineLevel = getLogLevelForLine(log);
+            if (lineLevel && LOG_LEVEL_PRIORITY[lineLevel] < LOG_LEVEL_PRIORITY[teleopLogLevel]) {
+                return;
+            }
+
+            pendingLogsRef.current.push(log);
+            if (flushTimerRef.current === null) {
+                flushTimerRef.current = setTimeout(flushPendingLogs, LOG_FLUSH_INTERVAL_MS);
+            }
         },
-        [nickname]
+        [flushPendingLogs, nickname, teleopLogLevel]
     );
 
     // Update internal state when external prop changes
     useEffect(() => {
         setIsExpanded(isControlling);
         if (!isControlling) {
+            if (flushTimerRef.current !== null) {
+                clearTimeout(flushTimerRef.current);
+                flushTimerRef.current = null;
+            }
+            pendingLogsRef.current = [];
             logsRef.current = [];
             setControlLogs([]);
         }
     }, [isControlling]);
+
+    useEffect(
+        () => () => {
+            if (flushTimerRef.current !== null) {
+                clearTimeout(flushTimerRef.current);
+                flushTimerRef.current = null;
+            }
+        },
+        []
+    );
 
     useEffect(() => {
         if (!isControlling) {
@@ -173,7 +247,7 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
                     <div className="scrollbar scrollbar-thumb-slate-600 scrollbar-track-slate-800 h-[320px] overflow-y-auto bg-slate-950/45 font-mono">
                         <div className="space-y-1 p-5">
                             {controlLogs.length > 0 ? (
-                                controlLogs.slice(-50).map((log, index) => (
+                                controlLogs.slice(-MAX_RENDERED_LOGS).map((log, index) => (
                                     <div key={index} className="rounded-lg bg-slate-900/55 px-3 py-2 text-xs leading-relaxed text-slate-300">
                                         {log}
                                     </div>
@@ -188,7 +262,7 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
 
                     <div className="border-t border-slate-700/70 px-5 py-3">
                         <div className="flex items-center justify-between text-xs text-slate-400">
-                            <span>{controlLogs.length} entries</span>
+                            <span>{controlLogs.length} recent entries shown</span>
                         </div>
                     </div>
                 </>

@@ -12,6 +12,37 @@ use tauri_plugin_shell::ShellExt;
 pub struct ProcessService;
 
 impl ProcessService {
+    pub fn kill_process_tree(app_handle: &AppHandle, pid: u32) -> Result<(), String> {
+        #[cfg(windows)]
+        {
+            let output = Self::run_shell_command(
+                app_handle,
+                "taskkill",
+                &["/PID", &pid.to_string(), "/T", "/F"],
+            )?;
+
+            if output.contains("ERROR:") {
+                return Err(output);
+            }
+
+            Ok(())
+        }
+
+        #[cfg(not(windows))]
+        {
+            let _ = Command::new("pkill")
+                .args(["-TERM", "-P", &pid.to_string()])
+                .status();
+
+            Command::new("kill")
+                .args(["-TERM", &pid.to_string()])
+                .status()
+                .map_err(|e| format!("Failed to kill process {}: {}", pid, e))?;
+
+            Ok(())
+        }
+    }
+
     /// Check if a process with the given PID is still alive
     pub fn is_process_alive(app_handle: &AppHandle, pid: u32) -> bool {
         #[cfg(windows)]

@@ -19,6 +19,7 @@ describe('desktop environment settings', () => {
         expect(settings.environment).toBe('staging');
         expect(settings.displayName).toBe('Staging');
         expect(settings.badgeLabel).toBe('STAGING');
+        expect(settings.teleopLogLevel).toBe('warning');
         expect(settings.graphqlApiUrl).toBe('https://api.staging.factory.studio.vulcanrobotics.ai/graphql');
         expect(settings.updaterManifestUrl).toBe('https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/latest.json');
     });
@@ -36,6 +37,7 @@ describe('desktop environment settings', () => {
         expect(settings.environment).toBe('local');
         expect(settings.displayName).toBe('Developer');
         expect(settings.badgeLabel).toBe('DEV MODE');
+        expect(settings.teleopLogLevel).toBe('warning');
         expect(settings.graphqlApiUrl).toBe('http://dev-box.local:5200/graphql');
         expect(settings.accountSummaryUrl).toBe('http://dev-box.local:5200/api/account-summary');
         expect(settings.authGoogleUrl).toBe('http://dev-box.local:5200/api/v1/auth/google');

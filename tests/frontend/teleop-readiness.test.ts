@@ -17,6 +17,7 @@ describe('remote teleop readiness', () => {
 
         expect(ready.ready).toBe(true);
         expect(ready.blockingIssues).toEqual([]);
+        expect(ready.advisoryIssues).toEqual([]);
     });
 
     it('surfaces missing setup steps in plain language', () => {
@@ -33,10 +34,30 @@ describe('remote teleop readiness', () => {
 
         expect(readiness.ready).toBe(false);
         expect(readiness.blockingIssues).toContain('Set the robot host or IP address in Config.');
-        expect(readiness.blockingIssues).toContain('Set the right arm port in Config.');
+        expect(readiness.blockingIssues).toContain('Set the right arm port below or in Config.');
         expect(readiness.blockingIssues).toContain('Set the keyboard or input device in Config.');
         expect(readiness.blockingIssues).toContain('Set FPS to a value greater than 0.');
         expect(readiness.blockingIssues).toContain('Run teleoperator calibration before starting teleoperation.');
         expect(getRemoteTeleopBlockingMessage(readiness)).toContain('Set the robot host or IP address in Config.');
+    });
+
+    it('allows teleop to start with leader fallback when ports or calibration are missing', () => {
+        const readiness = getRemoteTeleopReadiness(
+            {
+                remote_ip: '192.168.1.50',
+                left_arm_port: '',
+                right_arm_port: '',
+                keyboard: 'keyboard',
+                fps: 30,
+            },
+            { isCalibrated: false },
+            { allowLeaderFallback: true }
+        );
+
+        expect(readiness.ready).toBe(true);
+        expect(readiness.blockingIssues).toEqual([]);
+        expect(readiness.advisoryIssues).toContain('Set the left arm port below or in Config.');
+        expect(readiness.advisoryIssues).toContain('Set the right arm port below or in Config.');
+        expect(readiness.advisoryIssues).toContain('Run teleoperator calibration before starting teleoperation.');
     });
 });

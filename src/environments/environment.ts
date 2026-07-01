@@ -24,6 +24,7 @@ const DEFAULT_LOCAL_DESKTOP_ACCOUNT_SUMMARY_URL = 'http://192.168.1.220:5200/api
 const DEFAULT_LOCAL_DESKTOP_AUTH_GOOGLE_URL = 'http://192.168.1.220:5200/api/v1/auth/google';
 const DEFAULT_LOCAL_DESKTOP_AUTH_GITHUB_URL = 'http://192.168.1.220:5200/api/v1/auth/github';
 const DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL = 'http://192.168.1.220:3000/latest.json';
+const DEFAULT_TELEOP_LOG_LEVEL = 'warning';
 
 type DesktopEnvironmentProcessEnv = {
     NEXT_PUBLIC_ENVIRONMENT?: string;
@@ -61,6 +62,7 @@ const resolveDesktopEnvironment = (value?: string | null): DesktopEnvironment =>
 
 const buildResolvedDesktopEnvironmentSettings = (
     environment: DesktopEnvironment,
+    teleopLogLevel: DesktopEnvironmentSettings['teleopLogLevel'],
     customGraphqlApiUrl: string,
     customAccountSummaryUrl: string,
     customAuthGoogleUrl: string,
@@ -75,6 +77,7 @@ const buildResolvedDesktopEnvironmentSettings = (
             environment,
             displayName,
             badgeLabel,
+            teleopLogLevel,
             customGraphqlApiUrl,
             customAccountSummaryUrl,
             customAuthGoogleUrl,
@@ -93,6 +96,7 @@ const buildResolvedDesktopEnvironmentSettings = (
             environment,
             displayName,
             badgeLabel,
+            teleopLogLevel,
             customGraphqlApiUrl,
             customAccountSummaryUrl,
             customAuthGoogleUrl,
@@ -110,6 +114,7 @@ const buildResolvedDesktopEnvironmentSettings = (
         environment,
         displayName,
         badgeLabel,
+        teleopLogLevel,
         customGraphqlApiUrl,
         customAccountSummaryUrl,
         customAuthGoogleUrl,
@@ -139,6 +144,7 @@ export const buildDesktopEnvironmentSettingsFromProcessEnv = (
 
     return buildResolvedDesktopEnvironmentSettings(
         environment,
+        DEFAULT_TELEOP_LOG_LEVEL,
         customGraphqlApiUrl,
         customAccountSummaryUrl,
         customAuthGoogleUrl,
@@ -166,9 +172,12 @@ export const resolveClientDesktopEnvironmentSettings = (
     const customUpdaterManifestUrl = normalizeUrl(
         request.customUpdaterManifestUrl ?? DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL
     );
+    const teleopLogLevel =
+        request.teleopLogLevel ?? cachedDesktopEnvironmentSettings?.teleopLogLevel ?? DEFAULT_TELEOP_LOG_LEVEL;
 
     return buildResolvedDesktopEnvironmentSettings(
         environment,
+        teleopLogLevel,
         customGraphqlApiUrl,
         customAccountSummaryUrl,
         customAuthGoogleUrl,
