@@ -34,6 +34,7 @@ pub const DEFAULT_LOCAL_DESKTOP_AUTH_GITHUB_URL: &str =
     "http://192.168.1.220:5200/api/v1/auth/github";
 pub const DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL: &str =
     "http://192.168.1.220:3000/latest.json";
+const DEFAULT_TELEOP_LOG_LEVEL: &str = "warning";
 
 pub struct DesktopEnvironmentService;
 
@@ -95,6 +96,7 @@ pub struct DesktopEnvironmentSettings {
     pub auth_google_url: String,
     pub auth_github_url: String,
     pub updater_manifest_url: String,
+    pub teleop_log_level: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,6 +108,7 @@ pub struct SaveDesktopEnvironmentSettingsRequest {
     pub custom_auth_google_url: Option<String>,
     pub custom_auth_github_url: Option<String>,
     pub custom_updater_manifest_url: Option<String>,
+    pub teleop_log_level: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -121,6 +124,12 @@ struct PersistedDesktopEnvironmentSettings {
     custom_auth_github_url: String,
     #[serde(default)]
     custom_updater_manifest_url: String,
+    #[serde(default = "default_teleop_log_level")]
+    teleop_log_level: String,
+}
+
+fn default_teleop_log_level() -> String {
+    DEFAULT_TELEOP_LOG_LEVEL.to_string()
 }
 
 impl DesktopEnvironmentService {
@@ -132,6 +141,7 @@ impl DesktopEnvironmentService {
             DEFAULT_LOCAL_DESKTOP_AUTH_GOOGLE_URL.to_string(),
             DEFAULT_LOCAL_DESKTOP_AUTH_GITHUB_URL.to_string(),
             DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL.to_string(),
+            DEFAULT_TELEOP_LOG_LEVEL.to_string(),
         )
     }
 
@@ -195,6 +205,7 @@ impl DesktopEnvironmentService {
             custom_auth_google_url,
             custom_auth_github_url,
             custom_updater_manifest_url,
+            Self::normalize_teleop_log_level(&persisted.teleop_log_level)?,
         ))
     }
 
@@ -202,6 +213,7 @@ impl DesktopEnvironmentService {
         path: &Path,
         request: SaveDesktopEnvironmentSettingsRequest,
     ) -> Result<DesktopEnvironmentSettings, String> {
+        let existing_settings = Self::get_settings_from_path(path).unwrap_or_else(|_| Self::default_settings());
         let environment = DesktopEnvironment::parse(&request.environment)?;
         let (
             custom_graphql_api_url,
@@ -211,14 +223,35 @@ impl DesktopEnvironmentService {
             custom_updater_manifest_url,
         ) = match environment {
             DesktopEnvironment::Local => Self::normalize_local_urls(
-                request.custom_graphql_api_url.as_deref(),
-                request.custom_account_summary_url.as_deref(),
-                request.custom_auth_google_url.as_deref(),
-                request.custom_auth_github_url.as_deref(),
-                request.custom_updater_manifest_url.as_deref(),
+                request
+                    .custom_graphql_api_url
+                    .as_deref()
+                    .or(Some(existing_settings.custom_graphql_api_url.as_str())),
+                request
+                    .custom_account_summary_url
+                    .as_deref()
+                    .or(Some(existing_settings.custom_account_summary_url.as_str())),
+                request
+                    .custom_auth_google_url
+                    .as_deref()
+                    .or(Some(existing_settings.custom_auth_google_url.as_str())),
+                request
+                    .custom_auth_github_url
+                    .as_deref()
+                    .or(Some(existing_settings.custom_auth_github_url.as_str())),
+                request
+                    .custom_updater_manifest_url
+                    .as_deref()
+                    .or(Some(existing_settings.custom_updater_manifest_url.as_str())),
             )?,
             _ => Self::default_local_urls(),
         };
+        let teleop_log_level = Self::normalize_teleop_log_level(
+            request
+                .teleop_log_level
+                .as_deref()
+                .unwrap_or(existing_settings.teleop_log_level.as_str()),
+        )?;
 
         let payload = PersistedDesktopEnvironmentSettings {
             environment: environment.as_str().to_string(),
@@ -227,6 +260,7 @@ impl DesktopEnvironmentService {
             custom_auth_google_url: custom_auth_google_url.clone(),
             custom_auth_github_url: custom_auth_github_url.clone(),
             custom_updater_manifest_url: custom_updater_manifest_url.clone(),
+            teleop_log_level: teleop_log_level.clone(),
         };
 
         if let Some(parent) = path.parent() {
@@ -266,6 +300,7 @@ impl DesktopEnvironmentService {
             custom_auth_google_url,
             custom_auth_github_url,
             custom_updater_manifest_url,
+            teleop_log_level,
         ))
     }
 
@@ -312,6 +347,7 @@ impl DesktopEnvironmentService {
         custom_auth_google_url: String,
         custom_auth_github_url: String,
         custom_updater_manifest_url: String,
+        teleop_log_level: String,
     ) -> DesktopEnvironmentSettings {
         let (
             graphql_api_url,
@@ -357,6 +393,20 @@ impl DesktopEnvironmentService {
             auth_google_url,
             auth_github_url,
             updater_manifest_url,
+            teleop_log_level,
+        }
+    }
+
+    fn normalize_teleop_log_level(value: &str) -> Result<String, String> {
+        match value.trim().to_ascii_lowercase().as_str() {
+            "debug" => Ok("debug".to_string()),
+            "info" => Ok("info".to_string()),
+            "warning" | "warn" => Ok("warning".to_string()),
+            "error" => Ok("error".to_string()),
+            other => Err(format!(
+                "Invalid teleop log level '{}'. Expected debug, info, warning, or error.",
+                other
+            )),
         }
     }
 

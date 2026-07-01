@@ -66,6 +66,11 @@ impl RemoteTeleopService {
         Self::log_teleop_info(&start_message);
         Self::log_teleop_info(&format!("Command: {}", command_display));
         Self::emit_teleop_info(&app_handle, &config.nickname, &start_message);
+        Self::emit_teleop_info(
+            &app_handle,
+            &config.nickname,
+            &format!("Command: {}", command_display),
+        );
 
         let cmd = app_handle
             .shell()
@@ -204,8 +209,8 @@ impl RemoteTeleopService {
                 command_log_id,
             );
 
-            if let Err(err) = child.kill() {
-                let message = format!("Failed to kill teleop process: {}", err);
+            if let Err(err) = ProcessService::kill_process_tree(app_handle, child.pid()) {
+                let message = format!("Failed to kill teleop process tree: {}", err);
                 Self::log_teleop_error(&message);
             }
 
@@ -237,7 +242,7 @@ impl RemoteTeleopService {
             "--teleop_keyboard.type=keyboard".to_string(),
             format!("--teleop_keyboard.id={}", config.keyboard.trim()),
             format!("--fps={}", config.fps),
-            "--display_data=true".to_string(),
+            "--display_data=false".to_string(),
         ]
     }
 
@@ -247,12 +252,6 @@ impl RemoteTeleopService {
         }
         if config.remote_ip.trim().is_empty() {
             return Err("Teleoperation requires a robot host or IP address.".to_string());
-        }
-        if config.left_arm_port.trim().is_empty() {
-            return Err("Teleoperation requires a left arm port.".to_string());
-        }
-        if config.right_arm_port.trim().is_empty() {
-            return Err("Teleoperation requires a right arm port.".to_string());
         }
         if config.keyboard.trim().is_empty() {
             return Err("Teleoperation requires a keyboard or input device.".to_string());
@@ -320,6 +319,11 @@ mod tests {
             command_parts
                 .iter()
                 .any(|part| part == "--robot.type=sourccey_client")
+        );
+        assert!(
+            command_parts
+                .iter()
+                .any(|part| part == "--display_data=false")
         );
     }
 }

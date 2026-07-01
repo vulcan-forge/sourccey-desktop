@@ -11,7 +11,12 @@ export type RemoteTeleopReadinessCheck = {
 export type RemoteTeleopReadiness = {
     ready: boolean;
     blockingIssues: string[];
+    advisoryIssues: string[];
     checks: RemoteTeleopReadinessCheck[];
+};
+
+type RemoteTeleopReadinessOptions = {
+    allowLeaderFallback?: boolean;
 };
 
 const hasValue = (value: string | null | undefined) => value?.trim().length ? true : false;
@@ -20,8 +25,12 @@ const isPositiveNumber = (value: number | null | undefined) => typeof value === 
 
 export const getRemoteTeleopReadiness = (
     remoteConfig?: Partial<RemoteConfig> | null,
-    calibrationStatus?: Partial<DesktopTeleopCalibrationStatus> | null
+    calibrationStatus?: Partial<DesktopTeleopCalibrationStatus> | null,
+    options?: RemoteTeleopReadinessOptions
 ): RemoteTeleopReadiness => {
+    const allowLeaderFallback = options?.allowLeaderFallback === true;
+    const advisoryKeys = allowLeaderFallback ? new Set<RemoteTeleopReadinessCheck['key']>(['leftArm', 'rightArm', 'calibration']) : new Set<RemoteTeleopReadinessCheck['key']>();
+
     const checks: RemoteTeleopReadinessCheck[] = [
         {
             key: 'host',
@@ -68,11 +77,17 @@ export const getRemoteTeleopReadiness = (
         },
     ];
 
-    const blockingIssues = checks.filter((check) => !check.ready).map((check) => check.detail);
+    const blockingIssues = checks
+        .filter((check) => !check.ready && !advisoryKeys.has(check.key))
+        .map((check) => check.detail);
+    const advisoryIssues = checks
+        .filter((check) => !check.ready && advisoryKeys.has(check.key))
+        .map((check) => check.detail);
 
     return {
         ready: blockingIssues.length === 0,
         blockingIssues,
+        advisoryIssues,
         checks,
     };
 };

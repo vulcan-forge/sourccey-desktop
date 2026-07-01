@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FaChevronDown, FaChevronUp, FaRobot, FaSlidersH, FaTools, FaWifi } from 'react-icons/fa';
+import { FaChevronDown, FaChevronUp, FaRobot, FaSlidersH, FaTerminal, FaTools, FaWifi } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { updateOwnedRobotNickname } from '@/api/Local/Robot/owned_robot';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
@@ -10,6 +10,8 @@ import { queryClient } from '@/hooks/default';
 import { useGetRemoteConfig, setRemoteConfig, REMOTE_CONFIG_KEY } from '@/hooks/Control/remote-config.hook';
 import { useLanRobotDiscovery } from '@/hooks/Robot/lan-discovery.hook';
 import type { RemoteConfig } from '@/types/remote-config';
+import { saveDesktopEnvironmentSettings, useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
+import type { DesktopEnvironmentSettings } from '@/types/desktop-environment';
 import { DesktopTeleopCalibration } from '@/components/PageComponents/Robots/Calibration/DesktopTeleopCalibration';
 import { BASE_OWNED_ROBOT_KEY, setSelectedOwnedRobot } from '@/hooks/Models/OwnedRobot/owned-robot.hook';
 
@@ -24,15 +26,18 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
     const nickname = ownedRobot?.nickname ?? '';
     const ownedRobotId = ownedRobot?.id ?? ownedRobot?.owned_robot?.id ?? '';
     const { data: remoteConfig, isLoading: isLoadingConfig }: any = useGetRemoteConfig(nickname);
+    const { data: desktopEnvironmentSettings } = useDesktopEnvironmentSettings();
 
     const [draftConfig, setDraftConfig] = useState<RemoteConfig | null>(null);
     const [isSavingConfig, setIsSavingConfig] = useState(false);
     const [nicknameDraft, setNicknameDraft] = useState(nickname);
     const [isSavingNickname, setIsSavingNickname] = useState(false);
+    const [isSavingLogLevel, setIsSavingLogLevel] = useState(false);
     const [isIdentityOpen, setIsIdentityOpen] = useState(false);
     const [isConnectionOpen, setIsConnectionOpen] = useState(false);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
     const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
+    const [isLogsOpen, setIsLogsOpen] = useState(false);
     const currentHost = draftConfig?.remote_ip?.trim() ?? remoteConfig?.remote_ip?.trim() ?? '';
     const { data: discoveryResult, isLoading: isDiscoveryLoading } = useLanRobotDiscovery(!!currentHost);
     const discoveredHost = discoveryResult?.hosts.find((entry) => entry.ipAddress.trim() === currentHost);
@@ -115,11 +120,30 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
         }
     };
 
+    const saveLogLevel = async (nextTeleopLogLevel: DesktopEnvironmentSettings['teleopLogLevel']) => {
+        if (!desktopEnvironmentSettings) {
+            return;
+        }
+
+        setIsSavingLogLevel(true);
+        try {
+            await saveDesktopEnvironmentSettings({
+                environment: desktopEnvironmentSettings.environment,
+                teleopLogLevel: nextTeleopLogLevel,
+            });
+            toast.success('Teleop log level updated.', { ...toastSuccessDefaults });
+        } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to update teleop log level.';
+            toast.error(message, { ...toastErrorDefaults });
+        } finally {
+            setIsSavingLogLevel(false);
+        }
+    };
+
     const isConfigsVisible = isOpen ?? true;
     return (
         <div className="flex flex-col gap-4">
             {showHeader && !embedded && <h3 className="text-lg font-semibold text-white">Remote Config</h3>}
-
             <ConfigSection
                 title="Robot identity"
                 icon={<FaRobot className="h-4 w-4 text-cyan-300" />}
@@ -285,6 +309,32 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
                     onToggle={() => setIsCalibrationOpen((current) => !current)}
                 >
                     <DesktopTeleopCalibration ownedRobot={ownedRobot} embedded={true} />
+                </ConfigSection>
+            )}
+
+            {isConfigsVisible && (
+                <ConfigSection
+                    title="Logs"
+                    icon={<FaTerminal className="h-4 w-4 text-violet-300" />}
+                    description="Control how much teleoperation output is shown for this desktop. Default is warning."
+                    isOpen={isLogsOpen}
+                    onToggle={() => setIsLogsOpen((current) => !current)}
+                >
+                    <label className="flex max-w-xs flex-col gap-1 text-xs text-slate-300">
+                        Log Level
+                        <select
+                            value={desktopEnvironmentSettings?.teleopLogLevel ?? 'warning'}
+                            onChange={(event) =>
+                                void saveLogLevel(event.target.value as DesktopEnvironmentSettings['teleopLogLevel'])
+                            }
+                            disabled={!desktopEnvironmentSettings || isSavingLogLevel}
+                            className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                            <option value="info">Info</option>
+                            <option value="warning">Warning</option>
+                            <option value="error">Error</option>
+                        </select>
+                    </label>
                 </ConfigSection>
             )}
         </div>

@@ -26,7 +26,6 @@ export const RobotListPage = () => {
     const [isDiscoverOpen, setIsDiscoverOpen] = useState(false);
     const [isSetupHelpOpen, setIsSetupHelpOpen] = useState(false);
     const [draftOverride, setDraftOverride] = useState<Partial<LanRobotDraft> | null>(null);
-    const router = useRouter();
 
     const robotsToRender = (ownedRobots || []).map((ownedRobot: any) => ({
         id: ownedRobot?.owned_robot?.id || ownedRobot.id,
@@ -45,13 +44,12 @@ export const RobotListPage = () => {
         const draft = buildLanRobotDraftFromHost(robot.ipAddress, existingNicknames);
 
         try {
-            const ownedRobotId = await saveLanRobotDraft(draft);
+            await saveLanRobotDraft(draft);
             await queryClient.invalidateQueries({ queryKey: [BASE_OWNED_ROBOT_KEY] });
             toast.success(`Added ${draft.nickname} from ${robot.ipAddress}.`, {
                 ...toastSuccessDefaults,
             });
             setIsDiscoverOpen(false);
-            safeNavigate(router, `/desktop/robot?id=${ownedRobotId}`);
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to add LAN robot.';
             toast.error(message, { ...toastErrorDefaults });
@@ -61,11 +59,6 @@ export const RobotListPage = () => {
     const handleUnpairRobot = async (robot: any) => {
         if (!robot?.id) {
             toast.error('Unable to remove this robot.', { ...toastErrorDefaults });
-            return;
-        }
-
-        const confirmed = window.confirm(`Remove ${robot.name || robot.nickname || 'this robot'} from this desktop?`);
-        if (!confirmed) {
             return;
         }
 
@@ -186,9 +179,8 @@ export const RobotListPage = () => {
                         setIsAddLanRobotOpen(false);
                         setDraftOverride(null);
                     }}
-                    onSuccess={async (ownedRobotId) => {
+                    onSuccess={async () => {
                         await queryClient.invalidateQueries({ queryKey: [BASE_OWNED_ROBOT_KEY] });
-                        safeNavigate(router, `/desktop/robot?id=${ownedRobotId}`);
                     }}
                 />
                 <DiscoverLanRobotsModal

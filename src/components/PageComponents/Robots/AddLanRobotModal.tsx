@@ -13,7 +13,7 @@ type AddLanRobotModalProps = {
     initialDraft?: Partial<LanRobotDraft> | null;
     isOpen: boolean;
     onClose: () => void;
-    onSuccess: (ownedRobotId: string) => void;
+    onSuccess: () => void;
 };
 
 const DEFAULT_DRAFT: LanRobotDraft = {
@@ -60,13 +60,13 @@ export const AddLanRobotModal = ({ existingNicknames, initialDraft, isOpen, onCl
         const normalized = normalizeLanRobotDraft(draft);
 
         try {
-            const ownedRobotId = await saveLanRobotDraft(normalized);
+            await saveLanRobotDraft(normalized);
 
             toast.success('LAN robot added. You can teleoperate it from this desktop now.', {
                 ...toastSuccessDefaults,
             });
             onClose();
-            onSuccess(ownedRobotId);
+            onSuccess();
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to add LAN robot.';
             toast.error(message, { ...toastErrorDefaults });

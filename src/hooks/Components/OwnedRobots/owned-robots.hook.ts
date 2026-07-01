@@ -9,5 +9,5 @@ export const OWNED_ROBOTS_CONTENT_KEY = [BASE_OWNED_ROBOTS_KEY, 'content'];
 //---------------------------------------------------------------------------------------------------//
 export const getContent = () => queryClient.getQueryData(OWNED_ROBOTS_CONTENT_KEY);
 export const setContent = (content: any) => queryClient.setQueryData(OWNED_ROBOTS_CONTENT_KEY, content);
-export const useGetContent = () => useQuery({ queryKey: OWNED_ROBOTS_CONTENT_KEY, queryFn: () => getContent() ?? 'overview' });
+export const useGetContent = () => useQuery({ queryKey: OWNED_ROBOTS_CONTENT_KEY, queryFn: () => getContent() ?? 'teleoperate' });
 //---------------------------------------------------------------------------------------------------//

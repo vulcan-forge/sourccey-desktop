@@ -5,7 +5,7 @@ import { toast } from 'react-toastify';
 import { FaChevronDown, FaChevronUp, FaGamepad, FaPlay, FaStop } from 'react-icons/fa';
 import { Tooltip } from 'react-tooltip';
 import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemoteRobotState } from '@/hooks/Control/remote-control.hook';
-import { setRemoteConfig, useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
+import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { Spinner } from '@/components/Elements/Spinner';
 import { DEFAULT_DESKTOP_TELEOP_TYPE, useDesktopTeleopCalibrationStatus } from '@/hooks/Control/desktop-calibration.hook';
 import {
@@ -48,11 +48,6 @@ export const RemoteTeleopAction = ({
 }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isRecordSettingsOpen, setIsRecordSettingsOpen] = useState(false);
-    const [portDraft, setPortDraft] = useState({
-        leftArmPort: '',
-        rightArmPort: '',
-    });
-    const [isSavingPorts, setIsSavingPorts] = useState(false);
 
     const nickname = ownedRobot?.nickname ?? '';
     const normalizedNickname = nickname.startsWith('@') ? nickname.slice(1) : nickname;
@@ -101,19 +96,22 @@ export const RemoteTeleopAction = ({
     const expectedControlType = isRecordingMode ? RemoteControlType.RECORDING : RemoteControlType.TELEOP;
     const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == expectedControlType;
     const isCalibrationLoading = isLoading || isLoadingCalibration;
-    const readiness = getRemoteTeleopReadiness(remoteConfig, teleopCalibrationStatus);
+    const readiness = getRemoteTeleopReadiness(remoteConfig, teleopCalibrationStatus, {
+        allowLeaderFallback: !isRecordingMode,
+    });
     const readinessMessage = getRemoteTeleopBlockingMessage(readiness);
     const panelTitle = isRecordingMode ? 'Record Data' : 'Teleoperate Robot';
     const startLabel = isRecordingMode ? 'Start Recording' : 'Start Control';
     const stopLabel = isRecordingMode ? 'Stop Recording' : 'Stop Control';
     const arePortsMissing = !remoteConfig?.left_arm_port?.trim() || !remoteConfig?.right_arm_port?.trim();
-
-    useEffect(() => {
-        setPortDraft({
-            leftArmPort: remoteConfig?.left_arm_port ?? '',
-            rightArmPort: remoteConfig?.right_arm_port ?? '',
-        });
-    }, [remoteConfig?.left_arm_port, remoteConfig?.right_arm_port]);
+    const isTeleopCalibrated = teleopCalibrationStatus?.isCalibrated === true;
+    const shouldUseLeaderFallback = !isRecordingMode && (arePortsMissing || !isTeleopCalibrated);
+    const showLeaderFallbackNotice = shouldUseLeaderFallback;
+    const leaderFallbackNotice = arePortsMissing && !isTeleopCalibrated
+        ? 'No teleoperator ports or desktop teleop calibration file were found. Teleop will still start, but the arms will be down to the side. Go to Setup to add teleop arm ports and run calibration.'
+        : arePortsMissing
+          ? 'No teleoperator ports were found. Teleop will still start, but the arms will be down to the side. Go to Setup to add teleop arm ports.'
+          : 'No desktop teleop calibration file was found. Teleop will still start, but the arms will be down to the side until calibration is completed.';
 
     const recordingDraftValidation = useMemo(() => {
         if (!isRecordingMode) {
@@ -163,43 +161,6 @@ export const RemoteTeleopAction = ({
     const isControlDisabled =
         isCalibrationLoading || !readiness.ready || (isRecordingMode && !recordingDraftValidation.ready);
 
-    const savePorts = async () => {
-        const leftArmPort = portDraft.leftArmPort.trim();
-        const rightArmPort = portDraft.rightArmPort.trim();
-
-        if (!leftArmPort || !rightArmPort || !remoteConfig) {
-            toast.error('Enter both left and right arm ports before starting teleoperation.', {
-                ...toastErrorDefaults,
-            });
-            return;
-        }
-
-        setIsSavingPorts(true);
-        try {
-            const updatedConfig = {
-                ...remoteConfig,
-                left_arm_port: leftArmPort,
-                right_arm_port: rightArmPort,
-            };
-
-            await invoke('write_remote_config', {
-                nickname,
-                config: updatedConfig,
-            });
-            setRemoteConfig(nickname, updatedConfig);
-            toast.success('Teleop arm ports saved.', {
-                ...toastSuccessDefaults,
-            });
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Failed to save teleop arm ports.';
-            toast.error(message, {
-                ...toastErrorDefaults,
-            });
-        } finally {
-            setIsSavingPorts(false);
-        }
-    };
-
     const startTeleop = async (normalized: string) => {
         if (isControlling) {
             return;
@@ -212,8 +173,8 @@ export const RemoteTeleopAction = ({
         const remoteTeleopConfig: RemoteTeleopConfig = {
             nickname: normalized,
             remote_ip: remoteConfig.remote_ip,
-            left_arm_port: remoteConfig.left_arm_port,
-            right_arm_port: remoteConfig.right_arm_port,
+            left_arm_port: shouldUseLeaderFallback ? '' : remoteConfig.left_arm_port,
+            right_arm_port: shouldUseLeaderFallback ? '' : remoteConfig.right_arm_port,
             keyboard: remoteConfig.keyboard,
             fps: remoteConfig.fps,
         };
@@ -358,6 +319,12 @@ export const RemoteTeleopAction = ({
                     </button>
                 </div>
             </div>
+            {showLeaderFallbackNotice && (
+                <div className="mt-4 rounded-2xl border border-sky-500/40 bg-sky-500/10 p-4">
+                    <div className="text-sm font-semibold text-sky-100">Leader arms in fallback mode</div>
+                    <p className="mt-1 text-xs text-sky-100/90">{leaderFallbackNotice}</p>
+                </div>
+            )}
             {isRecordingMode && isRecordSettingsOpen && (
                 <div className="mt-4 rounded-2xl border border-slate-700/70 bg-slate-950/35 p-4">
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -401,49 +368,6 @@ export const RemoteTeleopAction = ({
                                 className="rounded-xl border border-slate-700/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-slate-500 focus:outline-none"
                             />
                         </label>
-                    </div>
-                </div>
-            )}
-            {arePortsMissing && (
-                <div className="mt-4 rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4">
-                    <div className="text-sm font-semibold text-amber-100">Teleop arm ports required</div>
-                    <p className="mt-1 text-xs text-amber-100/90">
-                        This robot was added without desktop teleop ports. Enter them here once, and we&apos;ll save them for future
-                        teleoperation and calibration.
-                    </p>
-                    <div className="mt-3 grid gap-3 md:grid-cols-2">
-                        <label className="flex flex-col gap-1 text-xs text-amber-50">
-                            Left Arm Port
-                            <input
-                                value={portDraft.leftArmPort}
-                                onChange={(event) => setPortDraft((current) => ({ ...current, leftArmPort: event.target.value }))}
-                                className="rounded-xl border border-amber-400/40 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-amber-300 focus:outline-none"
-                                placeholder="COM3 or /dev/ttyACM0"
-                            />
-                        </label>
-                        <label className="flex flex-col gap-1 text-xs text-amber-50">
-                            Right Arm Port
-                            <input
-                                value={portDraft.rightArmPort}
-                                onChange={(event) => setPortDraft((current) => ({ ...current, rightArmPort: event.target.value }))}
-                                className="rounded-xl border border-amber-400/40 bg-slate-900 px-3 py-2 text-sm text-slate-100 focus:border-amber-300 focus:outline-none"
-                                placeholder="COM8 or /dev/ttyACM1"
-                            />
-                        </label>
-                    </div>
-                    <div className="mt-3 flex justify-end">
-                        <button
-                            type="button"
-                            onClick={() => void savePorts()}
-                            disabled={isSavingPorts}
-                            className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
-                                isSavingPorts
-                                    ? 'cursor-not-allowed bg-slate-700 text-slate-400'
-                                    : 'cursor-pointer bg-amber-500 text-slate-950 hover:bg-amber-400'
-                            }`}
-                        >
-                            {isSavingPorts ? 'Saving...' : 'Save Ports'}
-                        </button>
                     </div>
                 </div>
             )}
