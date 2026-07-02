@@ -233,7 +233,12 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
             </div>
 
             <div className="mt-4">
-                <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} />
+                <RobotLogs
+                    isControlling={isControlling}
+                    nickname={normalizedNickname}
+                    embedded={true}
+                    mode={isRolloutMode ? 'rollout' : 'inference'}
+                />
             </div>
         </div>
     );

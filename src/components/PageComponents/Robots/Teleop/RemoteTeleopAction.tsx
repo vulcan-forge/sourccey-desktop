@@ -29,8 +29,8 @@ type RemoteRecordDraft = {
 };
 
 const DEFAULT_RECORD_SETTINGS = {
-    numEpisodes: '10',
-    episodeTimeS: '300',
+    numEpisodes: '1',
+    episodeTimeS: '600',
     resetTimeS: '5',
     task: 'Fold the shirt',
 } satisfies Omit<RemoteRecordDraft, 'repoId'>;
@@ -97,7 +97,7 @@ export const RemoteTeleopAction = ({
     const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == expectedControlType;
     const isCalibrationLoading = isLoading || isLoadingCalibration;
     const readiness = getRemoteTeleopReadiness(remoteConfig, teleopCalibrationStatus, {
-        allowLeaderFallback: !isRecordingMode,
+        allowLeaderFallback: true,
     });
     const readinessMessage = getRemoteTeleopBlockingMessage(readiness);
     const panelTitle = isRecordingMode ? 'Record Data' : 'Teleoperate Robot';
@@ -105,13 +105,14 @@ export const RemoteTeleopAction = ({
     const stopLabel = isRecordingMode ? 'Stop Recording' : 'Stop Control';
     const arePortsMissing = !remoteConfig?.left_arm_port?.trim() || !remoteConfig?.right_arm_port?.trim();
     const isTeleopCalibrated = teleopCalibrationStatus?.isCalibrated === true;
-    const shouldUseLeaderFallback = !isRecordingMode && (arePortsMissing || !isTeleopCalibrated);
+    const shouldUseLeaderFallback = arePortsMissing || !isTeleopCalibrated;
     const showLeaderFallbackNotice = shouldUseLeaderFallback;
+    const operationLabel = isRecordingMode ? 'Recording' : 'Teleop';
     const leaderFallbackNotice = arePortsMissing && !isTeleopCalibrated
-        ? 'No teleoperator ports or desktop teleop calibration file were found. Teleop will still start, but the arms will be down to the side. Go to Setup to add teleop arm ports and run calibration.'
+        ? `No teleoperator ports or desktop teleop calibration file were found. ${operationLabel} will still start, but the arms will be down to the side. Go to Setup to add teleop arm ports and run calibration.`
         : arePortsMissing
-          ? 'No teleoperator ports were found. Teleop will still start, but the arms will be down to the side. Go to Setup to add teleop arm ports.'
-          : 'No desktop teleop calibration file was found. Teleop will still start, but the arms will be down to the side until calibration is completed.';
+          ? `No teleoperator ports were found. ${operationLabel} will still start, but the arms will be down to the side. Go to Setup to add teleop arm ports.`
+          : `No desktop teleop calibration file was found. ${operationLabel} will still start, but the arms will be down to the side until calibration is completed.`;
 
     const recordingDraftValidation = useMemo(() => {
         if (!isRecordingMode) {
@@ -201,8 +202,8 @@ export const RemoteTeleopAction = ({
         const remoteRecordConfig: RemoteRecordConfig = {
             nickname: normalized,
             remote_ip: remoteConfig.remote_ip,
-            left_arm_port: remoteConfig.left_arm_port,
-            right_arm_port: remoteConfig.right_arm_port,
+            left_arm_port: shouldUseLeaderFallback ? '' : remoteConfig.left_arm_port,
+            right_arm_port: shouldUseLeaderFallback ? '' : remoteConfig.right_arm_port,
             keyboard: remoteConfig.keyboard,
             repo_id: recordingDraftValidation.parsed.repoId,
             num_episodes: recordingDraftValidation.parsed.numEpisodes,
@@ -323,6 +324,15 @@ export const RemoteTeleopAction = ({
                 <div className="mt-4 rounded-2xl border border-sky-500/40 bg-sky-500/10 p-4">
                     <div className="text-sm font-semibold text-sky-100">Leader arms in fallback mode</div>
                     <p className="mt-1 text-xs text-sky-100/90">{leaderFallbackNotice}</p>
+                </div>
+            )}
+            {isRecordingMode && isControlling && (
+                <div className="mt-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4">
+                    <div className="text-sm font-semibold text-emerald-100">Recording keyboard controls</div>
+                    <p className="mt-1 text-xs text-emerald-100/90">
+                        Press the left arrow key to reset the current run without saving. Press the right arrow key to stop the
+                        recording and save it.
+                    </p>
                 </div>
             )}
             {isRecordingMode && isRecordSettingsOpen && (

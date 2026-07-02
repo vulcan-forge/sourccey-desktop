@@ -256,12 +256,6 @@ impl RemoteRecordService {
         if config.remote_ip.trim().is_empty() {
             return Err("Recording requires a robot host or IP address.".to_string());
         }
-        if config.left_arm_port.trim().is_empty() {
-            return Err("Recording requires a left arm port.".to_string());
-        }
-        if config.right_arm_port.trim().is_empty() {
-            return Err("Recording requires a right arm port.".to_string());
-        }
         if config.keyboard.trim().is_empty() {
             return Err("Recording requires a keyboard or input device.".to_string());
         }
@@ -333,6 +327,11 @@ mod tests {
             RemoteRecordService::validate_config(&invalid_episode_count),
             Err("Recording requires the number of episodes to be greater than 0.".to_string())
         );
+
+        let mut missing_ports = valid_config();
+        missing_ports.left_arm_port = "   ".to_string();
+        missing_ports.right_arm_port = "".to_string();
+        assert!(RemoteRecordService::validate_config(&missing_ports).is_ok());
     }
 
     #[test]
@@ -340,6 +339,11 @@ mod tests {
         let command_parts = RemoteRecordService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
         assert_eq!(command_parts[1], "lerobot-record");
+        assert!(
+            command_parts
+                .iter()
+                .any(|part| part == "--teleop_keyboard.id=keyboard")
+        );
         assert!(
             command_parts
                 .iter()

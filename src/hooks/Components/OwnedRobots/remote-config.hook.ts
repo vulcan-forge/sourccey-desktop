@@ -22,6 +22,6 @@ const defaultRemoteTeleopConfig = (): RemoteTeleopConfig => ({
     remote_ip: '192.168.1.225',
     left_arm_port: '',
     right_arm_port: '',
-    keyboard: 'keyboard',
+    keyboard: 'sourccey_keyboard',
     fps: 30,
 });
