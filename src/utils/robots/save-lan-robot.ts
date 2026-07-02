@@ -17,7 +17,7 @@ export const saveLanRobotDraft = async (draft: LanRobotDraft): Promise<string> =
             remote_port: '22',
             left_arm_port: normalized.leftArmPort,
             right_arm_port: normalized.rightArmPort,
-            keyboard: 'keyboard',
+            keyboard: 'sourccey_keyboard',
             fps: 30,
         };
 

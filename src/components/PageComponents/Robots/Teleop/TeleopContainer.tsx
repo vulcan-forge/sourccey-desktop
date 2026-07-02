@@ -24,7 +24,7 @@ export const RemoteTeleopContainer = ({ ownedRobot, mode = 'teleoperation' }: Re
                 onClose={() => {}}
                 mode={mode}
                 logsSlot={
-                    <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} />
+                    <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} mode={mode} />
                 }
             />
         </div>

@@ -323,6 +323,11 @@ mod tests {
         assert!(
             command_parts
                 .iter()
+                .any(|part| part == "--teleop_keyboard.id=keyboard")
+        );
+        assert!(
+            command_parts
+                .iter()
                 .any(|part| part == "--display_data=false")
         );
     }

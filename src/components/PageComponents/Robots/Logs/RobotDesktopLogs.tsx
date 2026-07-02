@@ -5,12 +5,13 @@ import type { DesktopEnvironmentSettings } from '@/types/desktop-environment';
 import { appendCondensedLogs } from '@/utils/logs/control-logs/log-stream';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { FaTerminal, FaChevronDown, FaChevronUp } from 'react-icons/fa';
+import { FaTerminal, FaChevronDown, FaChevronUp, FaTrash } from 'react-icons/fa';
 
 type RobotDesktopLogsProps = {
     isControlling: boolean;
     nickname?: string;
     embedded?: boolean;
+    mode?: 'teleoperation' | 'recording' | 'rollout' | 'inference';
 };
 
 type SshPayload = {
@@ -18,11 +19,6 @@ type SshPayload = {
     message?: string;
     error?: string;
     output?: string;
-};
-
-const formatMessage = (label: string, message: string) => {
-    const trimmed = message.trim();
-    return trimmed ? `[${label}] ${trimmed}` : `[${label}]`;
 };
 
 const LOG_LEVEL_PRIORITY: Record<DesktopEnvironmentSettings['teleopLogLevel'], number> = {
@@ -59,7 +55,47 @@ const MAX_STORED_LOGS = 60;
 const MAX_RENDERED_LOGS = 40;
 const LOG_FLUSH_INTERVAL_MS = 200;
 
-export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: RobotDesktopLogsProps) => {
+const MODE_COPY = {
+    teleoperation: {
+        title: 'Teleoperation Logs',
+        activeLabel: 'Live teleop output',
+        idleLabel: 'Teleop idle',
+        waitingLabel: 'Waiting for teleop output...',
+        inactiveLabel: 'Teleop log stream is inactive',
+        eventNames: ['teleop-log'],
+    },
+    recording: {
+        title: 'Recording Logs',
+        activeLabel: 'Live recording output',
+        idleLabel: 'Recording idle',
+        waitingLabel: 'Waiting for recording output...',
+        inactiveLabel: 'Recording log stream is inactive',
+        eventNames: ['record-log'],
+    },
+    rollout: {
+        title: 'Rollout Logs',
+        activeLabel: 'Live rollout output',
+        idleLabel: 'Rollout idle',
+        waitingLabel: 'Waiting for rollout output...',
+        inactiveLabel: 'Rollout log stream is inactive',
+        eventNames: ['rollout-log'],
+    },
+    inference: {
+        title: 'Inference Logs',
+        activeLabel: 'Live inference output',
+        idleLabel: 'Inference idle',
+        waitingLabel: 'Waiting for inference output...',
+        inactiveLabel: 'Inference log stream is inactive',
+        eventNames: ['inference-log'],
+    },
+} as const;
+
+export const RobotDesktopLogs = ({
+    isControlling,
+    nickname,
+    embedded = false,
+    mode = 'teleoperation',
+}: RobotDesktopLogsProps) => {
     const { data: desktopEnvironmentSettings } = useDesktopEnvironmentSettings();
     const [controlLogs, setControlLogs] = useState<string[]>([]);
     const [isExpanded, setIsExpanded] = useState(isControlling);
@@ -67,6 +103,7 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
     const pendingLogsRef = useRef<string[]>([]);
     const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const teleopLogLevel = desktopEnvironmentSettings?.teleopLogLevel ?? 'warning';
+    const modeCopy = MODE_COPY[mode];
 
     const flushPendingLogs = useCallback(() => {
         flushTimerRef.current = null;
@@ -79,6 +116,17 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
         pendingLogsRef.current = [];
         logsRef.current = nextLogs;
         setControlLogs(nextLogs);
+    }, []);
+
+    const clearLogs = useCallback(() => {
+        if (flushTimerRef.current !== null) {
+            clearTimeout(flushTimerRef.current);
+            flushTimerRef.current = null;
+        }
+
+        pendingLogsRef.current = [];
+        logsRef.current = [];
+        setControlLogs([]);
     }, []);
 
     const appendLog = useCallback(
@@ -100,19 +148,20 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
         [flushPendingLogs, nickname, teleopLogLevel]
     );
 
-    // Update internal state when external prop changes
     useEffect(() => {
-        setIsExpanded(isControlling);
-        if (!isControlling) {
+        if (isControlling) {
+            setIsExpanded(true);
+            return;
+        }
+
+        if (pendingLogsRef.current.length > 0) {
             if (flushTimerRef.current !== null) {
                 clearTimeout(flushTimerRef.current);
                 flushTimerRef.current = null;
             }
-            pendingLogsRef.current = [];
-            logsRef.current = [];
-            setControlLogs([]);
+            flushPendingLogs();
         }
-    }, [isControlling]);
+    }, [flushPendingLogs, isControlling]);
 
     useEffect(
         () => () => {
@@ -137,61 +186,18 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
             return payload?.nickname === nickname;
         };
 
-        const register = async (eventName: string, label: string, getMessage: (payload: SshPayload) => string) => {
-            const unlisten = await listen<SshPayload>(eventName, (event) => {
-                if (!isActive) return;
-                if (!matchesNickname(event.payload)) return;
-                appendLog(formatMessage(label, getMessage(event.payload)));
-            });
-
-            if (!isActive) {
-                unlisten();
-                return;
-            }
-
-            unlistenFns.push(unlisten);
-        };
-
         const setupListeners = async () => {
-            const unlistenTeleop = await listen<string>('teleop-log', (event) => {
-                if (!isActive) return;
-                appendLog(event.payload);
-            });
-            if (!isActive) {
-                unlistenTeleop();
-                return;
+            for (const eventName of modeCopy.eventNames) {
+                const unlisten = await listen<string>(eventName, (event) => {
+                    if (!isActive) return;
+                    appendLog(event.payload);
+                });
+                if (!isActive) {
+                    unlisten();
+                    return;
+                }
+                unlistenFns.push(unlisten);
             }
-            unlistenFns.push(unlistenTeleop);
-
-            const unlistenRecord = await listen<string>('record-log', (event) => {
-                if (!isActive) return;
-                appendLog(event.payload);
-            });
-            if (!isActive) {
-                unlistenRecord();
-                return;
-            }
-            unlistenFns.push(unlistenRecord);
-
-            const unlistenRollout = await listen<string>('rollout-log', (event) => {
-                if (!isActive) return;
-                appendLog(event.payload);
-            });
-            if (!isActive) {
-                unlistenRollout();
-                return;
-            }
-            unlistenFns.push(unlistenRollout);
-
-            const unlistenInference = await listen<string>('inference-log', (event) => {
-                if (!isActive) return;
-                appendLog(event.payload);
-            });
-            if (!isActive) {
-                unlistenInference();
-                return;
-            }
-            unlistenFns.push(unlistenInference);
         };
 
         setupListeners();
@@ -200,7 +206,7 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
             isActive = false;
             unlistenFns.forEach((fn) => fn());
         };
-    }, [appendLog, isControlling, nickname]);
+    }, [appendLog, isControlling, modeCopy.eventNames, nickname]);
 
     const containerClassName = embedded
         ? 'overflow-hidden rounded-2xl border-2 border-slate-700/70 bg-slate-900/60 shadow-[0_18px_40px_rgba(15,23,42,0.22)]'
@@ -217,29 +223,40 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
                         <FaTerminal className="h-4 w-4" />
                     </div>
                     <div>
-                        <h3 className="text-base font-semibold text-white">Session Logs</h3>
+                        <h3 className="text-base font-semibold text-white">{modeCopy.title}</h3>
                         <div className="mt-1 flex items-center gap-2 text-xs text-slate-400">
                             <div className={`h-2 w-2 rounded-full ${isControlling ? 'animate-pulse bg-emerald-400' : 'bg-slate-500'}`} />
-                            <span>{isControlling ? 'Live output' : 'Idle'}</span>
+                            <span>{isControlling ? modeCopy.activeLabel : modeCopy.idleLabel}</span>
                         </div>
                     </div>
                 </div>
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/45 px-3 py-2 text-sm font-medium text-slate-100 transition-all hover:border-slate-600 hover:bg-slate-900"
-                >
-                    {isExpanded ? (
-                        <>
-                            <FaChevronUp className="h-4 w-4" />
-                            Hide
-                        </>
-                    ) : (
-                        <>
-                            <FaChevronDown className="h-4 w-4" />
-                            Show
-                        </>
+                <div className="flex items-center gap-2">
+                    {isExpanded && controlLogs.length > 0 && (
+                        <button
+                            onClick={clearLogs}
+                            className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/45 px-3 py-2 text-sm font-medium text-slate-100 transition-all hover:border-slate-600 hover:bg-slate-900"
+                        >
+                            <FaTrash className="h-4 w-4" />
+                            Clear
+                        </button>
                     )}
-                </button>
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="flex cursor-pointer items-center gap-2 rounded-xl border border-slate-700 bg-slate-950/45 px-3 py-2 text-sm font-medium text-slate-100 transition-all hover:border-slate-600 hover:bg-slate-900"
+                    >
+                        {isExpanded ? (
+                            <>
+                                <FaChevronUp className="h-4 w-4" />
+                                Hide
+                            </>
+                        ) : (
+                            <>
+                                <FaChevronDown className="h-4 w-4" />
+                                Show
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
 
             {isExpanded && (
@@ -254,7 +271,7 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false }: 
                                 ))
                             ) : (
                                 <div className="text-sm text-slate-400">
-                                    {isControlling ? 'Waiting for robot output...' : 'Log stream is inactive'}
+                                    {isControlling ? modeCopy.waitingLabel : modeCopy.inactiveLabel}
                                 </div>
                             )}
                         </div>

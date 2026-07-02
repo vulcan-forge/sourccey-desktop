@@ -15,7 +15,7 @@ export const defaultRemoteConfig: RemoteConfig = {
     remote_port: '22',
     left_arm_port: '',
     right_arm_port: '',
-    keyboard: 'keyboard',
+    keyboard: 'sourccey_keyboard',
     fps: 30,
 };
 
