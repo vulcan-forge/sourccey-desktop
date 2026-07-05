@@ -27,7 +27,7 @@ from setup_python import PythonSetupManager  # type: ignore
 from setup_rust import RustSetupManager  # type: ignore
 
 LEROBOT_VULCAN_SUBMODULE_PATH = "modules/lerobot-vulcan"
-LEROBOT_VULCAN_TAG = "vulcan/0.1.6"
+LEROBOT_VULCAN_TAG = "vulcan/0.1.7"
 
 
 class Colors:
