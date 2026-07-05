@@ -12,11 +12,11 @@ use tauri_plugin_shell::ShellExt;
 pub struct ProcessService;
 
 impl ProcessService {
-    pub fn kill_process_tree(app_handle: &AppHandle, pid: u32) -> Result<(), String> {
+    pub fn kill_process_tree(_app_handle: &AppHandle, pid: u32) -> Result<(), String> {
         #[cfg(windows)]
         {
             let output = Self::run_shell_command(
-                app_handle,
+                _app_handle,
                 "taskkill",
                 &["/PID", &pid.to_string(), "/T", "/F"],
             )?;
