@@ -57,6 +57,7 @@ use modules::control::controllers::kiosk_control::manual_drive_controller::{
     init_kiosk_manual_drive, set_kiosk_manual_drive_keys, start_kiosk_manual_drive,
     stop_kiosk_manual_drive,
 };
+use modules::control::controllers::kiosk_control::torque_controller::untorque_kiosk_robot_arms;
 use modules::control::controllers::kiosk_control::pairing_controller::{
     get_kiosk_cloud_pairing_info, get_kiosk_cloud_pairing_status, init_kiosk_pairing,
 };
@@ -616,6 +617,7 @@ fn main() {
             start_kiosk_manual_drive,
             set_kiosk_manual_drive_keys,
             stop_kiosk_manual_drive,
+            untorque_kiosk_robot_arms,
             get_system_info,
             get_pi_username,
             set_pi_password,
