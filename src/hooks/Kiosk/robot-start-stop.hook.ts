@@ -45,10 +45,11 @@ export const useKioskRobotStartStop = (nickname: string) => {
         }
 
         if (
-            normalized.includes('serial') ||
-            normalized.includes('tty') ||
-            normalized.includes('usb') ||
-            normalized.includes('port not found')
+            normalized.includes('port not found') ||
+            normalized.includes('failed to open port') ||
+            normalized.includes('could not connect on port') ||
+            normalized.includes('there is no status packet') ||
+            normalized.includes('serialexception')
         ) {
             return {
                 type: 'error' as const,
@@ -141,6 +142,11 @@ export const useKioskRobotStartStop = (nickname: string) => {
 
     useEffect(() => {
         const unlistenHostLog = kioskEventManager.listenHostLog((line) => {
+            const isStartupPending = isStarting || startRequestedAtRef.current > 0;
+            if (!isStartupPending) {
+                return;
+            }
+
             if (nickname && !line.includes(`[${nickname}]`)) return;
 
             const status = mapHostLogToStartupStatus(line);
@@ -188,7 +194,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
         return () => {
             unlistenHostLog();
         };
-    }, [nickname, setIsRobotStarted]);
+    }, [isStarting, nickname, setIsRobotStarted]);
 
     useEffect(() => {
         let interval: any;

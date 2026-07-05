@@ -16,6 +16,15 @@ export const RobotKioskLogs = ({ isActive, nickname, title = 'Robot Logs' }: Rob
     const [isExpanded, setIsExpanded] = useState(false);
     const logsRef = useRef<string[]>([]);
 
+    const clearLogs = useCallback(() => {
+        logsRef.current = [];
+        setControlLogs([]);
+    }, []);
+
+    useEffect(() => {
+        clearLogs();
+    }, [clearLogs, nickname]);
+
     const appendLog = useCallback(
         (log: string) => {
             if (nickname && !log.includes(`[${nickname}]`)) {
@@ -29,14 +38,6 @@ export const RobotKioskLogs = ({ isActive, nickname, title = 'Robot Logs' }: Rob
         },
         [nickname]
     );
-
-    // Reset buffered logs when host is inactive.
-    useEffect(() => {
-        if (!isActive) {
-            logsRef.current = [];
-            setControlLogs([]);
-        }
-    }, [isActive]);
 
     useEffect(() => {
         if (!isActive) {
@@ -71,22 +72,35 @@ export const RobotKioskLogs = ({ isActive, nickname, title = 'Robot Logs' }: Rob
                         </div>
                     )}
                 </div>
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-slate-700/60"
-                >
-                    {isExpanded ? (
-                        <>
-                            <FaChevronUp className="h-4 w-4" />
-                            Hide
-                        </>
-                    ) : (
-                        <>
-                            <FaChevronDown className="h-4 w-4" />
-                            Show
-                        </>
-                    )}
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={clearLogs}
+                        disabled={controlLogs.length === 0}
+                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                            controlLogs.length === 0
+                                ? 'cursor-not-allowed bg-slate-800 text-slate-500'
+                                : 'cursor-pointer bg-slate-700 text-white hover:bg-slate-700/60'
+                        }`}
+                    >
+                        Clear
+                    </button>
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-slate-700/60"
+                    >
+                        {isExpanded ? (
+                            <>
+                                <FaChevronUp className="h-4 w-4" />
+                                Hide
+                            </>
+                        ) : (
+                            <>
+                                <FaChevronDown className="h-4 w-4" />
+                                Show
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
 
             {isExpanded && (
