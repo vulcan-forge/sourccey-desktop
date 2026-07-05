@@ -66,7 +66,7 @@ export const RobotStartSection = ({
                 </button>
             </div>
 
-            <RobotKioskLogs isControlling={isRobotStarted || isStarting || isStopping} nickname={nickname} />
+            <RobotKioskLogs isActive={isRobotStarted || isStarting || isStopping} nickname={nickname} />
         </div>
     );
 };
