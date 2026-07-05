@@ -1,4 +1,7 @@
-use super::{is_kiosk_env_value, is_target_newer_version, parse_simple_version, SimpleVersion};
+use super::{
+    extract_version_core, is_kiosk_env_value, is_target_newer_version,
+    parse_numeric_version_segments, parse_simple_version, SimpleVersion,
+};
 
 #[test]
 fn kiosk_env_parser_accepts_expected_values() {
@@ -39,8 +42,19 @@ fn parses_plain_and_prefixed_versions() {
 }
 
 #[test]
+fn extracts_and_parses_extended_version_formats() {
+    assert_eq!(extract_version_core("version 0.0.13"), Some("0.0.13"));
+    assert_eq!(
+        parse_numeric_version_segments("0.0.13.0"),
+        Some(vec![0, 0, 13, 0])
+    );
+}
+
+#[test]
 fn detects_newer_target_versions() {
     assert!(is_target_newer_version("0.0.5", "0.0.6"));
     assert!(!is_target_newer_version("0.0.6", "0.0.6"));
     assert!(!is_target_newer_version("0.0.7", "0.0.6"));
+    assert!(!is_target_newer_version("0.0.13", "0.0.6"));
+    assert!(!is_target_newer_version("0.0.13.0", "0.0.6"));
 }
