@@ -385,7 +385,7 @@ class SetupScript:
             print()
 
         if self.warnings:
-            self.print_warning(f"Setup completed with {len(self.warnings)} warning(s):")
+            print(f"{Colors.YELLOW}[WARNING]{Colors.NC} Setup completed with {len(self.warnings)} warning(s):")
             for warning in self.warnings:
                 print(f"  - {warning}")
             print()

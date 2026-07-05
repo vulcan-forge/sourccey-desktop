@@ -12,6 +12,7 @@ import subprocess
 import re
 import time
 import shutil
+import stat
 from pathlib import Path
 from typing import Callable, Optional
 
@@ -660,9 +661,17 @@ class GitSetupManager:
 
     def _remove_path(self, path: Path) -> None:
         """Remove a file or directory tree."""
+        def _handle_remove_readonly(func, target, exc_info):
+            try:
+                os.chmod(target, stat.S_IWRITE)
+                func(target)
+            except Exception:
+                raise exc_info[1]
+
         if path.is_dir():
-            shutil.rmtree(path)
+            shutil.rmtree(path, onerror=_handle_remove_readonly)
         elif path.exists():
+            os.chmod(path, stat.S_IWRITE)
             path.unlink()
 
     def sync_git_submodules(self) -> bool:
@@ -880,8 +889,8 @@ class GitSetupManager:
         submodule_relative_path = "modules/lerobot-vulcan"
 
         try:
-            self.force_reclone_submodule_checkout(submodule_relative_path)
-            self.cleanup_stale_submodule_checkout(submodule_relative_path)
+            if not self._is_valid_submodule_repo(submodule_relative_path):
+                self.cleanup_stale_submodule_checkout(submodule_relative_path)
 
             update_command = ["git", "submodule", "update", "--init", "--recursive"]
             if self.run_git_command_with_progress(
@@ -1227,7 +1236,7 @@ class GitSetupManager:
                         "Run 'git -C modules/lerobot-vulcan stash pop' manually."
                     )
             else:
-                self.print_warning(
+                self.print_status(
                     "Detected an existing non-setup stash at the top of stack. "
                     "Leaving stashed changes untouched."
                 )
