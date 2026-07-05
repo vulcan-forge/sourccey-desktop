@@ -115,17 +115,45 @@ struct SimpleVersion {
     patch: u64,
 }
 
-fn parse_simple_version(value: &str) -> Option<SimpleVersion> {
-    let normalized = value.trim().trim_start_matches('v');
-    let core = normalized
-        .split(['-', '+'])
-        .next()
-        .unwrap_or(normalized)
-        .trim();
-    if core.is_empty() {
+fn extract_version_core(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
         return None;
     }
 
+    let normalized = trimmed
+        .strip_prefix('v')
+        .or_else(|| trimmed.strip_prefix('V'))
+        .unwrap_or(trimmed);
+    let start = normalized.find(|ch: char| ch.is_ascii_digit())?;
+    let candidate = &normalized[start..];
+    let end = candidate
+        .find(|ch: char| !ch.is_ascii_digit() && ch != '.')
+        .unwrap_or(candidate.len());
+    let core = candidate[..end].trim_matches('.');
+    if core.is_empty() {
+        None
+    } else {
+        Some(core)
+    }
+}
+
+fn parse_numeric_version_segments(value: &str) -> Option<Vec<u64>> {
+    let core = extract_version_core(value)?;
+    let segments = core
+        .split('.')
+        .map(str::trim)
+        .map(|segment| segment.parse::<u64>().ok())
+        .collect::<Option<Vec<_>>>()?;
+    if segments.is_empty() {
+        None
+    } else {
+        Some(segments)
+    }
+}
+
+fn parse_simple_version(value: &str) -> Option<SimpleVersion> {
+    let core = extract_version_core(value)?;
     let mut parts = core.split('.');
     let major = parts.next()?.parse::<u64>().ok()?;
     let minor = parts.next()?.parse::<u64>().ok()?;
@@ -144,7 +172,23 @@ fn parse_simple_version(value: &str) -> Option<SimpleVersion> {
 fn is_target_newer_version(current: &str, target: &str) -> bool {
     match (parse_simple_version(current), parse_simple_version(target)) {
         (Some(current_version), Some(target_version)) => target_version > current_version,
-        _ => target.trim() != current.trim(),
+        _ => match (
+            parse_numeric_version_segments(current),
+            parse_numeric_version_segments(target),
+        ) {
+            (Some(current_segments), Some(target_segments)) => {
+                let max_len = current_segments.len().max(target_segments.len());
+                for index in 0..max_len {
+                    let current_part = current_segments.get(index).copied().unwrap_or(0);
+                    let target_part = target_segments.get(index).copied().unwrap_or(0);
+                    if target_part != current_part {
+                        return target_part > current_part;
+                    }
+                }
+                false
+            }
+            _ => target.trim() != current.trim(),
+        },
     }
 }
 

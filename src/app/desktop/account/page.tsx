@@ -306,7 +306,7 @@ function AccountPageContent() {
                                 type="email"
                                 value={email}
                                 onChange={(event) => setEmail(event.target.value)}
-                                placeholder="name@sourccey.com"
+                                placeholder="Email"
                                 autoComplete="email"
                                 className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 transition outline-none placeholder:text-slate-400 focus:border-orange-300"
                             />
