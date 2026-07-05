@@ -6,11 +6,12 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { FaTerminal, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 
 type RobotKioskLogsProps = {
-    isControlling: boolean;
+    isActive: boolean;
     nickname?: string;
+    title?: string;
 };
 
-export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps) => {
+export const RobotKioskLogs = ({ isActive, nickname, title = 'Robot Logs' }: RobotKioskLogsProps) => {
     const [controlLogs, setControlLogs] = useState<string[]>([]);
     const [isExpanded, setIsExpanded] = useState(false);
     const logsRef = useRef<string[]>([]);
@@ -31,14 +32,14 @@ export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps)
 
     // Reset buffered logs when host is inactive.
     useEffect(() => {
-        if (!isControlling) {
+        if (!isActive) {
             logsRef.current = [];
             setControlLogs([]);
         }
-    }, [isControlling]);
+    }, [isActive]);
 
     useEffect(() => {
-        if (!isControlling) {
+        if (!isActive) {
             return;
         }
 
@@ -49,21 +50,21 @@ export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps)
         return () => {
             unlisten();
         };
-    }, [appendLog, isControlling]);
+    }, [appendLog, isActive]);
 
     return (
         <div className="bg-slate-825 overflow-hidden rounded-xl border-2 border-slate-700 backdrop-blur-sm">
             <div className="bg-slate-825 flex items-center justify-between border-b border-slate-700 p-4">
                 <div className="flex items-center gap-3">
                     <FaTerminal className="h-5 w-5 text-slate-400" />
-                    <h3 className="text-lg font-semibold text-white">Robot Logs</h3>
-                    {isControlling && (
+                    <h3 className="text-lg font-semibold text-white">{title}</h3>
+                    {isActive && (
                         <div className="flex items-center gap-2">
                             <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
                             <span className="text-sm text-slate-400">Live</span>
                         </div>
                     )}
-                    {!isControlling && (
+                    {!isActive && (
                         <div className="flex items-center gap-2">
                             <div className="h-2 w-2 rounded-full bg-red-400" />
                             <span className="text-sm text-slate-400">Inactive</span>
@@ -100,7 +101,7 @@ export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps)
                                 ))
                             ) : (
                                 <div className="text-sm text-slate-400">
-                                    {isControlling ? 'Waiting for host output...' : 'Robot host is not running yet'}
+                                    {isActive ? 'Waiting for host output...' : 'Robot host is not running yet'}
                                 </div>
                             )}
                         </div>

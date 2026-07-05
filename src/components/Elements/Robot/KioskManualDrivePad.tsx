@@ -6,6 +6,7 @@ import { toast } from 'react-toastify';
 import { FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight, FaArrowsAltH, FaPlay, FaPowerOff, FaStop } from 'react-icons/fa';
 import { toastErrorDefaults } from '@/utils/toast/toast-utils';
 import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
+import { RobotKioskLogs } from '@/components/PageComponents/Robots/Logs/RobotKioskLogs';
 import {
     createEmptyManualDriveSourceMap,
     getPressedManualDriveKeys,
@@ -88,6 +89,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
     const pulseTimeoutsRef = useRef<number[]>([]);
+    const isLogStreamActive = robotStarted || bridgeReady || bridgeStarting || bridgeStopping || untorquing;
 
     const clearLocalManualDriveState = useCallback(() => {
         for (const timeoutId of pulseTimeoutsRef.current) {
@@ -315,8 +317,8 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
 
     return (
         <div className="mt-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
-            <div className="mb-4 flex items-center justify-between gap-4">
-                <div>
+            <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="max-w-2xl">
                     <h3 className="text-lg font-semibold text-white">Manual Control</h3>
                     <p className="mt-1 text-sm text-slate-300">
                         {robotStarted
@@ -324,80 +326,84 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                             : 'Manual control is unavailable until the robot is started, but you can still untorque both arms.'}
                     </p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (bridgeReady || bridgeStarting) {
-                                void stopManualDrive();
-                                return;
-                            }
-                            void startManualDrive();
-                        }}
-                        disabled={!robotStarted || bridgeStarting || bridgeStopping || untorquing}
-                        className={`inline-flex min-w-52 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                            !robotStarted || bridgeStarting || bridgeStopping || untorquing
-                                ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
-                                : bridgeReady
-                                  ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600'
-                                  : 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
-                        }`}
-                    >
-                        {bridgeStarting ? (
-                            <>
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                Starting...
-                            </>
-                        ) : bridgeStopping ? (
-                            <>
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                Stopping...
-                            </>
-                        ) : bridgeReady ? (
-                            <>
-                                <FaStop className="h-4 w-4" /> Stop Manual Control
-                            </>
-                        ) : (
-                            <>
-                                <FaPlay className="h-4 w-4" /> Start Manual Control
-                            </>
-                        )}
-                    </button>
-                    <button
-                        type="button"
-                        onClick={() => {
-                            void untorqueArms();
-                        }}
-                        disabled={untorquing}
-                        className={`inline-flex min-w-44 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                            untorquing
-                                ? 'cursor-not-allowed bg-amber-500 text-white opacity-60'
-                                : 'cursor-pointer bg-amber-500 text-slate-950 hover:bg-amber-400'
-                        }`}
-                    >
-                        {untorquing ? (
-                            <>
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
-                                Untorquing...
-                            </>
-                        ) : (
-                            <>
-                                <FaPowerOff className="h-4 w-4" /> Untorque Arms
-                            </>
-                        )}
-                    </button>
-                    <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-                        {untorquing
-                            ? 'Untorquing...'
-                            : bridgeStarting
-                              ? 'Starting...'
-                              : bridgeStopping
-                                ? 'Stopping...'
-                                : bridgeReady
-                                  ? 'Ready'
-                                  : robotStarted
-                                    ? 'Offline'
-                                    : 'Robot Offline'}
+                <div className="flex flex-col gap-3 xl:min-w-[34rem] xl:items-end">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap xl:justify-end">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (bridgeReady || bridgeStarting) {
+                                    void stopManualDrive();
+                                    return;
+                                }
+                                void startManualDrive();
+                            }}
+                            disabled={!robotStarted || bridgeStarting || bridgeStopping || untorquing}
+                            className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors sm:min-w-52 sm:w-auto ${
+                                !robotStarted || bridgeStarting || bridgeStopping || untorquing
+                                    ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
+                                    : bridgeReady
+                                      ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600'
+                                      : 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
+                            }`}
+                        >
+                            {bridgeStarting ? (
+                                <>
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    Starting...
+                                </>
+                            ) : bridgeStopping ? (
+                                <>
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    Stopping...
+                                </>
+                            ) : bridgeReady ? (
+                                <>
+                                    <FaStop className="h-4 w-4" /> Stop Manual Control
+                                </>
+                            ) : (
+                                <>
+                                    <FaPlay className="h-4 w-4" /> Start Manual Control
+                                </>
+                            )}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                void untorqueArms();
+                            }}
+                            disabled={untorquing}
+                            className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors sm:min-w-44 sm:w-auto ${
+                                untorquing
+                                    ? 'cursor-not-allowed bg-amber-500 text-white opacity-60'
+                                    : 'cursor-pointer bg-amber-500 text-slate-950 hover:bg-amber-400'
+                            }`}
+                        >
+                            {untorquing ? (
+                                <>
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
+                                    Untorquing...
+                                </>
+                            ) : (
+                                <>
+                                    <FaPowerOff className="h-4 w-4" /> Untorque Arms
+                                </>
+                            )}
+                        </button>
+                    </div>
+                    <div className="flex xl:justify-end">
+                        <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
+                            {untorquing
+                                ? 'Untorquing...'
+                                : bridgeStarting
+                                  ? 'Starting...'
+                                  : bridgeStopping
+                                    ? 'Stopping...'
+                                    : bridgeReady
+                                      ? 'Ready'
+                                      : robotStarted
+                                        ? 'Offline'
+                                        : 'Robot Offline'}
+                        </div>
                     </div>
                 </div>
             </div>
@@ -446,6 +452,10 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                         : 'Manual driving controls are hidden while the robot is offline.'}
                 </div>
             )}
+
+            <div className="mt-4">
+                <RobotKioskLogs isActive={isLogStreamActive} nickname={nickname} title="Manual Control Logs" />
+            </div>
         </div>
     );
 };
