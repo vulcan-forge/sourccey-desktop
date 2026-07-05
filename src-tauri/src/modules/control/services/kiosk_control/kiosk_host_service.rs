@@ -193,6 +193,25 @@ impl KioskHostService {
         state: &KioskHostProcess,
         nickname: String,
     ) -> Result<String, String> {
+        Self::stop_kiosk_host_internal(app_handle, db_connection, state, nickname, true)
+    }
+
+    pub fn stop_kiosk_host_silently(
+        app_handle: AppHandle,
+        db_connection: DatabaseConnection,
+        state: &KioskHostProcess,
+        nickname: String,
+    ) -> Result<String, String> {
+        Self::stop_kiosk_host_internal(app_handle, db_connection, state, nickname, false)
+    }
+
+    fn stop_kiosk_host_internal(
+        app_handle: AppHandle,
+        db_connection: DatabaseConnection,
+        state: &KioskHostProcess,
+        nickname: String,
+        emit_events: bool,
+    ) -> Result<String, String> {
         if let Some((mut child, shutdown_flag, command_log_id)) =
             state.0.lock().unwrap().remove(&nickname)
         {
@@ -231,15 +250,17 @@ impl KioskHostService {
             }
 
             // Emit stop success event
-            let _ = app_handle.emit(
-                "kiosk-host-stop-success",
-                serde_json::json!({
-                    "nickname": nickname,
-                    "pid": pid,
-                    "exit_code": None::<i32>,
-                    "message": "Robot stopped successfully"
-                }),
-            );
+            if emit_events {
+                let _ = app_handle.emit(
+                    "kiosk-host-stop-success",
+                    serde_json::json!({
+                        "nickname": nickname,
+                        "pid": pid,
+                        "exit_code": None::<i32>,
+                        "message": "Robot stopped successfully"
+                    }),
+                );
+            }
 
             Ok(format!("Robot stopping for nickname: {}", nickname))
         } else {
@@ -261,6 +282,13 @@ impl KioskHostService {
                 .collect();
 
             if pids.is_empty() {
+                if !emit_events {
+                    return Ok(format!(
+                        "No kiosk host process found for nickname: {}",
+                        nickname
+                    ));
+                }
+
                 // Emit stop error event (nothing to stop)
                 let _ = app_handle.emit(
                     "kiosk-host-stop-error",
@@ -293,15 +321,17 @@ impl KioskHostService {
             }
 
             // Emit stop success (we attempted to stop external processes)
-            let _ = app_handle.emit(
-                "kiosk-host-stop-success",
-                serde_json::json!({
-                    "nickname": nickname,
-                    "pid": pids.first().copied(), // one pid for convenience
-                    "exit_code": None::<i32>,
-                    "message": format!("Stopped external sourccey_host process(es): {:?}", pids),
-                }),
-            );
+            if emit_events {
+                let _ = app_handle.emit(
+                    "kiosk-host-stop-success",
+                    serde_json::json!({
+                        "nickname": nickname,
+                        "pid": pids.first().copied(), // one pid for convenience
+                        "exit_code": None::<i32>,
+                        "message": format!("Stopped external sourccey_host process(es): {:?}", pids),
+                    }),
+                );
+            }
 
             Ok(format!(
                 "Stopped external sourccey_host process(es) for nickname: {}",

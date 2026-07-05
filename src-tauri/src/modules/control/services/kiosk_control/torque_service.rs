@@ -36,7 +36,13 @@ impl KioskTorqueService {
             );
         }
 
-        let stop_host_result = KioskHostService::stop_kiosk_host(
+        Self::emit_log(
+            &app_handle,
+            &normalized_nickname,
+            "Stopping kiosk host before untorque so the arm serial ports can be reopened.",
+        );
+
+        let stop_host_result = KioskHostService::stop_kiosk_host_silently(
             app_handle.clone(),
             db_connection,
             host_state,
@@ -46,7 +52,7 @@ impl KioskTorqueService {
             Self::emit_log(
                 &app_handle,
                 &normalized_nickname,
-                &format!("Kiosk host stop skipped before untorque: {}", error),
+                &format!("Failed to stop kiosk host before untorque: {}", error),
             );
         }
 

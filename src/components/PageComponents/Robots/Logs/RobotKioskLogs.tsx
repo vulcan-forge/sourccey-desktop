@@ -16,6 +16,11 @@ export const RobotKioskLogs = ({ isActive, nickname, title = 'Robot Logs' }: Rob
     const [isExpanded, setIsExpanded] = useState(false);
     const logsRef = useRef<string[]>([]);
 
+    useEffect(() => {
+        logsRef.current = [];
+        setControlLogs([]);
+    }, [nickname]);
+
     const appendLog = useCallback(
         (log: string) => {
             if (nickname && !log.includes(`[${nickname}]`)) {
@@ -29,14 +34,6 @@ export const RobotKioskLogs = ({ isActive, nickname, title = 'Robot Logs' }: Rob
         },
         [nickname]
     );
-
-    // Reset buffered logs when host is inactive.
-    useEffect(() => {
-        if (!isActive) {
-            logsRef.current = [];
-            setControlLogs([]);
-        }
-    }, [isActive]);
 
     useEffect(() => {
         if (!isActive) {
