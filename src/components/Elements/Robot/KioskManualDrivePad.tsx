@@ -6,7 +6,6 @@ import { toast } from 'react-toastify';
 import { FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight, FaArrowsAltH, FaPlay, FaPowerOff, FaStop } from 'react-icons/fa';
 import { toastErrorDefaults } from '@/utils/toast/toast-utils';
 import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
-import { RobotKioskLogs } from '@/components/PageComponents/Robots/Logs/RobotKioskLogs';
 import {
     createEmptyManualDriveSourceMap,
     getPressedManualDriveKeys,
@@ -89,7 +88,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
     const pulseTimeoutsRef = useRef<number[]>([]);
-    const isLogStreamActive = robotStarted || bridgeReady || bridgeStarting || bridgeStopping || untorquing;
 
     const clearLocalManualDriveState = useCallback(() => {
         for (const timeoutId of pulseTimeoutsRef.current) {
@@ -320,11 +318,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                 <div className="max-w-2xl">
                     <h3 className="text-lg font-semibold text-white">Manual Control</h3>
-                    <p className="mt-1 text-sm text-slate-300">
-                        {robotStarted
-                            ? 'Start manual control to enable the drive bridge. Stop it before connecting a teleoperator.'
-                            : 'Manual control is unavailable until the robot is started, but you can still untorque both arms.'}
-                    </p>
+                    <p className="mt-1 text-sm text-slate-300">Start manual control to enable the drive bridge. Stop it before connecting a teleoperator.</p>
                 </div>
                 <div className="flex flex-col gap-3 xl:min-w-[34rem] xl:items-end">
                     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap xl:justify-end">
@@ -400,9 +394,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                                     ? 'Stopping...'
                                     : bridgeReady
                                       ? 'Ready'
-                                      : robotStarted
-                                        ? 'Offline'
-                                        : 'Robot Offline'}
+                                      : 'Offline'}
                         </div>
                     </div>
                 </div>
@@ -447,15 +439,9 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 </>
             ) : (
                 <div className="rounded-lg border border-slate-700 bg-slate-900/70 px-4 py-3 text-sm text-slate-300">
-                    {robotStarted
-                        ? 'Manual driving controls are hidden until you start manual control.'
-                        : 'Manual driving controls are hidden while the robot is offline.'}
+                    Manual driving controls are hidden until you start manual control.
                 </div>
             )}
-
-            <div className="mt-4">
-                <RobotKioskLogs isActive={isLogStreamActive} nickname={nickname} title="Manual Control Logs" />
-            </div>
         </div>
     );
 };
