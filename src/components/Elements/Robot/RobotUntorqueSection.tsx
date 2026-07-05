@@ -27,16 +27,10 @@ export const RobotUntorqueSection = ({ nickname, isStarting, isStopping }: Robot
         toast.info('Stopping host if needed, then untorquing both arms...', { ...toastInfoDefaults });
 
         try {
-            const message = await invoke<string>('untorque_kiosk_robot_arms', { nickname });
-            toast.success(message || 'Untorqued both arms.', { ...toastSuccessDefaults });
-        } catch (error) {
-            const message =
-                typeof error === 'string'
-                    ? error
-                    : error && typeof error === 'object' && typeof (error as { message?: unknown }).message === 'string'
-                      ? (error as { message: string }).message
-                      : 'Unknown error';
-            toast.error(`Failed to untorque arms: ${message}`, { ...toastErrorDefaults });
+            await invoke<string>('untorque_kiosk_robot_arms', { nickname });
+            toast.success('Untorque completed.', { ...toastSuccessDefaults });
+        } catch {
+            toast.error('Untorque was not complete. Check the logs for details.', { ...toastErrorDefaults });
         } finally {
             setIsUntorquing(false);
             setIsRobotStarted(false);
