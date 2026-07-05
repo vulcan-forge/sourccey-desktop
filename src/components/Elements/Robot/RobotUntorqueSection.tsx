@@ -1,7 +1,6 @@
 'use client';
 
 import { invoke } from '@tauri-apps/api/core';
-import { useState } from 'react';
 import { toast } from 'react-toastify';
 import { FaPowerOff } from 'react-icons/fa';
 import { useRobotStatus } from '@/context/robot-status-context';
@@ -11,18 +10,25 @@ type RobotUntorqueSectionProps = {
     nickname?: string;
     isStarting: boolean;
     isStopping: boolean;
+    isUntorquing: boolean;
+    onUntorquingChange: (active: boolean) => void;
 };
 
-export const RobotUntorqueSection = ({ nickname, isStarting, isStopping }: RobotUntorqueSectionProps) => {
+export const RobotUntorqueSection = ({
+    nickname,
+    isStarting,
+    isStopping,
+    isUntorquing,
+    onUntorquingChange,
+}: RobotUntorqueSectionProps) => {
     const { setIsRobotStarted } = useRobotStatus();
-    const [isUntorquing, setIsUntorquing] = useState(false);
 
     const handleUntorqueArms = async () => {
         if (!nickname || isStarting || isStopping || isUntorquing) {
             return;
         }
 
-        setIsUntorquing(true);
+        onUntorquingChange(true);
         setIsRobotStarted(false);
         toast.info('Stopping host if needed, then untorquing both arms...', { ...toastInfoDefaults });
 
@@ -32,7 +38,7 @@ export const RobotUntorqueSection = ({ nickname, isStarting, isStopping }: Robot
         } catch {
             toast.error('Untorque was not complete. Check the logs for details.', { ...toastErrorDefaults });
         } finally {
-            setIsUntorquing(false);
+            onUntorquingChange(false);
             setIsRobotStarted(false);
         }
     };

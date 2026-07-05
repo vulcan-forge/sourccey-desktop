@@ -8,6 +8,7 @@ type RobotStartSectionProps = {
     isRobotStarted: boolean;
     isStarting: boolean;
     isStopping: boolean;
+    logsActive?: boolean;
     onStartAction: () => void;
     onStopAction: () => void;
 };
@@ -17,6 +18,7 @@ export const RobotStartSection = ({
     isRobotStarted,
     isStarting,
     isStopping,
+    logsActive,
     onStartAction,
     onStopAction,
 }: RobotStartSectionProps) => {
@@ -66,7 +68,7 @@ export const RobotStartSection = ({
                 </button>
             </div>
 
-            <RobotKioskLogs isActive={isRobotStarted || isStarting || isStopping} nickname={nickname} />
+            <RobotKioskLogs isActive={logsActive ?? (isRobotStarted || isStarting || isStopping)} nickname={nickname} />
         </div>
     );
 };

@@ -16,6 +16,7 @@ interface RobotControlProps {
 export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType = 'sourccey', calibration }) => {
     const hasCalibration = useMemo(() => !!calibration && Object.keys(calibration).length > 0, [calibration]);
     const [activeView, setActiveView] = useState<'control' | 'calibration'>(hasCalibration ? 'control' : 'calibration');
+    const [isUntorquing, setIsUntorquing] = useState(false);
     const previousHasCalibrationRef = useRef(hasCalibration);
 
     useEffect(() => {
@@ -73,10 +74,17 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
                         isRobotStarted={isRobotStarted}
                         isStarting={isStarting}
                         isStopping={isStopping}
+                        logsActive={isRobotStarted || isStarting || isStopping || isUntorquing}
                         onStartAction={handleStartRobot}
                         onStopAction={handleStopRobot}
                     />
-                    <RobotUntorqueSection nickname={nickname} isStarting={isStarting} isStopping={isStopping} />
+                    <RobotUntorqueSection
+                        nickname={nickname}
+                        isStarting={isStarting}
+                        isStopping={isStopping}
+                        isUntorquing={isUntorquing}
+                        onUntorquingChange={setIsUntorquing}
+                    />
                 </>
             )}
         </div>
