@@ -4,6 +4,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { FaTools } from 'react-icons/fa';
 import { RobotCalibration } from '@/components/Elements/Robot/RobotCalibration';
 import { RobotStartSection } from '@/components/Elements/Robot/RobotStart';
+import { RobotUntorqueSection } from '@/components/Elements/Robot/RobotUntorqueSection';
 import { useKioskRobotStartStop } from '@/hooks/Kiosk/robot-start-stop.hook';
 
 interface RobotControlProps {
@@ -66,14 +67,17 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
                     onCalibrationSuccess={() => setActiveView('control')}
                 />
             ) : (
-                <RobotStartSection
-                    nickname={nickname}
-                    isRobotStarted={isRobotStarted}
-                    isStarting={isStarting}
-                    isStopping={isStopping}
-                    onStartAction={handleStartRobot}
-                    onStopAction={handleStopRobot}
-                />
+                <>
+                    <RobotStartSection
+                        nickname={nickname}
+                        isRobotStarted={isRobotStarted}
+                        isStarting={isStarting}
+                        isStopping={isStopping}
+                        onStartAction={handleStartRobot}
+                        onStopAction={handleStopRobot}
+                    />
+                    <RobotUntorqueSection nickname={nickname} isStarting={isStarting} isStopping={isStopping} />
+                </>
             )}
         </div>
     );
