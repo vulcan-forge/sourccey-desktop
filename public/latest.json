@@ -1,6 +1,6 @@
 {
-    "version": "0.0.13",
-    "date": "2026-02-23T12:00:00Z",
+    "version": "0.0.14",
+    "date": "2026-07-01T12:00:00Z",
     "force": true,
     "platforms": {
         "windows-x86_64": {
@@ -10,7 +10,7 @@
     },
     "modules": {
         "lerobot-vulcan": {
-            "tag": "vulcan/0.1.6",
+            "tag": "vulcan/0.1.7",
             "git_url": "https://github.com/vulcan-forge/lerobot-vulcan.git",
             "branch": "main",
             "zip_url": "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip",
