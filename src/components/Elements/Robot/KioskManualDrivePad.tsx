@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
-import { FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight, FaArrowsAltH, FaPlay, FaPowerOff, FaStop } from 'react-icons/fa';
+import { FaArrowUp, FaArrowDown, FaArrowLeft, FaArrowRight, FaArrowsAltH, FaPlay, FaStop } from 'react-icons/fa';
 import { toastErrorDefaults } from '@/utils/toast/toast-utils';
 import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
 import {
@@ -82,7 +82,6 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const [bridgeReady, setBridgeReady] = useState(false);
     const [bridgeStarting, setBridgeStarting] = useState(false);
     const [bridgeStopping, setBridgeStopping] = useState(false);
-    const [untorquing, setUntorquing] = useState(false);
     const [toastErrorMessage, setToastErrorMessage] = useState<string | null>(null);
     const [speedLevel, setSpeedLevel] = useState<0 | 1 | 2>(1);
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
@@ -127,7 +126,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     }, [pressedKeys]);
 
     const startManualDrive = useCallback(async () => {
-        if (!robotStarted || bridgeReady || bridgeStarting || bridgeStopping || untorquing) {
+        if (!robotStarted || bridgeReady || bridgeStarting || bridgeStopping) {
             return;
         }
         setBridgeStarting(true);
@@ -143,10 +142,10 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         } finally {
             setBridgeStarting(false);
         }
-    }, [bridgeReady, bridgeStarting, bridgeStopping, nickname, robotStarted, untorquing]);
+    }, [bridgeReady, bridgeStarting, bridgeStopping, nickname, robotStarted]);
 
     const stopManualDrive = useCallback(async () => {
-        if ((!bridgeReady && !bridgeStarting) || bridgeStopping || untorquing) {
+        if ((!bridgeReady && !bridgeStarting) || bridgeStopping) {
             return;
         }
         setBridgeStopping(true);
@@ -160,27 +159,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         } finally {
             clearLocalManualDriveState();
         }
-    }, [bridgeReady, bridgeStarting, bridgeStopping, clearLocalManualDriveState, nickname, untorquing]);
-
-    const untorqueArms = useCallback(async () => {
-        if (untorquing) {
-            return;
-        }
-
-        setUntorquing(true);
-        try {
-            const message = await invoke<string>('untorque_kiosk_robot_arms', { nickname });
-            clearLocalManualDriveState();
-            toast.success(message || 'Untorqued both arms.', toastErrorDefaults);
-        } catch (error) {
-            const message = compactError(error);
-            toast.error(`Failed to untorque arms: ${message}`, {
-                ...toastErrorDefaults,
-            });
-        } finally {
-            setUntorquing(false);
-        }
-    }, [clearLocalManualDriveState, nickname, untorquing]);
+    }, [bridgeReady, bridgeStarting, bridgeStopping, clearLocalManualDriveState, nickname]);
 
     useEffect(() => {
         return () => {
@@ -320,7 +299,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                     <h3 className="text-lg font-semibold text-white">Manual Control</h3>
                     <p className="mt-1 text-sm text-slate-300">Start manual control to enable the drive bridge. Stop it before connecting a teleoperator.</p>
                 </div>
-                <div className="flex flex-col gap-3 xl:min-w-[34rem] xl:items-end">
+                <div className="flex flex-col gap-3 xl:min-w-[20rem] xl:items-end">
                     <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap xl:justify-end">
                         <button
                             type="button"
@@ -331,9 +310,9 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                                 }
                                 void startManualDrive();
                             }}
-                            disabled={!robotStarted || bridgeStarting || bridgeStopping || untorquing}
+                            disabled={!robotStarted || bridgeStarting || bridgeStopping}
                             className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors sm:min-w-52 sm:w-auto ${
-                                !robotStarted || bridgeStarting || bridgeStopping || untorquing
+                                !robotStarted || bridgeStarting || bridgeStopping
                                     ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                                     : bridgeReady
                                       ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600'
@@ -360,41 +339,10 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                                 </>
                             )}
                         </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                void untorqueArms();
-                            }}
-                            disabled={untorquing}
-                            className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors sm:min-w-44 sm:w-auto ${
-                                untorquing
-                                    ? 'cursor-not-allowed bg-amber-500 text-white opacity-60'
-                                    : 'cursor-pointer bg-amber-500 text-slate-950 hover:bg-amber-400'
-                            }`}
-                        >
-                            {untorquing ? (
-                                <>
-                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-950 border-t-transparent" />
-                                    Untorquing...
-                                </>
-                            ) : (
-                                <>
-                                    <FaPowerOff className="h-4 w-4" /> Untorque Arms
-                                </>
-                            )}
-                        </button>
                     </div>
                     <div className="flex xl:justify-end">
                         <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-                            {untorquing
-                                ? 'Untorquing...'
-                                : bridgeStarting
-                                  ? 'Starting...'
-                                  : bridgeStopping
-                                    ? 'Stopping...'
-                                    : bridgeReady
-                                      ? 'Ready'
-                                      : 'Offline'}
+                            {bridgeStarting ? 'Starting...' : bridgeStopping ? 'Stopping...' : bridgeReady ? 'Ready' : 'Offline'}
                         </div>
                     </div>
                 </div>
