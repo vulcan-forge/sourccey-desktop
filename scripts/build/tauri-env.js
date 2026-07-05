@@ -2,7 +2,8 @@
 // - Standard usage: `bun run tauri build` (or `bun run tauri:build`).
 // - Previous usage: `dotenv -e .env -- tauri build`
 // - What it does: loads signing keys from `.env` into the process environment
-//   and warns if any are missing, then forwards all args to the Tauri CLI.
+//   and warns if any are missing for build commands, then forwards all args
+//   to the Tauri CLI.
 // - How it works: parses `.env` locally, merges required keys into `process.env`,
 //   then spawns the `tauri` binary with inherited stdio.
 const { existsSync, readFileSync } = require('fs');
@@ -41,22 +42,23 @@ if (existsSync(envPath)) {
     console.warn('[tauri-env] Warning: .env not found.');
 }
 
-for (const key of REQUIRED_KEYS) {
-    if (process.env[key]) continue;
-    if (envFromFile[key]) {
-        process.env[key] = envFromFile[key];
-    } else {
-        console.warn(`[tauri-env] Warning: ${key} is not set.`);
-    }
-}
-
 const args = process.argv.slice(2);
+const requiresSigningKeys = args[0] === 'build';
 const tauriBin =
     process.platform === 'win32'
         ? join(process.cwd(), 'node_modules', '.bin', 'tauri.cmd')
         : join(process.cwd(), 'node_modules', '.bin', 'tauri');
 
 const bin = existsSync(tauriBin) ? tauriBin : 'tauri';
+for (const key of REQUIRED_KEYS) {
+    if (process.env[key]) continue;
+    if (envFromFile[key]) {
+        process.env[key] = envFromFile[key];
+    } else if (requiresSigningKeys) {
+        console.warn(`[tauri-env] Warning: ${key} is not set.`);
+    }
+}
+
 const child = spawn(bin, args, { stdio: 'inherit', env: process.env });
 
 child.on('exit', (code) => {
