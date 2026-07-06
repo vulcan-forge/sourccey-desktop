@@ -10,10 +10,10 @@
     },
     "modules": {
         "lerobot-vulcan": {
-            "tag": "vulcan/0.1.7",
+            "tag": "vulcan/0.1.8",
             "git_url": "https://github.com/vulcan-forge/lerobot-vulcan.git",
             "branch": "main",
-            "zip_url": "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan_vulcan-0.1.7.zip",
+            "zip_url": "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan_vulcan-0.1.8.zip",
             "notes": "Released lerobot-vulcan tag for this app release"
         }
     },
