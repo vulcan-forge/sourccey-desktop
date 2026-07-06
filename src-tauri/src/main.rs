@@ -81,6 +81,7 @@ use modules::settings::controllers::access_point::access_point_controller::{
     get_access_point_credentials, is_access_point_active, save_access_point_credentials,
     set_access_point,
 };
+use modules::settings::controllers::desktop_auth_controller::desktop_login_via_studio;
 use modules::settings::controllers::desktop_environment::desktop_environment_controller::{
     get_desktop_environment_settings, save_desktop_environment_settings,
 };
@@ -682,6 +683,7 @@ fn main() {
             is_access_point_active,
             get_access_point_credentials,
             save_access_point_credentials,
+            desktop_login_via_studio,
             get_desktop_environment_settings,
             save_desktop_environment_settings,
             get_kiosk_environment_settings,

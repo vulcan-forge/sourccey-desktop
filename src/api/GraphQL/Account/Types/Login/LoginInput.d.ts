@@ -5,5 +5,4 @@ export interface LoginInput {
     providerId?: string;
     providerAccessToken?: string;
     providerIdToken?: string;
-    recaptcha?: string;
 }
