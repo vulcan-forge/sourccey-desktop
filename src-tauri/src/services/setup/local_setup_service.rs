@@ -128,7 +128,9 @@ lazy_static! {
 
 impl LocalSetupService {
     const SOURCCEY_RUNTIME_EXTRA: &str = "sourccey";
-    const SOURCCEY_DESKTOP_EXTRA: &str = "sourccey-desktop";
+    // Match lerobot-vulcan/setup/setup_modules/setup_desktop.py, which installs
+    // both extras explicitly for desktop AI content.
+    const SOURCCEY_DESKTOP_EXTRA: &str = "sourccey-desktop,xvla";
 
     pub fn resolve_uv_binary(app_handle: &AppHandle) -> Result<PathBuf, String> {
         let app_data_dir = app_handle
