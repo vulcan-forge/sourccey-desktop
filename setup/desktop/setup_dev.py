@@ -36,6 +36,27 @@ class DesktopDevSetupScript(SetupScript):
         """Return a friendly Python command name for rerun instructions."""
         return Path(sys.executable).name or "python"
 
+    def ensure_env_file(self) -> bool:
+        """Create a local .env from .env.example when missing."""
+        env_file = self.project_root / ".env"
+        if env_file.exists():
+            self.print_success(".env file already exists")
+            return True
+
+        env_example = self.project_root / ".env.example"
+        if not env_example.exists():
+            self.print_error(".env.example not found; cannot create .env")
+            return False
+
+        try:
+            shutil.copyfile(env_example, env_file)
+        except OSError as exc:
+            self.print_error(f"Failed to create .env from .env.example: {exc}")
+            return False
+
+        self.print_success("Created .env from .env.example")
+        return True
+
     def ensure_desktop_tauri_prerequisites(self) -> bool:
         """Validate platform-specific prerequisites required for Tauri dev."""
         if self.system == "Darwin":
@@ -246,6 +267,10 @@ class DesktopDevSetupScript(SetupScript):
             return False
 
         if not self.setup_bun_packages():
+            self.print_error("Project setup failed.")
+            return False
+
+        if not self.ensure_env_file():
             self.print_error("Project setup failed.")
             return False
 
