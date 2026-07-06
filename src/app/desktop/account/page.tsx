@@ -8,6 +8,7 @@ import { clearAuthSession, setAuthSession, useAuthSession, type AuthProvider } f
 import { useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
 import {
     DESKTOP_OAUTH_RESULT_EVENT,
+    DESKTOP_OAUTH_RESULT_STORAGE_KEY,
     DESKTOP_OAUTH_WINDOW_LABEL_PREFIX,
     type DesktopOAuthResultPayload,
     type OAuthProvider,
@@ -162,6 +163,36 @@ const buildOAuthRedirectUrl = (oauthBaseUrl: string, provider: OAuthProvider, ca
     return authorizationUrl.toString();
 };
 
+const readStoredDesktopOAuthPayload = () => {
+    if (typeof window === 'undefined') {
+        return null;
+    }
+
+    const rawValue = window.localStorage.getItem(DESKTOP_OAUTH_RESULT_STORAGE_KEY);
+    if (!rawValue) {
+        return null;
+    }
+
+    try {
+        return JSON.parse(rawValue) as DesktopOAuthResultPayload;
+    } catch (error) {
+        console.error('[desktop-account] failed to parse stored desktop social login result', {
+            error,
+            rawValue,
+        });
+        window.localStorage.removeItem(DESKTOP_OAUTH_RESULT_STORAGE_KEY);
+        return null;
+    }
+};
+
+const clearStoredDesktopOAuthPayload = () => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    window.localStorage.removeItem(DESKTOP_OAUTH_RESULT_STORAGE_KEY);
+};
+
 const getOAuthWindowLabel = (provider: OAuthProvider) => `${DESKTOP_OAUTH_WINDOW_LABEL_PREFIX}-${provider}`;
 
 const getCurrentTauriWindowLabel = () => {
@@ -270,6 +301,7 @@ function AccountPageContent() {
             return;
         }
         lastHandledOAuthPayloadRef.current = payloadKey;
+        clearStoredDesktopOAuthPayload();
 
         setOauthRedirectingProvider(null);
 
@@ -307,6 +339,16 @@ function AccountPageContent() {
 
         let isDisposed = false;
         let unlisten: (() => void) | null = null;
+        let pollInterval: number | null = null;
+
+        const handleStoredPayload = () => {
+            const storedPayload = readStoredDesktopOAuthPayload();
+            if (!storedPayload) {
+                return;
+            }
+
+            handleOAuthResult(storedPayload);
+        };
 
         void listen<DesktopOAuthResultPayload>(DESKTOP_OAUTH_RESULT_EVENT, (event) => {
                 if (isDisposed) {
@@ -322,9 +364,20 @@ function AccountPageContent() {
                 unlisten = dispose;
             });
 
+        window.addEventListener('focus', handleStoredPayload);
+        window.addEventListener('storage', handleStoredPayload);
+        handleStoredPayload();
+
+        pollInterval = window.setInterval(handleStoredPayload, 1000);
+
         return () => {
             isDisposed = true;
             unlisten?.();
+            window.removeEventListener('focus', handleStoredPayload);
+            window.removeEventListener('storage', handleStoredPayload);
+            if (pollInterval !== null) {
+                window.clearInterval(pollInterval);
+            }
         };
     }, [isOauthPopupWindow]);
 

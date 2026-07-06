@@ -6,6 +6,7 @@ import { getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { setAuthSession } from '@/hooks/Auth/auth-session.hook';
 import {
     DESKTOP_OAUTH_RESULT_EVENT,
+    DESKTOP_OAUTH_RESULT_STORAGE_KEY,
     type DesktopOAuthResultPayload,
     normalizeOAuthProvider,
 } from '@/utils/auth/desktop-oauth';
@@ -20,6 +21,21 @@ const sanitizePayload = (payload: DesktopOAuthResultPayload) => {
         email: payload.email?.trim() ?? null,
         error: payload.error?.trim() ?? null,
     };
+};
+
+const persistDesktopOAuthPayload = (payload: DesktopOAuthResultPayload) => {
+    if (typeof window === 'undefined') {
+        return;
+    }
+
+    try {
+        window.localStorage.setItem(DESKTOP_OAUTH_RESULT_STORAGE_KEY, JSON.stringify(payload));
+    } catch (error) {
+        console.error('[desktop-oauth-callback] failed to persist desktop social login result', {
+            error,
+            payload,
+        });
+    }
 };
 
 export default function DesktopOAuthCallbackPage() {
@@ -63,20 +79,22 @@ export default function DesktopOAuthCallbackPage() {
 
         if (isTauri()) {
             const currentWindow = getCurrentWebviewWindow();
+            persistDesktopOAuthPayload(payload);
             void currentWindow
                 .hide()
                 .catch(() => null)
-                .finally(() => {
-                    void emit(DESKTOP_OAUTH_RESULT_EVENT, payload)
-                        .catch((error) => {
+                .finally(async () => {
+                    await Promise.race([
+                        emit(DESKTOP_OAUTH_RESULT_EVENT, payload).catch((error) => {
                             console.error('[desktop-oauth-callback] failed to forward desktop social login result', {
                                 error,
                                 payload,
                             });
-                        })
-                        .finally(() => {
-                            void currentWindow.close();
-                        });
+                        }),
+                        new Promise((resolve) => window.setTimeout(resolve, 300)),
+                    ]);
+
+                    void currentWindow.close();
                 });
             return;
         }
