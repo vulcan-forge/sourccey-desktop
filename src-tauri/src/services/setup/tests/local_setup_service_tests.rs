@@ -323,10 +323,10 @@ fn uv_pip_install_args_target_specific_python_and_extra() {
         expected.push("numpy".to_string());
     }
     expected.push("-e".to_string());
-    expected.push(".[sourccey-desktop]".to_string());
+    expected.push(".[sourccey-desktop,xvla]".to_string());
 
     assert_eq!(
-        LocalSetupService::uv_pip_install_args(python_path, Some("sourccey-desktop")),
+        LocalSetupService::uv_pip_install_args(python_path, Some("sourccey-desktop,xvla")),
         expected
     );
 }
