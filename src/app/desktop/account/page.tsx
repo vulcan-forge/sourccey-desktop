@@ -1,18 +1,33 @@
 'use client';
 
+import { isTauri } from '@tauri-apps/api/core';
+import { TauriEvent, listen } from '@tauri-apps/api/event';
+import { WebviewWindow, getCurrentWebviewWindow } from '@tauri-apps/api/webviewWindow';
 import { mutateStudioLogin, StudioLoginError } from '@/api/studio-login';
-import { clearAuthSession, setAuthSession, useAuthSession } from '@/hooks/Auth/auth-session.hook';
+import { clearAuthSession, setAuthSession, useAuthSession, type AuthProvider } from '@/hooks/Auth/auth-session.hook';
 import { useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
+import {
+    DESKTOP_OAUTH_RESULT_EVENT,
+    DESKTOP_OAUTH_WINDOW_LABEL_PREFIX,
+    type DesktopOAuthResultPayload,
+    type OAuthProvider,
+} from '@/utils/auth/desktop-oauth';
 import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useMutation } from '@tanstack/react-query';
-import { Suspense, useState } from 'react';
-import { FaEye, FaEyeSlash, FaSignOutAlt } from 'react-icons/fa';
+import { Suspense, useEffect, useState } from 'react';
+import { FaEye, FaEyeSlash, FaGithub, FaGoogle, FaSignOutAlt } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { openUrl } from '@tauri-apps/plugin-opener';
+import { useRef } from 'react';
 
 const AUTH_PROVIDER_IDS = {
     credentials: 0,
 } as const;
+
+const VULCAN_WEBSITE_BASE_URL = 'https://vulcanrobotics.ai';
+const VULCAN_API_BASE_URL = 'https://api.vulcanrobotics.ai';
+const STAGING_VULCAN_WEBSITE_BASE_URL = 'https://staging.factory.vulcanrobotics.ai';
+const STAGING_VULCAN_API_BASE_URL = 'https://api.staging.factory.vulcanrobotics.ai';
 
 const loginToastErrorDefaults = {
     ...toastErrorDefaults,
@@ -29,6 +44,19 @@ const loginToastErrorDefaults = {
 
 const normalizeErrorMessage = (message: string) => {
     return message.replace(/\s+/g, ' ').trim();
+};
+
+const getAuthProviderLabel = (provider: AuthProvider | null) => {
+    if (provider === 'google') {
+        return 'Google';
+    }
+    if (provider === 'github') {
+        return 'GitHub';
+    }
+    if (provider === 'credentials') {
+        return 'Email & Password';
+    }
+    return 'Unknown';
 };
 
 const truncateErrorMessage = (message: string, maxLength = 160) => {
@@ -83,6 +111,65 @@ const sanitizeForLogging = (value: unknown): unknown => {
             return [key, sanitizeForLogging(entryValue)];
         })
     );
+};
+
+const getReadableOAuthError = (rawMessage: string | null, provider: OAuthProvider | null) => {
+    const message = rawMessage ? truncateErrorMessage(normalizeErrorMessage(rawMessage)) : 'Social sign-in failed. Please try again.';
+    if (!provider) {
+        return message;
+    }
+    return `${getAuthProviderLabel(provider)} sign-in failed. ${message}`;
+};
+
+const resolveWebsiteBaseUrl = (environment: 'production' | 'staging' | 'local', studioWebUrl: string) => {
+    if (environment === 'production') {
+        return VULCAN_WEBSITE_BASE_URL;
+    }
+    if (environment === 'staging') {
+        return STAGING_VULCAN_WEBSITE_BASE_URL;
+    }
+    return studioWebUrl;
+};
+
+const resolveDesktopOAuthBaseUrl = (environment: 'production' | 'staging' | 'local', graphqlApiUrl: string) => {
+    if (environment === 'production') {
+        return VULCAN_API_BASE_URL;
+    }
+    if (environment === 'staging') {
+        return STAGING_VULCAN_API_BASE_URL;
+    }
+    return new URL(graphqlApiUrl).origin;
+};
+
+const buildWebsiteUrl = (baseUrl: string, path: string) => new URL(path, baseUrl).toString();
+
+const buildDesktopOAuthCallbackUrl = () => {
+    if (typeof window === 'undefined') {
+        throw new Error('OAuth sign-in can only start in a browser context.');
+    }
+
+    const isLocalDevHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    if (isLocalDevHost && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
+        return new URL('/desktop/auth/callback', window.location.origin).toString();
+    }
+
+    return 'tauri://localhost/desktop/auth/callback';
+};
+
+const buildOAuthRedirectUrl = (oauthBaseUrl: string, provider: OAuthProvider, callbackUrl: string) => {
+    const authorizationUrl = new URL(`/api/v1/auth/${provider}`, oauthBaseUrl);
+    authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
+    return authorizationUrl.toString();
+};
+
+const getOAuthWindowLabel = (provider: OAuthProvider) => `${DESKTOP_OAUTH_WINDOW_LABEL_PREFIX}-${provider}`;
+
+const getCurrentTauriWindowLabel = () => {
+    if (typeof window === 'undefined' || !isTauri()) {
+        return null;
+    }
+
+    return getCurrentWebviewWindow().label;
 };
 
 const logLoginError = (error: unknown, friendlyMessage: string, request: Record<string, unknown>) => {
@@ -160,10 +247,86 @@ function AccountPageContent() {
     const [email, setEmail] = useState(authSession?.email ?? '');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
+    const [oauthRedirectingProvider, setOauthRedirectingProvider] = useState<OAuthProvider | null>(null);
+    const [tauriWindowLabel] = useState<string | null>(() => getCurrentTauriWindowLabel());
+    const lastHandledOAuthPayloadRef = useRef<string | null>(null);
 
     const isAuthenticated = Boolean(authSession?.isAuthenticated && authSession?.accountId);
     const accountId = authSession?.accountId ?? null;
     const studioWebUrl = desktopEnvironmentSettings?.studioWebUrl ?? 'https://studio.vulcanrobotics.ai';
+    const graphqlApiUrl = desktopEnvironmentSettings?.graphqlApiUrl ?? 'https://api.studio.vulcanrobotics.ai/v1/graphql';
+    const desktopEnvironment = desktopEnvironmentSettings?.environment ?? 'production';
+    const websiteBaseUrl = resolveWebsiteBaseUrl(desktopEnvironment, studioWebUrl);
+    const desktopOAuthBaseUrl = resolveDesktopOAuthBaseUrl(desktopEnvironment, graphqlApiUrl);
+    const activeProviderLabel = getAuthProviderLabel(authSession?.provider ?? null);
+    const forgotPasswordUrl = buildWebsiteUrl(websiteBaseUrl, '/forgot-password?from=desktop');
+    const createAccountUrl = buildWebsiteUrl(websiteBaseUrl, '/signup');
+    const websiteLoginUrl = buildWebsiteUrl(websiteBaseUrl, '/login');
+    const isOauthPopupWindow = Boolean(tauriWindowLabel?.startsWith(DESKTOP_OAUTH_WINDOW_LABEL_PREFIX));
+
+    const handleOAuthResult = (payload: DesktopOAuthResultPayload) => {
+        const payloadKey = JSON.stringify(payload);
+        if (lastHandledOAuthPayloadRef.current === payloadKey) {
+            return;
+        }
+        lastHandledOAuthPayloadRef.current = payloadKey;
+
+        setOauthRedirectingProvider(null);
+
+        if (payload.status === 'success' && payload.provider && payload.accountId && payload.email) {
+            setEmail(payload.email);
+            setPassword('');
+            setAuthSession({
+                isAuthenticated: true,
+                accountId: payload.accountId,
+                email: payload.email,
+                provider: payload.provider,
+                profileHandle: null,
+                profileName: null,
+                accountRole: null,
+                subscriptionTier: null,
+                tokenBalance: null,
+            });
+            toast.success(`Signed in with ${getAuthProviderLabel(payload.provider)}.`, { ...toastSuccessDefaults });
+            return;
+        }
+
+        const friendlyMessage = getReadableOAuthError(payload.error, payload.provider);
+        console.error('[desktop-account] studio social login failed', {
+            friendlyMessage,
+            provider: payload.provider,
+            payload: sanitizeForLogging(payload),
+        });
+        toast.error(friendlyMessage, loginToastErrorDefaults);
+    };
+
+    useEffect(() => {
+        if (!isTauri() || isOauthPopupWindow) {
+            return;
+        }
+
+        let isDisposed = false;
+        let unlisten: (() => void) | null = null;
+
+        void listen<DesktopOAuthResultPayload>(DESKTOP_OAUTH_RESULT_EVENT, (event) => {
+                if (isDisposed) {
+                    return;
+                }
+                handleOAuthResult(event.payload);
+            })
+            .then((dispose) => {
+                if (isDisposed) {
+                    dispose();
+                    return;
+                }
+                unlisten = dispose;
+            });
+
+        return () => {
+            isDisposed = true;
+            unlisten?.();
+        };
+    }, [isOauthPopupWindow]);
 
     const credentialsLogin = useMutation({
         mutationFn: async ({ email, password }: { email: string; password: string }) => {
@@ -200,6 +363,7 @@ function AccountPageContent() {
             toast.error(message, loginToastErrorDefaults);
         },
     });
+    const isSigningIn = credentialsLogin.isPending || oauthRedirectingProvider !== null;
 
     const handleCredentialsSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -209,6 +373,77 @@ function AccountPageContent() {
             return;
         }
         credentialsLogin.mutate({ email: normalizedEmail, password });
+    };
+
+    const handleOAuthSignIn = (provider: OAuthProvider) => {
+        try {
+            setOauthRedirectingProvider(provider);
+            const callbackUrl = buildDesktopOAuthCallbackUrl();
+            const authorizationUrl = buildOAuthRedirectUrl(desktopOAuthBaseUrl, provider, callbackUrl);
+
+            if (!isTauri()) {
+                window.location.assign(authorizationUrl);
+                return;
+            }
+
+            void (async () => {
+                const windowLabel = getOAuthWindowLabel(provider);
+                const existingWindow = await WebviewWindow.getByLabel(windowLabel);
+                await existingWindow?.close();
+
+                const authWindow = new WebviewWindow(windowLabel, {
+                    url: authorizationUrl,
+                    title: provider === 'google' ? 'Continue with Google' : 'Continue with GitHub',
+                    width: 540,
+                    height: 760,
+                    minWidth: 460,
+                    minHeight: 680,
+                    center: true,
+                    focus: true,
+                    resizable: true,
+                    maximizable: false,
+                    minimizable: false,
+                    parent: getCurrentWebviewWindow(),
+                });
+
+                void authWindow.once(TauriEvent.WINDOW_DESTROYED, () => {
+                    setOauthRedirectingProvider((current) => (current === provider ? null : current));
+                });
+
+                void authWindow.once('tauri://error', (event) => {
+                    setOauthRedirectingProvider(null);
+                    console.error('[desktop-account] failed to create desktop social auth window', {
+                        provider,
+                        error: event.payload,
+                    });
+                    toast.error('Unable to open the social sign-in window. Please try again.', loginToastErrorDefaults);
+                });
+            })().catch((error) => {
+                setOauthRedirectingProvider(null);
+                const message =
+                    error instanceof Error
+                        ? truncateErrorMessage(normalizeErrorMessage(error.message))
+                        : 'Unable to start social sign-in.';
+
+                console.error('[desktop-account] failed to start studio social login', {
+                    provider,
+                    message,
+                });
+                toast.error(message, loginToastErrorDefaults);
+            });
+        } catch (error) {
+            setOauthRedirectingProvider(null);
+            const message =
+                error instanceof Error
+                    ? truncateErrorMessage(normalizeErrorMessage(error.message))
+                    : 'Unable to start social sign-in.';
+
+            console.error('[desktop-account] failed to start studio social login', {
+                provider,
+                message,
+            });
+            toast.error(message, loginToastErrorDefaults);
+        }
     };
 
     const handleSignOut = () => {
@@ -221,82 +456,139 @@ function AccountPageContent() {
         void openUrl(studioWebUrl);
     };
 
-    return (
-        <div className="min-h-screen bg-slate-900/30">
-            <div className="container mx-auto flex max-w-5xl flex-col gap-8 px-8 py-10">
-                {!isAuthenticated ? (
-                    <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-7 shadow-2xl">
-                        <h1 className="text-2xl font-semibold text-white">Sign in to Vulcan Studio</h1>
-                        <p className="mt-2 text-sm text-slate-300">Use the same email and password you use on the Studio website.</p>
+    const handleOpenWebsiteUrl = (url: string) => {
+        void openUrl(url);
+    };
 
-                        <form onSubmit={handleCredentialsSubmit} className="mt-6 flex flex-col gap-3">
-                            <input
-                                type="email"
-                                value={email}
-                                onChange={(event) => setEmail(event.target.value)}
-                                placeholder="Email"
-                                autoComplete="email"
-                                className="w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-slate-100 transition outline-none placeholder:text-slate-400 focus:border-orange-300"
-                            />
-                            <div className="group relative">
-                                <input
-                                    type={showPassword ? 'text' : 'password'}
-                                    value={password}
-                                    onChange={(event) => setPassword(event.target.value)}
-                                    placeholder="Password"
-                                    autoComplete="current-password"
-                                    className="auth-password-input w-full rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 pr-10 text-sm text-slate-100 transition outline-none placeholder:text-slate-400 focus:border-orange-300 [color-scheme:dark]"
-                                />
+    return (
+        <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900">
+            <div className="container mx-auto flex max-w-5xl flex-col gap-8 px-6 py-10">
+                {!isAuthenticated ? (
+                    <div className="mx-auto flex min-h-[calc(100vh-8rem)] w-full items-center justify-center">
+                        <div className="w-full max-w-md rounded-2xl border border-slate-500/60 bg-slate-800/75 p-8 text-slate-100 shadow-2xl shadow-slate-900/40 backdrop-blur">
+                            <div className="mb-8 space-y-2">
+                                <h1 className="text-3xl font-semibold text-white">Welcome back</h1>
+                                <p className="text-sm text-slate-300/80">
+                                    Sign in with email or continue with Google or GitHub.
+                                </p>
+                            </div>
+
+                            <form className="space-y-4" onSubmit={handleCredentialsSubmit}>
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold tracking-widest text-slate-300 uppercase">Email</label>
+                                    <input
+                                        type="email"
+                                        value={email}
+                                        onChange={(event) => setEmail(event.target.value)}
+                                        placeholder="Email"
+                                        autoComplete="email"
+                                        className="w-full rounded-xl border border-slate-600/60 bg-slate-900/60 px-4 py-3 text-sm text-slate-100 transition outline-none placeholder:text-slate-500 focus:border-amber-300"
+                                    />
+                                </div>
+
+                                <div className="space-y-2">
+                                    <label className="text-xs font-semibold tracking-widest text-slate-300 uppercase">Password</label>
+                                    <div className="group relative">
+                                        <input
+                                            type={showPassword ? 'text' : 'password'}
+                                            value={password}
+                                            onChange={(event) => setPassword(event.target.value)}
+                                            placeholder="********"
+                                            autoComplete="current-password"
+                                            className="auth-password-input w-full rounded-xl border border-slate-600/60 bg-slate-900/60 px-4 py-3 pr-12 text-sm text-slate-100 transition outline-none placeholder:text-slate-500 focus:border-amber-300 [color-scheme:dark]"
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowPassword((value) => !value)}
+                                            className="absolute top-1/2 right-4 -translate-y-1/2 cursor-pointer text-slate-400 transition hover:text-slate-200"
+                                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                                            title={showPassword ? 'Hide password' : 'Show password'}
+                                        >
+                                            {showPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <button
+                                    type="submit"
+                                    disabled={isSigningIn}
+                                    className="w-full cursor-pointer rounded-xl bg-linear-to-r from-amber-300 via-orange-300 to-amber-400 px-4 py-3 text-sm font-semibold text-slate-900 shadow-lg shadow-amber-500/20 transition hover:from-amber-200 hover:via-orange-200 hover:to-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {credentialsLogin.isPending ? 'Signing in...' : 'Sign in'}
+                                </button>
+                            </form>
+
+                            <div className="my-6 flex items-center gap-3 text-xs tracking-widest text-slate-400 uppercase">
+                                <span className="h-px flex-1 bg-slate-600/60" />
+                                or
+                                <span className="h-px flex-1 bg-slate-600/60" />
+                            </div>
+
+                            <div className="grid gap-3">
                                 <button
                                     type="button"
-                                    onClick={() => setShowPassword((value) => !value)}
-                                    className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-slate-200 opacity-0 transition hover:text-white group-focus-within:opacity-100"
-                                    aria-label={showPassword ? 'Hide password' : 'Show password'}
-                                    title={showPassword ? 'Hide password' : 'Show password'}
+                                    disabled={isSigningIn}
+                                    onClick={() => handleOAuthSignIn('google')}
+                                    className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border border-slate-600/60 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
                                 >
-                                    {showPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
+                                    <FaGoogle className="text-base" />
+                                    {oauthRedirectingProvider === 'google' ? 'Redirecting...' : 'Continue with Google'}
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={isSigningIn}
+                                    onClick={() => handleOAuthSignIn('github')}
+                                    className="flex cursor-pointer items-center justify-center gap-3 rounded-xl border border-slate-600/60 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-amber-300 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    <FaGithub className="text-base" />
+                                    {oauthRedirectingProvider === 'github' ? 'Redirecting...' : 'Continue with GitHub'}
                                 </button>
                             </div>
-                            <button
-                                type="submit"
-                                disabled={credentialsLogin.isPending}
-                                className="mt-1 inline-flex cursor-pointer items-center justify-center rounded-lg bg-gradient-to-r from-red-400/70 via-orange-400/70 to-yellow-400/70 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:from-red-500/70 hover:via-orange-500/70 hover:to-yellow-500/70 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                {credentialsLogin.isPending ? 'Signing In...' : 'Sign In'}
-                            </button>
-                        </form>
 
-                        <div className="mt-5 rounded-lg border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-300">
-                            If you need to create an account, confirm your email, or reset your password, use{' '}
-                            <button
-                                type="button"
-                                onClick={handleOpenStudio}
-                                className="cursor-pointer text-orange-300 hover:text-orange-200"
-                            >
-                                {studioWebUrl}
-                            </button>
-                            .
+                            <div className="mt-6 flex items-center justify-between gap-4 text-xs text-slate-400">
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenWebsiteUrl(forgotPasswordUrl)}
+                                    className="cursor-pointer text-amber-300 transition hover:text-amber-200"
+                                >
+                                    Forgot password?
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => handleOpenWebsiteUrl(createAccountUrl)}
+                                    className="cursor-pointer text-amber-300 transition hover:text-amber-200"
+                                >
+                                    Create an account
+                                </button>
+                            </div>
                         </div>
                     </div>
                 ) : (
-                    <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                            <div>
-                                <h1 className="text-2xl font-semibold text-white">Account</h1>
-                                <p className="mt-2 text-sm text-slate-300">Signed in through the Studio login system.</p>
+                    <div className="mx-auto w-full max-w-4xl rounded-2xl border border-slate-500/60 bg-slate-800/75 p-8 text-slate-100 shadow-2xl shadow-slate-900/40 backdrop-blur">
+                        <div className="flex flex-wrap items-start justify-between gap-4">
+                            <div className="space-y-2">
+                                <h1 className="text-3xl font-semibold text-white">Account</h1>
+                                <p className="text-sm text-slate-300/80">Signed in through the Vulcan website account system.</p>
                             </div>
                             <div className="flex flex-wrap gap-3">
                                 <button
                                     type="button"
+                                    onClick={() => handleOpenWebsiteUrl(websiteLoginUrl)}
+                                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-600/60 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-amber-300"
+                                >
+                                    Open Website
+                                </button>
+                                <button
+                                    type="button"
                                     onClick={handleOpenStudio}
-                                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10"
+                                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-600/60 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-amber-300"
                                 >
                                     Open Studio
                                 </button>
                                 <button
                                     type="button"
                                     onClick={handleSignOut}
-                                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10"
+                                    className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-slate-600/60 px-4 py-3 text-sm font-semibold text-slate-100 transition hover:border-amber-300"
                                 >
                                     <FaSignOutAlt className="h-4 w-4" />
                                     Sign Out
@@ -304,29 +596,29 @@ function AccountPageContent() {
                             </div>
                         </div>
 
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                            <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
-                                <div className="text-slate-400">Provider</div>
-                                <div>Email &amp; Password</div>
+                        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            <div className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-4 text-sm text-slate-200">
+                                <div className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Provider</div>
+                                <div>{activeProviderLabel}</div>
                             </div>
-                            <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
-                                <div className="text-slate-400">Account ID</div>
+                            <div className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-4 text-sm text-slate-200">
+                                <div className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Account ID</div>
                                 <div className="truncate">{accountId ?? 'Not available'}</div>
                             </div>
-                            <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
-                                <div className="text-slate-400">Email</div>
+                            <div className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-4 text-sm text-slate-200">
+                                <div className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Email</div>
                                 <div className="truncate">{authSession?.email ?? 'Not available'}</div>
                             </div>
-                            <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
-                                <div className="text-slate-400">Role</div>
+                            <div className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-4 text-sm text-slate-200">
+                                <div className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Role</div>
                                 <div>{authSession?.accountRole ?? 'Not available'}</div>
                             </div>
-                            <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
-                                <div className="text-slate-400">Profile Name</div>
+                            <div className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-4 text-sm text-slate-200">
+                                <div className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Profile Name</div>
                                 <div>{authSession?.profileName ?? 'Not available'}</div>
                             </div>
-                            <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
-                                <div className="text-slate-400">Handle</div>
+                            <div className="rounded-xl border border-slate-700/70 bg-slate-950/40 p-4 text-sm text-slate-200">
+                                <div className="text-xs font-semibold tracking-widest text-slate-400 uppercase">Handle</div>
                                 <div>{authSession?.profileHandle ?? 'Not available'}</div>
                             </div>
                         </div>
@@ -338,10 +630,10 @@ function AccountPageContent() {
 }
 
 const AccountPageFallback = () => (
-    <div className="min-h-screen bg-slate-900/30">
-        <div className="container mx-auto flex max-w-5xl flex-col gap-8 px-8 py-10">
-            <div className="rounded-2xl border border-slate-700 bg-slate-900 p-7 shadow-2xl">
-                <div className="h-6 w-56 animate-pulse rounded bg-slate-700" />
+    <div className="min-h-screen bg-linear-to-br from-slate-900 via-slate-800 to-slate-900">
+        <div className="container mx-auto flex max-w-5xl flex-col gap-8 px-6 py-10">
+            <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-500/60 bg-slate-800/75 p-8 shadow-2xl shadow-slate-900/40 backdrop-blur">
+                <div className="h-8 w-48 animate-pulse rounded bg-slate-700" />
                 <div className="mt-3 h-4 w-72 animate-pulse rounded bg-slate-800" />
             </div>
         </div>
