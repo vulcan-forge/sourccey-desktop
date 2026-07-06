@@ -15,6 +15,7 @@ use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 use crate::services::directory::directory_service::DirectoryService;
 use crate::services::environment::build_service::BuildService;
 use crate::services::log::log_service::LogService;
+use crate::utils::windows_process::configure_std_command;
 
 pub struct LocalSetupService;
 
@@ -186,7 +187,7 @@ impl LocalSetupService {
         if !lerobot_dir.exists() {
             missing.push("modules/lerobot-vulcan".to_string());
         }
-        if !python_path.exists() {
+        if !Self::python_path_is_usable(&python_path) {
             missing.push("lerobot-vulcan/.venv".to_string());
         }
         if !marker_path.exists() {
@@ -220,13 +221,13 @@ impl LocalSetupService {
         if !lerobot_dir.exists() {
             missing.push("modules/lerobot-vulcan".to_string());
         }
-        if !python_path.exists() {
+        if !Self::python_path_is_usable(&python_path) {
             missing.push("lerobot-vulcan/.venv".to_string());
         }
         if !marker_path.exists() {
             missing.push("desktop extras marker".to_string());
         }
-        if python_path.exists() && !Self::python_can_import(&python_path, "transformers") {
+        if Self::python_path_is_usable(&python_path) && !Self::python_can_import(&python_path, "transformers") {
             missing.push("xvla bindings".to_string());
         }
 
@@ -381,17 +382,9 @@ impl LocalSetupService {
             } else {
                 app_data_dir.join("modules").join("lerobot-vulcan")
             };
-            let python_path = Self::python_path_for(&lerobot_dir);
 
             if !lerobot_dir.exists() {
                 let message = "lerobot-vulcan not found. Run the initial setup first.".to_string();
-                Self::emit_step(Some(&emit), "check", "error", Some(message.clone()));
-                return Err(message);
-            }
-            if !python_path.exists() {
-                let message =
-                    "lerobot-vulcan virtual environment not found. Run the initial setup first."
-                        .to_string();
                 Self::emit_step(Some(&emit), "check", "error", Some(message.clone()));
                 return Err(message);
             }
@@ -411,6 +404,18 @@ impl LocalSetupService {
             })?;
             Self::emit_step(Some(&emit), "uv", "success", None);
 
+            let python_path = Self::ensure_virtual_env_ready(
+                &uv_target,
+                &lerobot_dir,
+                Some(&emit),
+                "Using existing virtual environment",
+                "Repairing virtual environment",
+            )
+            .map_err(|e| {
+                Self::emit_step(Some(&emit), "venv", "error", Some(e.clone()));
+                e
+            })?;
+
             Self::emit_step(
                 Some(&emit),
                 "deps",
@@ -420,6 +425,7 @@ impl LocalSetupService {
             Self::install_lerobot_extra(
                 &uv_target,
                 &lerobot_dir,
+                &python_path,
                 Self::SOURCCEY_DESKTOP_EXTRA,
             )
             .map_err(|e| {
@@ -485,7 +491,7 @@ impl LocalSetupService {
         let lerobot_dir = install_root.join("lerobot-vulcan");
         let python_path = Self::python_path_for(&lerobot_dir);
 
-        if marker_path.exists() && python_path.exists() {
+        if marker_path.exists() && Self::python_path_is_usable(&python_path) {
             DirectoryService::set_project_root_override(app_data_dir);
             return Ok(());
         }
@@ -623,11 +629,23 @@ impl LocalSetupService {
             "started",
             Some("Creating virtual environment".to_string()),
         );
+        Self::remove_virtual_env_dir(&lerobot_dir).map_err(|e| {
+            Self::emit_step(emit, "venv", "error", Some(e.clone()));
+            e
+        })?;
         let venv_args = Self::uv_venv_args();
         Self::run_command(&uv_target, &venv_args, &lerobot_dir, "uv venv").map_err(|e| {
             Self::emit_step(emit, "venv", "error", Some(e.clone()));
             e
         })?;
+        if !Self::python_path_is_usable(&python_path) {
+            let error = format!(
+                "Created virtual environment is not usable at {}",
+                python_path.display()
+            );
+            Self::emit_step(emit, "venv", "error", Some(error.clone()));
+            return Err(error);
+        }
         Self::emit_step(emit, "venv", "success", None);
 
         Self::emit_step(
@@ -639,6 +657,7 @@ impl LocalSetupService {
         Self::install_lerobot_extra(
             &uv_target,
             &lerobot_dir,
+            &python_path,
             Self::SOURCCEY_RUNTIME_EXTRA,
         )
         .map_err(|e| {
@@ -1087,11 +1106,12 @@ impl LocalSetupService {
             return None;
         }
 
-        let output = Command::new("git")
+        let mut command = Command::new("git");
+        command
             .args(["tag", "--points-at", "HEAD"])
-            .current_dir(&lerobot_dir)
-            .output()
-            .ok()?;
+            .current_dir(&lerobot_dir);
+        configure_std_command(&mut command);
+        let output = command.output().ok()?;
         if !output.status.success() {
             return None;
         }
@@ -1129,11 +1149,12 @@ impl LocalSetupService {
             return None;
         }
 
-        let output = Command::new("git")
+        let mut command = Command::new("git");
+        command
             .args(["rev-parse", "HEAD"])
-            .current_dir(&lerobot_dir)
-            .output()
-            .ok()?;
+            .current_dir(&lerobot_dir);
+        configure_std_command(&mut command);
+        let output = command.output().ok()?;
         if !output.status.success() {
             return None;
         }
@@ -1175,9 +1196,8 @@ impl LocalSetupService {
         } else {
             app_data_dir.join("modules").join("lerobot-vulcan")
         };
-        let python_path = Self::python_path_for(&lerobot_dir);
 
-        if !lerobot_dir.exists() || !python_path.exists() {
+        if !lerobot_dir.exists() {
             return Self::ensure_installed(app_handle, emit, false);
         }
 
@@ -1206,12 +1226,13 @@ impl LocalSetupService {
         let uv_target = Self::ensure_uv_binary(app_handle, &app_data_dir)?;
         Self::emit_step(emit, "uv", "success", None);
 
-        Self::emit_step(
+        let python_path = Self::ensure_virtual_env_ready(
+            &uv_target,
+            &lerobot_dir,
             emit,
-            "venv",
-            "success",
-            Some("Using existing virtual environment".to_string()),
-        );
+            "Using existing virtual environment",
+            "Repairing virtual environment",
+        )?;
 
         Self::emit_step(
             emit,
@@ -1222,6 +1243,7 @@ impl LocalSetupService {
         Self::install_lerobot_extra(
             &uv_target,
             &lerobot_dir,
+            &python_path,
             Self::SOURCCEY_RUNTIME_EXTRA,
         )
         .map_err(|e| {
@@ -1297,6 +1319,7 @@ impl LocalSetupService {
         let mut command = Command::new(exe);
         command.args(args).current_dir(working_dir);
         Self::configure_setup_command_env(&mut command);
+        configure_std_command(&mut command);
         let output = command
             .output()
             .map_err(|e| format!("Failed to run {}: {}", label, e))?;
@@ -1323,10 +1346,11 @@ impl LocalSetupService {
     fn run_uv_pip_install(
         uv_target: &Path,
         working_dir: &Path,
+        python_path: &Path,
         extras: Option<&str>,
         label: &str,
     ) -> Result<(), String> {
-        let args = Self::uv_pip_install_args(extras);
+        let args = Self::uv_pip_install_args(python_path, extras);
         let arg_refs: Vec<&str> = args.iter().map(|arg| arg.as_str()).collect();
         Self::run_command(uv_target, &arg_refs, working_dir, label)
     }
@@ -1334,10 +1358,17 @@ impl LocalSetupService {
     fn install_lerobot_extra(
         uv_target: &Path,
         working_dir: &Path,
+        python_path: &Path,
         extra: &str,
     ) -> Result<(), String> {
         let label = format!("uv pip install {}", extra);
-        Self::run_uv_pip_install(uv_target, working_dir, Some(extra), label.as_str())
+        Self::run_uv_pip_install(
+            uv_target,
+            working_dir,
+            python_path,
+            Some(extra),
+            label.as_str(),
+        )
             .map_err(|error| {
                 format!(
                     "Failed to install lerobot-vulcan package `{}': {}",
@@ -1346,8 +1377,10 @@ impl LocalSetupService {
             })
     }
 
-    fn uv_pip_install_args(extras: Option<&str>) -> Vec<String> {
+    fn uv_pip_install_args(python_path: &Path, extras: Option<&str>) -> Vec<String> {
         let mut args = vec!["pip".to_string(), "install".to_string()];
+        args.push("--python".to_string());
+        args.push(python_path.to_string_lossy().to_string());
 
         #[cfg(windows)]
         {
@@ -1370,6 +1403,40 @@ impl LocalSetupService {
         ["venv", "--clear", "--python", Self::UV_VENV_PYTHON_VERSION]
     }
 
+    fn ensure_virtual_env_ready(
+        uv_target: &Path,
+        lerobot_dir: &Path,
+        emit: Option<&dyn Fn(SetupProgress)>,
+        ready_message: &str,
+        repair_message: &str,
+    ) -> Result<PathBuf, String> {
+        let python_path = Self::python_path_for(lerobot_dir);
+        if Self::python_path_is_usable(&python_path) {
+            Self::emit_step(emit, "venv", "success", Some(ready_message.to_string()));
+            return Ok(python_path);
+        }
+
+        Self::emit_step(
+            emit,
+            "venv",
+            "started",
+            Some(repair_message.to_string()),
+        );
+        Self::remove_virtual_env_dir(lerobot_dir)?;
+        let venv_args = Self::uv_venv_args();
+        Self::run_command(uv_target, &venv_args, lerobot_dir, "uv venv")?;
+
+        if !Self::python_path_is_usable(&python_path) {
+            return Err(format!(
+                "Created virtual environment is not usable at {}",
+                python_path.display()
+            ));
+        }
+
+        Self::emit_step(emit, "venv", "success", None);
+        Ok(python_path)
+    }
+
     fn format_protobuf_error(error: &str) -> String {
         format!(
             "Compile protobuf failed.\n\nCompiler output:\n{}",
@@ -1378,17 +1445,47 @@ impl LocalSetupService {
     }
 
     fn python_can_import(python_path: &Path, module: &str) -> bool {
-        if !python_path.exists() {
+        if !Self::python_path_is_usable(python_path) {
             return false;
         }
         let code = format!("import {}", module);
         let mut command = Command::new(python_path);
         command.args(["-c", code.as_str()]);
         Self::configure_setup_command_env(&mut command);
+        configure_std_command(&mut command);
         command
             .status()
             .map(|status| status.success())
             .unwrap_or(false)
+    }
+
+    fn python_path_is_usable(python_path: &Path) -> bool {
+        if !python_path.exists() {
+            return false;
+        }
+
+        let mut command = Command::new(python_path);
+        command.arg("--version");
+        Self::configure_setup_command_env(&mut command);
+        configure_std_command(&mut command);
+        command
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
+    }
+
+    fn remove_virtual_env_dir(lerobot_dir: &Path) -> Result<(), String> {
+        let virtual_env_dir = Self::virtual_env_dir_for(lerobot_dir);
+        if virtual_env_dir.exists() {
+            fs::remove_dir_all(&virtual_env_dir).map_err(|e| {
+                format!(
+                    "Failed to remove virtual environment at {}: {}",
+                    virtual_env_dir.display(),
+                    e
+                )
+            })?;
+        }
+        Ok(())
     }
 
     fn configure_setup_command_env(cmd: &mut Command) {
@@ -1591,8 +1688,10 @@ impl LocalSetupService {
         if !exe.exists() {
             return false;
         }
-        Command::new(exe)
-            .args(args)
+        let mut command = Command::new(exe);
+        command.args(args);
+        configure_std_command(&mut command);
+        command
             .status()
             .map(|status| status.success())
             .unwrap_or(false)
@@ -1761,12 +1860,18 @@ impl LocalSetupService {
     fn python_path_for(lerobot_dir: &Path) -> PathBuf {
         #[cfg(windows)]
         {
-            lerobot_dir.join(".venv").join("Scripts").join("python.exe")
+            Self::virtual_env_dir_for(lerobot_dir)
+                .join("Scripts")
+                .join("python.exe")
         }
         #[cfg(not(windows))]
         {
-            lerobot_dir.join(".venv").join("bin").join("python")
+            Self::virtual_env_dir_for(lerobot_dir).join("bin").join("python")
         }
+    }
+
+    fn virtual_env_dir_for(lerobot_dir: &Path) -> PathBuf {
+        lerobot_dir.join(".venv")
     }
 
     fn emit_step(

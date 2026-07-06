@@ -150,10 +150,10 @@ const buildDesktopOAuthCallbackUrl = () => {
 
     const isLocalDevHost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
     if (isLocalDevHost && (window.location.protocol === 'http:' || window.location.protocol === 'https:')) {
-        return new URL('/desktop/auth/callback', window.location.origin).toString();
+        return new URL('/desktop/auth/callback/', window.location.origin).toString();
     }
 
-    return 'tauri://localhost/desktop/auth/callback';
+    return 'tauri://localhost/desktop/auth/callback/';
 };
 
 const buildOAuthRedirectUrl = (oauthBaseUrl: string, provider: OAuthProvider, callbackUrl: string) => {

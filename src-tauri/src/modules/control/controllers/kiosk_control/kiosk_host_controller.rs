@@ -5,6 +5,7 @@ use crate::modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
 };
 use crate::modules::status::services::battery::battery_service::{BatteryData, BatteryService};
+use crate::utils::windows_process::configure_std_command;
 use serde::Serialize;
 use serde_json::json;
 use std::io::Write;
@@ -128,7 +129,9 @@ fn get_ip_address() -> String {
 
     #[cfg(target_os = "windows")]
     {
-        if let Ok(output) = Command::new("ipconfig").output() {
+        let mut command = Command::new("ipconfig");
+        configure_std_command(&mut command);
+        if let Ok(output) = command.output() {
             if let Ok(output_str) = String::from_utf8(output.stdout) {
                 let mut private_ips = Vec::new();
                 let mut all_ips = Vec::new();
