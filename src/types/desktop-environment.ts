@@ -6,14 +6,10 @@ export interface DesktopEnvironmentSettings {
     badgeLabel: string | null;
     teleopLogLevel: 'debug' | 'info' | 'warning' | 'error';
     customGraphqlApiUrl: string;
-    customAccountSummaryUrl: string;
-    customAuthGoogleUrl: string;
-    customAuthGithubUrl: string;
+    customStudioWebUrl: string;
     customUpdaterManifestUrl: string;
     graphqlApiUrl: string;
-    accountSummaryUrl: string;
-    authGoogleUrl: string;
-    authGithubUrl: string;
+    studioWebUrl: string;
     updaterManifestUrl: string;
 }
 
@@ -21,8 +17,6 @@ export interface SaveDesktopEnvironmentSettingsRequest {
     environment: DesktopEnvironment;
     teleopLogLevel?: 'debug' | 'info' | 'warning' | 'error';
     customGraphqlApiUrl?: string;
-    customAccountSummaryUrl?: string;
-    customAuthGoogleUrl?: string;
-    customAuthGithubUrl?: string;
+    customStudioWebUrl?: string;
     customUpdaterManifestUrl?: string;
 }

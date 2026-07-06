@@ -1,242 +1,205 @@
 'use client';
 
-import { mutateLogin } from '@/api/GraphQL/Account/Mutations/LoginMutation';
-import { queryProfile } from '@/api/GraphQL/Profile/Query';
-import { queryAccountSummary } from '@/api/Account/account-summary';
-import { clearAuthSession, setAuthSession, useAuthSession, type AuthProvider } from '@/hooks/Auth/auth-session.hook';
+import { mutateStudioLogin, StudioLoginError } from '@/api/studio-login';
+import { clearAuthSession, setAuthSession, useAuthSession } from '@/hooks/Auth/auth-session.hook';
 import { useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
 import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
-import { getReCaptchaSiteKey, getReCaptchaToken } from '@/utils/recaptcha';
 import { useMutation } from '@tanstack/react-query';
-import { useRouter, useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useState } from 'react';
-import { FaEye, FaEyeSlash, FaGithub, FaGoogle, FaSignOutAlt } from 'react-icons/fa';
+import { Suspense, useState } from 'react';
+import { FaEye, FaEyeSlash, FaSignOutAlt } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import { ClientError } from 'graphql-request';
 import { openUrl } from '@tauri-apps/plugin-opener';
 
 const AUTH_PROVIDER_IDS = {
     credentials: 0,
-    google: 1,
-    github: 2,
 } as const;
-type OAuthProvider = 'google' | 'github';
 
-const readFirstValue = (params: URLSearchParams, keys: string[]) => {
-    for (const key of keys) {
-        const value = params.get(key);
-        if (value) return value;
+const loginToastErrorDefaults = {
+    ...toastErrorDefaults,
+    style: {
+        ...toastErrorDefaults.style,
+        maxWidth: '360px',
+        padding: '10px 12px',
+        fontSize: '13px',
+        lineHeight: '1.35',
+        whiteSpace: 'pre-wrap' as const,
+        wordBreak: 'break-word' as const,
+    },
+};
+
+const normalizeErrorMessage = (message: string) => {
+    return message.replace(/\s+/g, ' ').trim();
+};
+
+const truncateErrorMessage = (message: string, maxLength = 160) => {
+    if (message.length <= maxLength) {
+        return message;
     }
-    return null;
+    return `${message.slice(0, maxLength - 1).trimEnd()}...`;
 };
 
-const parseTokenBalance = (value: string | null) => {
-    if (!value) return null;
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? parsed : null;
-};
-
-const normalizeProvider = (provider: string | null): AuthProvider => {
-    const normalized = provider?.toLowerCase() ?? '';
-    if (normalized === 'google') return 'google';
-    if (normalized === 'github') return 'github';
-    if (normalized === 'credentials') return 'credentials';
-    return 'unknown';
-};
-
-const isOAuthSuccess = (params: URLSearchParams) => {
-    const status = readFirstValue(params, ['status', 'auth_status', 'auth', 'result'])?.toLowerCase();
-    const hasAccountSignal = Boolean(readFirstValue(params, ['accountId', 'account_id', 'id']));
-    if (!status) return hasAccountSignal;
-    return status === 'ok' || status === 'success' || status === 'authenticated' || status === 'signed_in';
-};
-
-const buildOAuthUrl = (template: string) => {
-    const redirectUri = typeof window !== 'undefined' ? `${window.location.origin}/desktop/account` : '/desktop/account';
-    if (template.includes('{redirect_uri}')) {
-        return template.replace('{redirect_uri}', encodeURIComponent(redirectUri));
+const redactSensitiveValue = (value: string) => {
+    if (!value) {
+        return '***';
     }
-
-    const separator = template.includes('?') ? '&' : '?';
-    return `${template}${separator}redirect_uri=${encodeURIComponent(redirectUri)}`;
+    return '*'.repeat(Math.min(Math.max(value.length, 3), 12));
 };
 
-const getOAuthUrlCandidates = (oauthUrl: string) => {
-    const candidates = [oauthUrl];
-    try {
-        const parsed = new URL(oauthUrl);
-        const variants = [
-            parsed.pathname.replace(/^\/api\/v1\/auth\//, '/v1/auth/'),
-            parsed.pathname.replace(/^\/v1\/auth\//, '/api/v1/auth/'),
-        ];
-
-        for (const pathname of variants) {
-            if (pathname === parsed.pathname) continue;
-            const variantUrl = new URL(oauthUrl);
-            variantUrl.pathname = pathname;
-            candidates.push(variantUrl.toString());
-        }
-    } catch {
-        // Keep original URL only.
-    }
-    return Array.from(new Set(candidates));
-};
-
-const probeOAuthEndpoint = async (oauthUrl: string): Promise<'reachable' | 'not_found' | 'unknown'> => {
-    try {
-        const response = await fetch(oauthUrl, {
-            method: 'HEAD',
-            redirect: 'manual',
-            credentials: 'include',
+const sanitizeTextForLogging = (value: string) => {
+    return value
+        .replace(/("(?:password|token|secret|authorization|cookie)"\s*:\s*")([^"]*)(")/gi, (_match, start, secret, end) => {
+            return `${start}${redactSensitiveValue(secret)}${end}`;
+        })
+        .replace(/((?:password|token|secret|authorization|cookie)\s*[=:]\s*)([^\s,;]+)/gi, (_match, prefix, secret) => {
+            return `${prefix}${redactSensitiveValue(secret)}`;
         });
-        if (response.status === 404) return 'not_found';
-        return 'reachable';
-    } catch {
-        return 'unknown';
-    }
 };
 
-const getReadableGraphQLError = (error: unknown) => {
-    if (error instanceof ClientError) {
-        const firstError = error.response?.errors?.[0];
-        if (firstError?.message) return firstError.message;
+const sanitizeForLogging = (value: unknown): unknown => {
+    if (Array.isArray(value)) {
+        return value.map(sanitizeForLogging);
     }
-    if (error instanceof Error) return error.message;
-    return 'Login failed.';
+
+    if (!value || typeof value !== 'object') {
+        return value;
+    }
+
+    return Object.fromEntries(
+        Object.entries(value).map(([key, entryValue]) => {
+            const normalizedKey = key.toLowerCase();
+            if (
+                normalizedKey.includes('password') ||
+                normalizedKey.includes('token') ||
+                normalizedKey.includes('secret') ||
+                normalizedKey.includes('authorization') ||
+                normalizedKey.includes('cookie')
+            ) {
+                if (typeof entryValue === 'string') {
+                    return [key, redactSensitiveValue(entryValue)];
+                }
+                return [key, '***'];
+            }
+
+            return [key, sanitizeForLogging(entryValue)];
+        })
+    );
+};
+
+const logLoginError = (error: unknown, friendlyMessage: string, request: Record<string, unknown>) => {
+    if (error instanceof StudioLoginError) {
+        console.error('[desktop-account] studio credentials login failed', {
+            friendlyMessage,
+            message: sanitizeTextForLogging(error.message),
+            status: error.status,
+            code: error.code,
+            responseBody: sanitizeForLogging(error.responseBody),
+            request: sanitizeForLogging(request),
+        });
+        return;
+    }
+
+    if (error instanceof Error) {
+        console.error('[desktop-account] studio credentials login failed', {
+            friendlyMessage,
+            message: sanitizeTextForLogging(error.message),
+            stack: error.stack,
+            request: sanitizeForLogging(request),
+        });
+        return;
+    }
+
+    console.error('[desktop-account] studio credentials login failed', {
+        friendlyMessage,
+        error,
+        request: sanitizeForLogging(request),
+    });
+};
+
+const getReadableLoginError = (error: unknown) => {
+    if (error instanceof StudioLoginError) {
+        if (error.status === 404) {
+            return 'Studio sign-in endpoint was not found. Check the configured Studio website URL and try again.';
+        }
+        if (error.status === 401) {
+            return 'Studio rejected the desktop login request. Check the Studio auth proxy configuration and try again.';
+        }
+
+        const code = error.code?.toLowerCase();
+        if (code === 'invalid_credentials') {
+            return 'Invalid email or password.';
+        }
+        if (code === 'account_not_found') {
+            return 'No Studio account exists for that email. Create one on the Studio website first.';
+        }
+        if (code === 'email_not_confirmed') {
+            return 'Email not confirmed. Studio sent a fresh confirmation link.';
+        }
+        if (code === 'email_login_not_set_up') {
+            return 'Email login is not set up for this account yet. Use "Forgot password?" on the Studio website first.';
+        }
+        if (code === 'relay_unreachable' || code === 'proxy_failed') {
+            return 'Studio login is unavailable right now. Please try again in a moment.';
+        }
+
+        if (error.message) {
+            return truncateErrorMessage(normalizeErrorMessage(error.message));
+        }
+    }
+
+    if (error instanceof Error) {
+        return truncateErrorMessage(normalizeErrorMessage(error.message));
+    }
+
+    return 'Login failed. Please try again.';
 };
 
 function AccountPageContent() {
-    const router = useRouter();
-    const searchParams = useSearchParams();
     const { data: authSession } = useAuthSession();
     const { data: desktopEnvironmentSettings } = useDesktopEnvironmentSettings();
 
     const [email, setEmail] = useState(authSession?.email ?? '');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
-    const [oauthPendingProvider, setOauthPendingProvider] = useState<OAuthProvider | null>(null);
 
     const isAuthenticated = Boolean(authSession?.isAuthenticated && authSession?.accountId);
     const accountId = authSession?.accountId ?? null;
-    const googleLoginUrl = desktopEnvironmentSettings?.authGoogleUrl ?? null;
-    const githubLoginUrl = desktopEnvironmentSettings?.authGithubUrl ?? null;
-    const hasSummaryEndpoint = Boolean(desktopEnvironmentSettings?.accountSummaryUrl);
-
-    const providerLabel = useMemo(() => {
-        if (!authSession?.provider) return 'Not set';
-        return authSession.provider.charAt(0).toUpperCase() + authSession.provider.slice(1);
-    }, [authSession?.provider]);
-
-    const refreshProfileAndEntitlements = useMutation({
-        mutationFn: async () => {
-            if (!authSession?.isAuthenticated || !authSession?.accountId) {
-                throw new Error('Sign in first to refresh account details.');
-            }
-
-            const profile = authSession.email ? await queryProfile(null, null, authSession.email).catch(() => null) : null;
-            const summary = await queryAccountSummary(authSession.accountId);
-            return { profile, summary };
-        },
-        onSuccess: ({ profile, summary }) => {
-            setAuthSession({
-                profileHandle: profile?.handle ?? authSession?.profileHandle ?? null,
-                profileName: profile?.name ?? authSession?.profileName ?? null,
-                accountRole: profile?.account?.role ?? authSession?.accountRole ?? null,
-            });
-
-            if (!summary) {
-                toast.info('Account summary endpoint not configured yet for the active desktop environment.', {
-                    ...toastInfoDefaults,
-                });
-                return;
-            }
-
-            setAuthSession({
-                subscriptionTier: summary.subscriptionTier,
-                tokenBalance: summary.tokenBalance,
-            });
-            toast.success('Account summary refreshed.', { ...toastSuccessDefaults });
-        },
-        onError: (error) => {
-            const message = error instanceof Error ? error.message : 'Failed to refresh account details.';
-            toast.error(message, { ...toastErrorDefaults });
-        },
-    });
+    const studioWebUrl = desktopEnvironmentSettings?.studioWebUrl ?? 'https://studio.vulcanrobotics.ai';
 
     const credentialsLogin = useMutation({
         mutationFn: async ({ email, password }: { email: string; password: string }) => {
-            const recaptchaEnabled = Boolean(getReCaptchaSiteKey());
-            const recaptcha = recaptchaEnabled ? await getReCaptchaToken('login') : null;
-            if (recaptchaEnabled && !recaptcha) {
-                throw new Error('reCAPTCHA validation failed. Please try again.');
-            }
-
-            const loginPayload = await mutateLogin({
+            const loginPayload = await mutateStudioLogin({
                 email,
                 password,
                 provider: AUTH_PROVIDER_IDS.credentials,
-                recaptcha: recaptcha ?? undefined,
             });
 
-            if (loginPayload?.error?.message) {
-                throw new Error(loginPayload.error.message);
-            }
-            if (!loginPayload?.account?.id) {
+            if (!loginPayload.account?.id) {
                 throw new Error('Login succeeded but no account id was returned.');
             }
 
-            const profile = await queryProfile(null, null, email).catch(() => null);
-            const summary = await queryAccountSummary(loginPayload.account.id).catch(() => null);
-            return { loginPayload, profile, summary, email };
+            return { loginPayload, email };
         },
-        onSuccess: ({ loginPayload, profile, summary, email }) => {
+        onSuccess: ({ loginPayload, email }) => {
             setAuthSession({
                 isAuthenticated: true,
-                accountId: loginPayload.account.id,
-                email,
+                accountId: loginPayload.account?.id ?? null,
+                email: loginPayload.account?.email ?? email,
                 provider: 'credentials',
-                profileHandle: profile?.handle ?? null,
-                profileName: profile?.name ?? null,
-                accountRole: profile?.account?.role ?? null,
-                subscriptionTier: summary?.subscriptionTier ?? null,
-                tokenBalance: summary?.tokenBalance ?? null,
+                profileHandle: loginPayload.account?.profile?.handle ?? null,
+                profileName: loginPayload.account?.profile?.name ?? null,
+                accountRole: loginPayload.account?.role ?? null,
+                subscriptionTier: null,
+                tokenBalance: null,
             });
             setPassword('');
             toast.success('Signed in successfully.', { ...toastSuccessDefaults });
         },
-        onError: (error) => {
-            const message = getReadableGraphQLError(error);
-            toast.error(message, { ...toastErrorDefaults });
+        onError: (error, variables) => {
+            const message = getReadableLoginError(error);
+            logLoginError(error, message, variables);
+            toast.error(message, loginToastErrorDefaults);
         },
     });
-
-    useEffect(() => {
-        if (!searchParams.size) return;
-        const currentParams = new URLSearchParams(searchParams.toString());
-        if (!isOAuthSuccess(currentParams)) {
-            const callbackError = readFirstValue(currentParams, ['error', 'message']);
-            if (callbackError) {
-                toast.error(callbackError, { ...toastErrorDefaults });
-                router.replace('/desktop/account');
-            }
-            return;
-        }
-
-        const accountIdFromCallback = readFirstValue(currentParams, ['accountId', 'account_id', 'id']);
-        const emailFromCallback = readFirstValue(currentParams, ['email', 'account_email']);
-        if (!accountIdFromCallback) return;
-
-        setAuthSession({
-            isAuthenticated: true,
-            accountId: accountIdFromCallback,
-            email: emailFromCallback,
-            provider: normalizeProvider(readFirstValue(currentParams, ['provider'])),
-            subscriptionTier: readFirstValue(currentParams, ['subscriptionTier', 'subscription_tier', 'subscription', 'plan', 'tier']),
-            tokenBalance: parseTokenBalance(readFirstValue(currentParams, ['tokenBalance', 'token_balance', 'tokens', 'tokens_available'])),
-        });
-        toast.success('OAuth sign-in complete.', { ...toastSuccessDefaults });
-        router.replace('/desktop/account');
-    }, [router, searchParams]);
 
     const handleCredentialsSubmit = (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault();
@@ -248,49 +211,14 @@ function AccountPageContent() {
         credentialsLogin.mutate({ email: normalizedEmail, password });
     };
 
-    const beginOAuth = async (provider: OAuthProvider) => {
-        if (oauthPendingProvider) return;
-        const endpoint = provider === 'google' ? googleLoginUrl : githubLoginUrl;
-        if (!endpoint) {
-            toast.error(`Configure the ${provider} login URL in Desktop Developer Settings before using ${provider} login.`, {
-                ...toastErrorDefaults,
-            });
-            return;
-        }
-
-        setOauthPendingProvider(provider);
-
-        const oauthUrl = buildOAuthUrl(endpoint);
-        const candidates = getOAuthUrlCandidates(oauthUrl);
-
-        let hadUnknownProbe = false;
-        for (const candidate of candidates) {
-            const status = await probeOAuthEndpoint(candidate);
-            if (status === 'reachable') {
-                window.location.assign(candidate);
-                return;
-            }
-            if (status === 'unknown') {
-                hadUnknownProbe = true;
-            }
-        }
-
-        if (hadUnknownProbe) {
-            window.location.assign(oauthUrl);
-            return;
-        }
-
-        toast.error(
-            `Could not find a working ${provider} auth endpoint. Checked: ${candidates.join(' , ')}`,
-            { ...toastErrorDefaults }
-        );
-        setOauthPendingProvider(null);
-    };
-
     const handleSignOut = () => {
         clearAuthSession();
         setPassword('');
         toast.info('Signed out from the local desktop session.', { ...toastInfoDefaults });
+    };
+
+    const handleOpenStudio = () => {
+        void openUrl(studioWebUrl);
     };
 
     return (
@@ -299,7 +227,7 @@ function AccountPageContent() {
                 {!isAuthenticated ? (
                     <div className="mx-auto w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-7 shadow-2xl">
                         <h1 className="text-2xl font-semibold text-white">Sign in to Vulcan Studio</h1>
-                        <p className="mt-2 text-sm text-slate-300">Email and password or continue with a provider.</p>
+                        <p className="mt-2 text-sm text-slate-300">Use the same email and password you use on the Studio website.</p>
 
                         <form onSubmit={handleCredentialsSubmit} className="mt-6 flex flex-col gap-3">
                             <input
@@ -338,99 +266,69 @@ function AccountPageContent() {
                             </button>
                         </form>
 
-                        <div className="my-5 flex items-center gap-3">
-                            <div className="h-px flex-1 bg-slate-700" />
-                            <span className="text-xs font-medium tracking-wide text-slate-400 uppercase">Or continue with</span>
-                            <div className="h-px flex-1 bg-slate-700" />
-                        </div>
-
-                        <div className="flex flex-col gap-3">
+                        <div className="mt-5 rounded-lg border border-slate-700 bg-slate-950/40 p-3 text-xs text-slate-300">
+                            If you need to create an account, confirm your email, or reset your password, use{' '}
                             <button
                                 type="button"
-                                onClick={() => beginOAuth('google')}
-                                disabled={oauthPendingProvider !== null}
-                                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                <FaGoogle className="h-4 w-4" />
-                                {oauthPendingProvider === 'google' ? 'Opening Google...' : 'Continue with Google'}
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => beginOAuth('github')}
-                                disabled={oauthPendingProvider !== null}
-                                className="inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                <FaGithub className="h-4 w-4" />
-                                {oauthPendingProvider === 'github' ? 'Opening GitHub...' : 'Continue with GitHub'}
-                            </button>
-                        </div>
-
-                        <p className="mt-5 text-center text-xs text-slate-400">
-                            Use the same account you use to log in at{' '}
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    void openUrl('https://sourccey.com');
-                                }}
+                                onClick={handleOpenStudio}
                                 className="cursor-pointer text-orange-300 hover:text-orange-200"
                             >
-                                sourccey.com
+                                {studioWebUrl}
                             </button>
                             .
-                        </p>
+                        </div>
                     </div>
                 ) : (
                     <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                             <div>
                                 <h1 className="text-2xl font-semibold text-white">Account</h1>
-                                <p className="mt-2 text-sm text-slate-300">Signed in and ready to map entitlements.</p>
+                                <p className="mt-2 text-sm text-slate-300">Signed in through the Studio login system.</p>
                             </div>
-                            <button
-                                type="button"
-                                onClick={handleSignOut}
-                                className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10"
-                            >
-                                <FaSignOutAlt className="h-4 w-4" />
-                                Sign Out
-                            </button>
+                            <div className="flex flex-wrap gap-3">
+                                <button
+                                    type="button"
+                                    onClick={handleOpenStudio}
+                                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10"
+                                >
+                                    Open Studio
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleSignOut}
+                                    className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-600 px-3 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10"
+                                >
+                                    <FaSignOutAlt className="h-4 w-4" />
+                                    Sign Out
+                                </button>
+                            </div>
                         </div>
 
-                        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                             <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
                                 <div className="text-slate-400">Provider</div>
-                                <div>{providerLabel}</div>
+                                <div>Email &amp; Password</div>
                             </div>
                             <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
                                 <div className="text-slate-400">Account ID</div>
                                 <div className="truncate">{accountId ?? 'Not available'}</div>
                             </div>
                             <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
-                                <div className="text-slate-400">Subscription</div>
-                                <div>{authSession?.subscriptionTier ?? 'Pending backend response'}</div>
+                                <div className="text-slate-400">Email</div>
+                                <div className="truncate">{authSession?.email ?? 'Not available'}</div>
                             </div>
                             <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
-                                <div className="text-slate-400">Tokens Available</div>
-                                <div>
-                                    {authSession?.tokenBalance != null ? authSession.tokenBalance.toLocaleString() : 'Pending backend response'}
-                                </div>
+                                <div className="text-slate-400">Role</div>
+                                <div>{authSession?.accountRole ?? 'Not available'}</div>
                             </div>
-                        </div>
-
-                        <div className="mt-4 flex flex-wrap gap-3">
-                            <button
-                                type="button"
-                                disabled={refreshProfileAndEntitlements.isPending || !hasSummaryEndpoint}
-                                onClick={() => refreshProfileAndEntitlements.mutate()}
-                                className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-orange-300 hover:bg-orange-400/10 disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                                {refreshProfileAndEntitlements.isPending ? 'Refreshing...' : 'Refresh Subscription & Tokens'}
-                            </button>
-                            {!hasSummaryEndpoint && (
-                                <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-                                    Configure the account summary URL in Desktop Developer Settings to enable entitlement refresh.
-                                </div>
-                            )}
+                            <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
+                                <div className="text-slate-400">Profile Name</div>
+                                <div>{authSession?.profileName ?? 'Not available'}</div>
+                            </div>
+                            <div className="rounded-lg border border-slate-700/70 bg-slate-950/40 p-3 text-sm text-slate-200">
+                                <div className="text-slate-400">Handle</div>
+                                <div>{authSession?.profileHandle ?? 'Not available'}</div>
+                            </div>
                         </div>
                     </div>
                 )}

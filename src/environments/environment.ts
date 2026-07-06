@@ -7,31 +7,23 @@ import type {
 
 export const DESKTOP_ENVIRONMENT_KEY = ['desktop', 'environment-settings'];
 
-const PRODUCTION_GRAPHQL_API_URL = 'https://api.studio.vulcanrobotics.ai/graphql';
-const PRODUCTION_ACCOUNT_SUMMARY_URL = 'https://api.studio.vulcanrobotics.ai/api/account-summary';
-const PRODUCTION_AUTH_GOOGLE_URL = 'https://api.studio.vulcanrobotics.ai/api/v1/auth/google';
-const PRODUCTION_AUTH_GITHUB_URL = 'https://api.studio.vulcanrobotics.ai/api/v1/auth/github';
+const PRODUCTION_GRAPHQL_API_URL = 'https://api.studio.vulcanrobotics.ai/v1/graphql';
+const PRODUCTION_STUDIO_WEB_URL = 'https://studio.vulcanrobotics.ai';
 const PRODUCTION_UPDATER_MANIFEST_URL = 'https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json';
 
-const STAGING_GRAPHQL_API_URL = 'https://api.staging.factory.studio.vulcanrobotics.ai/graphql';
-const STAGING_ACCOUNT_SUMMARY_URL = 'https://api.staging.factory.studio.vulcanrobotics.ai/api/account-summary';
-const STAGING_AUTH_GOOGLE_URL = 'https://api.staging.factory.studio.vulcanrobotics.ai/api/v1/auth/google';
-const STAGING_AUTH_GITHUB_URL = 'https://api.staging.factory.studio.vulcanrobotics.ai/api/v1/auth/github';
+const STAGING_GRAPHQL_API_URL = 'https://api.staging.factory.studio.vulcanrobotics.ai/v1/graphql';
+const STAGING_STUDIO_WEB_URL = 'https://staging.factory.studio.vulcanrobotics.ai';
 const STAGING_UPDATER_MANIFEST_URL = 'https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/latest.json';
 
-const DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL = 'http://192.168.1.220:5200/graphql';
-const DEFAULT_LOCAL_DESKTOP_ACCOUNT_SUMMARY_URL = 'http://192.168.1.220:5200/api/account-summary';
-const DEFAULT_LOCAL_DESKTOP_AUTH_GOOGLE_URL = 'http://192.168.1.220:5200/api/v1/auth/google';
-const DEFAULT_LOCAL_DESKTOP_AUTH_GITHUB_URL = 'http://192.168.1.220:5200/api/v1/auth/github';
+const DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL = 'http://192.168.1.220:5200/v1/graphql';
+const DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL = 'http://192.168.1.220:3000';
 const DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL = 'http://192.168.1.220:3000/latest.json';
 const DEFAULT_TELEOP_LOG_LEVEL = 'warning';
 
 type DesktopEnvironmentProcessEnv = {
     NEXT_PUBLIC_ENVIRONMENT?: string;
     NEXT_PUBLIC_GRAPHQL_API_URL?: string;
-    NEXT_PUBLIC_ACCOUNT_SUMMARY_URL?: string;
-    NEXT_PUBLIC_AUTH_GOOGLE_URL?: string;
-    NEXT_PUBLIC_AUTH_GITHUB_URL?: string;
+    NEXT_PUBLIC_STUDIO_WEB_URL?: string;
     NEXT_PUBLIC_UPDATER_MANIFEST_URL?: string;
 } & Record<string, string | undefined>;
 
@@ -64,9 +56,7 @@ const buildResolvedDesktopEnvironmentSettings = (
     environment: DesktopEnvironment,
     teleopLogLevel: DesktopEnvironmentSettings['teleopLogLevel'],
     customGraphqlApiUrl: string,
-    customAccountSummaryUrl: string,
-    customAuthGoogleUrl: string,
-    customAuthGithubUrl: string,
+    customStudioWebUrl: string,
     customUpdaterManifestUrl: string
 ): DesktopEnvironmentSettings => {
     const displayName = environment === 'production' ? 'Production' : environment === 'staging' ? 'Staging' : 'Developer';
@@ -79,14 +69,10 @@ const buildResolvedDesktopEnvironmentSettings = (
             badgeLabel,
             teleopLogLevel,
             customGraphqlApiUrl,
-            customAccountSummaryUrl,
-            customAuthGoogleUrl,
-            customAuthGithubUrl,
+            customStudioWebUrl,
             customUpdaterManifestUrl,
             graphqlApiUrl: PRODUCTION_GRAPHQL_API_URL,
-            accountSummaryUrl: PRODUCTION_ACCOUNT_SUMMARY_URL,
-            authGoogleUrl: PRODUCTION_AUTH_GOOGLE_URL,
-            authGithubUrl: PRODUCTION_AUTH_GITHUB_URL,
+            studioWebUrl: PRODUCTION_STUDIO_WEB_URL,
             updaterManifestUrl: PRODUCTION_UPDATER_MANIFEST_URL,
         };
     }
@@ -98,14 +84,10 @@ const buildResolvedDesktopEnvironmentSettings = (
             badgeLabel,
             teleopLogLevel,
             customGraphqlApiUrl,
-            customAccountSummaryUrl,
-            customAuthGoogleUrl,
-            customAuthGithubUrl,
+            customStudioWebUrl,
             customUpdaterManifestUrl,
             graphqlApiUrl: STAGING_GRAPHQL_API_URL,
-            accountSummaryUrl: STAGING_ACCOUNT_SUMMARY_URL,
-            authGoogleUrl: STAGING_AUTH_GOOGLE_URL,
-            authGithubUrl: STAGING_AUTH_GITHUB_URL,
+            studioWebUrl: STAGING_STUDIO_WEB_URL,
             updaterManifestUrl: STAGING_UPDATER_MANIFEST_URL,
         };
     }
@@ -116,14 +98,10 @@ const buildResolvedDesktopEnvironmentSettings = (
         badgeLabel,
         teleopLogLevel,
         customGraphqlApiUrl,
-        customAccountSummaryUrl,
-        customAuthGoogleUrl,
-        customAuthGithubUrl,
+        customStudioWebUrl,
         customUpdaterManifestUrl,
         graphqlApiUrl: customGraphqlApiUrl,
-        accountSummaryUrl: customAccountSummaryUrl,
-        authGoogleUrl: customAuthGoogleUrl,
-        authGithubUrl: customAuthGithubUrl,
+        studioWebUrl: customStudioWebUrl,
         updaterManifestUrl: customUpdaterManifestUrl,
     };
 };
@@ -133,11 +111,7 @@ export const buildDesktopEnvironmentSettingsFromProcessEnv = (
 ): DesktopEnvironmentSettings => {
     const environment = resolveDesktopEnvironment(env.NEXT_PUBLIC_ENVIRONMENT);
     const customGraphqlApiUrl = normalizeUrl(env.NEXT_PUBLIC_GRAPHQL_API_URL ?? DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL);
-    const customAccountSummaryUrl = normalizeUrl(
-        env.NEXT_PUBLIC_ACCOUNT_SUMMARY_URL ?? DEFAULT_LOCAL_DESKTOP_ACCOUNT_SUMMARY_URL
-    );
-    const customAuthGoogleUrl = normalizeUrl(env.NEXT_PUBLIC_AUTH_GOOGLE_URL ?? DEFAULT_LOCAL_DESKTOP_AUTH_GOOGLE_URL);
-    const customAuthGithubUrl = normalizeUrl(env.NEXT_PUBLIC_AUTH_GITHUB_URL ?? DEFAULT_LOCAL_DESKTOP_AUTH_GITHUB_URL);
+    const customStudioWebUrl = normalizeUrl(env.NEXT_PUBLIC_STUDIO_WEB_URL ?? DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL);
     const customUpdaterManifestUrl = normalizeUrl(
         env.NEXT_PUBLIC_UPDATER_MANIFEST_URL ?? DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL
     );
@@ -146,9 +120,7 @@ export const buildDesktopEnvironmentSettingsFromProcessEnv = (
         environment,
         DEFAULT_TELEOP_LOG_LEVEL,
         customGraphqlApiUrl,
-        customAccountSummaryUrl,
-        customAuthGoogleUrl,
-        customAuthGithubUrl,
+        customStudioWebUrl,
         customUpdaterManifestUrl
     );
 };
@@ -160,15 +132,7 @@ export const resolveClientDesktopEnvironmentSettings = (
     const customGraphqlApiUrl = normalizeUrl(
         request.customGraphqlApiUrl ?? DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL
     );
-    const customAccountSummaryUrl = normalizeUrl(
-        request.customAccountSummaryUrl ?? DEFAULT_LOCAL_DESKTOP_ACCOUNT_SUMMARY_URL
-    );
-    const customAuthGoogleUrl = normalizeUrl(
-        request.customAuthGoogleUrl ?? DEFAULT_LOCAL_DESKTOP_AUTH_GOOGLE_URL
-    );
-    const customAuthGithubUrl = normalizeUrl(
-        request.customAuthGithubUrl ?? DEFAULT_LOCAL_DESKTOP_AUTH_GITHUB_URL
-    );
+    const customStudioWebUrl = normalizeUrl(request.customStudioWebUrl ?? DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL);
     const customUpdaterManifestUrl = normalizeUrl(
         request.customUpdaterManifestUrl ?? DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL
     );
@@ -179,9 +143,7 @@ export const resolveClientDesktopEnvironmentSettings = (
         environment,
         teleopLogLevel,
         customGraphqlApiUrl,
-        customAccountSummaryUrl,
-        customAuthGoogleUrl,
-        customAuthGithubUrl,
+        customStudioWebUrl,
         customUpdaterManifestUrl
     );
 };
