@@ -1,5 +1,6 @@
 export const DESKTOP_OAUTH_RESULT_EVENT = 'desktop-oauth-result';
 export const DESKTOP_OAUTH_WINDOW_LABEL_PREFIX = 'desktop-oauth';
+export const DESKTOP_OAUTH_RESULT_STORAGE_KEY = 'desktop-oauth-result';
 
 export const OAUTH_PROVIDERS = {
     google: 'google',
