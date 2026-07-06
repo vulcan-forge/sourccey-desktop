@@ -1,4 +1,5 @@
 use crate::modules::log::services::command_log_service::CommandLogService;
+use crate::utils::windows_process::configure_std_command;
 use sea_orm::DatabaseConnection;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -6,8 +7,6 @@ use std::process::Command;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
-use tauri_plugin_shell::process::CommandEvent;
-use tauri_plugin_shell::ShellExt;
 
 pub struct ProcessService;
 
@@ -222,26 +221,15 @@ impl ProcessService {
         program: &str,
         args: &[&str],
     ) -> Result<String, String> {
-        tauri::async_runtime::block_on(async move {
-            let cmd = app_handle.shell().command(program).args(args.iter());
-            let (mut rx, _child) = cmd.spawn().map_err(|e| e.to_string())?;
-            let mut output = String::new();
+        let _ = app_handle;
+        let mut command = Command::new(program);
+        command.args(args);
+        configure_std_command(&mut command);
+        let output = command.output().map_err(|e| e.to_string())?;
 
-            while let Some(event) = rx.recv().await {
-                match event {
-                    CommandEvent::Stdout(bytes) => {
-                        output.push_str(&String::from_utf8_lossy(&bytes));
-                    }
-                    CommandEvent::Stderr(bytes) => {
-                        output.push_str(&String::from_utf8_lossy(&bytes));
-                    }
-                    CommandEvent::Terminated(_) => break,
-                    _ => {}
-                }
-            }
-
-            Ok(output)
-        })
+        let mut combined = String::from_utf8_lossy(&output.stdout).to_string();
+        combined.push_str(&String::from_utf8_lossy(&output.stderr));
+        Ok(combined)
     }
 
     /// Convenience method for starting process monitoring with common defaults

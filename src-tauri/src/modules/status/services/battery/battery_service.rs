@@ -7,6 +7,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::services::directory::directory_service::DirectoryService;
+use crate::utils::windows_process::configure_std_command;
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone)]
 pub struct BatteryData {
@@ -49,6 +50,7 @@ impl BatteryService {
 
         let mut cmd = Command::new(python_path);
         cmd.arg(&script_path);
+        configure_std_command(&mut cmd);
 
         let mut child = cmd
             .current_dir(&lerobot_dir)

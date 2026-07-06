@@ -8,20 +8,16 @@ use crate::modules::log::services::command_log_service::CommandLogService;
 use crate::services::directory::directory_service::DirectoryService;
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
+use crate::utils::windows_process::configure_tokio_command;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
 use std::fs;
-#[cfg(windows)]
-use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Stdio;
 use tauri::AppHandle;
 use tokio::process::Command;
 
 pub struct CalibrationService;
-
-#[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 impl CalibrationService {
     //----------------------------------------------------------//
@@ -290,11 +286,8 @@ impl CalibrationService {
         Ok(())
     }
 
-    fn configure_calibration_command(_cmd: &mut Command) {
-        #[cfg(windows)]
-        {
-            _cmd.creation_flags(CREATE_NO_WINDOW);
-        }
+    fn configure_calibration_command(command: &mut Command) {
+        configure_tokio_command(command);
     }
 
     fn write_process_output_logs(
