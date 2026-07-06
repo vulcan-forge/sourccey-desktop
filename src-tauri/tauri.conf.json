@@ -1,6 +1,6 @@
 {
     "$schema": "https://schema.tauri.app/config/2",
-    "productName": "VulcanStudio",
+    "productName": "Vulcan Studio",
     "version": "0.0.16",
     "identifier": "VulcanStudio",
     "build": {
