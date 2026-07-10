@@ -1,6 +1,6 @@
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { invoke } from '@tauri-apps/api/core';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { FaChevronDown, FaChevronUp, FaGamepad, FaPlay, FaStop } from 'react-icons/fa';
 import { Tooltip } from 'react-tooltip';
@@ -48,6 +48,7 @@ export const RemoteTeleopAction = ({
 }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [isRecordSettingsOpen, setIsRecordSettingsOpen] = useState(false);
+    const pressedTeleopKeys = useRef(new Set<string>());
 
     const nickname = ownedRobot?.nickname ?? '';
     const normalizedNickname = nickname.startsWith('@') ? nickname.slice(1) : nickname;
@@ -95,6 +96,54 @@ export const RemoteTeleopAction = ({
     const controlType = remoteRobotState?.controlType;
     const expectedControlType = isRecordingMode ? RemoteControlType.RECORDING : RemoteControlType.TELEOP;
     const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == expectedControlType;
+
+    useEffect(() => {
+        if (!isControlling) return;
+
+        const supportedKeys = new Set([
+            'w', 'a', 's', 'd', 'q', 'e', 'z', 'x', 'r', 'f', 'n', 'm',
+            'space', 'arrowleft', 'arrowright', 'escape',
+        ]);
+        const normalizeKey = (key: string) => (key === ' ' ? 'space' : key.toLowerCase());
+        const publish = () => {
+            void invoke('set_remote_teleop_keys', {
+                nickname: normalizedNickname,
+                keys: Array.from(pressedTeleopKeys.current),
+            });
+        };
+        const onKeyDown = (event: KeyboardEvent) => {
+            const target = event.target as HTMLElement | null;
+            if (target?.closest('input, textarea, select, [contenteditable="true"]')) return;
+            const key = normalizeKey(event.key);
+            if (!supportedKeys.has(key)) return;
+            event.preventDefault();
+            if (!pressedTeleopKeys.current.has(key)) {
+                pressedTeleopKeys.current.add(key);
+                publish();
+            }
+        };
+        const onKeyUp = (event: KeyboardEvent) => {
+            const key = normalizeKey(event.key);
+            if (!supportedKeys.has(key)) return;
+            event.preventDefault();
+            if (pressedTeleopKeys.current.delete(key)) publish();
+        };
+        const clearKeys = () => {
+            if (pressedTeleopKeys.current.size === 0) return;
+            pressedTeleopKeys.current.clear();
+            publish();
+        };
+
+        window.addEventListener('keydown', onKeyDown);
+        window.addEventListener('keyup', onKeyUp);
+        window.addEventListener('blur', clearKeys);
+        return () => {
+            window.removeEventListener('keydown', onKeyDown);
+            window.removeEventListener('keyup', onKeyUp);
+            window.removeEventListener('blur', clearKeys);
+            clearKeys();
+        };
+    }, [isControlling, normalizedNickname]);
     const isCalibrationLoading = isLoading || isLoadingCalibration;
     const readiness = getRemoteTeleopReadiness(remoteConfig, teleopCalibrationStatus, {
         allowLeaderFallback: true,

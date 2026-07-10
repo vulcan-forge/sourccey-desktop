@@ -12,7 +12,7 @@ SETUP_SHARED_ROOT = REPO_ROOT / "setup" / "shared"
 if str(SETUP_SHARED_ROOT) not in sys.path:
     sys.path.insert(0, str(SETUP_SHARED_ROOT))
 
-from setup.shared.setup_python import PythonSetupManager, UV_VENV_PYTHON_VERSION
+from setup.shared.setup_python import PythonSetupManager
 import setup.shared.setup_python as setup_python_module
 
 
@@ -26,7 +26,7 @@ def _create_fake_lerobot_setup_tree(project_root: Path) -> None:
     (setup_dir / "setup.py").write_text("# fake lerobot setup file\n")
 
 
-def test_setup_python_environment_passes_uv_python_and_desktop_flag(monkeypatch, tmp_path):
+def test_setup_python_environment_uses_desktop_flag_without_forcing_python(monkeypatch, tmp_path):
     _create_fake_lerobot_setup_tree(tmp_path)
     captured = {}
 
@@ -53,7 +53,7 @@ def test_setup_python_environment_passes_uv_python_and_desktop_flag(monkeypatch,
         "--desktop",
     ]
     assert captured["cwd"] == tmp_path / "modules" / "lerobot-vulcan"
-    assert captured["env_overrides"]["UV_PYTHON"] == UV_VENV_PYTHON_VERSION
+    assert "UV_PYTHON" not in captured["env_overrides"]
     assert Path(captured["env_overrides"]["SOURCCEY_UV_BIN"]) == Path("/tmp/uv")
 
 
@@ -83,5 +83,5 @@ def test_setup_python_environment_omits_desktop_flag_when_not_requested(monkeypa
         str(tmp_path / "modules" / "lerobot-vulcan" / "setup" / "setup.py"),
     ]
     assert captured["cwd"] == tmp_path / "modules" / "lerobot-vulcan"
-    assert captured["env_overrides"]["UV_PYTHON"] == UV_VENV_PYTHON_VERSION
+    assert "UV_PYTHON" not in captured["env_overrides"]
     assert "SOURCCEY_UV_BIN" not in captured["env_overrides"]

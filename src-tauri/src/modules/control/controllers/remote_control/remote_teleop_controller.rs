@@ -15,6 +15,11 @@ pub struct RemoteTeleopConfig {
     pub fps: i32,
 }
 
+#[command]
+pub fn set_remote_teleop_keys(nickname: String, keys: Vec<String>) -> Result<(), String> {
+    RemoteTeleopService::update_keyboard_state(&nickname, &keys)
+}
+
 // Initialize the state
 pub fn init_remote_teleop() -> RemoteTeleopProcess {
     RemoteTeleopService::init_remote_teleop()

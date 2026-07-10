@@ -65,6 +65,7 @@ def test_run_skips_launch_when_setup_only(monkeypatch):
     monkeypatch.setattr(script, "setup_git_submodules", lambda use_https=False: True)
     monkeypatch.setattr(script.git_manager, "checkout_submodule_tag", lambda **_kwargs: True)
     monkeypatch.setattr(script, "setup_python_environment", lambda: True)
+    monkeypatch.setattr(script, "check_macos_keyboard_permissions", lambda: True)
     monkeypatch.setattr(script, "setup_bun_packages", lambda: True)
     monkeypatch.setattr(script, "run_desktop_dev", lambda: calls.append("launch") or True)
 
@@ -88,6 +89,7 @@ def test_run_does_not_launch_by_default(monkeypatch):
     monkeypatch.setattr(script, "setup_git_submodules", lambda use_https=False: True)
     monkeypatch.setattr(script.git_manager, "checkout_submodule_tag", lambda **_kwargs: True)
     monkeypatch.setattr(script, "setup_python_environment", lambda: True)
+    monkeypatch.setattr(script, "check_macos_keyboard_permissions", lambda: True)
     monkeypatch.setattr(script, "setup_bun_packages", lambda: True)
     monkeypatch.setattr(script, "run_desktop_dev", lambda: calls.append("launch") or True)
 
@@ -199,6 +201,62 @@ def test_macos_prerequisites_require_xcode_select(monkeypatch):
 
     assert script.ensure_desktop_tauri_prerequisites() is False
     assert any("Xcode Command Line Tools are required" in error for error in script.errors)
+
+
+def test_macos_keyboard_permissions_open_settings_when_untrusted(monkeypatch, tmp_path):
+    script = _create_script()
+    script.system = "Darwin"
+    script.project_root = tmp_path
+    venv_python = tmp_path / "modules" / "lerobot-vulcan" / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.touch()
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        if command[0] == str(venv_python):
+            return SimpleNamespace(returncode=1, stdout="", stderr="not trusted")
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("setup.desktop.setup_dev.subprocess.run", fake_run)
+
+    assert script.check_macos_keyboard_permissions() is False
+    assert calls[1][0] == [
+        "open",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+    ]
+    assert any("keyboard teleoperation permission is required" in warning for warning in script.warnings)
+
+
+def test_macos_keyboard_permissions_accept_trusted_python(monkeypatch, tmp_path):
+    script = _create_script()
+    script.system = "Darwin"
+    script.project_root = tmp_path
+    venv_python = tmp_path / "modules" / "lerobot-vulcan" / ".venv" / "bin" / "python"
+    venv_python.parent.mkdir(parents=True)
+    venv_python.touch()
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append(command)
+        return SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr("setup.desktop.setup_dev.subprocess.run", fake_run)
+
+    assert script.check_macos_keyboard_permissions() is True
+    assert len(calls) == 1
+    assert script.warnings == []
+
+
+def test_keyboard_permission_check_is_noop_outside_macos(monkeypatch):
+    script = _create_script()
+    script.system = "Windows"
+    monkeypatch.setattr(
+        "setup.desktop.setup_dev.subprocess.run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not run")),
+    )
+
+    assert script.check_macos_keyboard_permissions() is True
 
 
 def test_windows_prerequisites_accept_vs_build_tools(monkeypatch):

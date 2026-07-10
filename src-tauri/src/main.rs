@@ -71,7 +71,7 @@ use modules::control::controllers::remote_control::remote_rollout_controller::{
     init_remote_rollout, start_remote_rollout, stop_remote_rollout,
 };
 use modules::control::controllers::remote_control::remote_teleop_controller::{
-    init_remote_teleop, start_remote_teleop, stop_remote_teleop,
+    init_remote_teleop, set_remote_teleop_keys, start_remote_teleop, stop_remote_teleop,
 };
 use modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
@@ -629,6 +629,7 @@ fn main() {
             // Remote Control Functions
             start_remote_teleop,
             stop_remote_teleop,
+            set_remote_teleop_keys,
             start_remote_record,
             stop_remote_record,
             start_remote_rollout,

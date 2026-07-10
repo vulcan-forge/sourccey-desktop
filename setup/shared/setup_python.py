@@ -16,8 +16,6 @@ from typing import Callable, Optional
 
 from setup_helper import get_real_user_home, should_run_as_user, wrap_command
 
-UV_VENV_PYTHON_VERSION = "3.12"
-
 #################################################################
 # Helper Functions
 #################################################################
@@ -121,7 +119,11 @@ class PythonSetupManager:
 
     def _build_real_user_env_overrides(self) -> dict[str, str]:
         """Build env overrides so delegated setup uses the real user's uv/home."""
-        env_overrides: dict[str, str] = {"UV_PYTHON": UV_VENV_PYTHON_VERSION}
+        # The delegated LeRobot setup selects Python 3.12 when creating a new
+        # environment and reuses an existing supported 3.12 or 3.13 environment.
+        # Do not export UV_PYTHON here: it would make later bare uv commands
+        # reject a valid 3.13 .venv while looking specifically for Python 3.12.
+        env_overrides: dict[str, str] = {}
         should_run, sudo_user = should_run_as_user()
 
         uv_path = find_user_binary("uv", [".local/bin", ".cargo/bin"])

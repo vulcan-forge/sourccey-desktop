@@ -3,7 +3,6 @@
 import { AppBootScreen } from '@/components/Elements/AppBootScreen';
 import { SideNavbar as KioskSideNavbar } from '@/components/Layouts/Navbar/Layout/Kiosk/SideNavbar';
 import { KioskTopNavbar } from '@/components/Layouts/Navbar/Layout/Kiosk/TopNavbar';
-import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { initFrontendLogger } from '@/utils/logs/frontend-logger';
 import { useEffect } from 'react';
@@ -51,7 +50,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <KioskSideNavbar />
                 <div className="min-h-0 w-full flex-1 overflow-auto">{children}</div>
             </div>
-            <RemoteControlBar />
         </div>
     );
 }

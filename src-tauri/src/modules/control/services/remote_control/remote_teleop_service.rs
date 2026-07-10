@@ -8,6 +8,7 @@ use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::{fs, path::PathBuf};
 use tauri::AppHandle;
 use tauri::Emitter;
 use tauri_plugin_shell::process::CommandEvent;
@@ -18,6 +19,32 @@ pub struct RemoteTeleopProcess(ManagedRemoteProcesses);
 pub struct RemoteTeleopService;
 
 impl RemoteTeleopService {
+    pub fn keyboard_state_path(nickname: &str) -> PathBuf {
+        let safe_nickname: String = nickname
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() {
+                    character
+                } else {
+                    '_'
+                }
+            })
+            .collect();
+        std::env::temp_dir().join(format!("sourccey-keyboard-{safe_nickname}.json"))
+    }
+
+    pub fn update_keyboard_state(nickname: &str, keys: &[String]) -> Result<(), String> {
+        let path = Self::keyboard_state_path(nickname);
+        let contents = serde_json::to_vec(keys)
+            .map_err(|error| format!("Failed to encode keyboard state: {error}"))?;
+        fs::write(&path, contents).map_err(|error| {
+            format!(
+                "Failed to update keyboard state at {}: {error}",
+                path.display()
+            )
+        })
+    }
+
     pub fn init_remote_teleop() -> RemoteTeleopProcess {
         RemoteTeleopProcess(init_managed_processes())
     }
@@ -51,6 +78,7 @@ impl RemoteTeleopService {
         let executable = runtime.executable.clone();
         let working_dir = runtime.working_dir.clone();
         let envs = runtime.envs;
+        Self::update_keyboard_state(&config.nickname, &[])?;
         let command_parts = Self::build_command_args(&config);
         let command_display = format_command_for_display(&command_parts);
 
@@ -213,6 +241,7 @@ impl RemoteTeleopService {
                 let message = format!("Failed to kill teleop process tree: {}", err);
                 Self::log_teleop_error(&message);
             }
+            let _ = fs::remove_file(Self::keyboard_state_path(&nickname));
 
             Ok(format!(
                 "Teleop command stop sent for nickname: {}",
@@ -229,7 +258,7 @@ impl RemoteTeleopService {
     }
 
     fn build_command_args(config: &RemoteTeleopConfig) -> Vec<String> {
-        vec![
+        let mut args = vec![
             "run".to_string(),
             "lerobot-teleoperate".to_string(),
             "--robot.type=sourccey_client".to_string(),
@@ -241,9 +270,18 @@ impl RemoteTeleopService {
             format!("--teleop.right_arm_port={}", config.right_arm_port.trim()),
             "--teleop_keyboard.type=keyboard".to_string(),
             format!("--teleop_keyboard.id={}", config.keyboard.trim()),
+        ];
+        if cfg!(target_os = "macos") {
+            args.push(format!(
+                "--teleop_keyboard.input_state_path={}",
+                Self::keyboard_state_path(&config.nickname).display()
+            ));
+        }
+        args.extend([
             format!("--fps={}", config.fps),
             "--display_data=false".to_string(),
-        ]
+        ]);
+        args
     }
 
     fn validate_config(config: &RemoteTeleopConfig) -> Result<(), String> {

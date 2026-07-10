@@ -3,6 +3,7 @@ use crate::modules::control::services::remote_control::remote_command_utils::{
     create_command_log, format_command_for_display, init_managed_processes, process_log_path,
     resolve_uv_runtime, write_process_log, ManagedRemoteProcesses,
 };
+use crate::modules::control::services::remote_control::remote_teleop_service::RemoteTeleopService;
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
@@ -53,6 +54,7 @@ impl RemoteRecordService {
         let executable = runtime.executable.clone();
         let working_dir = runtime.working_dir.clone();
         let envs = runtime.envs;
+        RemoteTeleopService::update_keyboard_state(&config.nickname, &[])?;
         let command_parts = Self::build_command_args(&config);
         let command_display = format_command_for_display(&command_parts);
 
@@ -210,6 +212,7 @@ impl RemoteRecordService {
                 let message = format!("Failed to kill record process: {}", err);
                 Self::log_record_error(&message);
             }
+            let _ = std::fs::remove_file(RemoteTeleopService::keyboard_state_path(&nickname));
 
             Ok(format!(
                 "Record command stop sent for nickname: {}",
@@ -226,7 +229,7 @@ impl RemoteRecordService {
     }
 
     fn build_command_args(config: &RemoteRecordConfig) -> Vec<String> {
-        vec![
+        let mut args = vec![
             "run".to_string(),
             "lerobot-record".to_string(),
             "--robot.type=sourccey_client".to_string(),
@@ -238,6 +241,14 @@ impl RemoteRecordService {
             format!("--teleop.right_arm_port={}", config.right_arm_port.trim()),
             "--teleop_keyboard.type=keyboard".to_string(),
             format!("--teleop_keyboard.id={}", config.keyboard.trim()),
+        ];
+        if cfg!(target_os = "macos") {
+            args.push(format!(
+                "--teleop_keyboard.input_state_path={}",
+                RemoteTeleopService::keyboard_state_path(&config.nickname).display()
+            ));
+        }
+        args.extend([
             format!("--dataset.repo_id={}", config.repo_id.trim()),
             format!("--dataset.num_episodes={}", config.num_episodes),
             format!("--dataset.episode_time_s={}", config.episode_time_s),
@@ -246,7 +257,8 @@ impl RemoteRecordService {
             format!("--dataset.fps={}", DEFAULT_RECORD_DATASET_FPS),
             "--display_data=true".to_string(),
             "--dataset.push_to_hub=false".to_string(),
-        ]
+        ]);
+        args
     }
 
     fn validate_config(config: &RemoteRecordConfig) -> Result<(), String> {

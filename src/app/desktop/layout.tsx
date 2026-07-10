@@ -3,7 +3,6 @@
 import { AppBootScreen } from '@/components/Elements/AppBootScreen';
 import { SideNavbar as DesktopSideNavbar } from '@/components/Layouts/Navbar/Layout/Desktop/SideNavbar';
 import { DesktopTopNavbar } from '@/components/Layouts/Navbar/Layout/Desktop/TopNavbar';
-import { RemoteControlBar } from '@/components/Layouts/ControlBar/RemoteControlBar';
 import { initFrontendLogger } from '@/utils/logs/frontend-logger';
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
@@ -50,7 +49,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 <DesktopSideNavbar />
                 <div className="min-h-0 w-full flex-1 overflow-auto">{children}</div>
             </div>
-            <RemoteControlBar />
         </div>
     );
 }

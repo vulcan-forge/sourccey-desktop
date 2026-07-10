@@ -166,6 +166,72 @@ class DesktopDevSetupScript(SetupScript):
         self.print_error("Install them with: xcode-select --install")
         return False
 
+    def check_macos_keyboard_permissions(self) -> bool:
+        """Warn and open macOS Accessibility settings when dev keyboard input is blocked."""
+        if self.system != "Darwin":
+            return True
+
+        venv_python = (
+            self.project_root
+            / "modules"
+            / "lerobot-vulcan"
+            / ".venv"
+            / "bin"
+            / "python"
+        )
+        if not venv_python.exists():
+            self.print_warning(
+                "Could not check macOS keyboard permissions because the LeRobot .venv Python was not found."
+            )
+            return False
+
+        try:
+            resolved_python = venv_python.resolve()
+        except OSError:
+            resolved_python = venv_python
+
+        trust_check = (
+            "from pynput import keyboard; "
+            "raise SystemExit(0 if getattr(keyboard.Listener, 'IS_TRUSTED', True) else 1)"
+        )
+        try:
+            result = subprocess.run(
+                [str(venv_python), "-c", trust_check],
+                check=False,
+                capture_output=True,
+                text=True,
+            )
+        except OSError as exc:
+            self.print_warning(f"Could not check macOS keyboard permissions: {exc}")
+            return False
+
+        if result.returncode == 0:
+            self.print_success("macOS keyboard Accessibility permission is enabled")
+            return True
+
+        self.print_warning(
+            "macOS keyboard teleoperation permission is required. "
+            "In Privacy & Security > Accessibility, add and enable: "
+            f"{resolved_python}"
+        )
+        self.print_status(
+            "After granting permission, fully restart Sourccey Desktop and the terminal or IDE running dev mode."
+        )
+
+        try:
+            subprocess.run(
+                [
+                    "open",
+                    "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility",
+                ],
+                check=False,
+            )
+            self.print_status("Opened macOS Accessibility settings.")
+        except OSError as exc:
+            self.print_warning(f"Could not open macOS Accessibility settings: {exc}")
+
+        return False
+
     def _find_windows_vswhere(self) -> Optional[Path]:
         """Locate vswhere.exe when available."""
         candidate_paths = [
