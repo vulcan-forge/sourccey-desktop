@@ -21,6 +21,7 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 from setup.desktop.setup import (  # type: ignore
+    Colors,
     LEROBOT_VULCAN_SUBMODULE_PATH,
     LEROBOT_VULCAN_TAG,
     SetupScript,
@@ -31,6 +32,11 @@ from setup.shared.setup_javascript import get_bun_path  # type: ignore
 
 class DesktopDevSetupScript(SetupScript):
     """Developer-focused desktop setup that can launch Tauri dev mode."""
+
+    LINUX_INOTIFY_LIMITS = {
+        "max_user_watches": 524288,
+        "max_user_instances": 1024,
+    }
 
     def current_python_command(self) -> str:
         """Return a friendly Python command name for rerun instructions."""
@@ -63,6 +69,78 @@ class DesktopDevSetupScript(SetupScript):
             return self.ensure_macos_tauri_prerequisites()
         if self.system == "Windows":
             return self.ensure_windows_tauri_prerequisites()
+        return True
+
+    def check_linux_inotify_limits(self) -> bool:
+        """Warn when Linux file-watch limits are likely too low for Tauri dev."""
+        if self.system != "Linux":
+            return True
+
+        low_limits = []
+        for name, recommended in self.LINUX_INOTIFY_LIMITS.items():
+            path = Path("/proc/sys/fs/inotify") / name
+            try:
+                current = int(path.read_text(encoding="utf-8").strip())
+            except (OSError, ValueError):
+                self.print_warning(f"Could not read Linux inotify limit: {path}")
+                continue
+
+            if current < recommended:
+                low_limits.append(f"{name}={current} (recommended: {recommended})")
+
+        if not low_limits:
+            self.print_success("Linux file-watch limits are suitable for Tauri dev")
+            return True
+
+        self.print_warning(
+            "Linux file-watch limits may cause 'OS file watch limit reached': "
+            + ", ".join(low_limits)
+        )
+        self.print_status("Apply the recommended limits with:")
+        print(
+            "  printf 'fs.inotify.max_user_watches=524288\\n"
+            "fs.inotify.max_user_instances=1024\\n' | "
+            "sudo tee /etc/sysctl.d/99-sourccey-inotify.conf"
+        )
+        print("  sudo sysctl --system")
+        return False
+
+    def ensure_linux_inotify_limits(self) -> bool:
+        """Persist suitable Linux file-watch limits for Tauri development."""
+        if self.system != "Linux" or self.check_linux_inotify_limits():
+            return True
+
+        config = (
+            "fs.inotify.max_user_watches=524288\n"
+            "fs.inotify.max_user_instances=1024\n"
+        )
+        command_prefix = []
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            command_prefix = ["sudo"]
+
+        self.print_status("Applying persistent Linux file-watch limits (sudo may prompt)...")
+        try:
+            subprocess.run(
+                [*command_prefix, "tee", "/etc/sysctl.d/99-sourccey-inotify.conf"],
+                input=config,
+                text=True,
+                stdout=subprocess.DEVNULL,
+                check=True,
+            )
+            subprocess.run(
+                [*command_prefix, "sysctl", "--system"],
+                check=True,
+            )
+        except (OSError, subprocess.CalledProcessError) as exc:
+            self.print_error(f"Failed to configure Linux file-watch limits: {exc}")
+            self.print_error("Run the commands shown above, then rerun setup.")
+            return False
+
+        if not self.check_linux_inotify_limits():
+            self.print_error("Linux file-watch limits are still below the recommended values.")
+            return False
+
+        self.print_success("Linux file-watch limits configured successfully")
         return True
 
     def ensure_macos_tauri_prerequisites(self) -> bool:
@@ -229,6 +307,9 @@ class DesktopDevSetupScript(SetupScript):
 
         if not self.ensure_linux_tauri_prerequisites():
             self.print_error("Linux dependency setup failed.")
+            return False
+
+        if not self.ensure_linux_inotify_limits():
             return False
 
         self.print_header("SETTING UP PROJECT")

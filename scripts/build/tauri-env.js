@@ -11,6 +11,36 @@ const { join } = require('path');
 const { spawn } = require('child_process');
 
 const REQUIRED_KEYS = ['TAURI_SIGNING_PUBLIC_KEY', 'TAURI_SIGNING_PRIVATE_KEY', 'TAURI_SIGNING_PRIVATE_KEY_PASSWORD'];
+const LINUX_INOTIFY_LIMITS = {
+    max_user_watches: 524288,
+    max_user_instances: 1024,
+};
+
+function checkLinuxInotifyLimits() {
+    if (process.platform !== 'linux') return true;
+
+    const lowLimits = [];
+    for (const [name, recommended] of Object.entries(LINUX_INOTIFY_LIMITS)) {
+        const path = `/proc/sys/fs/inotify/${name}`;
+        try {
+            const current = Number.parseInt(readFileSync(path, 'utf8').trim(), 10);
+            if (Number.isFinite(current) && current < recommended) {
+                lowLimits.push(`${name}=${current} (recommended: ${recommended})`);
+            }
+        } catch (err) {
+            console.warn(`[tauri-env] Warning: failed to read ${path}: ${err.message}`);
+        }
+    }
+
+    if (lowLimits.length === 0) return true;
+
+    console.error('[tauri-env] Linux file-watch limits are too low for reliable Tauri development:');
+    for (const limit of lowLimits) console.error(`  - ${limit}`);
+    console.error('\nApply the recommended limits, then rerun this command:\n');
+    console.error("  printf 'fs.inotify.max_user_watches=524288\\nfs.inotify.max_user_instances=1024\\n' | sudo tee /etc/sysctl.d/99-sourccey-inotify.conf");
+    console.error('  sudo sysctl --system\n');
+    return false;
+}
 
 function parseDotEnv(contents) {
     const out = {};
@@ -44,6 +74,9 @@ if (existsSync(envPath)) {
 
 const args = process.argv.slice(2);
 const requiresSigningKeys = args[0] === 'build';
+if (args[0] === 'dev' && !checkLinuxInotifyLimits()) {
+    process.exit(1);
+}
 const tauriBin =
     process.platform === 'win32'
         ? join(process.cwd(), 'node_modules', '.bin', 'tauri.cmd')
