@@ -4,6 +4,7 @@ import { useRobotStatus } from '@/context/robot-status-context';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { kioskEventManager } from '@/utils/logs/kiosk-logs/kiosk-events';
+import { getMotorConnectionToastMessage } from '@/utils/robot/motor-connection-error';
 
 export const useKioskRobotStartStop = (nickname: string) => {
     const POST_STOP_TAP_GUARD_MS = 800;
@@ -17,6 +18,8 @@ export const useKioskRobotStartStop = (nickname: string) => {
     const lastToastMessageRef = useRef<string | null>(null);
     const suppressAutoStartingRef = useRef(false);
     const hasConfirmedStartRef = useRef(false);
+    const motorErrorLogRef = useRef('');
+    const motorErrorToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const completeStop = () => {
         stopActionLockRef.current = false;
@@ -143,6 +146,38 @@ export const useKioskRobotStartStop = (nickname: string) => {
         const unlistenHostLog = kioskEventManager.listenHostLog((line) => {
             if (nickname && !line.includes(`[${nickname}]`)) return;
 
+            if (/motor check failed/i.test(line)) {
+                motorErrorLogRef.current = line;
+            } else if (motorErrorLogRef.current) {
+                motorErrorLogRef.current += `\n${line}`;
+            }
+
+            if (motorErrorLogRef.current) {
+                const motorConnectionMessage = getMotorConnectionToastMessage(motorErrorLogRef.current);
+                if (motorConnectionMessage) {
+                    if (motorErrorToastTimerRef.current) clearTimeout(motorErrorToastTimerRef.current);
+                    motorErrorToastTimerRef.current = setTimeout(() => {
+                        if (lastToastMessageRef.current !== motorConnectionMessage) {
+                            lastToastMessageRef.current = motorConnectionMessage;
+                            toast.error(motorConnectionMessage, { ...toastErrorDefaults });
+                        }
+                        motorErrorLogRef.current = '';
+                        motorErrorToastTimerRef.current = null;
+                    }, 150);
+                    return;
+                }
+
+                if (/full found motor list[\s\S]*\}/i.test(motorErrorLogRef.current)) {
+                    // The check completed but did not report missing IDs (for example,
+                    // it found an incorrect motor model). Let normal error handling resume.
+                    motorErrorLogRef.current = '';
+                } else {
+                    // Do not replace a detailed motor check with the generic serial error
+                    // while its following expected/found lines are still arriving.
+                    return;
+                }
+            }
+
             const status = mapHostLogToStartupStatus(line);
             if (!status) return;
 
@@ -187,6 +222,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
 
         return () => {
             unlistenHostLog();
+            if (motorErrorToastTimerRef.current) clearTimeout(motorErrorToastTimerRef.current);
         };
     }, [nickname, setIsRobotStarted]);
 
@@ -269,7 +305,10 @@ export const useKioskRobotStartStop = (nickname: string) => {
             startRequestedAtRef.current = 0;
 
             console.error('Failed to start robot:', error);
-            toast.error('Failed to start robot. Check connection and try again.', { ...toastErrorDefaults });
+            const motorConnectionMessage = getMotorConnectionToastMessage(String(error));
+            toast.error(motorConnectionMessage || 'Failed to start robot. Check connection and try again.', {
+                ...toastErrorDefaults,
+            });
         }
     };
 
