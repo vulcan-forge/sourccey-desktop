@@ -17,6 +17,7 @@ import {
 
 type KioskManualDrivePadProps = {
     nickname: string;
+    robotStarted: boolean;
 };
 
 type DriveButtonConfig = {
@@ -76,7 +77,7 @@ const compactError = (error: unknown): string => {
     return `${compact.slice(0, MAX_TOAST_CHARS - 3)}...`;
 };
 
-export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickname }) => {
+export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickname, robotStarted }) => {
     const [sourceMap, setSourceMap] = useState<ManualDriveSourceMap>(createEmptyManualDriveSourceMap());
     const [bridgeReady, setBridgeReady] = useState(false);
     const [bridgeStarting, setBridgeStarting] = useState(false);
@@ -86,6 +87,17 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     const pressedKeys = useMemo(() => getPressedManualDriveKeys(sourceMap), [sourceMap]);
     const pressedKeysRef = useRef<ManualDriveKey[]>([]);
     const pulseTimeoutsRef = useRef<number[]>([]);
+
+    const clearLocalManualDriveState = useCallback(() => {
+        for (const timeoutId of pulseTimeoutsRef.current) {
+            window.clearTimeout(timeoutId);
+        }
+        pulseTimeoutsRef.current = [];
+        setBridgeStarting(false);
+        setBridgeReady(false);
+        setBridgeStopping(false);
+        setSourceMap(createEmptyManualDriveSourceMap());
+    }, []);
 
     const sendPressedKeys = async (keys: ManualDriveKey[]) => {
         try {
@@ -114,7 +126,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
     }, [pressedKeys]);
 
     const startManualDrive = useCallback(async () => {
-        if (bridgeReady || bridgeStarting || bridgeStopping) {
+        if (!robotStarted || bridgeReady || bridgeStarting || bridgeStopping) {
             return;
         }
         setBridgeStarting(true);
@@ -130,7 +142,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         } finally {
             setBridgeStarting(false);
         }
-    }, [bridgeReady, bridgeStarting, bridgeStopping, nickname]);
+    }, [bridgeReady, bridgeStarting, bridgeStopping, nickname, robotStarted]);
 
     const stopManualDrive = useCallback(async () => {
         if ((!bridgeReady && !bridgeStarting) || bridgeStopping) {
@@ -145,16 +157,9 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 ...toastErrorDefaults,
             });
         } finally {
-            for (const timeoutId of pulseTimeoutsRef.current) {
-                window.clearTimeout(timeoutId);
-            }
-            pulseTimeoutsRef.current = [];
-            setBridgeStarting(false);
-            setBridgeReady(false);
-            setSourceMap(createEmptyManualDriveSourceMap());
-            setBridgeStopping(false);
+            clearLocalManualDriveState();
         }
-    }, [bridgeReady, bridgeStarting, bridgeStopping, nickname]);
+    }, [bridgeReady, bridgeStarting, bridgeStopping, clearLocalManualDriveState, nickname]);
 
     useEffect(() => {
         return () => {
@@ -196,10 +201,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
             if (payload.nickname !== nickname) {
                 return;
             }
-            setBridgeStarting(false);
-            setBridgeStopping(false);
-            setBridgeReady(false);
-            setSourceMap(createEmptyManualDriveSourceMap());
+            clearLocalManualDriveState();
             toast.error(`Manual drive process stopped: ${compactError(payload.message || 'Unknown failure')}`, {
                 ...toastErrorDefaults,
             });
@@ -207,7 +209,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         return () => {
             unlistenShutdown();
         };
-    }, [nickname]);
+    }, [clearLocalManualDriveState, nickname]);
 
     const clearButtonSources = (current: ManualDriveSourceMap): ManualDriveSourceMap => ({
         w: current.w.filter((source) => !source.startsWith('btn:')),
@@ -292,54 +294,56 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
 
     return (
         <div className="mt-4 rounded-xl border-2 border-slate-700 bg-slate-800/60 p-5">
-            <div className="mb-4 flex items-center justify-between gap-4">
-                <div>
+            <div className="mb-4 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                <div className="max-w-2xl">
                     <h3 className="text-lg font-semibold text-white">Manual Control</h3>
-                    <p className="mt-1 text-sm text-slate-300">
-                        Start manual control to enable the drive bridge. Stop it before connecting a teleoperator.
-                    </p>
+                    <p className="mt-1 text-sm text-slate-300">Start manual control to enable the drive bridge. Stop it before connecting a teleoperator.</p>
                 </div>
-                <div className="flex items-center gap-3">
-                    <button
-                        type="button"
-                        onClick={() => {
-                            if (bridgeReady || bridgeStarting) {
-                                void stopManualDrive();
-                                return;
-                            }
-                            void startManualDrive();
-                        }}
-                        disabled={bridgeStarting || bridgeStopping}
-                        className={`inline-flex min-w-52 items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                            bridgeStarting || bridgeStopping
-                                ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
-                                : bridgeReady
-                                  ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600'
-                                  : 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
-                        }`}
-                    >
-                        {bridgeStarting ? (
-                            <>
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                Starting...
-                            </>
-                        ) : bridgeStopping ? (
-                            <>
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                Stopping...
-                            </>
-                        ) : bridgeReady ? (
-                            <>
-                                <FaStop className="h-4 w-4" /> Stop Manual Control
-                            </>
-                        ) : (
-                            <>
-                                <FaPlay className="h-4 w-4" /> Start Manual Control
-                            </>
-                        )}
-                    </button>
-                    <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-                        {bridgeStarting ? 'Starting...' : bridgeStopping ? 'Stopping...' : bridgeReady ? 'Ready' : 'Offline'}
+                <div className="flex flex-col gap-3 xl:min-w-[20rem] xl:items-end">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap xl:justify-end">
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (bridgeReady || bridgeStarting) {
+                                    void stopManualDrive();
+                                    return;
+                                }
+                                void startManualDrive();
+                            }}
+                            disabled={!robotStarted || bridgeStarting || bridgeStopping}
+                            className={`inline-flex w-full items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors sm:min-w-52 sm:w-auto ${
+                                !robotStarted || bridgeStarting || bridgeStopping
+                                    ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
+                                    : bridgeReady
+                                      ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600'
+                                      : 'cursor-pointer bg-green-600 text-white hover:bg-green-700'
+                            }`}
+                        >
+                            {bridgeStarting ? (
+                                <>
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    Starting...
+                                </>
+                            ) : bridgeStopping ? (
+                                <>
+                                    <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                    Stopping...
+                                </>
+                            ) : bridgeReady ? (
+                                <>
+                                    <FaStop className="h-4 w-4" /> Stop Manual Control
+                                </>
+                            ) : (
+                                <>
+                                    <FaPlay className="h-4 w-4" /> Start Manual Control
+                                </>
+                            )}
+                        </button>
+                    </div>
+                    <div className="flex xl:justify-end">
+                        <div className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
+                            {bridgeStarting ? 'Starting...' : bridgeStopping ? 'Stopping...' : bridgeReady ? 'Ready' : 'Offline'}
+                        </div>
                     </div>
                 </div>
             </div>

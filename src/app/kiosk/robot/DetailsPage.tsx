@@ -48,7 +48,7 @@ export const KioskRobotDetailsPage: React.FC = () => {
         <div className="bg-slate-850 flex h-screen flex-col">
             <div className="w-full p-6">
                 <RobotControl nickname={nickname} robotType={robotType} calibration={combinedCalibration} />
-                {isRobotStarted && !!nickname && <KioskManualDrivePad nickname={nickname} />}
+                {!!nickname && isRobotStarted && <KioskManualDrivePad nickname={nickname} robotStarted={isRobotStarted} />}
             </div>
         </div>
     );

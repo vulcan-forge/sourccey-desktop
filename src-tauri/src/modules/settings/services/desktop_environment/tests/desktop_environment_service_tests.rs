@@ -1,8 +1,7 @@
 use super::{
     DesktopEnvironmentService, DesktopEnvironmentSettings,
-    SaveDesktopEnvironmentSettingsRequest, DEFAULT_LOCAL_DESKTOP_ACCOUNT_SUMMARY_URL,
-    DEFAULT_LOCAL_DESKTOP_AUTH_GITHUB_URL, DEFAULT_LOCAL_DESKTOP_AUTH_GOOGLE_URL,
-    DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL, DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL,
+    SaveDesktopEnvironmentSettingsRequest, DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL,
+    DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL, DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL,
 };
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -24,8 +23,9 @@ fn default_settings_use_production_defaults() {
     assert_eq!(settings.teleop_log_level, "warning");
     assert_eq!(
         settings.graphql_api_url,
-        "https://api.studio.vulcanrobotics.ai/graphql"
+        "https://api.studio.vulcanrobotics.ai/v1/graphql"
     );
+    assert_eq!(settings.studio_web_url, "https://studio.vulcanrobotics.ai");
     assert_eq!(
         settings.updater_manifest_url,
         "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json"
@@ -45,10 +45,8 @@ fn save_and_load_roundtrip_preserves_local_custom_urls() {
     let path = test_file_path("desktop_environment_roundtrip");
     let request = SaveDesktopEnvironmentSettingsRequest {
         environment: "local".to_string(),
-        custom_graphql_api_url: Some("dev-box.local:5200/graphql".to_string()),
-        custom_account_summary_url: Some("dev-box.local:5200/api/account-summary".to_string()),
-        custom_auth_google_url: Some("dev-box.local:5200/api/v1/auth/google".to_string()),
-        custom_auth_github_url: Some("dev-box.local:5200/api/v1/auth/github".to_string()),
+        custom_graphql_api_url: Some("dev-box.local:5200/v1/graphql".to_string()),
+        custom_studio_web_url: Some("dev-box.local:3000".to_string()),
         custom_updater_manifest_url: Some("dev-box.local:3000/latest.json".to_string()),
         teleop_log_level: Some("error".to_string()),
     };
@@ -61,19 +59,8 @@ fn save_and_load_roundtrip_preserves_local_custom_urls() {
     assert_eq!(saved.display_name, "Developer");
     assert_eq!(saved.badge_label.as_deref(), Some("DEV MODE"));
     assert_eq!(saved.teleop_log_level, "error");
-    assert_eq!(loaded.graphql_api_url, "http://dev-box.local:5200/graphql");
-    assert_eq!(
-        loaded.account_summary_url,
-        "http://dev-box.local:5200/api/account-summary"
-    );
-    assert_eq!(
-        loaded.auth_google_url,
-        "http://dev-box.local:5200/api/v1/auth/google"
-    );
-    assert_eq!(
-        loaded.auth_github_url,
-        "http://dev-box.local:5200/api/v1/auth/github"
-    );
+    assert_eq!(loaded.graphql_api_url, "http://dev-box.local:5200/v1/graphql");
+    assert_eq!(loaded.studio_web_url, "http://dev-box.local:3000");
     assert_eq!(
         loaded.updater_manifest_url,
         "http://dev-box.local:3000/latest.json"
@@ -98,9 +85,7 @@ fn non_local_persistence_uses_local_defaults_for_custom_fields() {
         SaveDesktopEnvironmentSettingsRequest {
             environment: "staging".to_string(),
             custom_graphql_api_url: Some("http://ignored/graphql".to_string()),
-            custom_account_summary_url: Some("http://ignored/account-summary".to_string()),
-            custom_auth_google_url: Some("http://ignored/google".to_string()),
-            custom_auth_github_url: Some("http://ignored/github".to_string()),
+            custom_studio_web_url: Some("http://ignored.local:3000".to_string()),
             custom_updater_manifest_url: Some("http://ignored/latest.json".to_string()),
             teleop_log_level: None,
         },
@@ -114,16 +99,8 @@ fn non_local_persistence_uses_local_defaults_for_custom_fields() {
         DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL
     );
     assert_eq!(
-        saved.custom_account_summary_url,
-        DEFAULT_LOCAL_DESKTOP_ACCOUNT_SUMMARY_URL
-    );
-    assert_eq!(
-        saved.custom_auth_google_url,
-        DEFAULT_LOCAL_DESKTOP_AUTH_GOOGLE_URL
-    );
-    assert_eq!(
-        saved.custom_auth_github_url,
-        DEFAULT_LOCAL_DESKTOP_AUTH_GITHUB_URL
+        saved.custom_studio_web_url,
+        DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL
     );
     assert_eq!(
         saved.custom_updater_manifest_url,
@@ -141,10 +118,8 @@ fn updating_only_teleop_log_level_preserves_existing_local_urls() {
         &path,
         SaveDesktopEnvironmentSettingsRequest {
             environment: "local".to_string(),
-            custom_graphql_api_url: Some("dev-box.local:5200/graphql".to_string()),
-            custom_account_summary_url: Some("dev-box.local:5200/api/account-summary".to_string()),
-            custom_auth_google_url: Some("dev-box.local:5200/api/v1/auth/google".to_string()),
-            custom_auth_github_url: Some("dev-box.local:5200/api/v1/auth/github".to_string()),
+            custom_graphql_api_url: Some("dev-box.local:5200/v1/graphql".to_string()),
+            custom_studio_web_url: Some("dev-box.local:3000".to_string()),
             custom_updater_manifest_url: Some("dev-box.local:3000/latest.json".to_string()),
             teleop_log_level: Some("warning".to_string()),
         },
@@ -156,9 +131,7 @@ fn updating_only_teleop_log_level_preserves_existing_local_urls() {
         SaveDesktopEnvironmentSettingsRequest {
             environment: "local".to_string(),
             custom_graphql_api_url: None,
-            custom_account_summary_url: None,
-            custom_auth_google_url: None,
-            custom_auth_github_url: None,
+            custom_studio_web_url: None,
             custom_updater_manifest_url: None,
             teleop_log_level: Some("error".to_string()),
         },
@@ -166,11 +139,8 @@ fn updating_only_teleop_log_level_preserves_existing_local_urls() {
     .unwrap();
 
     assert_eq!(updated.teleop_log_level, "error");
-    assert_eq!(updated.graphql_api_url, "http://dev-box.local:5200/graphql");
-    assert_eq!(
-        updated.account_summary_url,
-        "http://dev-box.local:5200/api/account-summary"
-    );
+    assert_eq!(updated.graphql_api_url, "http://dev-box.local:5200/v1/graphql");
+    assert_eq!(updated.studio_web_url, "http://dev-box.local:3000");
 
     let _ = std::fs::remove_file(path);
 }

@@ -10,6 +10,7 @@ use crate::modules::control::types::configuration::configuration_types::{
 use crate::modules::log::services::command_log_service::CommandLogService;
 use crate::services::directory::directory_service::DirectoryService;
 use crate::services::process::process_service::ProcessService;
+use crate::utils::windows_process::configure_tokio_command;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
 use std::env;
@@ -118,6 +119,7 @@ impl ConfigurationService {
         for arg in &command_parts[1..] {
             cmd.arg(arg);
         }
+        configure_tokio_command(&mut cmd);
 
         let child = cmd
             .current_dir(&lerobot_dir)

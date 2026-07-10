@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import { FaArrowLeft, FaCheckCircle, FaCodeBranch, FaGlobe, FaSpinner } from 'react-icons/fa';
+import { FaArrowLeft, FaCheckCircle, FaGlobe, FaSpinner } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import {
@@ -32,17 +32,15 @@ const environmentCards: Array<{
     {
         value: 'local',
         title: 'Developer',
-        description: 'Point desktop traffic at local or custom service URLs during development.',
+        description: 'Point desktop traffic at local or custom Studio services during development.',
     },
 ];
 
 export default function DesktopDeveloperSettingsPage() {
     const { data, isLoading, error } = useDesktopEnvironmentSettings();
     const [environment, setEnvironment] = useState<DesktopEnvironment>('production');
-    const [customGraphqlApiUrl, setCustomGraphqlApiUrl] = useState('http://192.168.1.220:5200/graphql');
-    const [customAccountSummaryUrl, setCustomAccountSummaryUrl] = useState('http://192.168.1.220:5200/api/account-summary');
-    const [customAuthGoogleUrl, setCustomAuthGoogleUrl] = useState('http://192.168.1.220:5200/api/v1/auth/google');
-    const [customAuthGithubUrl, setCustomAuthGithubUrl] = useState('http://192.168.1.220:5200/api/v1/auth/github');
+    const [customGraphqlApiUrl, setCustomGraphqlApiUrl] = useState('http://192.168.1.220:5200/v1/graphql');
+    const [customStudioWebUrl, setCustomStudioWebUrl] = useState('http://192.168.1.220:3000');
     const [customUpdaterManifestUrl, setCustomUpdaterManifestUrl] = useState('http://192.168.1.220:3000/latest.json');
     const [resolvedSettings, setResolvedSettings] = useState<DesktopEnvironmentSettings | null>(null);
     const [isSaving, setIsSaving] = useState(false);
@@ -55,9 +53,7 @@ export default function DesktopDeveloperSettingsPage() {
 
         setEnvironment(data.environment);
         setCustomGraphqlApiUrl(data.customGraphqlApiUrl);
-        setCustomAccountSummaryUrl(data.customAccountSummaryUrl);
-        setCustomAuthGoogleUrl(data.customAuthGoogleUrl);
-        setCustomAuthGithubUrl(data.customAuthGithubUrl);
+        setCustomStudioWebUrl(data.customStudioWebUrl);
         setCustomUpdaterManifestUrl(data.customUpdaterManifestUrl);
         setResolvedSettings(data);
     }, [data]);
@@ -73,34 +69,20 @@ export default function DesktopDeveloperSettingsPage() {
             badgeLabel: environment === 'production' ? null : environment === 'staging' ? 'STAGING' : 'DEV MODE',
             teleopLogLevel: resolvedSettings.teleopLogLevel,
             customGraphqlApiUrl,
-            customAccountSummaryUrl,
-            customAuthGoogleUrl,
-            customAuthGithubUrl,
+            customStudioWebUrl,
             customUpdaterManifestUrl,
             graphqlApiUrl:
                 environment === 'production'
-                    ? 'https://api.studio.vulcanrobotics.ai/graphql'
+                    ? 'https://api.studio.vulcanrobotics.ai/v1/graphql'
                     : environment === 'staging'
-                      ? 'https://api.staging.factory.studio.vulcanrobotics.ai/graphql'
+                      ? 'https://api.staging.factory.studio.vulcanrobotics.ai/v1/graphql'
                       : customGraphqlApiUrl,
-            accountSummaryUrl:
+            studioWebUrl:
                 environment === 'production'
-                    ? 'https://api.studio.vulcanrobotics.ai/api/account-summary'
+                    ? 'https://studio.vulcanrobotics.ai'
                     : environment === 'staging'
-                      ? 'https://api.staging.factory.studio.vulcanrobotics.ai/api/account-summary'
-                      : customAccountSummaryUrl,
-            authGoogleUrl:
-                environment === 'production'
-                    ? 'https://api.studio.vulcanrobotics.ai/api/v1/auth/google'
-                    : environment === 'staging'
-                      ? 'https://api.staging.factory.studio.vulcanrobotics.ai/api/v1/auth/google'
-                      : customAuthGoogleUrl,
-            authGithubUrl:
-                environment === 'production'
-                    ? 'https://api.studio.vulcanrobotics.ai/api/v1/auth/github'
-                    : environment === 'staging'
-                      ? 'https://api.staging.factory.studio.vulcanrobotics.ai/api/v1/auth/github'
-                      : customAuthGithubUrl,
+                      ? 'https://staging.factory.studio.vulcanrobotics.ai'
+                      : customStudioWebUrl,
             updaterManifestUrl:
                 environment === 'production'
                     ? 'https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json'
@@ -109,10 +91,8 @@ export default function DesktopDeveloperSettingsPage() {
                       : customUpdaterManifestUrl,
         };
     }, [
-        customAccountSummaryUrl,
-        customAuthGithubUrl,
-        customAuthGoogleUrl,
         customGraphqlApiUrl,
+        customStudioWebUrl,
         customUpdaterManifestUrl,
         environment,
         resolvedSettings,
@@ -121,9 +101,7 @@ export default function DesktopDeveloperSettingsPage() {
     const persistEnvironmentSettings = async (
         nextEnvironment: DesktopEnvironment,
         nextCustomGraphqlApiUrl = customGraphqlApiUrl,
-        nextCustomAccountSummaryUrl = customAccountSummaryUrl,
-        nextCustomAuthGoogleUrl = customAuthGoogleUrl,
-        nextCustomAuthGithubUrl = customAuthGithubUrl,
+        nextCustomStudioWebUrl = customStudioWebUrl,
         nextCustomUpdaterManifestUrl = customUpdaterManifestUrl
     ) => {
         setIsSaving(true);
@@ -132,17 +110,13 @@ export default function DesktopDeveloperSettingsPage() {
                 environment: nextEnvironment,
                 teleopLogLevel: resolvedSettings?.teleopLogLevel,
                 customGraphqlApiUrl: nextCustomGraphqlApiUrl,
-                customAccountSummaryUrl: nextCustomAccountSummaryUrl,
-                customAuthGoogleUrl: nextCustomAuthGoogleUrl,
-                customAuthGithubUrl: nextCustomAuthGithubUrl,
+                customStudioWebUrl: nextCustomStudioWebUrl,
                 customUpdaterManifestUrl: nextCustomUpdaterManifestUrl,
             });
             setResolvedSettings(saved);
             setEnvironment(saved.environment);
             setCustomGraphqlApiUrl(saved.customGraphqlApiUrl);
-            setCustomAccountSummaryUrl(saved.customAccountSummaryUrl);
-            setCustomAuthGoogleUrl(saved.customAuthGoogleUrl);
-            setCustomAuthGithubUrl(saved.customAuthGithubUrl);
+            setCustomStudioWebUrl(saved.customStudioWebUrl);
             setCustomUpdaterManifestUrl(saved.customUpdaterManifestUrl);
             toast.success(
                 <div className="space-y-1">
@@ -177,9 +151,7 @@ export default function DesktopDeveloperSettingsPage() {
         await persistEnvironmentSettings(
             nextEnvironment,
             customGraphqlApiUrl,
-            customAccountSummaryUrl,
-            customAuthGoogleUrl,
-            customAuthGithubUrl,
+            customStudioWebUrl,
             customUpdaterManifestUrl
         );
     };
@@ -191,9 +163,7 @@ export default function DesktopDeveloperSettingsPage() {
         await persistEnvironmentSettings(
             'local',
             customGraphqlApiUrl,
-            customAccountSummaryUrl,
-            customAuthGoogleUrl,
-            customAuthGithubUrl,
+            customStudioWebUrl,
             customUpdaterManifestUrl
         );
     };
@@ -222,7 +192,7 @@ export default function DesktopDeveloperSettingsPage() {
                     <div className="mb-6">
                         <h2 className="text-xl font-semibold text-white">Environment</h2>
                         <p className="mt-1 text-sm text-slate-400">
-                            The selected environment controls GraphQL, OAuth, account summary, and desktop app update checks.
+                            The selected environment controls GraphQL, Studio sign-in, and desktop app update checks.
                         </p>
                     </div>
 
@@ -275,57 +245,27 @@ export default function DesktopDeveloperSettingsPage() {
                                         />
                                         <p className="mt-2 flex items-start gap-2 text-xs text-slate-400">
                                             <FaGlobe className="mt-0.5 h-3 w-3 shrink-0 text-slate-500" />
-                                            Used for all desktop GraphQL requests.
+                                            Used for desktop GraphQL requests after sign-in.
                                         </p>
                                     </div>
 
                                     <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                        <label htmlFor="custom-account-summary-url" className="mb-2 block text-sm font-medium text-slate-300">
-                                            Account Summary URL
+                                        <label htmlFor="custom-studio-web-url" className="mb-2 block text-sm font-medium text-slate-300">
+                                            Studio Web URL
                                         </label>
                                         <input
-                                            id="custom-account-summary-url"
+                                            id="custom-studio-web-url"
                                             type="text"
-                                            value={customAccountSummaryUrl}
-                                            onChange={(event) => setCustomAccountSummaryUrl(event.target.value)}
+                                            value={customStudioWebUrl}
+                                            onChange={(event) => setCustomStudioWebUrl(event.target.value)}
                                             onBlur={() => void handleDeveloperInputsBlur()}
                                             disabled={isSaving}
                                             className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                         />
                                         <p className="mt-2 flex items-start gap-2 text-xs text-slate-400">
-                                            <FaCodeBranch className="mt-0.5 h-3 w-3 shrink-0 text-slate-500" />
-                                            Used to refresh subscription and token balance details.
+                                            <FaGlobe className="mt-0.5 h-3 w-3 shrink-0 text-slate-500" />
+                                            Used for Studio credential login through the website proxy.
                                         </p>
-                                    </div>
-
-                                    <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                        <label htmlFor="custom-auth-google-url" className="mb-2 block text-sm font-medium text-slate-300">
-                                            Google Auth URL
-                                        </label>
-                                        <input
-                                            id="custom-auth-google-url"
-                                            type="text"
-                                            value={customAuthGoogleUrl}
-                                            onChange={(event) => setCustomAuthGoogleUrl(event.target.value)}
-                                            onBlur={() => void handleDeveloperInputsBlur()}
-                                            disabled={isSaving}
-                                            className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                                        />
-                                    </div>
-
-                                    <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                        <label htmlFor="custom-auth-github-url" className="mb-2 block text-sm font-medium text-slate-300">
-                                            GitHub Auth URL
-                                        </label>
-                                        <input
-                                            id="custom-auth-github-url"
-                                            type="text"
-                                            value={customAuthGithubUrl}
-                                            onChange={(event) => setCustomAuthGithubUrl(event.target.value)}
-                                            onBlur={() => void handleDeveloperInputsBlur()}
-                                            disabled={isSaving}
-                                            className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                                        />
                                     </div>
 
                                     <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4 md:col-span-2">
@@ -354,16 +294,8 @@ export default function DesktopDeveloperSettingsPage() {
                                     <div className="mt-2 break-all text-sm text-white">{previewSettings?.graphqlApiUrl ?? '...'}</div>
                                 </div>
                                 <div>
-                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Account Summary</div>
-                                    <div className="mt-2 break-all text-sm text-white">{previewSettings?.accountSummaryUrl ?? '...'}</div>
-                                </div>
-                                <div>
-                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Google Auth</div>
-                                    <div className="mt-2 break-all text-sm text-white">{previewSettings?.authGoogleUrl ?? '...'}</div>
-                                </div>
-                                <div>
-                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">GitHub Auth</div>
-                                    <div className="mt-2 break-all text-sm text-white">{previewSettings?.authGithubUrl ?? '...'}</div>
+                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Studio Website</div>
+                                    <div className="mt-2 break-all text-sm text-white">{previewSettings?.studioWebUrl ?? '...'}</div>
                                 </div>
                                 <div className="md:col-span-2">
                                     <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Updater Manifest</div>

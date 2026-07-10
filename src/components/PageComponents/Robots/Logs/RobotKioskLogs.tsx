@@ -6,14 +6,24 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { FaTerminal, FaChevronDown, FaChevronUp } from 'react-icons/fa';
 
 type RobotKioskLogsProps = {
-    isControlling: boolean;
+    isActive: boolean;
     nickname?: string;
+    title?: string;
 };
 
-export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps) => {
+export const RobotKioskLogs = ({ isActive, nickname, title = 'Robot Logs' }: RobotKioskLogsProps) => {
     const [controlLogs, setControlLogs] = useState<string[]>([]);
     const [isExpanded, setIsExpanded] = useState(false);
     const logsRef = useRef<string[]>([]);
+
+    const clearLogs = useCallback(() => {
+        logsRef.current = [];
+        setControlLogs([]);
+    }, []);
+
+    useEffect(() => {
+        clearLogs();
+    }, [clearLogs, nickname]);
 
     const appendLog = useCallback(
         (log: string) => {
@@ -29,16 +39,8 @@ export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps)
         [nickname]
     );
 
-    // Reset buffered logs when host is inactive.
     useEffect(() => {
-        if (!isControlling) {
-            logsRef.current = [];
-            setControlLogs([]);
-        }
-    }, [isControlling]);
-
-    useEffect(() => {
-        if (!isControlling) {
+        if (!isActive) {
             return;
         }
 
@@ -49,43 +51,56 @@ export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps)
         return () => {
             unlisten();
         };
-    }, [appendLog, isControlling]);
+    }, [appendLog, isActive]);
 
     return (
         <div className="bg-slate-825 overflow-hidden rounded-xl border-2 border-slate-700 backdrop-blur-sm">
             <div className="bg-slate-825 flex items-center justify-between border-b border-slate-700 p-4">
                 <div className="flex items-center gap-3">
                     <FaTerminal className="h-5 w-5 text-slate-400" />
-                    <h3 className="text-lg font-semibold text-white">Robot Logs</h3>
-                    {isControlling && (
+                    <h3 className="text-lg font-semibold text-white">{title}</h3>
+                    {isActive && (
                         <div className="flex items-center gap-2">
                             <div className="h-2 w-2 animate-pulse rounded-full bg-green-400" />
                             <span className="text-sm text-slate-400">Live</span>
                         </div>
                     )}
-                    {!isControlling && (
+                    {!isActive && (
                         <div className="flex items-center gap-2">
                             <div className="h-2 w-2 rounded-full bg-red-400" />
                             <span className="text-sm text-slate-400">Inactive</span>
                         </div>
                     )}
                 </div>
-                <button
-                    onClick={() => setIsExpanded(!isExpanded)}
-                    className="flex cursor-pointer items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-slate-700/60"
-                >
-                    {isExpanded ? (
-                        <>
-                            <FaChevronUp className="h-4 w-4" />
-                            Hide
-                        </>
-                    ) : (
-                        <>
-                            <FaChevronDown className="h-4 w-4" />
-                            Show
-                        </>
-                    )}
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={clearLogs}
+                        disabled={controlLogs.length === 0}
+                        className={`rounded-lg px-3 py-2 text-sm font-medium transition-all ${
+                            controlLogs.length === 0
+                                ? 'cursor-not-allowed bg-slate-800 text-slate-500'
+                                : 'cursor-pointer bg-slate-700 text-white hover:bg-slate-700/60'
+                        }`}
+                    >
+                        Clear
+                    </button>
+                    <button
+                        onClick={() => setIsExpanded(!isExpanded)}
+                        className="flex cursor-pointer items-center gap-2 rounded-lg bg-slate-700 px-3 py-2 text-sm font-medium text-white transition-all hover:bg-slate-700/60"
+                    >
+                        {isExpanded ? (
+                            <>
+                                <FaChevronUp className="h-4 w-4" />
+                                Hide
+                            </>
+                        ) : (
+                            <>
+                                <FaChevronDown className="h-4 w-4" />
+                                Show
+                            </>
+                        )}
+                    </button>
+                </div>
             </div>
 
             {isExpanded && (
@@ -100,7 +115,7 @@ export const RobotKioskLogs = ({ isControlling, nickname }: RobotKioskLogsProps)
                                 ))
                             ) : (
                                 <div className="text-sm text-slate-400">
-                                    {isControlling ? 'Waiting for host output...' : 'Robot host is not running yet'}
+                                    {isActive ? 'Waiting for host output...' : 'Robot host is not running yet'}
                                 </div>
                             )}
                         </div>

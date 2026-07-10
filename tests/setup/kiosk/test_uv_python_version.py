@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -27,51 +26,62 @@ def _create_fake_lerobot_setup_tree(project_root: Path) -> None:
     (setup_dir / "setup.py").write_text("# fake lerobot setup file\n")
 
 
-def _patch_loader(monkeypatch, captured: dict) -> None:
-    class _FakeLoader:
-        def exec_module(self, module):
-            def fake_setup(*, desktop=False):
-                captured["desktop"] = desktop
-                captured["uv_python_during_setup"] = os.environ.get("UV_PYTHON")
-                return True
-
-            module.setup = fake_setup
-
-    fake_spec = SimpleNamespace(loader=_FakeLoader())
-    monkeypatch.setattr(
-        setup_python_module.importlib.util,
-        "spec_from_file_location",
-        lambda *_args, **_kwargs: fake_spec,
-    )
-    monkeypatch.setattr(
-        setup_python_module.importlib.util,
-        "module_from_spec",
-        lambda _spec: SimpleNamespace(),
-    )
-
-
-def test_setup_python_environment_sets_uv_python_to_312(monkeypatch, tmp_path):
+def test_setup_python_environment_passes_uv_python_and_desktop_flag(monkeypatch, tmp_path):
     _create_fake_lerobot_setup_tree(tmp_path)
     captured = {}
-    _patch_loader(monkeypatch, captured)
-    monkeypatch.delenv("UV_PYTHON", raising=False)
+
+    monkeypatch.setattr(
+        setup_python_module,
+        "find_user_binary",
+        lambda binary_name, _search_dirs: Path("/tmp/uv") if binary_name == "uv" else None,
+    )
+
+    def fake_run(command, cwd, env_overrides):
+        captured["command"] = command
+        captured["cwd"] = cwd
+        captured["env_overrides"] = dict(env_overrides)
+        return SimpleNamespace(returncode=0)
 
     manager = PythonSetupManager(tmp_path, _noop, _noop, _noop, _noop)
+    monkeypatch.setattr(manager, "_run_command_as_real_user", fake_run)
+
     assert manager.setup_python_environment(desktop=True) is True
 
-    assert captured["desktop"] is True
-    assert captured["uv_python_during_setup"] == UV_VENV_PYTHON_VERSION
-    assert "UV_PYTHON" not in os.environ
+    assert captured["command"] == [
+        sys.executable,
+        str(tmp_path / "modules" / "lerobot-vulcan" / "setup" / "setup.py"),
+        "--desktop",
+    ]
+    assert captured["cwd"] == tmp_path / "modules" / "lerobot-vulcan"
+    assert captured["env_overrides"]["UV_PYTHON"] == UV_VENV_PYTHON_VERSION
+    assert Path(captured["env_overrides"]["SOURCCEY_UV_BIN"]) == Path("/tmp/uv")
 
 
-def test_setup_python_environment_restores_existing_uv_python(monkeypatch, tmp_path):
+def test_setup_python_environment_omits_desktop_flag_when_not_requested(monkeypatch, tmp_path):
     _create_fake_lerobot_setup_tree(tmp_path)
     captured = {}
-    _patch_loader(monkeypatch, captured)
-    monkeypatch.setenv("UV_PYTHON", "3.11")
+
+    monkeypatch.setattr(
+        setup_python_module,
+        "find_user_binary",
+        lambda *_args, **_kwargs: None,
+    )
+
+    def fake_run(command, cwd, env_overrides):
+        captured["command"] = command
+        captured["cwd"] = cwd
+        captured["env_overrides"] = dict(env_overrides)
+        return SimpleNamespace(returncode=0)
 
     manager = PythonSetupManager(tmp_path, _noop, _noop, _noop, _noop)
+    monkeypatch.setattr(manager, "_run_command_as_real_user", fake_run)
+
     assert manager.setup_python_environment() is True
 
-    assert captured["uv_python_during_setup"] == UV_VENV_PYTHON_VERSION
-    assert os.environ["UV_PYTHON"] == "3.11"
+    assert captured["command"] == [
+        sys.executable,
+        str(tmp_path / "modules" / "lerobot-vulcan" / "setup" / "setup.py"),
+    ]
+    assert captured["cwd"] == tmp_path / "modules" / "lerobot-vulcan"
+    assert captured["env_overrides"]["UV_PYTHON"] == UV_VENV_PYTHON_VERSION
+    assert "SOURCCEY_UV_BIN" not in captured["env_overrides"]

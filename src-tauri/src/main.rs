@@ -57,6 +57,7 @@ use modules::control::controllers::kiosk_control::manual_drive_controller::{
     init_kiosk_manual_drive, set_kiosk_manual_drive_keys, start_kiosk_manual_drive,
     stop_kiosk_manual_drive,
 };
+use modules::control::controllers::kiosk_control::torque_controller::untorque_kiosk_robot_arms;
 use modules::control::controllers::kiosk_control::pairing_controller::{
     get_kiosk_cloud_pairing_info, get_kiosk_cloud_pairing_status, init_kiosk_pairing,
 };
@@ -80,6 +81,7 @@ use modules::settings::controllers::access_point::access_point_controller::{
     get_access_point_credentials, is_access_point_active, save_access_point_credentials,
     set_access_point,
 };
+use modules::settings::controllers::desktop_auth_controller::desktop_login_via_studio;
 use modules::settings::controllers::desktop_environment::desktop_environment_controller::{
     get_desktop_environment_settings, save_desktop_environment_settings,
 };
@@ -114,17 +116,45 @@ struct SimpleVersion {
     patch: u64,
 }
 
-fn parse_simple_version(value: &str) -> Option<SimpleVersion> {
-    let normalized = value.trim().trim_start_matches('v');
-    let core = normalized
-        .split(['-', '+'])
-        .next()
-        .unwrap_or(normalized)
-        .trim();
-    if core.is_empty() {
+fn extract_version_core(value: &str) -> Option<&str> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
         return None;
     }
 
+    let normalized = trimmed
+        .strip_prefix('v')
+        .or_else(|| trimmed.strip_prefix('V'))
+        .unwrap_or(trimmed);
+    let start = normalized.find(|ch: char| ch.is_ascii_digit())?;
+    let candidate = &normalized[start..];
+    let end = candidate
+        .find(|ch: char| !ch.is_ascii_digit() && ch != '.')
+        .unwrap_or(candidate.len());
+    let core = candidate[..end].trim_matches('.');
+    if core.is_empty() {
+        None
+    } else {
+        Some(core)
+    }
+}
+
+fn parse_numeric_version_segments(value: &str) -> Option<Vec<u64>> {
+    let core = extract_version_core(value)?;
+    let segments = core
+        .split('.')
+        .map(str::trim)
+        .map(|segment| segment.parse::<u64>().ok())
+        .collect::<Option<Vec<_>>>()?;
+    if segments.is_empty() {
+        None
+    } else {
+        Some(segments)
+    }
+}
+
+fn parse_simple_version(value: &str) -> Option<SimpleVersion> {
+    let core = extract_version_core(value)?;
     let mut parts = core.split('.');
     let major = parts.next()?.parse::<u64>().ok()?;
     let minor = parts.next()?.parse::<u64>().ok()?;
@@ -143,7 +173,23 @@ fn parse_simple_version(value: &str) -> Option<SimpleVersion> {
 fn is_target_newer_version(current: &str, target: &str) -> bool {
     match (parse_simple_version(current), parse_simple_version(target)) {
         (Some(current_version), Some(target_version)) => target_version > current_version,
-        _ => target.trim() != current.trim(),
+        _ => match (
+            parse_numeric_version_segments(current),
+            parse_numeric_version_segments(target),
+        ) {
+            (Some(current_segments), Some(target_segments)) => {
+                let max_len = current_segments.len().max(target_segments.len());
+                for index in 0..max_len {
+                    let current_part = current_segments.get(index).copied().unwrap_or(0);
+                    let target_part = target_segments.get(index).copied().unwrap_or(0);
+                    if target_part != current_part {
+                        return target_part > current_part;
+                    }
+                }
+                false
+            }
+            _ => target.trim() != current.trim(),
+        },
     }
 }
 
@@ -616,6 +662,7 @@ fn main() {
             start_kiosk_manual_drive,
             set_kiosk_manual_drive_keys,
             stop_kiosk_manual_drive,
+            untorque_kiosk_robot_arms,
             get_system_info,
             get_pi_username,
             set_pi_password,
@@ -636,6 +683,7 @@ fn main() {
             is_access_point_active,
             get_access_point_credentials,
             save_access_point_credentials,
+            desktop_login_via_studio,
             get_desktop_environment_settings,
             save_desktop_environment_settings,
             get_kiosk_environment_settings,

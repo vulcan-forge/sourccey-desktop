@@ -303,3 +303,30 @@ fn uv_venv_args_pin_python_312() {
         ["venv", "--clear", "--python", "3.12"]
     );
 }
+
+#[test]
+fn uv_pip_install_args_target_specific_python_and_extra() {
+    #[cfg(windows)]
+    let python_path = Path::new("C:\\venv\\Scripts\\python.exe");
+    #[cfg(not(windows))]
+    let python_path = Path::new("/tmp/venv/bin/python");
+
+    let mut expected = vec![
+        "pip".to_string(),
+        "install".to_string(),
+        "--python".to_string(),
+        python_path.to_string_lossy().to_string(),
+    ];
+    #[cfg(windows)]
+    {
+        expected.push("--only-binary".to_string());
+        expected.push("numpy".to_string());
+    }
+    expected.push("-e".to_string());
+    expected.push(".[sourccey-desktop,xvla]".to_string());
+
+    assert_eq!(
+        LocalSetupService::uv_pip_install_args(python_path, Some("sourccey-desktop,xvla")),
+        expected
+    );
+}

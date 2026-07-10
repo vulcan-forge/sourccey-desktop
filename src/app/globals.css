@@ -100,11 +100,4 @@ body {
         position: absolute;
         right: 0;
     }
-
-    /* Hide the floating Google reCAPTCHA badge */
-    .grecaptcha-badge {
-        opacity: 0 !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-    }
 }

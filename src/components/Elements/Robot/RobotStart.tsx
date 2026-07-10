@@ -8,6 +8,7 @@ type RobotStartSectionProps = {
     isRobotStarted: boolean;
     isStarting: boolean;
     isStopping: boolean;
+    logsActive?: boolean;
     onStartAction: () => void;
     onStopAction: () => void;
 };
@@ -17,6 +18,7 @@ export const RobotStartSection = ({
     isRobotStarted,
     isStarting,
     isStopping,
+    logsActive,
     onStartAction,
     onStopAction,
 }: RobotStartSectionProps) => {
@@ -36,7 +38,7 @@ export const RobotStartSection = ({
                 <button
                     onClick={isRobotStarted ? onStopAction : onStartAction}
                     disabled={isStarting || isStopping}
-                    className={`inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl px-12 py-2 text-lg transition-all ${
+                    className={`inline-flex min-h-12 w-full items-center justify-center gap-3 rounded-xl px-6 py-2 text-lg transition-all ${
                         isStarting || isStopping
                             ? 'cursor-not-allowed bg-gray-500 text-gray-300 opacity-60'
                             : isRobotStarted
@@ -66,7 +68,7 @@ export const RobotStartSection = ({
                 </button>
             </div>
 
-            <RobotKioskLogs isControlling={isRobotStarted || isStarting || isStopping} nickname={nickname} />
+            <RobotKioskLogs isActive={logsActive ?? (isRobotStarted || isStarting || isStopping)} nickname={nickname} />
         </div>
     );
 };

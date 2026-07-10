@@ -2,6 +2,7 @@ use crate::modules::ai_model::models::ai_model::{
     ActiveModel as AiModelActiveModel, AiModel, AiModelColumn, Entity as AiModelEntity,
 };
 use crate::services::directory::directory_service::DirectoryService;
+use crate::utils::windows_process::configure_std_command;
 use crate::utils::pagination::{PaginatedResponse, PaginationParameters};
 use chrono::Utc;
 use sea_orm::*;
@@ -413,14 +414,18 @@ finally:
             }),
         );
 
-        let mut child = Command::new(python_path)
+        let mut command = Command::new(python_path);
+        command
             .arg("-u")
             .arg("-c")
             .arg(downloader_script)
             .arg(repo_id)
             .arg(model_path.to_string_lossy().to_string())
             .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
+            .stderr(Stdio::piped());
+        configure_std_command(&mut command);
+
+        let mut child = command
             .spawn()
             .map_err(|e| format!("Failed to launch model download process: {}", e))?;
 

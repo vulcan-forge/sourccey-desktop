@@ -27,7 +27,7 @@ from setup_python import PythonSetupManager  # type: ignore
 from setup_rust import RustSetupManager  # type: ignore
 
 LEROBOT_VULCAN_SUBMODULE_PATH = "modules/lerobot-vulcan"
-LEROBOT_VULCAN_TAG = "vulcan/0.1.6"
+LEROBOT_VULCAN_TAG = "vulcan/0.1.8"
 
 
 class Colors:
@@ -385,7 +385,7 @@ class SetupScript:
             print()
 
         if self.warnings:
-            self.print_warning(f"Setup completed with {len(self.warnings)} warning(s):")
+            print(f"{Colors.YELLOW}[WARNING]{Colors.NC} Setup completed with {len(self.warnings)} warning(s):")
             for warning in self.warnings:
                 print(f"  - {warning}")
             print()

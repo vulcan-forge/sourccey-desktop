@@ -37,30 +37,12 @@ export const KioskTopNavbar = () => {
     const [isWiFiModalOpen, setIsWiFiModalOpen] = useState(false);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
     const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
-    const [isFetchingCreds, setIsFetchingCreds] = useState(false);
-    const [piCredentials, setPiCredentials] = useState({ username: '...', password: '...' });
 
     const { data: systemInfo }: any = useGetSystemInfo();
     const { data: kioskUpdateStatus } = useKioskUpdateStatus({ enabled: shouldCheckUpdates });
     const { data: desktopAppUpdateStatus } = useDesktopAppUpdateStatus({ enabled: shouldCheckUpdates });
     const hasConfirmedUpdate = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable || desktopAppUpdateStatus?.updateAvailable);
     const isSystemInfoLoading = !hasLoadedSystemInfo(systemInfo);
-
-    // Fetch Raspberry Pi credentials when opening the modal
-    const handleOpenCreds = async () => {
-        setIsCredsModalOpen(true);
-        setIsFetchingCreds(true);
-        try {
-            // Expected to be implemented in Tauri backend; provide graceful fallback on non-Linux
-            const creds = await invoke<{ username: string; password: string }>('get_pi_credentials');
-            setPiCredentials({ username: creds.username, password: creds.password });
-        } catch (error) {
-            console.warn('Could not fetch Raspberry Pi credentials. Falling back to placeholders.', error);
-            setPiCredentials({ username: 'unknown', password: 'unknown' });
-        } finally {
-            setIsFetchingCreds(false);
-        }
-    };
 
     useEffect(() => {
         const fetchSystemInfo = async () => {
@@ -169,7 +151,7 @@ export const KioskTopNavbar = () => {
 
                         {/* Connect Details button - kiosk mode */}
                         <button
-                            onClick={handleOpenCreds}
+                            onClick={() => setIsCredsModalOpen(true)}
                             className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-slate-600/60 px-4 py-2 text-sm font-semibold text-slate-300 transition-all duration-300 hover:bg-slate-600/80 hover:text-white"
                             title="Show Connection Details"
                         >
@@ -235,8 +217,6 @@ export const KioskTopNavbar = () => {
                 isOpen={isCredsModalOpen}
                 onClose={() => setIsCredsModalOpen(false)}
                 systemInfo={systemInfo}
-                piCredentials={piCredentials}
-                isFetchingCreds={isFetchingCreds}
             />
         </nav>
     );
