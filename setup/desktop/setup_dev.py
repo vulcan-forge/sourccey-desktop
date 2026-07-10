@@ -10,33 +10,186 @@ from __future__ import annotations
 
 import argparse
 import os
+import platform
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
 
+if not hasattr(os, "geteuid"):
+    os.geteuid = lambda: 1  # type: ignore[attr-defined]
+
 project_root = Path(__file__).resolve().parents[2]
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
-from setup.desktop.setup import (  # type: ignore
-    Colors,
-    LEROBOT_VULCAN_SUBMODULE_PATH,
-    LEROBOT_VULCAN_TAG,
-    SetupScript,
-)
+from setup.shared.setup_git import GitSetupManager  # type: ignore
+from setup.shared.setup_javascript import JavaScriptSetupManager  # type: ignore
+from setup.shared.setup_python import PythonSetupManager  # type: ignore
+from setup.shared.setup_rust import RustSetupManager  # type: ignore
 from setup.shared.setup_helper import wrap_command  # type: ignore
 from setup.shared.setup_javascript import get_bun_path  # type: ignore
 
+LEROBOT_VULCAN_SUBMODULE_PATH = "modules/lerobot-vulcan"
+LEROBOT_VULCAN_TAG = "vulcan/0.1.9"
 
-class DesktopDevSetupScript(SetupScript):
+
+class Colors:
+    """ANSI color codes for terminal output."""
+
+    SUPPORTS_COLOR = (
+        hasattr(sys.stdout, "isatty")
+        and sys.stdout.isatty()
+        and os.environ.get("TERM") != "dumb"
+        and os.environ.get("NO_COLOR") is None
+    )
+    RED = "\033[0;31m" if SUPPORTS_COLOR else ""
+    GREEN = "\033[0;32m" if SUPPORTS_COLOR else ""
+    YELLOW = "\033[1;33m" if SUPPORTS_COLOR else ""
+    BLUE = "\033[0;34m" if SUPPORTS_COLOR else ""
+    CYAN = "\033[0;36m" if SUPPORTS_COLOR else ""
+    NC = "\033[0m" if SUPPORTS_COLOR else ""
+
+
+class DesktopDevSetupScript:
     """Developer-focused desktop setup that can launch Tauri dev mode."""
 
     LINUX_INOTIFY_LIMITS = {
         "max_user_watches": 524288,
         "max_user_instances": 1024,
     }
+
+    def __init__(self):
+        self.project_root = project_root
+        self.errors: list[str] = []
+        self.warnings: list[str] = []
+        self.system = platform.system()
+        callbacks = (
+            self.print_status,
+            self.print_success,
+            self.print_warning,
+            self.print_error,
+        )
+        self.python_manager = PythonSetupManager(self.project_root, *callbacks)
+        self.javascript_manager = JavaScriptSetupManager(self.project_root, *callbacks)
+        self.rust_manager = RustSetupManager(self.project_root, *callbacks)
+        self.git_manager = GitSetupManager(self.project_root, *callbacks)
+
+    def print_status(self, message: str, color: str = Colors.BLUE):
+        print(f"{color}[INFO]{Colors.NC} {message}")
+
+    def print_success(self, message: str):
+        print(f"{Colors.GREEN}[SUCCESS]{Colors.NC} {message}")
+
+    def print_warning(self, message: str):
+        print(f"{Colors.YELLOW}[WARNING]{Colors.NC} {message}")
+        self.warnings.append(message)
+
+    def print_error(self, message: str):
+        print(f"{Colors.RED}[ERROR]{Colors.NC} {message}")
+        self.errors.append(message)
+
+    def print_header(self, message: str):
+        print(f"\n{Colors.CYAN}{'=' * 60}{Colors.NC}")
+        print(f"{Colors.CYAN}{message.center(60)}{Colors.NC}")
+        print(f"{Colors.CYAN}{'=' * 60}{Colors.NC}\n")
+
+    def check_project_structure(self) -> bool:
+        required = ["package.json", "src-tauri/Cargo.toml", "src", "src-tauri"]
+        missing = [item for item in required if not (self.project_root / item).exists()]
+        if missing:
+            for item in missing:
+                self.print_error(f"Missing project path: {item}")
+            return False
+        (self.project_root / "modules").mkdir(parents=True, exist_ok=True)
+        self.print_success("Project structure is correct")
+        return True
+
+    def check_python_version(self) -> bool:
+        return self.python_manager.check_python_version()
+
+    def check_git(self) -> bool:
+        return self.git_manager.check_git_installed()
+
+    def ensure_uv(self) -> bool:
+        return self.python_manager.ensure_uv()
+
+    def ensure_bun(self) -> bool:
+        return self.javascript_manager.ensure_bun()
+
+    def ensure_rust(self) -> bool:
+        return self.rust_manager.ensure_rust()
+
+    def setup_git_submodules(self, use_https: bool = False) -> bool:
+        return self.git_manager.setup_git_submodules(use_https=use_https)
+
+    def setup_python_environment(self) -> bool:
+        return self.python_manager.setup_python_environment(desktop=True)
+
+    def setup_bun_packages(self) -> bool:
+        return self.javascript_manager.install_packages()
+
+    def _linux_packages(self) -> tuple[Optional[str], list[str]]:
+        packages = {
+            "apt-get": ["build-essential", "pkg-config", "libssl-dev", "libglib2.0-dev", "libgtk-3-dev", "libayatana-appindicator3-dev", "libsoup-3.0-dev", "librsvg2-dev", "libwebkit2gtk-4.1-dev", "patchelf"],
+            "dnf": ["gcc", "gcc-c++", "make", "pkgconf-pkg-config", "openssl-devel", "glib2-devel", "gtk3-devel", "libappindicator-gtk3-devel", "libsoup3-devel", "librsvg2-devel", "webkit2gtk4.1-devel", "patchelf"],
+            "yum": ["gcc", "gcc-c++", "make", "pkgconf-pkg-config", "openssl-devel", "glib2-devel", "gtk3-devel", "libappindicator-gtk3-devel", "libsoup3-devel", "librsvg2-devel", "webkit2gtk4.1-devel", "patchelf"],
+            "pacman": ["base-devel", "pkgconf", "openssl", "glib2", "gtk3", "libappindicator-gtk3", "libsoup3", "librsvg", "webkit2gtk-4.1", "patchelf"],
+            "zypper": ["gcc", "gcc-c++", "make", "pkgconf-pkg-config", "libopenssl-devel", "glib2-devel", "gtk3-devel", "libayatana-appindicator3-devel", "libsoup-3_0-devel", "librsvg-devel", "webkit2gtk3-devel", "patchelf"],
+        }
+        for manager, names in packages.items():
+            if shutil.which(manager):
+                return manager, names
+        return None, []
+
+    def _missing_linux_dependencies(self) -> list[str]:
+        pkg_config = shutil.which("pkg-config")
+        if not pkg_config:
+            return ["pkg-config"]
+        requirements = [
+            ("openssl", None), ("glib-2.0", "2.70"), ("gtk+-3.0", None),
+            ("webkit2gtk-4.1", None), ("javascriptcoregtk-4.1", None),
+            ("libsoup-3.0", None),
+        ]
+        missing = []
+        for module, minimum in requirements:
+            command = [pkg_config, "--exists"]
+            if minimum:
+                command.append(f"--atleast-version={minimum}")
+            command.append(module)
+            if subprocess.run(command, check=False).returncode != 0:
+                missing.append(module)
+        return missing
+
+    def ensure_linux_tauri_prerequisites(self) -> bool:
+        if self.system != "Linux":
+            return True
+        missing = self._missing_linux_dependencies()
+        if not missing:
+            self.print_success("Linux build dependencies are installed")
+            return True
+        manager, packages = self._linux_packages()
+        if not manager:
+            self.print_error(f"Missing Linux dependencies: {', '.join(missing)}")
+            return False
+        if manager == "pacman":
+            command = [manager, "-Sy", "--noconfirm", "--needed", *packages]
+        elif manager == "zypper":
+            command = [manager, "--non-interactive", "install", "--no-recommends", *packages]
+        else:
+            command = [manager, "install", "-y", *packages]
+        if hasattr(os, "geteuid") and os.geteuid() != 0:
+            command.insert(0, "sudo")
+        try:
+            subprocess.run(command, check=True)
+        except (OSError, subprocess.CalledProcessError) as exc:
+            self.print_error(f"Failed to install Linux dependencies: {exc}")
+            return False
+        if self._missing_linux_dependencies():
+            self.print_error("Some Linux build dependencies are still unavailable")
+            return False
+        return True
 
     def current_python_command(self) -> str:
         """Return a friendly Python command name for rerun instructions."""
