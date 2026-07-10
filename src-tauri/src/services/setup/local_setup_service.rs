@@ -229,7 +229,9 @@ impl LocalSetupService {
         if !marker_path.exists() {
             missing.push("desktop extras marker".to_string());
         }
-        if Self::python_path_is_usable(&python_path) && !Self::python_can_import(&python_path, "transformers") {
+        if Self::python_path_is_usable(&python_path)
+            && !Self::python_can_import(&python_path, "transformers")
+        {
             missing.push("xvla bindings".to_string());
         }
 
@@ -285,7 +287,11 @@ impl LocalSetupService {
         let latest_commit = latest_release
             .as_ref()
             .and_then(|release| release.commit_sha.clone())
-            .or_else(|| manifest_release.as_ref().and_then(|release| release.commit.clone()));
+            .or_else(|| {
+                manifest_release
+                    .as_ref()
+                    .and_then(|release| release.commit.clone())
+            });
         let (state, message) = Self::resolve_lerobot_release_state(
             &current_release,
             latest_release.as_ref(),
@@ -443,7 +449,8 @@ impl LocalSetupService {
                 Some("Verifying XVLA bindings".to_string()),
             );
             if !Self::python_can_import(&python_path, "transformers") {
-                let message = "XVLA bindings missing. Ensure xvla extras are installed.".to_string();
+                let message =
+                    "XVLA bindings missing. Ensure xvla extras are installed.".to_string();
                 Self::emit_step(
                     Some(&emit),
                     "xvla",
@@ -1371,12 +1378,12 @@ impl LocalSetupService {
             Some(extra),
             label.as_str(),
         )
-            .map_err(|error| {
-                format!(
-                    "Failed to install lerobot-vulcan package `{}': {}",
-                    extra, error
-                )
-            })
+        .map_err(|error| {
+            format!(
+                "Failed to install lerobot-vulcan package `{}': {}",
+                extra, error
+            )
+        })
     }
 
     fn uv_pip_install_args(python_path: &Path, extras: Option<&str>) -> Vec<String> {
@@ -1418,12 +1425,7 @@ impl LocalSetupService {
             return Ok(python_path);
         }
 
-        Self::emit_step(
-            emit,
-            "venv",
-            "started",
-            Some(repair_message.to_string()),
-        );
+        Self::emit_step(emit, "venv", "started", Some(repair_message.to_string()));
         Self::remove_virtual_env_dir(lerobot_dir)?;
         let venv_args = Self::uv_venv_args();
         Self::run_command(uv_target, &venv_args, lerobot_dir, "uv venv")?;
@@ -1868,7 +1870,9 @@ impl LocalSetupService {
         }
         #[cfg(not(windows))]
         {
-            Self::virtual_env_dir_for(lerobot_dir).join("bin").join("python")
+            Self::virtual_env_dir_for(lerobot_dir)
+                .join("bin")
+                .join("python")
         }
     }
 

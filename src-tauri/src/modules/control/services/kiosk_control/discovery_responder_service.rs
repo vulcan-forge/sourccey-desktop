@@ -30,7 +30,12 @@ impl KioskDiscoveryResponderService {
             .map_err(|e| format!("Failed to bind kiosk discovery responder socket: {}", e))?;
         socket
             .set_read_timeout(Some(Duration::from_millis(DISCOVERY_READ_TIMEOUT_MS)))
-            .map_err(|e| format!("Failed to configure kiosk discovery responder timeout: {}", e))?;
+            .map_err(|e| {
+                format!(
+                    "Failed to configure kiosk discovery responder timeout: {}",
+                    e
+                )
+            })?;
 
         thread::spawn(move || {
             let mut buf = [0_u8; 1024];
@@ -42,10 +47,9 @@ impl KioskDiscoveryResponderService {
                             continue;
                         }
 
-                        let payload =
-                            Self::build_discovery_response_payload(
-                                KioskHostService::is_any_kiosk_host_active(&host_state),
-                            );
+                        let payload = Self::build_discovery_response_payload(
+                            KioskHostService::is_any_kiosk_host_active(&host_state),
+                        );
                         let _ = socket.send_to(&payload, address);
                     }
                     Err(error) => {

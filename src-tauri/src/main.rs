@@ -27,11 +27,11 @@ use modules::log::controllers::command_log_controller::{
     add_command_log, delete_all_command_logs, delete_command_log, get_command_log,
     get_command_logs_paginated, update_command_log,
 };
+use modules::robot::controllers::discovery_controller::discover_lan_robots;
 use modules::robot::controllers::owned_robot_controller::{
     add_owned_robot, delete_owned_robot, get_owned_robot_by_id, get_owned_robot_by_nickname,
     get_owned_robots, update_owned_robot_nickname,
 };
-use modules::robot::controllers::discovery_controller::discover_lan_robots;
 use modules::robot::controllers::robot_controller::{
     get_all_robots, get_robot_by_id, upsert_robot_template,
 };
@@ -57,10 +57,10 @@ use modules::control::controllers::kiosk_control::manual_drive_controller::{
     init_kiosk_manual_drive, set_kiosk_manual_drive_keys, start_kiosk_manual_drive,
     stop_kiosk_manual_drive,
 };
-use modules::control::controllers::kiosk_control::torque_controller::untorque_kiosk_robot_arms;
 use modules::control::controllers::kiosk_control::pairing_controller::{
     get_kiosk_cloud_pairing_info, get_kiosk_cloud_pairing_status, init_kiosk_pairing,
 };
+use modules::control::controllers::kiosk_control::torque_controller::untorque_kiosk_robot_arms;
 use modules::control::controllers::remote_control::remote_inference_controller::{
     init_remote_inference, start_remote_inference, stop_remote_inference,
 };
@@ -73,10 +73,10 @@ use modules::control::controllers::remote_control::remote_rollout_controller::{
 use modules::control::controllers::remote_control::remote_teleop_controller::{
     init_remote_teleop, set_remote_teleop_keys, start_remote_teleop, stop_remote_teleop,
 };
+use modules::control::services::kiosk_control::discovery_responder_service::KioskDiscoveryResponderService;
 use modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
 };
-use modules::control::services::kiosk_control::discovery_responder_service::KioskDiscoveryResponderService;
 use modules::settings::controllers::access_point::access_point_controller::{
     get_access_point_credentials, is_access_point_active, save_access_point_credentials,
     set_access_point,
@@ -88,11 +88,11 @@ use modules::settings::controllers::desktop_environment::desktop_environment_con
 use modules::settings::controllers::kiosk_environment::kiosk_environment_controller::{
     get_kiosk_environment_settings, save_kiosk_environment_settings,
 };
-use modules::settings::services::desktop_environment::desktop_environment_service::DesktopEnvironmentService;
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
     set_wifi,
 };
+use modules::settings::services::desktop_environment::desktop_environment_service::DesktopEnvironmentService;
 use modules::status::controllers::battery::battery_controller::get_battery_data;
 
 use tauri_plugin_process::init;

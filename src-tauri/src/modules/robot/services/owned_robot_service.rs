@@ -1,12 +1,12 @@
 #![allow(dead_code)]
 
+use crate::modules::control::services::configuration::calibration_service::CalibrationService;
+use crate::modules::control::services::configuration::configuration_service::ConfigurationService;
 use crate::modules::robot::models::owned_robot::{
     ActiveOwnedRobot, Entity as OwnedRobotEntity, OwnedRobot, OwnedRobotColumn,
     OwnedRobotWithRelations,
 };
 use crate::modules::robot::models::robot::Entity as RobotEntity;
-use crate::modules::control::services::configuration::configuration_service::ConfigurationService;
-use crate::modules::control::services::configuration::calibration_service::CalibrationService;
 use sea_orm::*;
 
 pub struct OwnedRobotService {
@@ -118,7 +118,10 @@ impl OwnedRobotService {
         let mut active_model: ActiveOwnedRobot = owned_robot.into();
         active_model.nickname = Set(Some(trimmed_nickname));
         active_model.updated_at = Set(Some(chrono::Utc::now()));
-        active_model.update(&self.connection).await.map_err(|e| e.to_string())
+        active_model
+            .update(&self.connection)
+            .await
+            .map_err(|e| e.to_string())
     }
 
     //----------------------------------------------------------//

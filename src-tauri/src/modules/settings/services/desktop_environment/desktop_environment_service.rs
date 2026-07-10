@@ -160,13 +160,13 @@ impl DesktopEnvironmentService {
         let environment = DesktopEnvironment::parse(&persisted.environment)?;
         let (custom_graphql_api_url, custom_studio_web_url, custom_updater_manifest_url) =
             match environment {
-            DesktopEnvironment::Local => Self::normalize_local_urls(
-                Some(&persisted.custom_graphql_api_url),
-                Some(&persisted.custom_studio_web_url),
-                Some(&persisted.custom_updater_manifest_url),
-            )?,
-            _ => Self::default_local_urls(),
-        };
+                DesktopEnvironment::Local => Self::normalize_local_urls(
+                    Some(&persisted.custom_graphql_api_url),
+                    Some(&persisted.custom_studio_web_url),
+                    Some(&persisted.custom_updater_manifest_url),
+                )?,
+                _ => Self::default_local_urls(),
+            };
 
         Ok(Self::resolve_settings(
             environment,
@@ -181,26 +181,27 @@ impl DesktopEnvironmentService {
         path: &Path,
         request: SaveDesktopEnvironmentSettingsRequest,
     ) -> Result<DesktopEnvironmentSettings, String> {
-        let existing_settings = Self::get_settings_from_path(path).unwrap_or_else(|_| Self::default_settings());
+        let existing_settings =
+            Self::get_settings_from_path(path).unwrap_or_else(|_| Self::default_settings());
         let environment = DesktopEnvironment::parse(&request.environment)?;
         let (custom_graphql_api_url, custom_studio_web_url, custom_updater_manifest_url) =
             match environment {
-            DesktopEnvironment::Local => Self::normalize_local_urls(
-                request
-                    .custom_graphql_api_url
-                    .as_deref()
-                    .or(Some(existing_settings.custom_graphql_api_url.as_str())),
-                request
-                    .custom_studio_web_url
-                    .as_deref()
-                    .or(Some(existing_settings.custom_studio_web_url.as_str())),
-                request
-                    .custom_updater_manifest_url
-                    .as_deref()
-                    .or(Some(existing_settings.custom_updater_manifest_url.as_str())),
-            )?,
-            _ => Self::default_local_urls(),
-        };
+                DesktopEnvironment::Local => Self::normalize_local_urls(
+                    request
+                        .custom_graphql_api_url
+                        .as_deref()
+                        .or(Some(existing_settings.custom_graphql_api_url.as_str())),
+                    request
+                        .custom_studio_web_url
+                        .as_deref()
+                        .or(Some(existing_settings.custom_studio_web_url.as_str())),
+                    request
+                        .custom_updater_manifest_url
+                        .as_deref()
+                        .or(Some(existing_settings.custom_updater_manifest_url.as_str())),
+                )?,
+                _ => Self::default_local_urls(),
+            };
         let teleop_log_level = Self::normalize_teleop_log_level(
             request
                 .teleop_log_level

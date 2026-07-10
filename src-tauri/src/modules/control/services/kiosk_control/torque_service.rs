@@ -114,10 +114,7 @@ impl KioskTorqueService {
 
         if !output.status.success() {
             let message = if stderr.is_empty() {
-                format!(
-                    "Untorque utility exited with status {}.",
-                    output.status
-                )
+                format!("Untorque utility exited with status {}.", output.status)
             } else {
                 format!("Untorque utility failed: {}", stderr)
             };
@@ -172,8 +169,8 @@ mod tests {
 
     #[test]
     fn normalize_nickname_trims_and_strips_at_prefix() {
-        let normalized =
-            KioskTorqueService::normalize_nickname("  @sourccey  ").expect("nickname should normalize");
+        let normalized = KioskTorqueService::normalize_nickname("  @sourccey  ")
+            .expect("nickname should normalize");
         assert_eq!(normalized, "sourccey");
     }
 

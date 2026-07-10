@@ -410,9 +410,7 @@ impl KioskHostService {
 
     fn has_external_kiosk_host_process() -> bool {
         // Externally started (Linux): check for the module name in cmdline.
-        let status = Command::new("pgrep")
-            .args(["-f", "sourccey_host"])
-            .status();
+        let status = Command::new("pgrep").args(["-f", "sourccey_host"]).status();
 
         status.map(|s| s.success()).unwrap_or(false)
     }
@@ -438,7 +436,11 @@ mod tests {
 
         state.0.lock().unwrap().insert(
             "sourccey".to_string(),
-            (child, Arc::new(AtomicBool::new(false)), "test-log".to_string()),
+            (
+                child,
+                Arc::new(AtomicBool::new(false)),
+                "test-log".to_string(),
+            ),
         );
 
         assert!(KioskHostService::is_any_kiosk_host_active(&state));

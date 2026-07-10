@@ -121,7 +121,11 @@ fn broadcast_discover(local_ip: Ipv4Addr) -> Result<Vec<DiscoveredLanRobotHost>,
     }
 
     let mut hosts: Vec<_> = found.into_values().collect();
-    hosts.sort_by_key(|host| parse_ipv4(&host.ip_address).map(|ip| ip.octets()[3]).unwrap_or(255));
+    hosts.sort_by_key(|host| {
+        parse_ipv4(&host.ip_address)
+            .map(|ip| ip.octets()[3])
+            .unwrap_or(255)
+    });
     Ok(hosts)
 }
 
@@ -144,9 +148,7 @@ fn parse_discovery_response(payload: &str, source_ip: IpAddr) -> Option<Discover
         ip_address,
         host_running: parsed.host_running.unwrap_or(true),
         command_port: parsed.command_port.unwrap_or(SOURCCEY_COMMAND_PORT),
-        observation_port: parsed
-            .observation_port
-            .unwrap_or(SOURCCEY_OBSERVATION_PORT),
+        observation_port: parsed.observation_port.unwrap_or(SOURCCEY_OBSERVATION_PORT),
         source: "udp-discovery".to_string(),
         protocol_version: None,
         robot_name: None,

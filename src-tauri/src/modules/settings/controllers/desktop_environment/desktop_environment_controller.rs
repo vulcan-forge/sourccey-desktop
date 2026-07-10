@@ -1,6 +1,5 @@
 use crate::modules::settings::services::desktop_environment::desktop_environment_service::{
-    DesktopEnvironmentService, DesktopEnvironmentSettings,
-    SaveDesktopEnvironmentSettingsRequest,
+    DesktopEnvironmentService, DesktopEnvironmentSettings, SaveDesktopEnvironmentSettingsRequest,
 };
 
 #[tauri::command]

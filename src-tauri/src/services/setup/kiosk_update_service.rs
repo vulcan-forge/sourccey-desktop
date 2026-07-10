@@ -1,6 +1,7 @@
+use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::{Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use lazy_static::lazy_static;
@@ -141,12 +142,14 @@ impl KioskUpdateService {
             Some("Updating lerobot-vulcan submodule".to_string()),
         );
         Self::run_command(
+            app_handle,
             "git",
             &["submodule", "sync", "--recursive"],
             &repo_root,
             "git submodule sync",
         )?;
         Self::run_command(
+            app_handle,
             "git",
             &[
                 "submodule",
@@ -197,7 +200,13 @@ impl KioskUpdateService {
             "started",
             Some("Fetching latest kiosk code".to_string()),
         );
-        Self::run_command("git", &["fetch", "--prune"], &repo_root, "git fetch")?;
+        Self::run_command(
+            app_handle,
+            "git",
+            &["fetch", "--prune"],
+            &repo_root,
+            "git fetch",
+        )?;
         Self::emit_step(Some(&emit), "fetch", "success", None);
 
         Self::emit_step(
@@ -207,6 +216,7 @@ impl KioskUpdateService {
             Some(format!("Resetting to {}", update_ref)),
         );
         Self::run_command(
+            app_handle,
             "git",
             &["reset", "--hard", update_ref.as_str()],
             &repo_root,
@@ -221,12 +231,14 @@ impl KioskUpdateService {
             Some("Updating submodules".to_string()),
         );
         Self::run_command(
+            app_handle,
             "git",
             &["submodule", "sync", "--recursive"],
             &repo_root,
             "git submodule sync",
         )?;
         Self::run_command(
+            app_handle,
             "git",
             &["submodule", "update", "--init", "--recursive"],
             &repo_root,
@@ -240,7 +252,7 @@ impl KioskUpdateService {
             "started",
             Some("Running kiosk setup (this can take 30-40 minutes)".to_string()),
         );
-        Self::run_kiosk_setup(&repo_root)?;
+        Self::run_kiosk_setup(app_handle, &repo_root)?;
         Self::emit_step(Some(&emit), "setup", "success", None);
 
         Self::emit_step(
@@ -252,7 +264,7 @@ impl KioskUpdateService {
         Ok(())
     }
 
-    fn run_kiosk_setup(repo_root: &Path) -> Result<(), String> {
+    fn run_kiosk_setup(app_handle: &AppHandle, repo_root: &Path) -> Result<(), String> {
         let mut command = Command::new("sudo");
         command.args([
             "-n",
@@ -262,40 +274,109 @@ impl KioskUpdateService {
             "--no-clean",
             "--use-https",
         ]);
-        let status = command
-            .current_dir(repo_root)
-            .stdin(Stdio::null())
-            .stdout(Stdio::inherit())
-            .stderr(Stdio::inherit())
-            .status()
-            .map_err(|e| format!("Failed to start kiosk setup: {}", e))?;
+        Self::run_streaming_command(app_handle, &mut command, repo_root, "kiosk setup")
+    }
 
-        if !status.success() {
-            return Err(format!("Kiosk setup failed with status: {}", status));
+    fn run_command(
+        app_handle: &AppHandle,
+        cmd: &str,
+        args: &[&str],
+        cwd: &Path,
+        label: &str,
+    ) -> Result<(), String> {
+        let mut command = Command::new(cmd);
+        command.args(args);
+        Self::run_streaming_command(app_handle, &mut command, cwd, label)
+    }
+
+    fn run_streaming_command(
+        app_handle: &AppHandle,
+        command: &mut Command,
+        cwd: &Path,
+        label: &str,
+    ) -> Result<(), String> {
+        Self::emit_log(app_handle, format!("$ {}", label));
+        let mut child = command
+            .current_dir(cwd)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|e| format!("Failed to start {}: {}", label, e))?;
+
+        let recent_output = Arc::new(Mutex::new(Vec::<String>::new()));
+        let mut readers = Vec::new();
+        if let Some(stdout) = child.stdout.take() {
+            readers.push(Self::stream_pipe(
+                app_handle.clone(),
+                stdout,
+                Arc::clone(&recent_output),
+            ));
+        }
+        if let Some(stderr) = child.stderr.take() {
+            readers.push(Self::stream_pipe(
+                app_handle.clone(),
+                stderr,
+                Arc::clone(&recent_output),
+            ));
         }
 
+        let status = child
+            .wait()
+            .map_err(|e| format!("Failed while waiting for {}: {}", label, e))?;
+        for reader in readers {
+            let _ = reader.join();
+        }
+        if !status.success() {
+            let details = recent_output
+                .lock()
+                .ok()
+                .map(|lines| lines.join("\n"))
+                .unwrap_or_default();
+            return Err(if details.is_empty() {
+                format!("{} failed with status: {}", label, status)
+            } else {
+                format!("{} failed: {}", label, details)
+            });
+        }
+        Self::emit_log(app_handle, format!("{} completed", label));
         Ok(())
     }
 
-    fn run_command(cmd: &str, args: &[&str], cwd: &Path, label: &str) -> Result<(), String> {
-        let output = Command::new(cmd)
-            .args(args)
-            .current_dir(cwd)
-            .output()
-            .map_err(|e| format!("Failed to run {}: {}", label, e))?;
+    fn stream_pipe<R>(
+        app_handle: AppHandle,
+        pipe: R,
+        recent_output: Arc<Mutex<Vec<String>>>,
+    ) -> std::thread::JoinHandle<()>
+    where
+        R: Read + Send + 'static,
+    {
+        std::thread::spawn(move || {
+            for line in BufReader::new(pipe).lines().map_while(Result::ok) {
+                let trimmed = line.trim_end().to_string();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                Self::emit_log(&app_handle, trimmed.clone());
+                if let Ok(mut lines) = recent_output.lock() {
+                    lines.push(trimmed);
+                    if lines.len() > 20 {
+                        lines.remove(0);
+                    }
+                }
+            }
+        })
+    }
 
-        if !output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let details = if !stderr.trim().is_empty() {
-                stderr.trim().to_string()
-            } else {
-                stdout.trim().to_string()
-            };
-            return Err(format!("{} failed: {}", label, details));
-        }
-
-        Ok(())
+    fn emit_log(app_handle: &AppHandle, message: String) {
+        let _ = app_handle.emit(
+            "kiosk:setup-progress",
+            SetupProgress {
+                step: "log".to_string(),
+                status: "log".to_string(),
+                message: Some(message),
+            },
+        );
     }
 
     fn resolve_prefix_env(name: &str, fallback: &str) -> String {

@@ -353,20 +353,14 @@ mod tests {
         let command_parts = RemoteTeleopService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
         assert_eq!(command_parts[1], "lerobot-teleoperate");
-        assert!(
-            command_parts
-                .iter()
-                .any(|part| part == "--robot.type=sourccey_client")
-        );
-        assert!(
-            command_parts
-                .iter()
-                .any(|part| part == "--teleop_keyboard.id=keyboard")
-        );
-        assert!(
-            command_parts
-                .iter()
-                .any(|part| part == "--display_data=false")
-        );
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--robot.type=sourccey_client"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--teleop_keyboard.id=keyboard"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--display_data=false"));
     }
 }

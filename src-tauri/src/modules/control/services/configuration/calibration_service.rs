@@ -93,7 +93,10 @@ impl CalibrationService {
         Ok(Some(since_epoch.as_millis() as u64))
     }
 
-    pub fn rename_nickname_references(old_nickname: &str, new_nickname: &str) -> Result<(), String> {
+    pub fn rename_nickname_references(
+        old_nickname: &str,
+        new_nickname: &str,
+    ) -> Result<(), String> {
         let old_name = Self::normalize_nickname(old_nickname);
         let new_name = Self::normalize_nickname(new_nickname);
         if old_name.is_empty() || old_name == new_name {
@@ -318,7 +321,11 @@ impl CalibrationService {
         }
     }
 
-    fn format_process_output_log_lines(context: &str, stream_name: &str, text: &str) -> Vec<String> {
+    fn format_process_output_log_lines(
+        context: &str,
+        stream_name: &str,
+        text: &str,
+    ) -> Vec<String> {
         text.lines()
             .map(str::trim_end)
             .filter(|line| !line.is_empty())

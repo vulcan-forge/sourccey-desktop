@@ -300,10 +300,8 @@ mod tests {
         let command_parts = RemoteRolloutService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
         assert_eq!(command_parts[1], "lerobot-rollout");
-        assert!(
-            command_parts
-                .iter()
-                .any(|part| part == "--strategy.type=base")
-        );
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--strategy.type=base"));
     }
 }

@@ -650,7 +650,9 @@ impl KioskPairingService {
             .clone()
             .filter(|value| !value.trim().is_empty())
         else {
-            return Err("Cloud pairing claim is missing device_id; skipping credential file update.");
+            return Err(
+                "Cloud pairing claim is missing device_id; skipping credential file update.",
+            );
         };
 
         let Some(owned_robot_id) = state
@@ -668,7 +670,9 @@ impl KioskPairingService {
             .clone()
             .filter(|value| !value.trim().is_empty())
         else {
-            return Err("Cloud pairing claim is missing api_base_url; skipping credential file update.");
+            return Err(
+                "Cloud pairing claim is missing api_base_url; skipping credential file update.",
+            );
         };
 
         let Some(device_auth_token) = state

@@ -2,8 +2,8 @@ use crate::modules::ai_model::models::ai_model::{
     ActiveModel as AiModelActiveModel, AiModel, AiModelColumn, Entity as AiModelEntity,
 };
 use crate::services::directory::directory_service::DirectoryService;
-use crate::utils::windows_process::configure_std_command;
 use crate::utils::pagination::{PaginatedResponse, PaginationParameters};
+use crate::utils::windows_process::configure_std_command;
 use chrono::Utc;
 use sea_orm::*;
 use serde::{Deserialize, Serialize};

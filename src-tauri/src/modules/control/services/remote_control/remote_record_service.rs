@@ -275,7 +275,9 @@ impl RemoteRecordService {
             return Err("Recording requires a dataset repo ID or path.".to_string());
         }
         if config.num_episodes <= 0 {
-            return Err("Recording requires the number of episodes to be greater than 0.".to_string());
+            return Err(
+                "Recording requires the number of episodes to be greater than 0.".to_string(),
+            );
         }
         if config.episode_time_s <= 0.0 {
             return Err("Recording requires episode time to be greater than 0.".to_string());
@@ -351,15 +353,11 @@ mod tests {
         let command_parts = RemoteRecordService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
         assert_eq!(command_parts[1], "lerobot-record");
-        assert!(
-            command_parts
-                .iter()
-                .any(|part| part == "--teleop_keyboard.id=keyboard")
-        );
-        assert!(
-            command_parts
-                .iter()
-                .any(|part| part == "--dataset.push_to_hub=false")
-        );
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--teleop_keyboard.id=keyboard"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--dataset.push_to_hub=false"));
     }
 }

@@ -97,6 +97,12 @@ export default function KioskSetupPage() {
                 }
 
                 const { step, status, message } = event.payload;
+                if (status === 'log') {
+                    if (message) {
+                        appendLog(message);
+                    }
+                    return;
+                }
                 const mapped: StepStatus =
                     status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
                 updateStep(action, step, mapped, message ?? undefined);
@@ -118,7 +124,7 @@ export default function KioskSetupPage() {
                 unlisten();
             }
         };
-    }, [updateStep]);
+    }, [appendLog, updateStep]);
 
     const resetState = (action: ActionKey) => {
         setRunningAction(action);
@@ -318,14 +324,18 @@ export default function KioskSetupPage() {
                                 )}
                             </div>
 
-                            {log.length > 0 && (
+                            {(isRunning || log.length > 0) && (
                                 <div className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 text-xs text-slate-300 shadow-inner">
-                                    <div className="mb-2 text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">Setup log</div>
-                                    <div className="max-h-40 space-y-2 overflow-y-auto">
+                                    <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">
+                                        <span>Live setup log</span>
+                                        {isRunning && <span className="animate-pulse text-amber-300">Running</span>}
+                                    </div>
+                                    <div className="max-h-64 space-y-1 overflow-y-auto font-mono">
+                                        {log.length === 0 && <div className="text-slate-500">Waiting for command output...</div>}
                                         {log.map((line, index) => (
                                             <div
                                                 key={`${line}-${index}`}
-                                                className="rounded-md border border-slate-800/80 bg-slate-950/70 px-3 py-2 text-slate-200"
+                                                className="whitespace-pre-wrap break-words border-b border-slate-800/60 px-2 py-1 text-slate-200 last:border-0"
                                             >
                                                 {line}
                                             </div>

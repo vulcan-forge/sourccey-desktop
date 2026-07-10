@@ -274,7 +274,9 @@ impl RemoteInferenceService {
         }
         if let Some(display_port) = config.display_port {
             if display_port <= 0 {
-                return Err("Inference display port must be greater than 0 when provided.".to_string());
+                return Err(
+                    "Inference display port must be greater than 0 when provided.".to_string(),
+                );
             }
         }
         Ok(())
@@ -330,10 +332,8 @@ mod tests {
         let command_parts = RemoteInferenceService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
         assert_eq!(command_parts[1], "lerobot-inference");
-        assert!(
-            command_parts
-                .iter()
-                .any(|part| part == "--display_data=true")
-        );
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--display_data=true"));
     }
 }

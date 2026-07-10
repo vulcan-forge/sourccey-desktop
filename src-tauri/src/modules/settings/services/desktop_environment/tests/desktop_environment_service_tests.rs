@@ -1,7 +1,7 @@
 use super::{
-    DesktopEnvironmentService, DesktopEnvironmentSettings,
-    SaveDesktopEnvironmentSettingsRequest, DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL,
-    DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL, DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL,
+    DesktopEnvironmentService, DesktopEnvironmentSettings, SaveDesktopEnvironmentSettingsRequest,
+    DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL, DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL,
+    DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL,
 };
 use std::path::PathBuf;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -51,15 +51,17 @@ fn save_and_load_roundtrip_preserves_local_custom_urls() {
         teleop_log_level: Some("error".to_string()),
     };
 
-    let saved =
-        DesktopEnvironmentService::save_settings_to_path(&path, request).unwrap();
+    let saved = DesktopEnvironmentService::save_settings_to_path(&path, request).unwrap();
     let loaded = DesktopEnvironmentService::get_settings_from_path(&path).unwrap();
 
     assert_eq!(saved.environment, "local");
     assert_eq!(saved.display_name, "Developer");
     assert_eq!(saved.badge_label.as_deref(), Some("DEV MODE"));
     assert_eq!(saved.teleop_log_level, "error");
-    assert_eq!(loaded.graphql_api_url, "http://dev-box.local:5200/v1/graphql");
+    assert_eq!(
+        loaded.graphql_api_url,
+        "http://dev-box.local:5200/v1/graphql"
+    );
     assert_eq!(loaded.studio_web_url, "http://dev-box.local:3000");
     assert_eq!(
         loaded.updater_manifest_url,
@@ -139,7 +141,10 @@ fn updating_only_teleop_log_level_preserves_existing_local_urls() {
     .unwrap();
 
     assert_eq!(updated.teleop_log_level, "error");
-    assert_eq!(updated.graphql_api_url, "http://dev-box.local:5200/v1/graphql");
+    assert_eq!(
+        updated.graphql_api_url,
+        "http://dev-box.local:5200/v1/graphql"
+    );
     assert_eq!(updated.studio_web_url, "http://dev-box.local:3000");
 
     let _ = std::fs::remove_file(path);
