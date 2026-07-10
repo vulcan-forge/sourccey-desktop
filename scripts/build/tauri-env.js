@@ -28,7 +28,7 @@ function checkLinuxInotifyLimits() {
                 lowLimits.push(`${name}=${current} (recommended: ${recommended})`);
             }
         } catch (err) {
-            console.warn(`[tauri-env] Warning: failed to read ${path}: ${err.message}`);
+            console.warn(`[tauri-env] Warning: failed to read ${path}: ${err instanceof Error ? err.message : String(err)}`);
         }
     }
 
@@ -42,7 +42,12 @@ function checkLinuxInotifyLimits() {
     return false;
 }
 
+/**
+ * @param {string} contents
+ * @returns {Record<string, string>}
+ */
 function parseDotEnv(contents) {
+    /** @type {Record<string, string>} */
     const out = {};
     const lines = contents.split(/\r?\n/);
     for (const line of lines) {
@@ -61,12 +66,13 @@ function parseDotEnv(contents) {
 }
 
 const envPath = join(process.cwd(), '.env');
+/** @type {Record<string, string>} */
 let envFromFile = {};
 if (existsSync(envPath)) {
     try {
         envFromFile = parseDotEnv(readFileSync(envPath, 'utf8'));
-    } catch (err) {
-        console.warn(`[tauri-env] Warning: failed to read .env: ${err.message}`);
+} catch (err) {
+        console.warn(`[tauri-env] Warning: failed to read .env: ${err instanceof Error ? err.message : String(err)}`);
     }
 } else {
     console.warn('[tauri-env] Warning: .env not found.');
@@ -77,12 +83,14 @@ const requiresSigningKeys = args[0] === 'build';
 if (args[0] === 'dev' && !checkLinuxInotifyLimits()) {
     process.exit(1);
 }
-const tauriBin =
+const tauriCandidates =
     process.platform === 'win32'
-        ? join(process.cwd(), 'node_modules', '.bin', 'tauri.cmd')
-        : join(process.cwd(), 'node_modules', '.bin', 'tauri');
-
-const bin = existsSync(tauriBin) ? tauriBin : 'tauri';
+        ? [
+              join(process.cwd(), 'node_modules', '.bin', 'tauri.exe'),
+              join(process.cwd(), 'node_modules', '.bin', 'tauri.cmd'),
+          ]
+        : [join(process.cwd(), 'node_modules', '.bin', 'tauri')];
+const bin = tauriCandidates.find(existsSync) ?? 'tauri';
 for (const key of REQUIRED_KEYS) {
     if (process.env[key]) continue;
     if (envFromFile[key]) {

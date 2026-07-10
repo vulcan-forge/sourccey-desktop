@@ -1,0 +1,10 @@
+{
+    "$schema": "https://schema.tauri.app/config/2",
+    "bundle": {
+        "windows": {
+            "certificateThumbprint": "41EFFF5C45CBB897FDB8B774AB55C578E6A39CF9",
+            "digestAlgorithm": "sha256",
+            "timestampUrl": "http://timestamp.sectigo.com"
+        }
+    }
+}

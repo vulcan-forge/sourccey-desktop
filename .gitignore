@@ -56,3 +56,6 @@ production.env
 
 # Devops keys
 devops/keys/
+
+# Native uv binary staged temporarily by macOS/Linux release builds
+/src-tauri/resources/uv/uv

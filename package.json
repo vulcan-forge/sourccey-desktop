@@ -11,6 +11,11 @@
         "lint": "next lint",
         "tauri": "bun scripts/build/tauri-env.js",
         "tauri:build": "bun scripts/build/tauri-env.js build",
+        "tauri:release": "bun scripts/build/release.js",
+        "tauri:release:check": "bun scripts/build/release.js --check",
+        "tauri:release:windows": "bun scripts/build/release.js --platform=windows",
+        "tauri:release:macos": "bun scripts/build/release.js --platform=macos",
+        "tauri:release:linux": "bun scripts/build/release.js --platform=linux",
         "tauri:kiosk": "export DISPLAY=:0.0 && xhost +local: 2>/dev/null || true && bun tauri dev -- -- --kiosk",
         "tauri:kiosk desktop": "bun tauri dev -- -- --kiosk"
     },
