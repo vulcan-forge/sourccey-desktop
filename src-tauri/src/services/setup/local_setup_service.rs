@@ -141,9 +141,9 @@ impl LocalSetupService {
     }
 
     const DEFAULT_LEROBOT_ZIP_URL: &str =
-        "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip";
+        "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan/lerobot-vulcan_vulcan-0.1.9.zip";
     const DEFAULT_LEROBOT_ZIP_SHA256_URL: &str =
-        "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan.zip.sha256";
+        "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan/lerobot-vulcan_vulcan-0.1.9.zip.sha256";
     const DEFAULT_UPDATER_URL: &str =
         "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json";
     const DEFAULT_LEROBOT_TAGS_URL: &str =
@@ -517,6 +517,7 @@ impl LocalSetupService {
         fs::create_dir_all(&setup_dir)
             .map_err(|e| format!("Failed to create setup directory: {}", e))?;
 
+        let mut downloaded_zip_url: Option<String> = None;
         if !lerobot_dir.exists() {
             Self::emit_step(
                 emit,
@@ -547,6 +548,7 @@ impl LocalSetupService {
                 Self::emit_step(emit, "download", "error", Some(e.clone()));
                 e
             })?;
+            downloaded_zip_url = Some(zip_url.clone());
             Self::emit_step(emit, "download", "success", None);
 
             let enforce_checksum = std::env::var("SOURCCEY_ENFORCE_LEROBOT_CHECKSUM")
@@ -715,7 +717,7 @@ impl LocalSetupService {
         fs::write(&marker_path, "ok")
             .map_err(|e| format!("Failed to write setup marker: {}", e))?;
 
-        Self::persist_current_lerobot_marker(&setup_dir, app_handle);
+        Self::persist_current_lerobot_marker(&setup_dir, app_handle, downloaded_zip_url.as_deref());
 
         DirectoryService::set_project_root_override(app_data_dir);
 
@@ -1018,17 +1020,42 @@ impl LocalSetupService {
         }
     }
 
-    fn persist_current_lerobot_marker(setup_dir: &Path, app_handle: &AppHandle) {
+    fn lerobot_tag_from_zip_url(zip_url: &str) -> Option<String> {
+        let filename = zip_url.split(['?', '#']).next()?.rsplit('/').next()?;
+        let version = filename
+            .strip_prefix("lerobot-vulcan_vulcan-")?
+            .strip_suffix(".zip")?;
+        let tag = format!("vulcan/{}", version);
+        Self::normalize_vulcan_tag(&tag)
+            .filter(|normalized| Self::parse_vulcan_semver(normalized).is_some())
+    }
+
+    fn persist_current_lerobot_marker(
+        setup_dir: &Path,
+        app_handle: &AppHandle,
+        downloaded_zip_url: Option<&str>,
+    ) {
         let manifest_release = Self::read_manifest_lerobot_release_info().ok().flatten();
-        let marker_tag = Self::read_current_lerobot_git_tag(app_handle).or_else(|| {
-            manifest_release
-                .as_ref()
-                .and_then(|release| release.tag.clone())
-        });
+        let existing_tag = Self::read_current_lerobot_tag_marker(app_handle);
+        let existing_commit = Self::read_current_lerobot_commit_marker(app_handle);
+        let marker_tag = Self::read_current_lerobot_git_tag(app_handle)
+            .or_else(|| downloaded_zip_url.and_then(Self::lerobot_tag_from_zip_url))
+            .or(existing_tag)
+            .or_else(|| {
+                manifest_release
+                    .as_ref()
+                    .and_then(|release| release.tag.clone())
+            });
         let marker_commit = Self::read_current_lerobot_git_commit(app_handle).or_else(|| {
-            manifest_release
-                .as_ref()
-                .and_then(|release| release.commit.clone())
+            if downloaded_zip_url.is_some() {
+                None
+            } else {
+                existing_commit.or_else(|| {
+                    manifest_release
+                        .as_ref()
+                        .and_then(|release| release.commit.clone())
+                })
+            }
         });
 
         if let Some(commit) = marker_commit {
@@ -1301,7 +1328,7 @@ impl LocalSetupService {
         fs::write(&marker_path, "ok")
             .map_err(|e| format!("Failed to write setup marker: {}", e))?;
 
-        Self::persist_current_lerobot_marker(&setup_dir, app_handle);
+        Self::persist_current_lerobot_marker(&setup_dir, app_handle, None);
 
         DirectoryService::set_project_root_override(app_data_dir);
 

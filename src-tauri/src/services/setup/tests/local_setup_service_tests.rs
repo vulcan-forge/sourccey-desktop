@@ -27,6 +27,28 @@ fn parses_vulcan_semver_tags() {
 }
 
 #[test]
+fn extracts_release_tag_from_versioned_archive_url() {
+    assert_eq!(
+        LocalSetupService::lerobot_tag_from_zip_url(
+            "https://cdn.example.com/updater/lerobot-vulcan/lerobot-vulcan_vulcan-0.1.9.zip"
+        ),
+        Some("vulcan/0.1.9".to_string())
+    );
+    assert_eq!(
+        LocalSetupService::lerobot_tag_from_zip_url(
+            "https://cdn.example.com/updater/lerobot-vulcan/lerobot-vulcan_vulcan-1.2.3.zip?cache=1"
+        ),
+        Some("vulcan/1.2.3".to_string())
+    );
+    assert_eq!(
+        LocalSetupService::lerobot_tag_from_zip_url(
+            "https://cdn.example.com/updater/lerobot-vulcan.zip"
+        ),
+        None
+    );
+}
+
+#[test]
 fn selects_highest_vulcan_semver_and_ignores_other_tags() {
     let selected = LocalSetupService::select_latest_vulcan_tag(vec![
         LatestLerobotTagInfo {
