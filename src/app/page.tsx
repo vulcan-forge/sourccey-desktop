@@ -12,9 +12,12 @@ const HomePage = (): ReactElement => {
     const router = useRouter();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
 
-    type SetupStatus = {
-        installed: boolean;
-        missing: string[];
+    type DesktopUpdateStatus = {
+        updateAvailable: boolean;
+    };
+
+    type LerobotUpdateStatus = {
+        state: string;
     };
 
     // In kiosk mode, skip authentication and go directly to app once sync is done
@@ -30,14 +33,19 @@ const HomePage = (): ReactElement => {
             const checkSetup = async () => {
                 try {
                     if (isTauri()) {
-                        const status = (await invoke('setup_check')) as SetupStatus;
-                        if (!status.installed) {
-                            console.log('Desktop mode: setup required, pushing to /desktop/setup');
-                            safeNavigate(router, '/desktop/setup');
-                        } else {
-                            console.log('Desktop mode: pushing to /desktop');
-                            safeNavigate(router, '/desktop/');
-                        }
+                        const [desktopUpdate, lerobotUpdate] = await Promise.all([
+                            invoke<DesktopUpdateStatus>('desktop_update_check'),
+                            invoke<LerobotUpdateStatus>('check_lerobot_update'),
+                        ]);
+                        const updateAvailable =
+                            desktopUpdate.updateAvailable || lerobotUpdate.state === 'update_available';
+
+                        console.log(
+                            updateAvailable
+                                ? 'Desktop mode: update available'
+                                : 'Desktop mode: app and runtime are up to date'
+                        );
+                        safeNavigate(router, updateAvailable ? '/desktop/setup' : '/desktop/');
                     } else {
                         safeNavigate(router, '/desktop/');
                     }
