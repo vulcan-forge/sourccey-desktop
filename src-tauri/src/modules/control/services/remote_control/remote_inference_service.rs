@@ -224,7 +224,11 @@ impl RemoteInferenceService {
     }
 
     fn build_command_args(config: &RemoteInferenceConfig) -> Vec<String> {
-        let mut command_parts = vec!["run".to_string(), "lerobot-inference".to_string()];
+        let mut command_parts = vec![
+            "run".to_string(),
+            "--no-sync".to_string(),
+            "lerobot-inference".to_string(),
+        ];
         command_parts.push(format!("--id={}", config.nickname.trim()));
         command_parts.push(format!("--remote_ip={}", config.remote_ip.trim()));
         command_parts.push(format!("--model_path={}", config.model_path.trim()));
@@ -331,7 +335,8 @@ mod tests {
     fn builds_uv_remote_inference_command() {
         let command_parts = RemoteInferenceService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
-        assert_eq!(command_parts[1], "lerobot-inference");
+        assert_eq!(command_parts[1], "--no-sync");
+        assert_eq!(command_parts[2], "lerobot-inference");
         assert!(command_parts
             .iter()
             .any(|part| part == "--display_data=true"));

@@ -1,11 +1,15 @@
 // Windows release implementation, dispatched by release.js.
-const { existsSync } = require('fs');
+const { copyFileSync, existsSync, mkdtempSync, rmSync } = require('fs');
 const { join } = require('path');
 const { spawnSync } = require('child_process');
+const { tmpdir } = require('os');
 
 const CERTIFICATE_THUMBPRINT = '41EFFF5C45CBB897FDB8B774AB55C578E6A39CF9';
 const EXPECTED_SUBJECT = 'Vulcan Robotics, Inc.';
 const bundleDir = join(process.cwd(), 'src-tauri', 'target', 'release', 'bundle');
+const nsisBundleDir = join(bundleDir, 'nsis');
+const releaseExecutable = join(process.cwd(), 'src-tauri', 'target', 'release', 'VulcanStudio.exe');
+const uvResource = join(process.cwd(), 'src-tauri', 'resources', 'uv', 'uv.exe');
 
 /** @param {string} message */
 function fail(message) {
@@ -60,13 +64,26 @@ function assertWindowsCertificate() {
 
 function runTauriBuild() {
     console.log('[release] Starting signed Tauri release build. SafeNet may request the token PIN.');
-    const result = spawnSync('bun', ['scripts/build/tauri-env.js', 'build'], {
-        cwd: process.cwd(),
-        env: process.env,
-        stdio: 'inherit',
-        shell: process.platform === 'win32',
-    });
-    if (result.error) {
+    rmSync(nsisBundleDir, { recursive: true, force: true });
+    console.log('[release] Removed stale NSIS artifacts from previous releases.');
+    const backupDirectory = mkdtempSync(join(tmpdir(), 'vulcan-release-'));
+    const uvBackup = join(backupDirectory, 'uv.exe');
+    copyFileSync(uvResource, uvBackup);
+    /** @type {ReturnType<typeof spawnSync>} */
+    let result;
+    try {
+        result = spawnSync('bun', ['scripts/build/tauri-env.js', 'build'], {
+            cwd: process.cwd(),
+            env: process.env,
+            stdio: 'inherit',
+            shell: process.platform === 'win32',
+        });
+    } finally {
+        copyFileSync(uvBackup, uvResource);
+        rmSync(backupDirectory, { recursive: true, force: true });
+        console.log('[release] Restored the unsigned source copy of uv.exe.');
+    }
+    if (result.error instanceof Error && result.error.message) {
         fail(`Failed to start Tauri build: ${result.error.message}`);
     }
     if (result.status !== 0) {
@@ -79,10 +96,11 @@ function verifyArtifacts() {
         fail(`Tauri bundle directory was not created: ${bundleDir}`);
     }
     const escapedBundleDir = bundleDir.replaceAll("'", "''");
+    const escapedReleaseExecutable = releaseExecutable.replaceAll("'", "''");
     const output = runPowerShell(`
-        $files = Get-ChildItem -LiteralPath '${escapedBundleDir}' -Recurse -File |
-            Where-Object { $_.Extension -in '.exe', '.msi' }
-        if (-not $files) { throw 'No Windows executable or installer artifacts were found.' }
+        $installerFiles = Get-ChildItem -LiteralPath '${escapedBundleDir}\\nsis' -Recurse -File -Filter '*.exe'
+        $files = @((Get-Item -LiteralPath '${escapedReleaseExecutable}')) + @($installerFiles)
+        if ($files.Count -lt 2) { throw 'The signed application and NSIS installer were not both found.' }
         $results = $files | ForEach-Object {
             $signature = Get-AuthenticodeSignature -LiteralPath $_.FullName
             [PSCustomObject]@{

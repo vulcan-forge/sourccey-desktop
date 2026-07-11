@@ -231,6 +231,7 @@ impl RemoteRecordService {
     fn build_command_args(config: &RemoteRecordConfig) -> Vec<String> {
         let mut args = vec![
             "run".to_string(),
+            "--no-sync".to_string(),
             "lerobot-record".to_string(),
             "--robot.type=sourccey_client".to_string(),
             "--robot.id=sourccey".to_string(),
@@ -352,7 +353,8 @@ mod tests {
     fn builds_uv_remote_record_command() {
         let command_parts = RemoteRecordService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
-        assert_eq!(command_parts[1], "lerobot-record");
+        assert_eq!(command_parts[1], "--no-sync");
+        assert_eq!(command_parts[2], "lerobot-record");
         assert!(command_parts
             .iter()
             .any(|part| part == "--teleop_keyboard.id=keyboard"));

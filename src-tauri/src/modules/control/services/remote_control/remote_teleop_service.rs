@@ -260,6 +260,7 @@ impl RemoteTeleopService {
     fn build_command_args(config: &RemoteTeleopConfig) -> Vec<String> {
         let mut args = vec![
             "run".to_string(),
+            "--no-sync".to_string(),
             "lerobot-teleoperate".to_string(),
             "--robot.type=sourccey_client".to_string(),
             "--robot.id=sourccey".to_string(),
@@ -352,7 +353,8 @@ mod tests {
     fn builds_uv_remote_teleop_command() {
         let command_parts = RemoteTeleopService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
-        assert_eq!(command_parts[1], "lerobot-teleoperate");
+        assert_eq!(command_parts[1], "--no-sync");
+        assert_eq!(command_parts[2], "lerobot-teleoperate");
         assert!(command_parts
             .iter()
             .any(|part| part == "--robot.type=sourccey_client"));

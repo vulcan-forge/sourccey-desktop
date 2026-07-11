@@ -53,5 +53,7 @@ const result = spawnSync('bun', [script, ...forwardedArguments], {
     stdio: 'inherit',
     shell: process.platform === 'win32',
 });
-if (result.error) fail(`Failed to start ${hostPlatform} release flow: ${result.error.message}`);
+if (result.error instanceof Error && result.error.message) {
+    fail(`Failed to start ${hostPlatform} release flow: ${result.error.message}`);
+}
 process.exit(result.status ?? 1);

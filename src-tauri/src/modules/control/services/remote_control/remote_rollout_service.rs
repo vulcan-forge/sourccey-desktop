@@ -223,6 +223,7 @@ impl RemoteRolloutService {
     fn build_command_args(config: &RemoteRolloutConfig) -> Vec<String> {
         vec![
             "run".to_string(),
+            "--no-sync".to_string(),
             "lerobot-rollout".to_string(),
             "--strategy.type=base".to_string(),
             format!("--policy.path={}", config.model_path.trim()),
@@ -299,7 +300,8 @@ mod tests {
     fn builds_uv_remote_rollout_command() {
         let command_parts = RemoteRolloutService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
-        assert_eq!(command_parts[1], "lerobot-rollout");
+        assert_eq!(command_parts[1], "--no-sync");
+        assert_eq!(command_parts[2], "lerobot-rollout");
         assert!(command_parts
             .iter()
             .any(|part| part == "--strategy.type=base"));
