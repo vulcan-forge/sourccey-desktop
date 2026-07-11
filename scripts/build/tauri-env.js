@@ -6,9 +6,9 @@
 //   to the Tauri CLI.
 // - How it works: parses `.env` locally, merges required keys into `process.env`,
 //   then spawns the `tauri` binary with inherited stdio.
-const { existsSync, readFileSync } = require('fs');
+const { chmodSync, copyFileSync, existsSync, readFileSync, rmSync } = require('fs');
 const { join } = require('path');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 
 const REQUIRED_KEYS = ['TAURI_SIGNING_PUBLIC_KEY', 'TAURI_SIGNING_PRIVATE_KEY', 'TAURI_SIGNING_PRIVATE_KEY_PASSWORD'];
 const LINUX_INOTIFY_LIMITS = {
@@ -100,8 +100,81 @@ for (const key of REQUIRED_KEYS) {
     }
 }
 
-const child = spawn(bin, args, { stdio: 'inherit', env: process.env });
+function stageUvForBuild() {
+    if (args[0] !== 'build') return () => {};
+
+    const executableName = process.platform === 'win32' ? 'uv.exe' : 'uv';
+    const destination = join(process.cwd(), 'src-tauri', 'resources', 'uv', executableName);
+    // Official release flows may have already staged a platform-specific uv.
+    if (existsSync(destination)) return () => {};
+
+    const locator = process.platform === 'win32' ? ['where.exe', ['uv.exe']] : ['which', ['uv']];
+    const located = spawnSync(locator[0], locator[1], { encoding: 'utf8' });
+    const source = located.status === 0 ? String(located.stdout).split(/\r?\n/, 1)[0].trim() : '';
+    if (!source || !existsSync(source)) {
+        console.error('[tauri-env] uv is required to build bundled application resources. Install uv and ensure it is on PATH.');
+        process.exit(1);
+    }
+
+    copyFileSync(source, destination);
+    if (process.platform !== 'win32') chmodSync(destination, 0o755);
+    console.log(`[tauri-env] Staged ${executableName} from ${source}.`);
+    return () => {
+        if (existsSync(destination)) rmSync(destination);
+        console.log(`[tauri-env] Removed staged ${executableName}.`);
+    };
+}
+
+const cleanupStagedUv = stageUvForBuild();
+let cleanedUp = false;
+const cleanup = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
+    cleanupStagedUv();
+};
+
+const effectiveArgs = [...args];
+const hasBundleSelection = effectiveArgs.some(
+    (argument) => argument === '--bundles' || argument.startsWith('--bundles=')
+);
+if (
+    process.platform === 'darwin' &&
+    effectiveArgs[0] === 'build' &&
+    !process.env.APPLE_SIGNING_IDENTITY &&
+    !hasBundleSelection
+) {
+    effectiveArgs.push('--bundles', 'app');
+    console.log('[tauri-env] Building an unsigned macOS .app bundle; DMG creation requires the official signed release flow.');
+}
+
+const child = spawn(bin, effectiveArgs, { stdio: 'inherit', env: process.env });
 
 child.on('exit', (code) => {
-    process.exit(code ?? 1);
+    let finalCode = code ?? 1;
+    if (
+        finalCode === 0 &&
+        process.platform === 'darwin' &&
+        effectiveArgs[0] === 'build' &&
+        !process.env.APPLE_SIGNING_IDENTITY
+    ) {
+        const packaged = spawnSync('bun', ['scripts/build/package-unsigned-macos.js'], {
+            cwd: process.cwd(),
+            env: process.env,
+            stdio: 'inherit',
+        });
+        if (packaged.error) {
+            console.error(`[tauri-env] Failed to start unsigned macOS packager: ${packaged.error.message}`);
+            finalCode = 1;
+        } else if (packaged.status !== 0) {
+            finalCode = packaged.status ?? 1;
+        }
+    }
+    cleanup();
+    process.exit(finalCode);
+});
+
+child.on('error', (error) => {
+    cleanup();
+    console.error(`[tauri-env] Failed to start Tauri: ${error.message}`);
+    process.exit(1);
 });
