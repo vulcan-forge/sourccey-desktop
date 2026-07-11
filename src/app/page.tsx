@@ -12,6 +12,10 @@ const HomePage = (): ReactElement => {
     const router = useRouter();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
 
+    type SetupStatus = {
+        installed: boolean;
+    };
+
     type DesktopUpdateStatus = {
         updateAvailable: boolean;
     };
@@ -30,32 +34,36 @@ const HomePage = (): ReactElement => {
             console.log('Kiosk mode: pushing to /kiosk');
             safeNavigate(router, '/kiosk/');
         } else {
-            const checkSetup = async () => {
+            const checkStartupStatus = async () => {
                 try {
                     if (isTauri()) {
-                        const [desktopUpdate, lerobotUpdate] = await Promise.all([
+                        const [setupStatus, desktopUpdate, lerobotUpdate] = await Promise.all([
+                            invoke<SetupStatus>('setup_check'),
                             invoke<DesktopUpdateStatus>('desktop_update_check'),
                             invoke<LerobotUpdateStatus>('check_lerobot_update'),
                         ]);
                         const updateAvailable =
                             desktopUpdate.updateAvailable || lerobotUpdate.state === 'update_available';
+                        const needsSetupOrUpdate = !setupStatus.installed || updateAvailable;
 
                         console.log(
-                            updateAvailable
-                                ? 'Desktop mode: update available'
-                                : 'Desktop mode: app and runtime are up to date'
+                            !setupStatus.installed
+                                ? 'Desktop mode: runtime setup required'
+                                : updateAvailable
+                                  ? 'Desktop mode: update available'
+                                  : 'Desktop mode: app and runtime are up to date'
                         );
-                        safeNavigate(router, updateAvailable ? '/desktop/setup' : '/desktop/');
+                        safeNavigate(router, needsSetupOrUpdate ? '/desktop/setup' : '/desktop/');
                     } else {
                         safeNavigate(router, '/desktop/');
                     }
                 } catch (error) {
-                    console.error('Failed to check setup status:', error);
+                    console.error('Failed to check startup status:', error);
                     safeNavigate(router, '/desktop/');
                 }
             };
 
-            void checkSetup();
+            void checkStartupStatus();
         }
     }, [router, isKioskMode, isLoadingAppMode]);
 
