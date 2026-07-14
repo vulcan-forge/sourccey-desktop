@@ -100,8 +100,11 @@ for (const key of REQUIRED_KEYS) {
     }
 }
 
-function stageUvForBuild() {
-    if (args[0] !== 'build') return () => {};
+function stageUvResource() {
+    // Tauri validates configured bundle resources for both `dev` and `build`.
+    // Platform-specific uv binaries are intentionally not committed, so stage
+    // the host's installed uv before either command starts.
+    if (args[0] !== 'dev' && args[0] !== 'build') return () => {};
 
     const executableName = process.platform === 'win32' ? 'uv.exe' : 'uv';
     const destination = join(process.cwd(), 'src-tauri', 'resources', 'uv', executableName);
@@ -112,7 +115,7 @@ function stageUvForBuild() {
     const located = spawnSync(locator[0], locator[1], { encoding: 'utf8' });
     const source = located.status === 0 ? String(located.stdout).split(/\r?\n/, 1)[0].trim() : '';
     if (!source || !existsSync(source)) {
-        console.error('[tauri-env] uv is required to build bundled application resources. Install uv and ensure it is on PATH.');
+        console.error('[tauri-env] uv is required for Tauri development and builds. Install uv and ensure it is on PATH.');
         process.exit(1);
     }
 
@@ -125,7 +128,7 @@ function stageUvForBuild() {
     };
 }
 
-const cleanupStagedUv = stageUvForBuild();
+const cleanupStagedUv = stageUvResource();
 let cleanedUp = false;
 const cleanup = () => {
     if (cleanedUp) return;
