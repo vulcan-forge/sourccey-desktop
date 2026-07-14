@@ -1,13 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { FaArrowLeft, FaCheckCircle, FaCodeBranch, FaGlobe, FaSpinner } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
-import {
-    saveKioskEnvironmentSettings,
-    useKioskEnvironmentSettings,
-} from '@/hooks/System/kiosk-environment.hook';
+import { saveKioskEnvironmentSettings, useKioskEnvironmentSettings } from '@/hooks/System/kiosk-environment.hook';
 import type { KioskEnvironment, KioskEnvironmentSettings } from '@/types/kiosk-environment';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 
@@ -40,6 +37,15 @@ export default function KioskDeveloperSettingsPage() {
     const [customApiBaseUrl, setCustomApiBaseUrl] = useState('http://192.168.1.220:5200');
     const [resolvedSettings, setResolvedSettings] = useState<KioskEnvironmentSettings | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const hasHydrated = useRef(false);
+    const latestLocalDraft = useRef({
+        hydrated: false,
+        environment,
+        customAppBaseUrl,
+        customApiBaseUrl,
+        savedCustomAppBaseUrl: '',
+        savedCustomApiBaseUrl: '',
+    });
     const isLocalEnvironment = environment === 'local';
 
     useEffect(() => {
@@ -47,9 +53,12 @@ export default function KioskDeveloperSettingsPage() {
             return;
         }
 
-        setEnvironment(data.environment);
-        setCustomAppBaseUrl(data.customAppBaseUrl);
-        setCustomApiBaseUrl(data.customApiBaseUrl);
+        if (!hasHydrated.current) {
+            hasHydrated.current = true;
+            setEnvironment(data.environment);
+            setCustomAppBaseUrl(data.customAppBaseUrl);
+            setCustomApiBaseUrl(data.customApiBaseUrl);
+        }
         setResolvedSettings(data);
     }, [data]);
 
@@ -60,8 +69,7 @@ export default function KioskDeveloperSettingsPage() {
         const apiBase = normalizedApi.length > 0 ? normalizedApi : 'http://192.168.1.220:5200';
         setResolvedSettings({
             environment,
-            displayName:
-                environment === 'production' ? 'Production' : environment === 'staging' ? 'Staging' : 'Local',
+            displayName: environment === 'production' ? 'Production' : environment === 'staging' ? 'Staging' : 'Local',
             badgeLabel: environment === 'production' ? null : environment === 'staging' ? 'Staging' : 'Local',
             customAppBaseUrl: appBase,
             customApiBaseUrl: apiBase,
@@ -85,52 +93,100 @@ export default function KioskDeveloperSettingsPage() {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [environment, customAppBaseUrl, customApiBaseUrl]);
 
-    const persistEnvironmentSettings = async (
-        nextEnvironment: KioskEnvironment,
-        nextCustomAppBaseUrl = customAppBaseUrl,
-        nextCustomApiBaseUrl = customApiBaseUrl
-    ) => {
-        setIsSaving(true);
-        try {
-            const saved = await saveKioskEnvironmentSettings({
-                environment: nextEnvironment,
-                customAppBaseUrl: nextCustomAppBaseUrl,
-                customApiBaseUrl: nextCustomApiBaseUrl,
-            });
-            setResolvedSettings(saved);
-            setEnvironment(saved.environment);
-            setCustomAppBaseUrl(saved.customAppBaseUrl);
-            setCustomApiBaseUrl(saved.customApiBaseUrl);
-            toast.success(
-                <div className="space-y-1">
-                    <div className="flex items-center gap-2 font-semibold">
-                        <FaCheckCircle className="h-4 w-4 text-emerald-300" />
-                        Environment updated
-                    </div>
-                    <div className="text-sm text-slate-200">
-                        Pairing state and websocket credentials will now follow{' '}
-                        <span className="font-semibold text-white">{saved.displayName}</span>.
-                    </div>
-                </div>,
-                { ...toastSuccessDefaults }
-            );
-        } catch (saveError) {
-            console.error('Failed to save kiosk environment settings:', saveError);
-            toast.error(
-                <div className="space-y-1">
-                    <div className="font-semibold">Could not save developer settings</div>
-                    <div className="text-sm text-slate-200">
-                        {saveError instanceof Error ? saveError.message : 'Failed to save developer settings'}
-                    </div>
-                </div>,
-                { ...toastErrorDefaults }
-            );
-        } finally {
-            setIsSaving(false);
+    const persistEnvironmentSettings = useCallback(
+        async (nextEnvironment: KioskEnvironment, nextCustomAppBaseUrl: string, nextCustomApiBaseUrl: string, showConfirmation = true) => {
+            setIsSaving(true);
+            try {
+                const saved = await saveKioskEnvironmentSettings({
+                    environment: nextEnvironment,
+                    customAppBaseUrl: nextCustomAppBaseUrl,
+                    customApiBaseUrl: nextCustomApiBaseUrl,
+                });
+                setResolvedSettings(saved);
+                setEnvironment(saved.environment);
+                setCustomAppBaseUrl(saved.customAppBaseUrl);
+                setCustomApiBaseUrl(saved.customApiBaseUrl);
+                if (showConfirmation) {
+                    toast.success(
+                        <div className="space-y-1">
+                            <div className="flex items-center gap-2 font-semibold">
+                                <FaCheckCircle className="h-4 w-4 text-emerald-300" />
+                                Environment updated
+                            </div>
+                            <div className="text-sm text-slate-200">
+                                Pairing state and websocket credentials will now follow{' '}
+                                <span className="font-semibold text-white">{saved.displayName}</span>.
+                            </div>
+                        </div>,
+                        { ...toastSuccessDefaults }
+                    );
+                }
+            } catch (saveError) {
+                console.error('Failed to save kiosk environment settings:', saveError);
+                toast.error(
+                    <div className="space-y-1">
+                        <div className="font-semibold">Could not save developer settings</div>
+                        <div className="text-sm text-slate-200">
+                            {saveError instanceof Error ? saveError.message : 'Failed to save developer settings'}
+                        </div>
+                    </div>,
+                    { ...toastErrorDefaults }
+                );
+            } finally {
+                setIsSaving(false);
+            }
+        },
+        []
+    );
+
+    useEffect(() => {
+        latestLocalDraft.current = {
+            hydrated: hasHydrated.current,
+            environment,
+            customAppBaseUrl,
+            customApiBaseUrl,
+            savedCustomAppBaseUrl: data?.customAppBaseUrl ?? '',
+            savedCustomApiBaseUrl: data?.customApiBaseUrl ?? '',
+        };
+    }, [customApiBaseUrl, customAppBaseUrl, data, environment]);
+
+    useEffect(() => {
+        if (!hasHydrated.current || environment !== 'local' || !data) {
+            return;
         }
-    };
+
+        const customUrlsChanged = customAppBaseUrl.trim() !== data.customAppBaseUrl || customApiBaseUrl.trim() !== data.customApiBaseUrl;
+        if (!customUrlsChanged) {
+            return;
+        }
+
+        const autosaveTimer = window.setTimeout(() => {
+            void persistEnvironmentSettings('local', customAppBaseUrl, customApiBaseUrl, false);
+        }, 500);
+
+        return () => window.clearTimeout(autosaveTimer);
+    }, [customApiBaseUrl, customAppBaseUrl, data, environment, persistEnvironmentSettings]);
+
+    useEffect(() => {
+        return () => {
+            const draft = latestLocalDraft.current;
+            const hasUnsavedChanges =
+                draft.hydrated &&
+                draft.environment === 'local' &&
+                (draft.customAppBaseUrl.trim() !== draft.savedCustomAppBaseUrl ||
+                    draft.customApiBaseUrl.trim() !== draft.savedCustomApiBaseUrl);
+            if (hasUnsavedChanges) {
+                void saveKioskEnvironmentSettings({
+                    environment: 'local',
+                    customAppBaseUrl: draft.customAppBaseUrl,
+                    customApiBaseUrl: draft.customApiBaseUrl,
+                }).catch((saveError) => console.error('Failed to save kiosk environment settings:', saveError));
+            }
+        };
+    }, []);
 
     const handleEnvironmentSelect = async (nextEnvironment: KioskEnvironment) => {
+        latestLocalDraft.current.environment = nextEnvironment;
         setEnvironment(nextEnvironment);
         await persistEnvironmentSettings(nextEnvironment, customAppBaseUrl, customApiBaseUrl);
     };
@@ -139,7 +195,7 @@ export default function KioskDeveloperSettingsPage() {
         if (environment !== 'local') {
             return;
         }
-        await persistEnvironmentSettings('local', customAppBaseUrl, customApiBaseUrl);
+        await persistEnvironmentSettings('local', customAppBaseUrl, customApiBaseUrl, false);
     };
 
     return (
@@ -148,9 +204,7 @@ export default function KioskDeveloperSettingsPage() {
                 <div>
                     <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Kiosk Settings</div>
                     <h1 className="text-3xl font-semibold text-white">Developer Settings</h1>
-                    <p className="mt-2 text-sm text-slate-300">
-                        Switch this robot between production, staging, and local Vulcan environments.
-                    </p>
+                    <p className="mt-2 text-sm text-slate-300">Switch this robot between production, staging, and local Vulcan environments.</p>
                     <div className="mt-4">
                         <LinkButton
                             href="/kiosk/settings"
@@ -212,7 +266,10 @@ export default function KioskDeveloperSettingsPage() {
                                             id="custom-app-base-url"
                                             type="text"
                                             value={customAppBaseUrl}
-                                            onChange={(event) => setCustomAppBaseUrl(event.target.value)}
+                                            onChange={(event) => {
+                                                latestLocalDraft.current.customAppBaseUrl = event.target.value;
+                                                setCustomAppBaseUrl(event.target.value);
+                                            }}
                                             onBlur={() => void handleLocalInputsBlur()}
                                             onKeyDown={(event) => {
                                                 if (event.key === 'Enter') {
@@ -237,7 +294,10 @@ export default function KioskDeveloperSettingsPage() {
                                             id="custom-api-base-url"
                                             type="text"
                                             value={customApiBaseUrl}
-                                            onChange={(event) => setCustomApiBaseUrl(event.target.value)}
+                                            onChange={(event) => {
+                                                latestLocalDraft.current.customApiBaseUrl = event.target.value;
+                                                setCustomApiBaseUrl(event.target.value);
+                                            }}
                                             onBlur={() => void handleLocalInputsBlur()}
                                             onKeyDown={(event) => {
                                                 if (event.key === 'Enter') {
@@ -261,11 +321,11 @@ export default function KioskDeveloperSettingsPage() {
                                     <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">
                                         {isLocalEnvironment ? 'Portal URL' : 'App URL'}
                                     </div>
-                                    <div className="mt-2 break-all text-sm text-white">{resolvedSettings?.appBaseUrl ?? '...'}</div>
+                                    <div className="mt-2 text-sm break-all text-white">{resolvedSettings?.appBaseUrl ?? '...'}</div>
                                 </div>
                                 <div>
                                     <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">API URL</div>
-                                    <div className="mt-2 break-all text-sm text-white">{resolvedSettings?.apiBaseUrl ?? '...'}</div>
+                                    <div className="mt-2 text-sm break-all text-white">{resolvedSettings?.apiBaseUrl ?? '...'}</div>
                                 </div>
                             </div>
 

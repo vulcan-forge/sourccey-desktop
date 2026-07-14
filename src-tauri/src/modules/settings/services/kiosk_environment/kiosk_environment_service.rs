@@ -2,7 +2,7 @@ use crate::services::directory::directory_service::DirectoryService;
 use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 pub const DEFAULT_LOCAL_KIOSK_APP_BASE_URL: &str = "http://192.168.1.220:3000";
 pub const DEFAULT_LOCAL_KIOSK_API_BASE_URL: &str = "http://192.168.1.220:5200";
@@ -95,6 +95,10 @@ impl KioskEnvironmentService {
 
     pub fn get_settings() -> Result<KioskEnvironmentSettings, String> {
         let path = Self::settings_file_path()?;
+        Self::get_settings_from_path(&path)
+    }
+
+    fn get_settings_from_path(path: &Path) -> Result<KioskEnvironmentSettings, String> {
         if !path.exists() {
             return Ok(Self::default_settings());
         }
@@ -114,16 +118,10 @@ impl KioskEnvironmentService {
             })?;
 
         let environment = KioskEnvironment::parse(&persisted.environment)?;
-        let (custom_app_base_url, custom_api_base_url) = match environment {
-            KioskEnvironment::Local => Self::normalize_local_urls(
-                Some(&persisted.custom_app_base_url),
-                Some(&persisted.custom_api_base_url),
-            )?,
-            _ => (
-                DEFAULT_LOCAL_KIOSK_APP_BASE_URL.to_string(),
-                DEFAULT_LOCAL_KIOSK_API_BASE_URL.to_string(),
-            ),
-        };
+        let (custom_app_base_url, custom_api_base_url) = Self::normalize_local_urls(
+            Some(&persisted.custom_app_base_url),
+            Some(&persisted.custom_api_base_url),
+        )?;
         Ok(Self::resolve_settings(
             environment,
             custom_app_base_url,
@@ -134,17 +132,27 @@ impl KioskEnvironmentService {
     pub fn save_settings(
         request: SaveKioskEnvironmentSettingsRequest,
     ) -> Result<KioskEnvironmentSettings, String> {
+        let path = Self::settings_file_path()?;
+        Self::save_settings_to_path(&path, request)
+    }
+
+    fn save_settings_to_path(
+        path: &Path,
+        request: SaveKioskEnvironmentSettingsRequest,
+    ) -> Result<KioskEnvironmentSettings, String> {
+        let existing_settings =
+            Self::get_settings_from_path(path).unwrap_or_else(|_| Self::default_settings());
         let environment = KioskEnvironment::parse(&request.environment)?;
-        let (custom_app_base_url, custom_api_base_url) = match environment {
-            KioskEnvironment::Local => Self::normalize_local_urls(
-                request.custom_app_base_url.as_deref(),
-                request.custom_api_base_url.as_deref(),
-            )?,
-            _ => (
-                DEFAULT_LOCAL_KIOSK_APP_BASE_URL.to_string(),
-                DEFAULT_LOCAL_KIOSK_API_BASE_URL.to_string(),
-            ),
-        };
+        let (custom_app_base_url, custom_api_base_url) = Self::normalize_local_urls(
+            request
+                .custom_app_base_url
+                .as_deref()
+                .or(Some(existing_settings.custom_app_base_url.as_str())),
+            request
+                .custom_api_base_url
+                .as_deref()
+                .or(Some(existing_settings.custom_api_base_url.as_str())),
+        )?;
 
         let payload = PersistedKioskEnvironmentSettings {
             environment: environment.as_str().to_string(),
@@ -152,7 +160,6 @@ impl KioskEnvironmentService {
             custom_api_base_url: custom_api_base_url.clone(),
         };
 
-        let path = Self::settings_file_path()?;
         if let Some(parent) = path.parent() {
             fs::create_dir_all(parent).map_err(|e| {
                 format!(
@@ -164,7 +171,7 @@ impl KioskEnvironmentService {
 
         let serialized = serde_json::to_string_pretty(&payload)
             .map_err(|e| format!("Failed to encode kiosk environment settings: {}", e))?;
-        fs::write(&path, serialized).map_err(|e| {
+        fs::write(path, serialized).map_err(|e| {
             format!(
                 "Failed to write kiosk environment settings {:?}: {}",
                 path, e
