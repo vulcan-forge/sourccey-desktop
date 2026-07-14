@@ -2,11 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { FaCheckCircle, FaChevronDown, FaChevronUp, FaCloud } from 'react-icons/fa';
-import {
-    DEFAULT_PRODUCTION_API_BASE_URL,
-    DEFAULT_PRODUCTION_PORTAL_BASE_URL,
-    type KioskCloudPairingInfo,
-} from './welcome.types';
+import { DEFAULT_PRODUCTION_API_BASE_URL, DEFAULT_PRODUCTION_PORTAL_BASE_URL, type KioskCloudPairingInfo } from './welcome.types';
 
 interface WelcomeRegistrationSectionProps {
     cloudPairing: KioskCloudPairingInfo | null;
@@ -15,16 +11,9 @@ interface WelcomeRegistrationSectionProps {
     onRefresh: () => void;
 }
 
-const LoadingLine = ({ className = '' }: { className?: string }) => (
-    <div className={`skeleton-shimmer rounded-full ${className}`} />
-);
+const LoadingLine = ({ className = '' }: { className?: string }) => <div className={`skeleton-shimmer rounded-full ${className}`} />;
 
-export const WelcomeRegistrationSection = ({
-    cloudPairing,
-    isLoadingCloudPairing,
-    nowMs,
-    onRefresh,
-}: WelcomeRegistrationSectionProps) => {
+export const WelcomeRegistrationSection = ({ cloudPairing, isLoadingCloudPairing, nowMs, onRefresh }: WelcomeRegistrationSectionProps) => {
     const [showClaimedRegistrationInfo, setShowClaimedRegistrationInfo] = useState(false);
     const isInitialCloudPairingLoad = isLoadingCloudPairing && !cloudPairing;
 
@@ -72,10 +61,14 @@ export const WelcomeRegistrationSection = ({
                     </div>
                     <button
                         onClick={onRefresh}
-                        disabled={isInitialCloudPairingLoad}
-                        className="cursor-pointer whitespace-nowrap rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-400 disabled:cursor-default disabled:opacity-70"
+                        disabled={isLoadingCloudPairing}
+                        className="cursor-pointer rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold whitespace-nowrap text-slate-100 transition hover:border-slate-400 disabled:cursor-default disabled:opacity-70"
                     >
-                        {isInitialCloudPairingLoad ? 'Checking Status...' : registrationActionLabel}
+                        {isInitialCloudPairingLoad
+                            ? 'Checking Status...'
+                            : isLoadingCloudPairing
+                              ? 'Contacting API...'
+                              : registrationActionLabel}
                     </button>
                 </div>
             </div>
@@ -97,7 +90,7 @@ export const WelcomeRegistrationSection = ({
 
             <div className="mb-5 rounded-lg border border-slate-700 bg-slate-900/40 px-4 py-3">
                 <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Studio URL</div>
-                <div className="mt-2 break-all font-mono text-sm text-sky-200">{portalUrlDisplay}</div>
+                <div className="mt-2 font-mono text-sm break-all text-sky-200">{portalUrlDisplay}</div>
             </div>
 
             {isInitialCloudPairingLoad ? (
@@ -162,7 +155,7 @@ export const WelcomeRegistrationSection = ({
                                 </div>
                                 <div>
                                     <div className="text-slate-400">API URL</div>
-                                    <div className="break-all font-mono text-xs text-white">
+                                    <div className="font-mono text-xs break-all text-white">
                                         {cloudPairing.apiBaseUrl || DEFAULT_PRODUCTION_API_BASE_URL}
                                     </div>
                                 </div>

@@ -2,7 +2,10 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { FaExclamationTriangle } from 'react-icons/fa';
+import { toast } from 'react-toastify';
 import { hasLoadedSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import { toastWarningDefaults } from '@/utils/toast/toast-utils';
 import { WelcomeRegistrationSection } from './WelcomeRegistrationSection';
 import { WelcomeSystemStatus } from './WelcomeSystemStatus';
 import {
@@ -11,6 +14,12 @@ import {
     type KioskCloudPairingInfo,
     type WelcomeSystemInfo,
 } from './welcome.types';
+
+const getErrorMessage = (error: unknown, fallback: string) => {
+    if (error instanceof Error && error.message.trim()) return error.message;
+    if (typeof error === 'string' && error.trim()) return error;
+    return fallback;
+};
 
 export const HomeWelcome = () => {
     const nickname = 'sourccey';
@@ -59,23 +68,43 @@ export const HomeWelcome = () => {
             setCloudPairing(info);
         } catch (error) {
             console.error('Failed to start or refresh cloud pairing:', error);
-            setCloudPairing({
-                environment: 'production',
-                portalBaseUrl: DEFAULT_PRODUCTION_PORTAL_BASE_URL,
-                apiBaseUrl: DEFAULT_PRODUCTION_API_BASE_URL,
-                deviceId: '',
-                robotModelName: 'sourccey',
-                pairingCode: null,
-                expiresAtMs: null,
-                status: 'error',
-                ownedRobotId: null,
-                claimedAtMs: null,
-                errorMessage: error instanceof Error ? error.message : 'Unable to load cloud pairing info',
-            });
+            const errorMessage = getErrorMessage(error, 'Unable to contact the registration API');
+            const apiBaseUrl = cloudPairing?.apiBaseUrl || DEFAULT_PRODUCTION_API_BASE_URL;
+            setCloudPairing((current) =>
+                current
+                    ? { ...current, status: 'error', errorMessage }
+                    : {
+                          environment: 'production',
+                          portalBaseUrl: DEFAULT_PRODUCTION_PORTAL_BASE_URL,
+                          apiBaseUrl: DEFAULT_PRODUCTION_API_BASE_URL,
+                          deviceId: '',
+                          robotModelName: 'sourccey',
+                          pairingCode: null,
+                          expiresAtMs: null,
+                          status: 'error',
+                          ownedRobotId: null,
+                          claimedAtMs: null,
+                          errorMessage,
+                      }
+            );
+            toast.warning(
+                <div className="space-y-1">
+                    <div className="flex items-center gap-2 font-semibold">
+                        <FaExclamationTriangle className="h-4 w-4 text-amber-300" />
+                        Registration API unavailable
+                    </div>
+                    <div className="text-sm text-slate-200">
+                        Could not start registration through <span className="font-semibold text-white">{apiBaseUrl}</span>. Confirm the API is
+                        running and check the kiosk developer settings.
+                    </div>
+                    <div className="text-xs text-slate-400">{errorMessage}</div>
+                </div>,
+                { ...toastWarningDefaults, autoClose: 7000 }
+            );
         } finally {
             setIsLoadingCloudPairing(false);
         }
-    }, [cloudPairing?.status]);
+    }, [cloudPairing?.apiBaseUrl, cloudPairing?.status]);
 
     useEffect(() => {
         void fetchCloudPairing();
@@ -88,12 +117,7 @@ export const HomeWelcome = () => {
 
     return (
         <>
-            <WelcomeSystemStatus
-                nickname={nickname}
-                robotType={robotType}
-                systemInfo={systemInfo}
-                isLoadingSystemInfo={isSystemInfoLoading}
-            />
+            <WelcomeSystemStatus nickname={nickname} robotType={robotType} systemInfo={systemInfo} isLoadingSystemInfo={isSystemInfoLoading} />
             <WelcomeRegistrationSection
                 cloudPairing={cloudPairing}
                 isLoadingCloudPairing={isLoadingCloudPairing}
