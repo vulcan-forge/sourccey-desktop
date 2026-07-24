@@ -5,16 +5,16 @@
     "platforms": {
         "windows-x86_64": {
             "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzZjUXZ1dHVyQVQwb21YaVJQTFRzUlpmRjR3Y0JkOW5tdEdTaUd4RWRyVkVpYU1rdFpVQ2Q0d1pZbEJtaWg5d3djSkdaOGxMNk9RZ0ZLc3hsZnJwb3dvPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzcyMDkxMTc2CWZpbGU6VnVsY2FuU3R1ZGlvXzAuMC42X3g2NC1zZXR1cC5leGUKK0xoREdXUS9JNHBTL0dHRlg5ek1IaFA0QngrSnJJdDVocGtlTWZFdkRSWURVMzY4NUpaaytLSlNjRzN3RUlpMHNQRXJJWHhQYTNUQUhYVE1pVm5aQXc9PQo=",
-            "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudioInstaller.exe"
+            "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio-0.0.20-windows-x86_64-setup.exe"
         },
         "linux-x86_64": {
             "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQytva2lxV0l2OUhwVWxBYVJDUG41dHdXUENCRk14azlMV1kzL2syR0ZKcWV2cVFxNGNYa2FQTEZqbHVoVHhFWVI1VHF1UjRqdDRUaGtvc1M0S0ZkZ2dZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNzg3OTQ0CWZpbGU6VnVsY2FuIFN0dWRpb18wLjAuMTlfYW1kNjQuQXBwSW1hZ2UKRmJZWGVEQlMyR21aMExyRFFhNnBrQmRjSWVKNkFJeFBsRE1aWlAxVHFYcWc5UlowTEZUQVRSQlErcWFnNkk5S2ZLbmN5ZTlyL3ErK3ZWUmtSaWczQXc9PQo=",
-            "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudioInstaller.AppImage"
+            "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio-0.0.20-linux-x86_64.AppImage"
         },
         "darwin-aarch64": {
             "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQ3h0NUJLSEtMWi9IODhpbTUrNThDV3liVTFITmxmOHVySVUvM2hCOVdlVjJTRHJObmI0Vi9RMEJ5V3MxeEoxVXdXQXdSS1FqS3RYWk9mblkvR1V3ZkFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNzg5Njc4CWZpbGU6VnVsY2FuIFN0dWRpby5hcHAudGFyLmd6CmdTWjd6WVB6WTFYZFB2eXpWVllubTY0UWlwVlRodW9HLytNTjM0aGw1Mk5NemtwLzMxREZBbWVBQ08xQWtNbFc2aXpyZitaQis0VGNLalR0UlBrVUJnPT0K",
-            "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudioInstaller.app.tar.gz",
-            "installer_url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudioInstaller.dmg"
+            "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio-0.0.20-macos-aarch64.app.tar.gz",
+            "installer_url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio-0.0.20-macos-aarch64.dmg"
         }
     },
     "modules": {
