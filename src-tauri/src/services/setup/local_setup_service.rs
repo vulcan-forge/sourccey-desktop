@@ -141,9 +141,9 @@ impl LocalSetupService {
     }
 
     const DEFAULT_LEROBOT_ZIP_URL: &str =
-        "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan/lerobot-vulcan_vulcan-0.1.9.zip";
+        "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan/lerobot-vulcan_vulcan-0.1.10.zip";
     const DEFAULT_LEROBOT_ZIP_SHA256_URL: &str =
-        "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan/lerobot-vulcan_vulcan-0.1.9.zip.sha256";
+        "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/lerobot-vulcan/lerobot-vulcan_vulcan-0.1.10.zip.sha256";
     const DEFAULT_UPDATER_URL: &str =
         "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json";
     const DEFAULT_LEROBOT_TAGS_URL: &str =
