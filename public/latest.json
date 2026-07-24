@@ -8,11 +8,11 @@
             "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.0.20_x64-setup.exe"
         },
         "linux-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQytva2lxV0l2OUhwVWxBYVJDUG41dHdXUENCRk14azlMV1kzL2syR0ZKcWV2cVFxNGNYa2FQTEZqbHVoVHhFWVI1VHF1UjRqdDRUaGtvc1M0S0ZkZ2dZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNzg3OTQ0CWZpbGU6VnVsY2FuIFN0dWRpb18wLjAuMTlfYW1kNjQuQXBwSW1hZ2UKRmJZWGVEQlMyR21aMExyRFFhNnBrQmRjSWVKNkFJeFBsRE1aWlAxVHFYcWc5UlowTEZUQVRSQlErcWFnNkk5S2ZLbmN5ZTlyL3ErK3ZWUmtSaWczQXc9PQo=",
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzU2YVZicTFSQnQ4Vmx3eEprcGN3Q1JJZldHY3FMQXpiNWthR1lZSy9BbGhBQUxxZWFpdlIxUjhxY1NkWlhDTGdKUU5FK2d1Y2V6bGpha250dzlNcGdrPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0ODU0NzAzCWZpbGU6VnVsY2FuIFN0dWRpb18wLjAuMjBfYW1kNjQuQXBwSW1hZ2UKa3RIVGk5UE1HdlZPTC9XVUhEL244bVl6RTliM0preGdOUWNXTk8rZnZZRytFZGtZck0xVHpUWGhuVjkvcWI4YW83SG0xY01DVXQweDNScUVyTG52Qmc9PQo=",
             "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.0.20_amd64.AppImage"
         },
         "darwin-aarch64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQ3h0NUJLSEtMWi9IODhpbTUrNThDV3liVTFITmxmOHVySVUvM2hCOVdlVjJTRHJObmI0Vi9RMEJ5V3MxeEoxVXdXQXdSS1FqS3RYWk9mblkvR1V3ZkFnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzgzNzg5Njc4CWZpbGU6VnVsY2FuIFN0dWRpby5hcHAudGFyLmd6CmdTWjd6WVB6WTFYZFB2eXpWVllubTY0UWlwVlRodW9HLytNTjM0aGw1Mk5NemtwLzMxREZBbWVBQ08xQWtNbFc2aXpyZitaQis0VGNLalR0UlBrVUJnPT0K",
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzBlMWdqS2FYVDU1ZDNpY0RQSWZ0QzdtMVhWUEhSMjc4dWdsSDlEWC9tVDByajNjWHZwc00zUTdOai9rLzNHeGd2V0E0VlBiUVNDZkRHc1g2c1p4V1FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0ODU2NDMyCWZpbGU6VnVsY2FuIFN0dWRpby5hcHAudGFyLmd6Ck54bjZQQnVxVWlEcHAvMzZaemJQRkUySjNsZEJkWURFdnFyYjI1L0VLSHFnVktSa3d2d3VCOGdQR09Ibk5FMHhXd0dzQTQzY210Y09CaFYzTy9vYUFnPT0K",
             "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.0.20_aarch64.app.tar.gz",
             "installer_url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.0.20_aarch64.dmg"
         }
