@@ -36,7 +36,7 @@ from setup.shared.setup_helper import wrap_command  # type: ignore
 from setup.shared.setup_javascript import get_bun_path  # type: ignore
 
 LEROBOT_VULCAN_SUBMODULE_PATH = "modules/lerobot-vulcan"
-LEROBOT_VULCAN_TAG = "vulcan/0.1.10"
+LEROBOT_VULCAN_TAG = "vulcan/0.1.11"
 
 
 class Colors:

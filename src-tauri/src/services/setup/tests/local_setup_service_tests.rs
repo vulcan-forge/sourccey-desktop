@@ -30,9 +30,9 @@ fn parses_vulcan_semver_tags() {
 fn extracts_release_tag_from_versioned_archive_url() {
     assert_eq!(
         LocalSetupService::lerobot_tag_from_zip_url(
-            "https://cdn.example.com/updater/lerobot-vulcan/lerobot-vulcan_vulcan-0.1.10.zip"
+            "https://cdn.example.com/updater/lerobot-vulcan/lerobot-vulcan_vulcan-0.1.11.zip"
         ),
-        Some("vulcan/0.1.10".to_string())
+        Some("vulcan/0.1.11".to_string())
     );
     assert_eq!(
         LocalSetupService::lerobot_tag_from_zip_url(
