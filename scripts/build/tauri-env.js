@@ -2,13 +2,14 @@
 // - Standard usage: `bun run tauri build` (or `bun run tauri:build`).
 // - Previous usage: `dotenv -e .env -- tauri build`
 // - What it does: loads signing keys from `.env` into the process environment
-//   and warns if any are missing for build commands, then forwards all args
-//   to the Tauri CLI.
+//   and warns if any are missing for build commands, forwards all args to the
+//   Tauri CLI, then normalizes publishable artifact filenames.
 // - How it works: parses `.env` locally, merges required keys into `process.env`,
 //   then spawns the `tauri` binary with inherited stdio.
 const { chmodSync, copyFileSync, existsSync, readFileSync, rmSync } = require('fs');
 const { join } = require('path');
 const { spawn, spawnSync } = require('child_process');
+const { finalizeArtifactNames } = require('./artifact-names');
 
 const REQUIRED_KEYS = ['TAURI_SIGNING_PUBLIC_KEY', 'TAURI_SIGNING_PRIVATE_KEY', 'TAURI_SIGNING_PRIVATE_KEY_PASSWORD'];
 const LINUX_INOTIFY_LIMITS = {
@@ -154,6 +155,16 @@ const child = spawn(bin, effectiveArgs, { stdio: 'inherit', env: process.env });
 
 child.on('exit', (code) => {
     let finalCode = code ?? 1;
+    if (finalCode === 0 && effectiveArgs[0] === 'build') {
+        try {
+            finalizeArtifactNames({ args: effectiveArgs });
+        } catch (error) {
+            console.error(
+                `[tauri-env] Failed to finalize artifact names: ${error instanceof Error ? error.message : String(error)}`
+            );
+            finalCode = 1;
+        }
+    }
     if (
         finalCode === 0 &&
         process.platform === 'darwin' &&
