@@ -74,6 +74,7 @@ struct ModulesManifest {
 struct LerobotModuleManifest {
     pub commit: Option<String>,
     pub tag: Option<String>,
+    pub zip_url: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -98,6 +99,7 @@ struct LatestLerobotTagInfo {
 struct ManifestLerobotReleaseInfo {
     tag: Option<String>,
     commit: Option<String>,
+    zip_url: Option<String>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -127,9 +129,8 @@ lazy_static! {
 }
 
 impl LocalSetupService {
-    const SOURCCEY_RUNTIME_EXTRA: &str = "sourccey";
-    // Match lerobot-vulcan/setup/setup_modules/setup_desktop.py, which installs
-    // both extras explicitly for desktop AI content.
+    const SOURCCEY_DESKTOP_RUNTIME_EXTRA: &str = "sourccey-desktop";
+    // Desktop AI content combines the Sourccey controller profile with XVLA.
     const SOURCCEY_DESKTOP_EXTRA: &str = "sourccey-desktop,xvla";
 
     pub fn resolve_uv_binary(app_handle: &AppHandle) -> Result<PathBuf, String> {
@@ -157,7 +158,7 @@ impl LocalSetupService {
         }
 
         std::thread::spawn(move || {
-            if let Err(e) = Self::ensure_installed(&app_handle, None, true) {
+            if let Err(e) = Self::ensure_installed(&app_handle, None, true, None) {
                 eprintln!("[setup] {}", e);
                 app_handle
                     .dialog()
@@ -263,7 +264,7 @@ impl LocalSetupService {
                 return result;
             }
         }
-        if let Err(error) = Self::ensure_installed(app_handle, Some(&emit), false) {
+        if let Err(error) = Self::ensure_installed(app_handle, Some(&emit), false, None) {
             Self::write_setup_log(app_handle, &error);
             return Err(error);
         }
@@ -315,6 +316,20 @@ impl LocalSetupService {
             let _ = app_handle.emit("setup:progress", progress);
         };
 
+        let latest_release = Self::fetch_latest_lerobot_tag_from_api()?
+            .ok_or_else(|| "No valid vulcan/* semantic-version tag was found".to_string())?;
+        let release_zip_url = if BuildService::is_dev_mode() {
+            None
+        } else {
+            let manifest_release = Self::read_manifest_lerobot_release_info()?
+                .ok_or_else(|| "latest.json is missing modules.lerobot-vulcan".to_string())?;
+            Some(Self::select_latest_lerobot_archive_url(
+                &latest_release,
+                &manifest_release,
+                std::env::var("SOURCCEY_LEROBOT_ZIP_URL").ok().as_deref(),
+            )?)
+        };
+
         let app_data_dir = app_handle
             .path()
             .app_data_dir()
@@ -331,16 +346,45 @@ impl LocalSetupService {
         };
         let lerobot_dir = install_root.join("lerobot-vulcan");
 
-        Self::emit_step(
-            Some(&emit),
-            "reset",
-            "started",
-            Some("Removing lerobot-vulcan runtime".to_string()),
-        );
-
-        if lerobot_dir.exists() {
-            fs::remove_dir_all(&lerobot_dir)
-                .map_err(|e| format!("Failed to remove lerobot-vulcan: {}", e))?;
+        if BuildService::is_dev_mode() {
+            Self::emit_step(
+                Some(&emit),
+                "reset",
+                "started",
+                Some(format!(
+                    "Checking out newest LeRobot tag {}",
+                    latest_release.name
+                )),
+            );
+            Self::run_git_command(
+                &["fetch", "--tags", "--prune"],
+                &lerobot_dir,
+                "git fetch tags",
+            )?;
+            Self::run_git_command(
+                &[
+                    "checkout",
+                    "--detach",
+                    "--force",
+                    latest_release.name.as_str(),
+                ],
+                &lerobot_dir,
+                "git checkout newest vulcan tag",
+            )?;
+        } else {
+            Self::emit_step(
+                Some(&emit),
+                "reset",
+                "started",
+                Some(format!(
+                    "Installing newest LeRobot tag {}",
+                    latest_release.name
+                )),
+            );
+            if lerobot_dir.exists() {
+                fs::remove_dir_all(&lerobot_dir)
+                    .map_err(|e| format!("Failed to remove lerobot-vulcan: {}", e))?;
+            }
         }
 
         if marker_path.exists() {
@@ -364,7 +408,12 @@ impl LocalSetupService {
             Some("Reset complete. Reinstalling modules.".to_string()),
         );
 
-        if let Err(error) = Self::ensure_installed(app_handle, Some(&emit), false) {
+        let install_result = if BuildService::is_dev_mode() {
+            Self::reinstall_dependencies(app_handle, Some(&emit))
+        } else {
+            Self::ensure_installed(app_handle, Some(&emit), false, release_zip_url.as_deref())
+        };
+        if let Err(error) = install_result {
             Self::write_setup_log(app_handle, &error);
             return Err(error);
         }
@@ -442,6 +491,14 @@ impl LocalSetupService {
             })?;
             Self::emit_step(Some(&emit), "deps", "success", None);
 
+            Self::run_sourccey_post_install(&python_path, &lerobot_dir, "desktop").map_err(
+                |e| {
+                    Self::emit_step(Some(&emit), "post-install", "error", Some(e.clone()));
+                    e
+                },
+            )?;
+            Self::emit_step(Some(&emit), "post-install", "success", None);
+
             Self::emit_step(
                 Some(&emit),
                 "xvla",
@@ -484,6 +541,7 @@ impl LocalSetupService {
         app_handle: &AppHandle,
         emit: Option<&dyn Fn(SetupProgress)>,
         show_dialogs: bool,
+        zip_url_override: Option<&str>,
     ) -> Result<(), String> {
         let app_data_dir = app_handle
             .path()
@@ -525,8 +583,10 @@ impl LocalSetupService {
                 "started",
                 Some("Downloading lerobot-vulcan".to_string()),
             );
-            let zip_url = std::env::var("SOURCCEY_LEROBOT_ZIP_URL")
-                .unwrap_or_else(|_| Self::DEFAULT_LEROBOT_ZIP_URL.to_string());
+            let zip_url = zip_url_override.map(ToOwned::to_owned).unwrap_or_else(|| {
+                std::env::var("SOURCCEY_LEROBOT_ZIP_URL")
+                    .unwrap_or_else(|_| Self::DEFAULT_LEROBOT_ZIP_URL.to_string())
+            });
             if zip_url.trim().is_empty() {
                 Self::emit_step(
                     emit,
@@ -663,13 +723,13 @@ impl LocalSetupService {
             emit,
             "deps",
             "started",
-            Some("Installing Sourccey robot runtime".to_string()),
+            Some("Installing Sourccey desktop runtime".to_string()),
         );
         Self::install_lerobot_extra(
             &uv_target,
             &lerobot_dir,
             &python_path,
-            Self::SOURCCEY_RUNTIME_EXTRA,
+            Self::SOURCCEY_DESKTOP_RUNTIME_EXTRA,
         )
         .map_err(|e| {
             Self::emit_step(emit, "deps", "error", Some(e.clone()));
@@ -677,42 +737,18 @@ impl LocalSetupService {
         })?;
         Self::emit_step(emit, "deps", "success", None);
 
-        let compile_script = lerobot_dir
-            .join("src")
-            .join("lerobot")
-            .join("robots")
-            .join("sourccey")
-            .join("sourccey")
-            .join("protobuf")
-            .join("compile.py");
-        if compile_script.exists() {
-            Self::emit_step(
-                emit,
-                "protobuf",
-                "started",
-                Some("Compiling protobuf".to_string()),
-            );
-            let compile_script_str = compile_script.to_string_lossy().to_string();
-            Self::run_command(
-                &python_path,
-                &[compile_script_str.as_str()],
-                &lerobot_dir,
-                "compile protobuf",
-            )
-            .map_err(|e| {
-                let formatted = Self::format_protobuf_error(&e);
-                Self::emit_step(emit, "protobuf", "error", Some(formatted.clone()));
-                formatted
-            })?;
-            Self::emit_step(emit, "protobuf", "success", None);
-        } else {
-            Self::emit_step(
-                emit,
-                "protobuf",
-                "success",
-                Some("Protobuf compile step skipped".to_string()),
-            );
-        }
+        Self::run_sourccey_post_install(&python_path, &lerobot_dir, "desktop").map_err(|e| {
+            Self::emit_step(emit, "post-install", "error", Some(e.clone()));
+            e
+        })?;
+        Self::emit_step(emit, "post-install", "success", None);
+
+        Self::emit_step(
+            emit,
+            "protobuf",
+            "success",
+            Some("Using protobuf bindings bundled with lerobot-robot-sourccey".to_string()),
+        );
 
         fs::write(&marker_path, "ok")
             .map_err(|e| format!("Failed to write setup marker: {}", e))?;
@@ -767,7 +803,48 @@ impl LocalSetupService {
                 commit: module
                     .commit
                     .and_then(|commit| Self::normalize_git_commit_sha(&commit)),
+                zip_url: module
+                    .zip_url
+                    .map(|url| url.trim().to_string())
+                    .filter(|url| !url.is_empty()),
             }))
+    }
+
+    fn select_latest_lerobot_archive_url(
+        latest_release: &LatestLerobotTagInfo,
+        manifest_release: &ManifestLerobotReleaseInfo,
+        configured_zip_url: Option<&str>,
+    ) -> Result<String, String> {
+        let manifest_tag = manifest_release
+            .tag
+            .as_deref()
+            .ok_or_else(|| "latest.json is missing modules.lerobot-vulcan.tag".to_string())?;
+        if manifest_tag != latest_release.name {
+            return Err(format!(
+                "Newest LeRobot tag {} has not been published in latest.json yet (manifest has {}).",
+                latest_release.name, manifest_tag
+            ));
+        }
+
+        let zip_url = configured_zip_url
+            .map(str::trim)
+            .filter(|url| !url.is_empty())
+            .map(ToOwned::to_owned)
+            .or_else(|| manifest_release.zip_url.clone())
+            .ok_or_else(|| "latest.json is missing modules.lerobot-vulcan.zip_url".to_string())?;
+        let archive_tag = Self::lerobot_tag_from_zip_url(&zip_url).ok_or_else(|| {
+            format!(
+                "LeRobot archive URL does not identify a vulcan release tag: {}",
+                zip_url
+            )
+        })?;
+        if archive_tag != latest_release.name {
+            return Err(format!(
+                "LeRobot archive is for {}, but the newest release is {}.",
+                archive_tag, latest_release.name
+            ));
+        }
+        Ok(zip_url)
     }
 
     fn resolve_latest_lerobot_tag() -> Option<LatestLerobotTagInfo> {
@@ -1234,7 +1311,7 @@ impl LocalSetupService {
         };
 
         if !lerobot_dir.exists() {
-            return Self::ensure_installed(app_handle, emit, false);
+            return Self::ensure_installed(app_handle, emit, false, None);
         }
 
         fs::create_dir_all(&setup_dir)
@@ -1274,13 +1351,13 @@ impl LocalSetupService {
             emit,
             "deps",
             "started",
-            Some("Refreshing Sourccey robot runtime".to_string()),
+            Some("Refreshing Sourccey desktop runtime".to_string()),
         );
         Self::install_lerobot_extra(
             &uv_target,
             &lerobot_dir,
             &python_path,
-            Self::SOURCCEY_RUNTIME_EXTRA,
+            Self::SOURCCEY_DESKTOP_RUNTIME_EXTRA,
         )
         .map_err(|e| {
             Self::emit_step(emit, "deps", "error", Some(e.clone()));
@@ -1288,42 +1365,18 @@ impl LocalSetupService {
         })?;
         Self::emit_step(emit, "deps", "success", None);
 
-        let compile_script = lerobot_dir
-            .join("src")
-            .join("lerobot")
-            .join("robots")
-            .join("sourccey")
-            .join("sourccey")
-            .join("protobuf")
-            .join("compile.py");
-        if compile_script.exists() {
-            Self::emit_step(
-                emit,
-                "protobuf",
-                "started",
-                Some("Compiling protobuf".to_string()),
-            );
-            let compile_script_str = compile_script.to_string_lossy().to_string();
-            Self::run_command(
-                &python_path,
-                &[compile_script_str.as_str()],
-                &lerobot_dir,
-                "compile protobuf",
-            )
-            .map_err(|e| {
-                let formatted = Self::format_protobuf_error(&e);
-                Self::emit_step(emit, "protobuf", "error", Some(formatted.clone()));
-                formatted
-            })?;
-            Self::emit_step(emit, "protobuf", "success", None);
-        } else {
-            Self::emit_step(
-                emit,
-                "protobuf",
-                "success",
-                Some("Protobuf compile step skipped".to_string()),
-            );
-        }
+        Self::run_sourccey_post_install(&python_path, &lerobot_dir, "desktop").map_err(|e| {
+            Self::emit_step(emit, "post-install", "error", Some(e.clone()));
+            e
+        })?;
+        Self::emit_step(emit, "post-install", "success", None);
+
+        Self::emit_step(
+            emit,
+            "protobuf",
+            "success",
+            Some("Using protobuf bindings bundled with lerobot-robot-sourccey".to_string()),
+        );
 
         fs::write(&marker_path, "ok")
             .map_err(|e| format!("Failed to write setup marker: {}", e))?;
@@ -1377,6 +1430,42 @@ impl LocalSetupService {
         }
 
         Ok(())
+    }
+
+    fn run_git_command(args: &[&str], working_dir: &Path, label: &str) -> Result<(), String> {
+        let mut command = Command::new("git");
+        command.args(args).current_dir(working_dir);
+        Self::configure_setup_command_env(&mut command);
+        configure_std_command(&mut command);
+        let output = command
+            .output()
+            .map_err(|e| format!("Failed to run {}: {}", label, e))?;
+        if output.status.success() {
+            return Ok(());
+        }
+
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        Err(format!(
+            "{} failed with status: {}\nstdout: {}\nstderr: {}",
+            label,
+            output.status,
+            stdout.trim(),
+            stderr.trim()
+        ))
+    }
+
+    fn run_sourccey_post_install(
+        python_path: &Path,
+        working_dir: &Path,
+        profile: &str,
+    ) -> Result<(), String> {
+        Self::run_command(
+            python_path,
+            &["-m", "lerobot_robot_sourccey.setup", profile],
+            working_dir,
+            &format!("sourccey-setup {}", profile),
+        )
     }
 
     fn run_uv_pip_install(
@@ -1466,13 +1555,6 @@ impl LocalSetupService {
 
         Self::emit_step(emit, "venv", "success", None);
         Ok(python_path)
-    }
-
-    fn format_protobuf_error(error: &str) -> String {
-        format!(
-            "Compile protobuf failed.\n\nCompiler output:\n{}",
-            error.trim()
-        )
     }
 
     fn python_can_import(python_path: &Path, module: &str) -> bool {

@@ -26,13 +26,16 @@ const statusColors: Record<StepStatus, string> = {
 
 const stepsByAction = {
     modules: [
-        { id: 'submodules', label: 'Update LeRobot submodule' },
+        { id: 'submodules', label: 'Initialize LeRobot submodule' },
+        { id: 'tag', label: 'Select newest vulcan tag' },
+        { id: 'deps', label: 'Refresh robot dependencies' },
         { id: 'complete', label: 'Finalize' },
     ],
     app: [
         { id: 'fetch', label: 'Fetch latest code' },
         { id: 'reset', label: 'Reset repository' },
         { id: 'submodules', label: 'Update submodules' },
+        { id: 'tag', label: 'Select newest vulcan tag' },
         { id: 'setup', label: 'Run kiosk setup script' },
         { id: 'complete', label: 'Finalize' },
     ],
@@ -285,7 +288,7 @@ export default function KioskSetupPage() {
                                 }`}
                             >
                                 <h2 className="mb-1 text-lg font-semibold text-slate-100">LeRobot Update</h2>
-                                <p className="mb-4 text-xs text-slate-300">Refresh the `modules/lerobot-vulcan` submodule pinned by this app repo.</p>
+                                <p className="mb-4 text-xs text-slate-300">Update `modules/lerobot-vulcan` to the newest released `vulcan/*` tag.</p>
                                 {renderStepList('modules')}
                                 <button
                                     type="button"

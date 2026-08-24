@@ -138,11 +138,11 @@ main() {
     print_status "Step 2: Setting up Python environment in modules/lerobot-vulcan..."
     cd modules/lerobot-vulcan
 
-    print_status "Creating virtual environment with uv..."
-    run_command "uv venv" "Failed to create virtual environment"
+    print_status "Synchronizing editable lerobot with Sourccey desktop dependencies..."
+    run_command "uv sync --locked --extra sourccey-desktop --extra xvla" "Failed to install lerobot desktop dependencies"
 
-    print_status "Installing lerobot with sourccey, smolvla, and feetech dependencies..."
-    run_command "uv install -e .[sourccey,smolvla,feetech]" "Failed to install lerobot dependencies"
+    print_status "Running Sourccey desktop post-install setup..."
+    run_command "uv run --no-sync sourccey-setup desktop" "Failed to run Sourccey desktop setup"
 
     # Return to root directory
     cd ../..

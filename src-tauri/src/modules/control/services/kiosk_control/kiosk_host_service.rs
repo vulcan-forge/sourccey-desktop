@@ -53,13 +53,15 @@ impl KioskHostService {
         }
 
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
-        // Launch from the prepared virtualenv directly so host start does not
-        // depend on parsing uv.lock at runtime.
-        let mut command_parts = vec![python_path.to_string_lossy().to_string()];
-        command_parts.push("-u".to_string());
-        command_parts.push("-m".to_string());
-        command_parts.push("lerobot.robots.sourccey.sourccey.sourccey.sourccey_host".to_string());
+        // Launch the console entry point installed by lerobot-robot-sourccey.
+        // This keeps the desktop independent of the plugin's Python module layout.
+        let host_executable =
+            DirectoryService::get_virtual_env_bin_path()?.join(if cfg!(windows) {
+                "sourccey-host.exe"
+            } else {
+                "sourccey-host"
+            });
+        let command_parts = vec![host_executable.to_string_lossy().to_string()];
 
         let command_log_service = CommandLogService::new(db_connection.clone());
         let command_log = command_log_service
@@ -265,13 +267,13 @@ impl KioskHostService {
             Ok(format!("Robot stopping for nickname: {}", nickname))
         } else {
             println!(
-                "Checking for external sourccey_host process for nickname: {}",
+                "Checking for external sourccey-host process for nickname: {}",
                 nickname
             );
             // Fallback: not tracked in state, but may be running externally on Linux.
-            // Find all matching PIDs (command line contains "sourccey_host")
+            // Find all matching PIDs (command line contains "sourccey-host")
             let output = Command::new("pgrep")
-                .args(&["-f", "sourccey_host"])
+                .args(&["-f", "sourccey-host"])
                 .output()
                 .map_err(|e| format!("Failed to run pgrep: {}", e))?;
 
@@ -294,7 +296,7 @@ impl KioskHostService {
                     "kiosk-host-stop-error",
                     serde_json::json!({
                         "nickname": nickname,
-                        "error": format!("No kiosk host process found for nickname: {} (and no external sourccey_host found)", nickname),
+                        "error": format!("No kiosk host process found for nickname: {} (and no external sourccey-host found)", nickname),
                     }),
                 );
 
@@ -328,13 +330,13 @@ impl KioskHostService {
                         "nickname": nickname,
                         "pid": pids.first().copied(), // one pid for convenience
                         "exit_code": None::<i32>,
-                        "message": format!("Stopped external sourccey_host process(es): {:?}", pids),
+                        "message": format!("Stopped external sourccey-host process(es): {:?}", pids),
                     }),
                 );
             }
 
             Ok(format!(
-                "Stopped external sourccey_host process(es) for nickname: {}",
+                "Stopped external sourccey-host process(es) for nickname: {}",
                 nickname
             ))
         }
@@ -410,7 +412,7 @@ impl KioskHostService {
 
     fn has_external_kiosk_host_process() -> bool {
         // Externally started (Linux): check for the module name in cmdline.
-        let status = Command::new("pgrep").args(["-f", "sourccey_host"]).status();
+        let status = Command::new("pgrep").args(["-f", "sourccey-host"]).status();
 
         status.map(|s| s.success()).unwrap_or(false)
     }

@@ -40,9 +40,6 @@ from setup_javascript import JavaScriptSetupManager  # type: ignore
 from setup_rust import RustSetupManager  # type: ignore
 from setup_git import GitSetupManager  # type: ignore
 
-LEROBOT_VULCAN_SUBMODULE_PATH = "modules/lerobot-vulcan"
-LEROBOT_VULCAN_TAG = "vulcan/0.1.11"
-
 class Colors:
     """ANSI color codes for terminal output"""
     # Check if colors are supported
@@ -494,7 +491,14 @@ class KioskSetupScript:
             self.print_status("Your application will launch in fullscreen automatically")
             print()
 
-    def run(self, no_clean: bool = False, use_https: bool = True, skip_system: bool = False) -> bool:
+    def run(
+        self,
+        no_clean: bool = False,
+        use_https: bool = True,
+        skip_system: bool = False,
+        python_only: bool = False,
+        skip_submodules: bool = False,
+    ) -> bool:
         """Run the complete kiosk setup process"""
         self.print_header("SOURCCEY KIOSK SETUP")
 
@@ -507,6 +511,21 @@ class KioskSetupScript:
 
         if not self.detect_project_root():
             return False
+
+        if python_only:
+            checks = [
+                self.check_python_version(),
+                self.check_git(),
+                self.check_uv(),
+            ]
+            if not all(checks):
+                self.print_error("Python runtime requirements check failed")
+                return False
+            if not self.setup_python_environment():
+                self.print_error("Python environment setup failed")
+                return False
+            self.print_success("Kiosk robot Python environment refreshed")
+            return True
 
         # Ensure project dir isn't owned by root before doing any builds.
         # This prevents later `bun tauri:kiosk` from failing with permission errors.
@@ -551,7 +570,7 @@ class KioskSetupScript:
         # Setup project
         self.print_header("SETTING UP PROJECT")
 
-        if not self.setup_git_submodules(use_https=use_https):
+        if not skip_submodules and not self.setup_git_submodules(use_https=use_https):
             self.print_error("Git submodule setup failed")
             if not use_https:
                 self.print_error("")
@@ -563,17 +582,6 @@ class KioskSetupScript:
             else:
                 self.print_error("Git submodule setup failed even with HTTPS.")
                 self.print_error("Please check your internet connection and try again.")
-            return False
-
-        if not self.git_manager.checkout_submodule_tag(
-            submodule_relative_path=LEROBOT_VULCAN_SUBMODULE_PATH,
-            tag=LEROBOT_VULCAN_TAG,
-            force=True,
-        ):
-            self.print_error(
-                f"Failed to checkout tag {LEROBOT_VULCAN_TAG} in "
-                f"{LEROBOT_VULCAN_SUBMODULE_PATH}."
-            )
             return False
 
         if not self.setup_python_environment():
@@ -645,13 +653,19 @@ def main():
                        help='Skip apt update/upgrade and system dependency installation')
     parser.add_argument('--use-https', action='store_true', default=True,
                        help='Use HTTPS URLs for git operations (default: True)')
+    parser.add_argument('--python-only', action='store_true',
+                       help='Only refresh the editable robot Python environment')
+    parser.add_argument('--skip-submodules', action='store_true',
+                       help='Preserve the lerobot-vulcan checkout selected by the updater')
     args = parser.parse_args()
 
     setup = KioskSetupScript()
     success = setup.run(
         no_clean=args.no_clean,
         use_https=args.use_https,
-        skip_system=args.skip_system
+        skip_system=args.skip_system,
+        python_only=args.python_only,
+        skip_submodules=args.skip_submodules,
     )
 
     if not success:

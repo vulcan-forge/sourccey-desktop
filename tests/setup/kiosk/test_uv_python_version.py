@@ -20,15 +20,20 @@ def _noop(*_args, **_kwargs):
     return None
 
 
-def _create_fake_lerobot_setup_tree(project_root: Path) -> None:
-    setup_dir = project_root / "modules" / "lerobot-vulcan" / "setup"
-    setup_dir.mkdir(parents=True, exist_ok=True)
-    (setup_dir / "setup.py").write_text("# fake lerobot setup file\n")
+def _create_fake_lerobot_project(project_root: Path) -> None:
+    lerobot_dir = project_root / "modules" / "lerobot-vulcan"
+    lerobot_dir.mkdir(parents=True, exist_ok=True)
+    (lerobot_dir / "pyproject.toml").write_text("[project]\nname = 'lerobot'\n")
+    setup_executable = lerobot_dir / ".venv" / (
+        "Scripts/sourccey-setup.exe" if setup_python_module.os.name == "nt" else "bin/sourccey-setup"
+    )
+    setup_executable.parent.mkdir(parents=True)
+    setup_executable.touch()
 
 
-def test_setup_python_environment_uses_desktop_flag_without_forcing_python(monkeypatch, tmp_path):
-    _create_fake_lerobot_setup_tree(tmp_path)
-    captured = {}
+def test_setup_python_environment_syncs_desktop_editable_profile(monkeypatch, tmp_path):
+    _create_fake_lerobot_project(tmp_path)
+    captured = []
 
     monkeypatch.setattr(
         setup_python_module,
@@ -37,9 +42,7 @@ def test_setup_python_environment_uses_desktop_flag_without_forcing_python(monke
     )
 
     def fake_run(command, cwd, env_overrides):
-        captured["command"] = command
-        captured["cwd"] = cwd
-        captured["env_overrides"] = dict(env_overrides)
+        captured.append((command, cwd, dict(env_overrides)))
         return SimpleNamespace(returncode=0)
 
     manager = PythonSetupManager(tmp_path, _noop, _noop, _noop, _noop)
@@ -47,30 +50,34 @@ def test_setup_python_environment_uses_desktop_flag_without_forcing_python(monke
 
     assert manager.setup_python_environment(desktop=True) is True
 
-    assert captured["command"] == [
-        sys.executable,
-        str(tmp_path / "modules" / "lerobot-vulcan" / "setup" / "setup.py"),
-        "--desktop",
+    assert captured[0][0] == [
+        str(Path("/tmp/uv")),
+        "sync",
+        "--locked",
+        "--extra",
+        "sourccey-desktop",
+        "--extra",
+        "xvla",
     ]
-    assert captured["cwd"] == tmp_path / "modules" / "lerobot-vulcan"
-    assert "UV_PYTHON" not in captured["env_overrides"]
-    assert Path(captured["env_overrides"]["SOURCCEY_UV_BIN"]) == Path("/tmp/uv")
+    assert captured[1][0][-1] == "desktop"
+    assert Path(captured[1][0][0]).name in {"sourccey-setup", "sourccey-setup.exe"}
+    assert captured[0][1] == tmp_path / "modules" / "lerobot-vulcan"
+    assert "UV_PYTHON" not in captured[0][2]
+    assert Path(captured[0][2]["SOURCCEY_UV_BIN"]) == Path("/tmp/uv")
 
 
-def test_setup_python_environment_omits_desktop_flag_when_not_requested(monkeypatch, tmp_path):
-    _create_fake_lerobot_setup_tree(tmp_path)
-    captured = {}
+def test_setup_python_environment_syncs_robot_editable_profile(monkeypatch, tmp_path):
+    _create_fake_lerobot_project(tmp_path)
+    captured = []
 
     monkeypatch.setattr(
         setup_python_module,
         "find_user_binary",
-        lambda *_args, **_kwargs: None,
+        lambda binary_name, _search_dirs: Path("/tmp/uv") if binary_name == "uv" else None,
     )
 
     def fake_run(command, cwd, env_overrides):
-        captured["command"] = command
-        captured["cwd"] = cwd
-        captured["env_overrides"] = dict(env_overrides)
+        captured.append((command, cwd, dict(env_overrides)))
         return SimpleNamespace(returncode=0)
 
     manager = PythonSetupManager(tmp_path, _noop, _noop, _noop, _noop)
@@ -78,10 +85,15 @@ def test_setup_python_environment_omits_desktop_flag_when_not_requested(monkeypa
 
     assert manager.setup_python_environment() is True
 
-    assert captured["command"] == [
-        sys.executable,
-        str(tmp_path / "modules" / "lerobot-vulcan" / "setup" / "setup.py"),
+    assert captured[0][0] == [
+        str(Path("/tmp/uv")),
+        "sync",
+        "--locked",
+        "--extra",
+        "sourccey-robot",
     ]
-    assert captured["cwd"] == tmp_path / "modules" / "lerobot-vulcan"
-    assert "UV_PYTHON" not in captured["env_overrides"]
-    assert "SOURCCEY_UV_BIN" not in captured["env_overrides"]
+    assert captured[1][0][-1] == "robot"
+    assert Path(captured[1][0][0]).name in {"sourccey-setup", "sourccey-setup.exe"}
+    assert captured[0][1] == tmp_path / "modules" / "lerobot-vulcan"
+    assert "UV_PYTHON" not in captured[0][2]
+    assert Path(captured[0][2]["SOURCCEY_UV_BIN"]) == Path("/tmp/uv")

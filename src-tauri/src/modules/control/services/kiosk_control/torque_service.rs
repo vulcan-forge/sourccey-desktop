@@ -134,8 +134,9 @@ impl KioskTorqueService {
     fn build_command_args(nickname: &str) -> Vec<String> {
         vec![
             "run".to_string(),
+            "--no-sync".to_string(),
             "-m".to_string(),
-            "lerobot.robots.sourccey.sourccey.sourccey.modules.torque.untorque".to_string(),
+            "lerobot_robot_sourccey.robots.sourccey.modules.torque.untorque".to_string(),
             format!("--id={}", nickname),
         ]
     }
@@ -185,10 +186,11 @@ mod tests {
     fn build_command_args_runs_torque_module_for_robot_id() {
         let args = KioskTorqueService::build_command_args("robot-1");
         assert_eq!(args[0], "run");
-        assert_eq!(args[1], "-m");
+        assert_eq!(args[1], "--no-sync");
+        assert_eq!(args[2], "-m");
         assert_eq!(
-            args[2],
-            "lerobot.robots.sourccey.sourccey.sourccey.modules.torque.untorque"
+            args[3],
+            "lerobot_robot_sourccey.robots.sourccey.modules.torque.untorque"
         );
         assert!(args.iter().any(|arg| arg == "--id=robot-1"));
     }

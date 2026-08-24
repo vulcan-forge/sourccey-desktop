@@ -166,7 +166,23 @@ impl KioskUpdateService {
             Some(&emit),
             "submodules",
             "success",
-            Some("lerobot-vulcan updated".to_string()),
+            Some("lerobot-vulcan submodule initialized".to_string()),
+        );
+
+        Self::checkout_latest_lerobot_tag(app_handle, &repo_root, Some(&emit))?;
+
+        Self::emit_step(
+            Some(&emit),
+            "deps",
+            "started",
+            Some("Refreshing editable Sourccey robot dependencies".to_string()),
+        );
+        Self::run_kiosk_python_setup(app_handle, &repo_root)?;
+        Self::emit_step(
+            Some(&emit),
+            "deps",
+            "success",
+            Some("Sourccey robot dependencies refreshed".to_string()),
         );
 
         Self::emit_step(
@@ -246,6 +262,8 @@ impl KioskUpdateService {
         )?;
         Self::emit_step(Some(&emit), "submodules", "success", None);
 
+        Self::checkout_latest_lerobot_tag(app_handle, &repo_root, Some(&emit))?;
+
         Self::emit_step(
             Some(&emit),
             "setup",
@@ -273,8 +291,74 @@ impl KioskUpdateService {
             "--skip-system",
             "--no-clean",
             "--use-https",
+            "--skip-submodules",
         ]);
         Self::run_streaming_command(app_handle, &mut command, repo_root, "kiosk setup")
+    }
+
+    fn checkout_latest_lerobot_tag(
+        app_handle: &AppHandle,
+        repo_root: &Path,
+        emit: Option<&dyn Fn(SetupProgress)>,
+    ) -> Result<LatestTagInfo, String> {
+        let prefix = Self::resolve_prefix_env(
+            "SOURCCEY_KIOSK_LEROBOT_TAG_PREFIX",
+            Self::DEFAULT_KIOSK_LEROBOT_TAG_PREFIX,
+        );
+        let latest = Self::fetch_latest_tag_from_api(
+            "SOURCCEY_KIOSK_LEROBOT_TAGS_URL",
+            Self::DEFAULT_KIOSK_LEROBOT_TAGS_URL,
+            &prefix,
+        )?
+        .ok_or_else(|| format!("No valid {} semantic-version tag was found", prefix))?;
+        let lerobot_dir = repo_root.join("modules").join("lerobot-vulcan");
+
+        Self::emit_step(
+            emit,
+            "tag",
+            "started",
+            Some(format!("Selecting newest LeRobot release {}", latest.name)),
+        );
+        Self::run_command(
+            app_handle,
+            "git",
+            &["fetch", "--tags", "--prune"],
+            &lerobot_dir,
+            "git fetch lerobot-vulcan tags",
+        )?;
+        Self::run_command(
+            app_handle,
+            "git",
+            &["checkout", "--detach", "--force", latest.name.as_str()],
+            &lerobot_dir,
+            "git checkout latest lerobot-vulcan tag",
+        )?;
+        Self::emit_step(
+            emit,
+            "tag",
+            "success",
+            Some(format!("LeRobot is now on {}", latest.name)),
+        );
+
+        if let Ok(mut cache) = KIOSK_LEROBOT_TAG_CACHE.lock() {
+            *cache = Some(KioskTagCacheEntry {
+                fetched_at: Instant::now(),
+                latest_tag: Some(latest.clone()),
+            });
+        }
+        Ok(latest)
+    }
+
+    fn run_kiosk_python_setup(app_handle: &AppHandle, repo_root: &Path) -> Result<(), String> {
+        let mut command = Command::new("sudo");
+        command.args([
+            "-n",
+            "python3",
+            "setup/kiosk/setup.py",
+            "--python-only",
+            "--use-https",
+        ]);
+        Self::run_streaming_command(app_handle, &mut command, repo_root, "kiosk Python setup")
     }
 
     fn run_command(

@@ -122,6 +122,41 @@ fn compares_release_tags_with_semver() {
 }
 
 #[test]
+fn selects_archive_only_when_it_matches_the_newest_vulcan_tag() {
+    let latest = LatestLerobotTagInfo {
+        name: "vulcan/0.4.2".to_string(),
+        commit_sha: Some("abc1234".to_string()),
+    };
+    let manifest = ManifestLerobotReleaseInfo {
+        tag: Some("vulcan/0.4.2".to_string()),
+        commit: Some("abc1234".to_string()),
+        zip_url: Some("https://cdn.example/lerobot-vulcan_vulcan-0.4.2.zip".to_string()),
+    };
+
+    assert_eq!(
+        LocalSetupService::select_latest_lerobot_archive_url(&latest, &manifest, None),
+        Ok("https://cdn.example/lerobot-vulcan_vulcan-0.4.2.zip".to_string())
+    );
+}
+
+#[test]
+fn rejects_archive_when_manifest_lags_newest_vulcan_tag() {
+    let latest = LatestLerobotTagInfo {
+        name: "vulcan/0.4.2".to_string(),
+        commit_sha: Some("abc1234".to_string()),
+    };
+    let manifest = ManifestLerobotReleaseInfo {
+        tag: Some("vulcan/0.4.1".to_string()),
+        commit: Some("def5678".to_string()),
+        zip_url: Some("https://cdn.example/lerobot-vulcan_vulcan-0.4.1.zip".to_string()),
+    };
+
+    let error = LocalSetupService::select_latest_lerobot_archive_url(&latest, &manifest, None)
+        .expect_err("a stale manifest must not be installed");
+    assert!(error.contains("has not been published"));
+}
+
+#[test]
 fn resolves_up_to_date_when_current_tag_matches_latest_release() {
     let current_release = CurrentLerobotReleaseInfo {
         source: CurrentLerobotReleaseSource::Marker,
@@ -135,6 +170,7 @@ fn resolves_up_to_date_when_current_tag_matches_latest_release() {
     let manifest_release = ManifestLerobotReleaseInfo {
         tag: Some("vulcan/0.3.0".to_string()),
         commit: Some("abc1234".to_string()),
+        zip_url: None,
     };
 
     let (state, message) = LocalSetupService::resolve_lerobot_release_state(
@@ -164,6 +200,7 @@ fn resolves_update_available_when_current_tag_is_behind() {
     let manifest_release = ManifestLerobotReleaseInfo {
         tag: Some("vulcan/0.3.0".to_string()),
         commit: Some("def5678".to_string()),
+        zip_url: None,
     };
 
     let (state, message) = LocalSetupService::resolve_lerobot_release_state(
@@ -193,6 +230,7 @@ fn resolves_custom_build_for_untagged_git_checkout() {
     let manifest_release = ManifestLerobotReleaseInfo {
         tag: Some("vulcan/0.3.0".to_string()),
         commit: Some("def5678".to_string()),
+        zip_url: None,
     };
 
     let (state, message) = LocalSetupService::resolve_lerobot_release_state(
@@ -222,6 +260,7 @@ fn resolves_unknown_when_manifest_is_missing_release_tag() {
     let manifest_release = ManifestLerobotReleaseInfo {
         tag: None,
         commit: Some("def5678".to_string()),
+        zip_url: None,
     };
 
     let (state, message) = LocalSetupService::resolve_lerobot_release_state(
@@ -350,5 +389,17 @@ fn uv_pip_install_args_target_specific_python_and_extra() {
     assert_eq!(
         LocalSetupService::uv_pip_install_args(python_path, Some("sourccey-desktop,xvla")),
         expected
+    );
+}
+
+#[test]
+fn sourccey_install_profiles_are_role_specific() {
+    assert_eq!(
+        LocalSetupService::SOURCCEY_DESKTOP_RUNTIME_EXTRA,
+        "sourccey-desktop"
+    );
+    assert_eq!(
+        LocalSetupService::SOURCCEY_DESKTOP_EXTRA,
+        "sourccey-desktop,xvla"
     );
 }

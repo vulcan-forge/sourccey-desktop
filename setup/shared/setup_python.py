@@ -444,31 +444,39 @@ class PythonSetupManager:
     #################################################################
 
     def setup_python_environment(self, desktop: bool = False) -> bool:
-        """Setup Python environment for lerobot-vulcan"""
+        """Synchronize the editable lerobot-vulcan environment for this machine."""
         self.print_status("Setting up lerobot-vulcan environment...")
 
         lerobot_path = self.project_root / "modules" / "lerobot-vulcan"
-        lerobot_setup_path = lerobot_path / "setup" / "setup.py"
 
         if not lerobot_path.exists():
             self.print_error("lerobot-vulcan module not found")
             return False
 
-        if not lerobot_setup_path.exists():
-            self.print_error("lerobot-vulcan setup script not found")
+        pyproject_path = lerobot_path / "pyproject.toml"
+        if not pyproject_path.exists():
+            self.print_error("lerobot-vulcan pyproject.toml not found")
             return False
 
         try:
-            self.print_status("Running lerobot-vulcan setup...")
-
-            command = [sys.executable, str(lerobot_setup_path)]
-            if desktop:
-                command.append("--desktop")
-
             env_overrides = self._build_real_user_env_overrides()
             uv_path = env_overrides.get("SOURCCEY_UV_BIN")
-            if uv_path:
-                self.print_status(f"Delegating lerobot-vulcan setup with uv at {uv_path}")
+            if not uv_path:
+                resolved_uv = find_user_binary("uv", [".local/bin", ".cargo/bin"])
+                if resolved_uv:
+                    uv_path = str(resolved_uv)
+            if not uv_path:
+                self.print_error("uv was not found; run the uv setup step first")
+                return False
+
+            profile = "sourccey-desktop" if desktop else "sourccey-robot"
+            command = [uv_path, "sync", "--locked", "--extra", profile]
+            if desktop:
+                command.extend(["--extra", "xvla"])
+
+            self.print_status(
+                f"Installing lerobot-vulcan in editable mode with the {profile} profile..."
+            )
 
             result = self._run_command_as_real_user(
                 command,
@@ -478,11 +486,53 @@ class PythonSetupManager:
             success = result.returncode == 0
 
             if success:
-                self.print_success("lerobot-vulcan setup completed successfully")
+                self.print_success(
+                    f"lerobot-vulcan {profile} environment synchronized successfully"
+                )
             else:
-                self.print_error("lerobot-vulcan setup failed")
+                self.print_error(f"lerobot-vulcan {profile} environment setup failed")
+                return False
 
-            return success
+            setup_executable = lerobot_path / ".venv" / (
+                "Scripts/sourccey-setup.exe" if os.name == "nt" else "bin/sourccey-setup"
+            )
+            if not setup_executable.exists():
+                self.print_error(
+                    f"Sourccey setup command was not installed at {setup_executable}"
+                )
+                return False
+
+            machine_profile = "desktop" if desktop else "robot"
+            post_install_command = [str(setup_executable), machine_profile]
+            self.print_status(f"Running Sourccey {machine_profile} post-install setup...")
+
+            should_run_as_root = (
+                not desktop
+                and os.name != "nt"
+                and hasattr(os, "geteuid")
+                and os.geteuid() == 0
+            )
+            if should_run_as_root:
+                post_install_env = os.environ.copy()
+                post_install_env.update(env_overrides)
+                post_install_result = subprocess.run(
+                    post_install_command,
+                    cwd=lerobot_path,
+                    env=post_install_env,
+                )
+            else:
+                post_install_result = self._run_command_as_real_user(
+                    post_install_command,
+                    lerobot_path,
+                    env_overrides,
+                )
+
+            if post_install_result.returncode != 0:
+                self.print_error(f"Sourccey {machine_profile} post-install setup failed")
+                return False
+
+            self.print_success(f"Sourccey {machine_profile} post-install setup completed")
+            return True
 
         except Exception as e:
             self.print_error(f"Failed to run lerobot-vulcan setup: {e}")
