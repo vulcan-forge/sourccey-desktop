@@ -1,7 +1,7 @@
 use crate::modules::control::controllers::remote_control::remote_inference_controller::RemoteInferenceConfig;
 use crate::modules::control::services::remote_control::remote_command_utils::{
     create_command_log, format_command_for_display, init_managed_processes, process_log_path,
-    resolve_uv_runtime, write_process_log, ManagedRemoteProcesses,
+    resolve_uv_runtime, validate_rollout_model_path, write_process_log, ManagedRemoteProcesses,
 };
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
@@ -227,15 +227,17 @@ impl RemoteInferenceService {
         let mut command_parts = vec![
             "run".to_string(),
             "--no-sync".to_string(),
-            "lerobot-inference".to_string(),
+            "lerobot-rollout".to_string(),
+            "--strategy.type=base".to_string(),
+            format!("--policy.path={}", config.model_path.trim()),
+            "--robot.type=sourccey_client".to_string(),
+            "--robot.id=sourccey".to_string(),
+            format!("--robot.remote_ip={}", config.remote_ip.trim()),
+            format!("--task={}", config.single_task.trim()),
+            format!("--fps={}", config.fps),
         ];
-        command_parts.push(format!("--id={}", config.nickname.trim()));
-        command_parts.push(format!("--remote_ip={}", config.remote_ip.trim()));
-        command_parts.push(format!("--model_path={}", config.model_path.trim()));
-        command_parts.push(format!("--single_task={}", config.single_task.trim()));
-        command_parts.push(format!("--fps={}", config.fps));
         if let Some(episode_time_s) = config.episode_time_s {
-            command_parts.push(format!("--episode_time_s={}", episode_time_s));
+            command_parts.push(format!("--duration={}", episode_time_s));
         }
 
         command_parts.push(format!("--display_data={}", config.display_data));
@@ -265,6 +267,7 @@ impl RemoteInferenceService {
         if config.model_path.trim().is_empty() {
             return Err("Inference requires a model path.".to_string());
         }
+        validate_rollout_model_path(&config.model_path)?;
         if config.single_task.trim().is_empty() {
             return Err("Inference requires a task description.".to_string());
         }
@@ -336,7 +339,17 @@ mod tests {
         let command_parts = RemoteInferenceService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
         assert_eq!(command_parts[1], "--no-sync");
-        assert_eq!(command_parts[2], "lerobot-inference");
+        assert_eq!(command_parts[2], "lerobot-rollout");
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--strategy.type=base"));
+        assert!(command_parts.iter().any(
+            |part| part == "--policy.path=outputs/train/test/checkpoints/last/pretrained_model"
+        ));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--robot.type=sourccey_client"));
+        assert!(command_parts.iter().any(|part| part == "--duration=60"));
         assert!(command_parts
             .iter()
             .any(|part| part == "--display_data=true"));

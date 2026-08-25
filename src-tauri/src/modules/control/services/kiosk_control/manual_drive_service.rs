@@ -59,7 +59,10 @@ impl KioskManualDriveService {
         let python_path = DirectoryService::get_python_path()?;
 
         if !lerobot_dir.exists() {
-            return Err(format!("LeRobot directory not found at: {:?}", lerobot_dir));
+            return Err(format!(
+                "lerobot-vulcan runtime directory not found at: {:?}",
+                lerobot_dir
+            ));
         }
         if !python_path.exists() {
             return Err(format!("Python executable not found at: {:?}", python_path));

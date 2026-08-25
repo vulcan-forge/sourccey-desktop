@@ -182,7 +182,7 @@ fn resolves_up_to_date_when_current_tag_matches_latest_release() {
     assert_eq!(state, LerobotReleaseState::UpToDate);
     assert_eq!(
         message,
-        Some("Your LeRobot runtime is on the latest released tag.".to_string())
+        Some("Your lerobot-vulcan runtime is on the latest released tag.".to_string())
     );
 }
 
@@ -212,7 +212,7 @@ fn resolves_update_available_when_current_tag_is_behind() {
     assert_eq!(state, LerobotReleaseState::UpdateAvailable);
     assert_eq!(
         message,
-        Some("A newer LeRobot release tag is available: vulcan/0.3.0.".to_string())
+        Some("A newer lerobot-vulcan runtime release tag is available: vulcan/0.3.0.".to_string())
     );
 }
 
@@ -387,9 +387,51 @@ fn uv_pip_install_args_target_specific_python_and_extra() {
     expected.push(".[sourccey-desktop,xvla]".to_string());
 
     assert_eq!(
-        LocalSetupService::uv_pip_install_args(python_path, Some("sourccey-desktop,xvla")),
+        LocalSetupService::uv_pip_install_args(python_path, Some("sourccey-desktop,xvla"), false,),
         expected
     );
+}
+
+#[test]
+fn uv_no_cache_retry_args_bypass_a_corrupt_git_checkout() {
+    #[cfg(windows)]
+    let python_path = Path::new("C:\\venv\\Scripts\\python.exe");
+    #[cfg(not(windows))]
+    let python_path = Path::new("/tmp/venv/bin/python");
+
+    let args = LocalSetupService::uv_pip_install_args(python_path, Some("sourccey-desktop"), true);
+    assert_eq!(&args[..3], ["pip", "install", "--no-cache"]);
+}
+
+#[test]
+fn xvla_transformers_repair_targets_the_runtime_python() {
+    #[cfg(windows)]
+    let python_path = Path::new("C:\\venv\\Scripts\\python.exe");
+    #[cfg(not(windows))]
+    let python_path = Path::new("/tmp/venv/bin/python");
+
+    assert_eq!(
+        LocalSetupService::uv_transformers_repair_args(python_path),
+        vec![
+            "pip".to_string(),
+            "install".to_string(),
+            "--python".to_string(),
+            python_path.to_string_lossy().to_string(),
+            "--reinstall-package".to_string(),
+            "transformers".to_string(),
+            "transformers>=5.4.0,<5.6.0".to_string(),
+        ]
+    );
+}
+
+#[test]
+fn identifies_only_uv_git_checkout_collisions_for_clean_retry() {
+    assert!(LocalSetupService::is_uv_git_checkout_collision(
+        "Git operation failed: fatal: destination path 'checkout' already exists and is not an empty directory."
+    ));
+    assert!(!LocalSetupService::is_uv_git_checkout_collision(
+        "Failed to build lerobot-robot-sourccey because compilation failed"
+    ));
 }
 
 #[test]

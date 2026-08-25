@@ -11,13 +11,11 @@ import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import Link from 'next/link';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { AIRuntimeCard } from '@/components/Elements/Setup/AIRuntimeCard';
-import { useDesktopExtrasStatus } from '@/hooks/System/setup-desktop-extras.hook';
 import { Spinner } from '@/components/Elements/Spinner';
 import { DownloadModelButton } from '@/components/Elements/AIModel/DownloadModelButton';
 
 export const AIModelsContainer = () => {
     const pageSize = 18;
-    const { data: runtimeStatus, isLoading: isRuntimeLoading } = useDesktopExtrasStatus();
     const { data, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage, refetch } = useGetAiModelsInfinite(pageSize, true);
     const { mutateAsync: syncModels, isPending: isSyncing } = useSyncAiModelsFromCache();
     const { data: cachePath } = useGetAiModelCachePath();
@@ -67,191 +65,186 @@ export const AIModelsContainer = () => {
         }
     };
 
-    if (isRuntimeLoading || runtimeStatus?.installed === false) {
-        return (
-            <AIRuntimeCard
-                title="AI Runtime"
-                description="Install the desktop AI runtime modules before downloading or running AI models."
-                showOpenModules={false}
-            />
-        );
-    }
-
     return (
-        <div className="flex flex-col gap-6">
-            <div className="flex items-center justify-between rounded-xl border-2 border-slate-700/50 bg-slate-900/40 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.28)]">
-                <div>
-                    <h2 className="text-lg font-semibold text-white">Your AI Models</h2>
-                    <div className="flex items-center gap-2 text-xs text-slate-400">
-                        <span>Synced from your local cache directory.</span>
+        <AIRuntimeCard
+            title="AI Runtime"
+            description="Install the desktop AI runtime modules before downloading or running AI models."
+            showOpenModules={false}
+        >
+            <div className="flex flex-col gap-6">
+                <div className="flex items-center justify-between rounded-xl border-2 border-slate-700/50 bg-slate-900/40 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.28)]">
+                    <div>
+                        <h2 className="text-lg font-semibold text-white">Your AI Models</h2>
+                        <div className="flex items-center gap-2 text-xs text-slate-400">
+                            <span>Synced from your local cache directory.</span>
+                            <button
+                                type="button"
+                                onClick={handleOpenCacheDir}
+                                className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-700/60 bg-slate-900/60 px-2 py-0.5 text-[10px] text-emerald-200 hover:border-emerald-400/60 hover:text-emerald-100"
+                            >
+                                <FaFolderOpen className="h-3 w-3" />
+                                Open cache
+                            </button>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <DownloadModelButton onCompleteAction={() => void refetch()} />
                         <button
                             type="button"
-                            onClick={handleOpenCacheDir}
-                            className="inline-flex cursor-pointer items-center gap-1 rounded-full border border-slate-700/60 bg-slate-900/60 px-2 py-0.5 text-[10px] text-emerald-200 hover:border-emerald-400/60 hover:text-emerald-100"
+                            onClick={handleRefresh}
+                            disabled={isSyncing}
+                            className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition-colors ${
+                                isSyncing
+                                    ? 'cursor-not-allowed border-slate-700 bg-slate-800/60 text-slate-400'
+                                    : 'border-amber-500/50 bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-200 hover:border-amber-400/70 hover:text-amber-100'
+                            }`}
                         >
-                            <FaFolderOpen className="h-3 w-3" />
-                            Open cache
+                            <FaSyncAlt className={isSyncing ? 'animate-spin' : ''} />
+                            {isSyncing ? 'Syncing...' : 'Refresh'}
                         </button>
                     </div>
                 </div>
-                <div className="flex items-center gap-2">
-                    <DownloadModelButton onCompleteAction={() => void refetch()} />
-                    <button
-                        type="button"
-                        onClick={handleRefresh}
-                        disabled={isSyncing}
-                        className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-4 py-2 text-xs font-semibold transition-colors ${
-                            isSyncing
-                                ? 'cursor-not-allowed border-slate-700 bg-slate-800/60 text-slate-400'
-                                : 'border-amber-500/50 bg-gradient-to-r from-amber-500/10 to-orange-500/10 text-amber-200 hover:border-amber-400/70 hover:text-amber-100'
-                        }`}
-                    >
-                        <FaSyncAlt className={isSyncing ? 'animate-spin' : ''} />
-                        {isSyncing ? 'Syncing...' : 'Refresh'}
-                    </button>
-                </div>
-            </div>
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {isLoading && (
-                    <div className="col-span-full flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-700/50 bg-slate-900/30 px-6 py-10 text-sm text-slate-300">
-                        <Spinner color="yellow" width="w-6" height="h-6" />
-                        Loading AI models...
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                    {isLoading && (
+                        <div className="col-span-full flex flex-col items-center justify-center gap-2 rounded-xl border border-slate-700/50 bg-slate-900/30 px-6 py-10 text-sm text-slate-300">
+                            <Spinner color="yellow" width="w-6" height="h-6" />
+                            Loading AI models...
+                        </div>
+                    )}
+
+                    {!isLoading &&
+                        models.map((model) => {
+                            const relativeFromCache =
+                                typeof cachePath === 'string' && model.model_path.startsWith(cachePath)
+                                    ? model.model_path.slice(cachePath.length).replace(/^[/\\]+/, '')
+                                    : null;
+                            const displayPath = model.model_path_relative ?? relativeFromCache ?? model.model_path;
+
+                            return (
+                                <div
+                                    key={model.id}
+                                    className={`flex cursor-pointer flex-col gap-3 rounded-xl border-2 p-4 transition-all ${
+                                        selectedModelId === model.id
+                                            ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_10px_24px_rgba(251,146,60,0.15)]'
+                                            : 'border-slate-700/50 bg-slate-900/30 hover:border-amber-400/40 hover:bg-slate-900/45'
+                                    }`}
+                                    onClick={() => {
+                                        setSelectedModelId(model.id);
+                                        setSelectedRobotId(null);
+                                    }}
+                                >
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20">
+                                            <FaCube className="text-amber-300" />
+                                        </div>
+                                        <div className="min-w-0">
+                                            <div className="truncate text-sm font-semibold text-white">{model.name}</div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-xs text-slate-400">
+                                        <span className="text-slate-300">Path:</span>
+                                        <span className="truncate">{displayPath}</span>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                void navigator.clipboard.writeText(model.model_path);
+                                                toast.success('Copied to clipboard', { ...toastSuccessDefaults });
+                                            }}
+                                            className="ml-auto inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-700/60 bg-slate-900/60 px-2 py-1 text-[10px] text-slate-300 hover:border-amber-400/50 hover:text-amber-100"
+                                        >
+                                            <FaCopy className="h-3 w-3" />
+                                            Copy
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        })}
+                </div>
+
+                {!isLoading && models.length === 0 && (
+                    <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-8 text-center text-sm text-slate-400">
+                        No AI models found. Click refresh to sync from your cache directory.
                     </div>
                 )}
 
-                {!isLoading &&
-                    models.map((model) => {
-                        const relativeFromCache =
-                            typeof cachePath === 'string' && model.model_path.startsWith(cachePath)
-                                ? model.model_path.slice(cachePath.length).replace(/^[/\\]+/, '')
-                                : null;
-                        const displayPath = model.model_path_relative ?? relativeFromCache ?? model.model_path;
+                <div ref={sentinelRef} />
 
-                        return (
-                            <div
-                                key={model.id}
-                                className={`flex cursor-pointer flex-col gap-3 rounded-xl border-2 p-4 transition-all ${
-                                    selectedModelId === model.id
-                                        ? 'border-amber-400/70 bg-amber-500/10 shadow-[0_10px_24px_rgba(251,146,60,0.15)]'
-                                        : 'border-slate-700/50 bg-slate-900/30 hover:border-amber-400/40 hover:bg-slate-900/45'
-                                }`}
+                {isFetchingNextPage && <div className="text-center text-xs text-slate-400">Loading more models...</div>}
+
+                {selectedModel && (
+                    <div className="rounded-xl border-2 border-slate-700/60 bg-slate-900/40 p-5">
+                        <div className="flex items-center justify-between">
+                            <div>
+                                <h3 className="text-lg font-semibold text-white">Run Model</h3>
+                                <p className="text-xs text-slate-400">Select a robot to run: {selectedModel.name}</p>
+                            </div>
+                            <button
+                                type="button"
                                 onClick={() => {
-                                    setSelectedModelId(model.id);
+                                    setSelectedModelId(null);
                                     setSelectedRobotId(null);
                                 }}
+                                className="cursor-pointer rounded-lg border border-slate-700/60 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400/50"
                             >
-                                <div className="flex items-center gap-3">
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20">
-                                        <FaCube className="text-amber-300" />
-                                    </div>
-                                    <div className="min-w-0">
-                                        <div className="truncate text-sm font-semibold text-white">{model.name}</div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-2 text-xs text-slate-400">
-                                    <span className="text-slate-300">Path:</span>
-                                    <span className="truncate">{displayPath}</span>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            void navigator.clipboard.writeText(model.model_path);
-                                            toast.success('Copied to clipboard', { ...toastSuccessDefaults });
-                                        }}
-                                        className="ml-auto inline-flex cursor-pointer items-center gap-1 rounded-md border border-slate-700/60 bg-slate-900/60 px-2 py-1 text-[10px] text-slate-300 hover:border-amber-400/50 hover:text-amber-100"
-                                    >
-                                        <FaCopy className="h-3 w-3" />
-                                        Copy
-                                    </button>
-                                </div>
-                            </div>
-                        );
-                    })}
-            </div>
-
-            {!isLoading && models.length === 0 && (
-                <div className="rounded-xl border border-dashed border-slate-700 bg-slate-900/40 p-8 text-center text-sm text-slate-400">
-                    No AI models found. Click refresh to sync from your cache directory.
-                </div>
-            )}
-
-            <div ref={sentinelRef} />
-
-            {isFetchingNextPage && <div className="text-center text-xs text-slate-400">Loading more models...</div>}
-
-            {selectedModel && (
-                <div className="rounded-xl border-2 border-slate-700/60 bg-slate-900/40 p-5">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-lg font-semibold text-white">Run Model</h3>
-                            <p className="text-xs text-slate-400">Select a robot to run: {selectedModel.name}</p>
+                                Clear
+                            </button>
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                setSelectedModelId(null);
-                                setSelectedRobotId(null);
-                            }}
-                            className="cursor-pointer rounded-lg border border-slate-700/60 bg-slate-900/60 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:border-amber-400/50"
-                        >
-                            Clear
-                        </button>
-                    </div>
 
-                    <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
-                        {isLoadingRobots && <div className="col-span-full text-xs text-slate-400">Loading robots...</div>}
-                        {!isLoadingRobots && (!ownedRobots || ownedRobots.length === 0) && (
-                            <div className="col-span-full rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-4 text-sm text-slate-400">
-                                No robots found. Add a LAN robot first.
-                                <div className="mt-3">
-                                    <Link
-                                        href="/desktop/robot"
-                                        className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 hover:border-amber-400/70"
-                                    >
-                                        Discover Robots
-                                    </Link>
+                        <div className="mt-4 grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+                            {isLoadingRobots && <div className="col-span-full text-xs text-slate-400">Loading robots...</div>}
+                            {!isLoadingRobots && (!ownedRobots || ownedRobots.length === 0) && (
+                                <div className="col-span-full rounded-lg border border-dashed border-slate-700 bg-slate-900/40 p-4 text-sm text-slate-400">
+                                    No robots found. Add a LAN robot first.
+                                    <div className="mt-3">
+                                        <Link
+                                            href="/desktop/robot"
+                                            className="inline-flex items-center gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-semibold text-amber-100 hover:border-amber-400/70"
+                                        >
+                                            Discover Robots
+                                        </Link>
+                                    </div>
                                 </div>
+                            )}
+                            {!isLoadingRobots &&
+                                ownedRobots?.map((robot: any) => {
+                                    const isSelected = selectedRobotId === robot.id;
+                                    return (
+                                        <button
+                                            key={robot.id}
+                                            type="button"
+                                            onClick={() => setSelectedRobotId(robot.id)}
+                                            className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 text-left transition-all ${
+                                                isSelected
+                                                    ? 'border-amber-400/70 bg-amber-500/10'
+                                                    : 'border-slate-700/60 bg-slate-900/60 hover:border-amber-400/40'
+                                            }`}
+                                        >
+                                            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-800">
+                                                <FaRobot className="text-amber-300" />
+                                            </div>
+                                            <div className="min-w-0">
+                                                <div className="truncate text-sm font-semibold text-white">{robot.robot?.name ?? 'Robot'}</div>
+                                                <div className="text-xs text-slate-400">@{robot.nickname}</div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
+                        </div>
+
+                        {selectedRobot && (
+                            <div className="mt-6">
+                                <SelectedModelPanel
+                                    model={selectedModel}
+                                    ownedRobot={selectedRobot}
+                                    remoteConfig={remoteConfig}
+                                    onClearAction={() => setSelectedRobotId(null)}
+                                />
                             </div>
                         )}
-                        {!isLoadingRobots &&
-                            ownedRobots?.map((robot: any) => {
-                                const isSelected = selectedRobotId === robot.id;
-                                return (
-                                    <button
-                                        key={robot.id}
-                                        type="button"
-                                        onClick={() => setSelectedRobotId(robot.id)}
-                                        className={`flex cursor-pointer items-center gap-3 rounded-lg border p-4 text-left transition-all ${
-                                            isSelected
-                                                ? 'border-amber-400/70 bg-amber-500/10'
-                                                : 'border-slate-700/60 bg-slate-900/60 hover:border-amber-400/40'
-                                        }`}
-                                    >
-                                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-slate-700 to-slate-800">
-                                            <FaRobot className="text-amber-300" />
-                                        </div>
-                                        <div className="min-w-0">
-                                            <div className="truncate text-sm font-semibold text-white">{robot.robot?.name ?? 'Robot'}</div>
-                                            <div className="text-xs text-slate-400">@{robot.nickname}</div>
-                                        </div>
-                                    </button>
-                                );
-                            })}
                     </div>
-
-                    {selectedRobot && (
-                        <div className="mt-6">
-                            <SelectedModelPanel
-                                model={selectedModel}
-                                ownedRobot={selectedRobot}
-                                remoteConfig={remoteConfig}
-                                onClearAction={() => setSelectedRobotId(null)}
-                            />
-                        </div>
-                    )}
-                </div>
-            )}
-
-        </div>
+                )}
+            </div>
+        </AIRuntimeCard>
     );
 };

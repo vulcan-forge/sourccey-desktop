@@ -18,11 +18,11 @@ export default function DesktopSettingsPage() {
     const lerobotRuntimeSummary = desktopAppUpdateStatus?.updateAvailable
         ? `App update available: ${desktopAppUpdateStatus.targetVersion ?? 'new version'}`
         : lerobotUpdateStatus?.state === 'update_available'
-          ? 'LeRobot runtime update available'
+          ? 'lerobot-vulcan runtime update available'
           : lerobotUpdateStatus?.state === 'custom_build'
-            ? 'LeRobot runtime is on a custom local build'
+            ? 'lerobot-vulcan runtime is on a custom local build'
             : lerobotUpdateStatus?.state === 'unknown'
-              ? 'LeRobot release metadata needs attention'
+              ? 'lerobot-vulcan runtime release metadata needs attention'
               : 'Status: No confirmed updates';
 
     useEffect(() => {
@@ -80,7 +80,7 @@ export default function DesktopSettingsPage() {
                         <div>
                             <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Desktop Updates</div>
                             <p className="mt-2 text-sm text-slate-300">
-                                Review desktop app updates and repair or refresh the LeRobot runtime.
+                                Review desktop app updates and repair or refresh the lerobot-vulcan runtime.
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-3">

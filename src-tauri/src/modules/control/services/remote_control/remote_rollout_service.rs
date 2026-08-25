@@ -1,7 +1,7 @@
 use crate::modules::control::controllers::remote_control::remote_rollout_controller::RemoteRolloutConfig;
 use crate::modules::control::services::remote_control::remote_command_utils::{
     create_command_log, format_command_for_display, init_managed_processes, process_log_path,
-    resolve_uv_runtime, write_process_log, ManagedRemoteProcesses,
+    resolve_uv_runtime, validate_rollout_model_path, write_process_log, ManagedRemoteProcesses,
 };
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
@@ -247,6 +247,7 @@ impl RemoteRolloutService {
         if config.model_path.trim().is_empty() {
             return Err("Rollout requires a model path.".to_string());
         }
+        validate_rollout_model_path(&config.model_path)?;
         if config.task.trim().is_empty() {
             return Err("Rollout requires a task description.".to_string());
         }

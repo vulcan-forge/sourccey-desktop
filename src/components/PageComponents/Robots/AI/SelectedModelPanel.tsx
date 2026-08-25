@@ -14,7 +14,7 @@ type SelectedModelPanelProps = {
         id: string;
         name: string;
         model_path: string;
-        model_path_relative: string;
+        model_path_relative?: string | null;
         latest_checkpoint: number;
     };
     ownedRobot: any;
@@ -30,31 +30,29 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
     const [isLoading, setIsLoading] = useState(false);
     const [task, setTask] = useState('Fold the shirt');
     const [durationS, setDurationS] = useState('3600');
-    const [modelPath, setModelPath] = useState(model.model_path_relative);
+    const [modelPath, setModelPath] = useState(model.model_path);
     const [isRolloutSettingsOpen, setIsRolloutSettingsOpen] = useState(false);
 
     const nickname = ownedRobot?.nickname ?? '';
     const normalizedNickname = nickname.startsWith('@') ? nickname.slice(1) : nickname;
     const isRolloutMode = mode === 'rollout';
     const { data: remoteRobotState }: any = useGetRemoteRobotState(nickname);
-    const isControlling =
-        remoteRobotState?.status === RemoteRobotStatus.STARTED &&
-        remoteRobotState?.controlType === (isRolloutMode ? RemoteControlType.ROLLOUT : RemoteControlType.INFERENCE);
+    const isControlling = remoteRobotState?.status === RemoteRobotStatus.STARTED && remoteRobotState?.controlType === RemoteControlType.ROLLOUT;
 
     useEffect(() => {
         setIsLoading(false);
     }, [model.id]);
 
     useEffect(() => {
-        setModelPath(model.model_path_relative);
-    }, [model.model_path_relative]);
+        setModelPath(model.model_path);
+    }, [model.model_path]);
 
     const isValidNumber = (value: string) => value.trim().length > 0 && !Number.isNaN(Number(value));
     const isValidDuration = isValidNumber(durationS) && Number(durationS) > 0;
     const isValidPath = modelPath.trim().length > 0;
     const isValidTask = task.trim().length > 0;
 
-    const startInference = async () => {
+    const startRollout = async () => {
         if (isControlling) {
             return;
         }
@@ -75,64 +73,38 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
             return;
         }
 
-        if (isRolloutMode) {
-            const remoteRolloutConfig: RemoteRolloutConfig = {
-                nickname: normalizedNickname,
-                remote_ip: remoteConfig.remote_ip,
-                model_path: modelPath.trim(),
-                task: task.trim(),
-                duration: Number(durationS),
-            };
-
-            const result = await invoke('start_remote_rollout', { config: remoteRolloutConfig });
-            toast.success(`Rollout started: ${result}`, { ...toastSuccessDefaults });
-            setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.ROLLOUT, ownedRobot);
-            return;
-        }
-
-        const remoteInferenceConfig: RemoteInferenceConfig = {
+        const remoteRolloutConfig: RemoteRolloutConfig = {
             nickname: normalizedNickname,
             remote_ip: remoteConfig.remote_ip,
             model_path: modelPath.trim(),
-            single_task: task.trim(),
-            fps: 30,
-            episode_time_s: Number(durationS),
-            display_data: true,
-            display_ip: null,
-            display_port: null,
-            display_compressed_images: false,
+            task: task.trim(),
+            duration: Number(durationS),
         };
 
-        const result = await invoke('start_remote_inference', { config: remoteInferenceConfig });
-        toast.success(`Inference started: ${result}`, { ...toastSuccessDefaults });
-        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.INFERENCE, ownedRobot);
+        const result = await invoke('start_remote_rollout', { config: remoteRolloutConfig });
+        toast.success(`Rollout started: ${result}`, { ...toastSuccessDefaults });
+        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.ROLLOUT, ownedRobot);
     };
 
-    const stopInference = async () => {
+    const stopRollout = async () => {
         if (!isControlling) {
             return;
         }
-        if (isRolloutMode) {
-            const result = await invoke('stop_remote_rollout', { nickname: normalizedNickname });
-            toast.success(`Rollout stopped: ${result}`, { ...toastSuccessDefaults });
-            setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
-            return;
-        }
-        const result = await invoke('stop_remote_inference', { nickname: normalizedNickname });
-        toast.success(`Inference stopped: ${result}`, { ...toastSuccessDefaults });
+        const result = await invoke('stop_remote_rollout', { nickname: normalizedNickname });
+        toast.success(`Rollout stopped: ${result}`, { ...toastSuccessDefaults });
         setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
     };
 
-    const toggleInference = async () => {
+    const toggleRollout = async () => {
         try {
             setIsLoading(true);
             if (isControlling) {
-                await stopInference();
+                await stopRollout();
             } else {
-                await startInference();
+                await startRollout();
             }
         } catch (error) {
-            console.error('Failed to toggle inference:', error);
+            console.error('Failed to toggle rollout:', error);
             toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`, {
                 ...toastErrorDefaults,
             });
@@ -152,16 +124,14 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
-                    {isRolloutMode && (
-                        <button
-                            type="button"
-                            onClick={() => setIsRolloutSettingsOpen((open) => !open)}
-                            className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-400/70 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition-all duration-200 hover:border-amber-300/70 hover:bg-amber-500/20"
-                        >
-                            {isRolloutSettingsOpen ? <FaChevronUp className="h-3 w-3" /> : <FaChevronDown className="h-3 w-3" />}
-                            Rollout Settings
-                        </button>
-                    )}
+                    <button
+                        type="button"
+                        onClick={() => setIsRolloutSettingsOpen((open) => !open)}
+                        className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-amber-400/70 bg-amber-500/10 px-3 py-1.5 text-xs font-semibold text-amber-100 transition-all duration-200 hover:border-amber-300/70 hover:bg-amber-500/20"
+                    >
+                        {isRolloutSettingsOpen ? <FaChevronUp className="h-3 w-3" /> : <FaChevronDown className="h-3 w-3" />}
+                        Rollout Settings
+                    </button>
                     <button
                         type="button"
                         onClick={onClearAction}
@@ -172,7 +142,7 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
                     </button>
                 </div>
             </div>
-            {isRolloutMode && isRolloutSettingsOpen && (
+            {isRolloutSettingsOpen && (
                 <div className="mt-4 grid gap-3 md:grid-cols-3">
                     <label className="flex flex-col gap-1 text-xs text-slate-200">
                         Path
@@ -204,7 +174,7 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
             <div className="mt-5 flex items-center gap-3">
                 <button
                     type="button"
-                    onClick={toggleInference}
+                    onClick={toggleRollout}
                     className={`inline-flex cursor-pointer items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white transition-all ${
                         isControlling
                             ? 'bg-red-500 hover:bg-red-600'
@@ -218,44 +188,16 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
                     ) : (
                         <FaPlay className="h-3.5 w-3.5" />
                     )}
-                    {isLoading
-                        ? isControlling
-                            ? 'Stopping...'
-                            : 'Starting...'
-                        : isControlling
-                          ? isRolloutMode
-                              ? 'Stop Rollout'
-                              : 'Stop AI Model'
-                          : isRolloutMode
-                            ? 'Start Rollout'
-                            : 'Run AI Model'}
+                    {isLoading ? (isControlling ? 'Stopping...' : 'Starting...') : isControlling ? 'Stop Rollout' : 'Start Rollout'}
                 </button>
             </div>
 
             <div className="mt-4">
-                <RobotLogs
-                    isControlling={isControlling}
-                    nickname={normalizedNickname}
-                    embedded={true}
-                    mode={isRolloutMode ? 'rollout' : 'inference'}
-                />
+                <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} mode="rollout" />
             </div>
         </div>
     );
 };
-
-export interface RemoteInferenceConfig {
-    nickname: string;
-    remote_ip: string;
-    model_path: string;
-    single_task: string;
-    fps: number;
-    episode_time_s: number | null;
-    display_data: boolean;
-    display_ip: string | null;
-    display_port: number | null;
-    display_compressed_images: boolean;
-}
 
 export interface RemoteRolloutConfig {
     nickname: string;

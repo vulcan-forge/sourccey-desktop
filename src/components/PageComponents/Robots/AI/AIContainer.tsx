@@ -7,17 +7,11 @@ import { SelectedModelPanel } from '@/components/PageComponents/Robots/AI/Select
 import { toast } from 'react-toastify';
 import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
-import { DesktopExtrasGate } from '@/components/Elements/Setup/DesktopExtrasGate';
+import { AIRuntimeCard } from '@/components/Elements/Setup/AIRuntimeCard';
 import { Spinner } from '@/components/Elements/Spinner';
 import { DownloadModelButton } from '@/components/Elements/AIModel/DownloadModelButton';
 
-export const AIModelContainer = ({
-    ownedRobot,
-    mode = 'ai',
-}: {
-    ownedRobot: any;
-    mode?: 'ai' | 'rollout';
-}) => {
+export const AIModelContainer = ({ ownedRobot, mode = 'ai' }: { ownedRobot: any; mode?: 'ai' | 'rollout' }) => {
     const pageSize = 20;
     const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
     const { data, isLoading, isFetchingNextPage, fetchNextPage, hasNextPage, refetch } = useGetAiModelsInfinite(pageSize, true);
@@ -55,10 +49,10 @@ export const AIModelContainer = ({
     };
 
     return (
-        <DesktopExtrasGate
+        <AIRuntimeCard
             title="AI runtime modules required"
             description="Install the desktop AI runtime modules before running AI models on this robot."
-            actionLabel="Install AI Modules"
+            showOpenModules={false}
         >
             <div className="flex flex-col gap-6">
                 <div className="flex items-center justify-between rounded-xl border-2 border-slate-700/50 bg-slate-900/40 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.28)]">
@@ -156,6 +150,6 @@ export const AIModelContainer = ({
                     />
                 )}
             </div>
-        </DesktopExtrasGate>
+        </AIRuntimeCard>
     );
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { openPath } from '@tauri-apps/plugin-opener';
@@ -18,6 +18,7 @@ import { LinkButton } from '@/components/Elements/Link/LinkButton';
 type StepStatus = 'pending' | 'started' | 'success' | 'error';
 
 type AIRuntimeCardProps = {
+    children?: ReactNode;
     title?: string;
     description?: string;
     showOpenModules?: boolean;
@@ -29,13 +30,14 @@ const DEFAULT_TITLE = 'AI Runtime';
 const DEFAULT_DESCRIPTION = 'Install or repair the Sourccey runtime packages needed to download and run models locally.';
 
 export const AIRuntimeCard = ({
+    children,
     title = DEFAULT_TITLE,
     description = DEFAULT_DESCRIPTION,
     showOpenModules = true,
     showSettingsLink = true,
     className,
 }: AIRuntimeCardProps) => {
-    const { data, isLoading, refetch } = useDesktopExtrasStatus();
+    const { data, isLoading, isError: isStatusError, error: statusError, refetch } = useDesktopExtrasStatus();
     const { mutateAsync: installExtras, isPending } = useInstallDesktopExtras();
     const { data: lerobotDir } = useGetLerobotVulcanDir();
     const [log, setLog] = useState<string[]>([]);
@@ -59,7 +61,7 @@ export const AIRuntimeCard = ({
             { id: 'uv', label: 'Prepare uv runtime' },
             { id: 'venv', label: 'Create environment' },
             { id: 'deps', label: 'Install Sourccey packages' },
-            { id: 'protobuf', label: 'Compile protobuf' },
+            { id: 'post-install', label: 'Configure desktop runtime' },
             { id: 'xvla', label: 'Verify XVLA bindings' },
             { id: 'complete', label: 'Finalize' },
         ],
@@ -67,7 +69,8 @@ export const AIRuntimeCard = ({
     );
 
     const appendLog = useCallback((message: string) => {
-        setLog((prev) => [...prev, message]);
+        const timestamp = new Date().toLocaleTimeString();
+        setLog((prev) => [...prev, `[${timestamp}] ${message}`]);
     }, []);
 
     const updateStep = useCallback(
@@ -143,16 +146,36 @@ export const AIRuntimeCard = ({
         setLog([]);
         setBaseError('');
         setStepState(baseInstalled && !baseRuntimeMissing ? { check: 'success' } : {});
+        appendLog('Starting editable AI runtime installation with sourccey-desktop and xvla extras.');
         try {
             await installExtras();
             await refetch();
+            appendLog('Installation finished and the XVLA runtime verification passed.');
             toast.success('AI runtime modules installed.', { ...toastSuccessDefaults });
         } catch (error) {
             const message = formatSetupInvokeError(error) || 'Failed to install AI runtime modules.';
+            console.error('AI runtime installation failed:', error);
             setBaseError(message);
-            appendLog(message);
+            appendLog(`Installation failed:\n${message}`);
             toast.error(message, { ...toastErrorDefaults });
         }
+    };
+
+    const handleCopyLog = async () => {
+        const statusMessage = isStatusError ? `Runtime status error:\n${formatSetupInvokeError(statusError)}` : '';
+        const contents = [...log, statusMessage].filter(Boolean).join('\n');
+        try {
+            await navigator.clipboard.writeText(contents);
+            toast.success('AI runtime log copied.', { ...toastSuccessDefaults });
+        } catch (error) {
+            toast.error(`Failed to copy AI runtime log: ${formatSetupInvokeError(error)}`, { ...toastErrorDefaults });
+        }
+    };
+
+    const handleClearLog = () => {
+        setLog([]);
+        setStepState({});
+        setBaseError('');
     };
 
     const handleOpenModules = async () => {
@@ -167,6 +190,10 @@ export const AIRuntimeCard = ({
             toast.error(message, { ...toastErrorDefaults });
         }
     };
+
+    if (children && installed && !isLoading && !baseError) {
+        return <>{children}</>;
+    }
 
     return (
         <div className={`rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl ${className ?? ''}`}>
@@ -183,7 +210,8 @@ export const AIRuntimeCard = ({
                 )}
                 {!isBaseLoading && !baseInstalled && (
                     <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                        Base runtime is missing. Installing AI modules will bootstrap the Sourccey runtime first, then add the desktop AI package.
+                        Base runtime is missing. Installing AI modules will bootstrap the Sourccey runtime first, then add the desktop AI
+                        package.
                     </div>
                 )}
                 {!isBaseLoading && (
@@ -226,6 +254,11 @@ export const AIRuntimeCard = ({
                                 {`Missing: ${missing.join(', ')}`}
                             </div>
                         )}
+                        {isStatusError && (
+                            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap text-red-200">
+                                {`Runtime status check failed:\n${formatSetupInvokeError(statusError)}`}
+                            </div>
+                        )}
                         {baseRuntimeMissing && (
                             <div className="flex flex-wrap items-center gap-2 text-xs text-amber-200/90">
                                 <span>Default runtime is missing. Installing AI modules will set up the Sourccey runtime first.</span>
@@ -240,11 +273,36 @@ export const AIRuntimeCard = ({
                             </div>
                         )}
                         {isPending && (
+                            <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-[11px] text-slate-400">
+                                Installing Sourccey AI modules. This can take a few minutes.
+                            </div>
+                        )}
+                        {(isPending || log.length > 0 || isStatusError) && (
                             <>
-                                <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-[11px] text-slate-400">
-                                    Installing Sourccey AI modules. This can take a few minutes.
-                                </div>
                                 <div className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 text-xs text-slate-300 shadow-inner">
+                                    <div className="mb-3 flex flex-wrap items-center gap-2">
+                                        <div className="text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">
+                                            Install diagnostics
+                                        </div>
+                                        <div className="grow" />
+                                        {(log.length > 0 || isStatusError) && (
+                                            <button
+                                                type="button"
+                                                onClick={handleCopyLog}
+                                                className="cursor-pointer rounded-md border border-slate-700 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:border-amber-400/60 hover:text-amber-100"
+                                            >
+                                                Copy log
+                                            </button>
+                                        )}
+                                        <button
+                                            type="button"
+                                            onClick={handleClearLog}
+                                            disabled={isPending}
+                                            className="cursor-pointer rounded-md border border-slate-700 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-40"
+                                        >
+                                            Clear
+                                        </button>
+                                    </div>
                                     <div className="mb-2 text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">
                                         Install steps
                                     </div>
@@ -272,20 +330,25 @@ export const AIRuntimeCard = ({
                                             );
                                         })}
                                     </div>
-                                    {log.length > 0 && (
+                                    {(log.length > 0 || isStatusError) && (
                                         <div className="mt-3 space-y-2">
                                             <div className="text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">
                                                 Install log
                                             </div>
-                                            <div className="max-h-40 space-y-2 overflow-y-auto">
+                                            <div className="max-h-64 space-y-2 overflow-y-auto">
                                                 {log.map((line, index) => (
                                                     <div
                                                         key={`${line}-${index}`}
-                                                        className="rounded-md border border-slate-800/80 bg-slate-950/70 px-3 py-2 text-slate-200"
+                                                        className="rounded-md border border-slate-800/80 bg-slate-950/70 px-3 py-2 font-mono break-words whitespace-pre-wrap text-slate-200 select-text"
                                                     >
                                                         {line}
                                                     </div>
                                                 ))}
+                                                {isStatusError && (
+                                                    <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 font-mono break-words whitespace-pre-wrap text-red-200 select-text">
+                                                        {`Runtime status error:\n${formatSetupInvokeError(statusError)}`}
+                                                    </div>
+                                                )}
                                             </div>
                                         </div>
                                     )}

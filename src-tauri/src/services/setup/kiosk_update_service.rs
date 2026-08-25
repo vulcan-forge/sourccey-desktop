@@ -317,7 +317,10 @@ impl KioskUpdateService {
             emit,
             "tag",
             "started",
-            Some(format!("Selecting newest LeRobot release {}", latest.name)),
+            Some(format!(
+                "Selecting newest lerobot-vulcan runtime release {}",
+                latest.name
+            )),
         );
         Self::run_command(
             app_handle,
@@ -326,18 +329,32 @@ impl KioskUpdateService {
             &lerobot_dir,
             "git fetch lerobot-vulcan tags",
         )?;
-        Self::run_command(
-            app_handle,
-            "git",
-            &["checkout", "--detach", "--force", latest.name.as_str()],
-            &lerobot_dir,
-            "git checkout latest lerobot-vulcan tag",
-        )?;
+        let already_contains_release = latest
+            .commit_sha
+            .as_deref()
+            .and_then(|commit| Self::head_contains_commit(&lerobot_dir, commit))
+            == Some(true);
+        if !already_contains_release {
+            Self::run_command(
+                app_handle,
+                "git",
+                &["checkout", "--detach", "--force", latest.name.as_str()],
+                &lerobot_dir,
+                "git checkout latest lerobot-vulcan tag",
+            )?;
+        }
         Self::emit_step(
             emit,
             "tag",
             "success",
-            Some(format!("LeRobot is now on {}", latest.name)),
+            Some(if already_contains_release {
+                format!(
+                    "lerobot-vulcan runtime already contains release {} and newer changes",
+                    latest.name
+                )
+            } else {
+                format!("lerobot-vulcan runtime is now on {}", latest.name)
+            }),
         );
 
         if let Ok(mut cache) = KIOSK_LEROBOT_TAG_CACHE.lock() {

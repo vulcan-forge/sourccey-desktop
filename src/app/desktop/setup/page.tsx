@@ -14,6 +14,7 @@ import {
     formatLerobotRuntimeVersionLabel,
     getLerobotRuntimeStatusMessage,
 } from '@/utils/updater/lerobot-runtime';
+import { FaArrowRight, FaCheckCircle, FaCloudDownloadAlt, FaExclamationTriangle, FaSyncAlt } from 'react-icons/fa';
 
 const steps = [
     { id: 'reset', label: 'Reset modules' },
@@ -304,7 +305,7 @@ export default function SetupPage() {
                                     />
                                     <div>
                                         <h1 className="text-3xl font-semibold text-white">Desktop Setup & Updates</h1>
-                                        <p className="mt-1 text-sm text-slate-200">App update on top and LeRobot runtime below for the same flow as kiosk.</p>
+                                        <p className="mt-1 text-sm text-slate-200">App update on top and lerobot-vulcan runtime below for the same flow as kiosk.</p>
                                     </div>
                                 </div>
                                 <LinkButton
@@ -315,50 +316,89 @@ export default function SetupPage() {
                                 </LinkButton>
                             </div>
 
-                            <div className="rounded-2xl border border-amber-500/45 bg-slate-950/50 p-6">
-                                <h2 className="mb-1 text-lg font-semibold text-amber-100">App Update</h2>
-                                <p className="mb-4 text-xs text-amber-200/90">
-                                    Install the latest signed desktop app update while keeping the current top-bar update chip behavior.
-                                </p>
-                                <div className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-xs text-amber-100">
-                                    <div className="font-semibold text-amber-100">App version status</div>
-                                    <div className="mt-1 text-amber-100/90">Current: {appCurrent}</div>
-                                    <div className="text-amber-100/90">Available: {appAvailable}</div>
-                                    <div className={`mt-2 text-[11px] ${appOutdated ? 'text-amber-100' : 'text-emerald-200'}`}>{appStatusMessage}</div>
+                            <section className="relative overflow-hidden rounded-3xl border border-amber-500/35 bg-linear-to-br from-slate-950 via-slate-950 to-amber-950/50 p-6 shadow-xl sm:p-7">
+                                <div className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full bg-amber-400/15 blur-3xl" />
+                                <div className="relative">
+                                    <div className="flex flex-wrap items-start justify-between gap-4">
+                                        <div className="flex items-center gap-3">
+                                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-400/10 text-amber-200 shadow-inner">
+                                                <FaSyncAlt className="h-5 w-5" />
+                                            </div>
+                                            <div>
+                                                <div className="text-[10px] font-semibold tracking-[0.24em] text-amber-300/70 uppercase">Vulcan Studio</div>
+                                                <h2 className="mt-0.5 text-xl font-semibold text-white">App Update</h2>
+                                            </div>
+                                        </div>
+                                        <div
+                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold ${
+                                                appError
+                                                    ? 'border-red-400/30 bg-red-400/10 text-red-200'
+                                                    : appOutdated
+                                                      ? 'border-amber-400/30 bg-amber-400/10 text-amber-100'
+                                                      : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
+                                            }`}
+                                        >
+                                            {appError ? <FaExclamationTriangle /> : <FaCheckCircle />}
+                                            {appError ? 'Needs attention' : appOutdated ? 'Update available' : 'Up to date'}
+                                        </div>
+                                    </div>
+
+                                    <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300">
+                                        Keep Vulcan Studio current with the latest signed desktop release.
+                                    </p>
+
+                                    <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/8 bg-black/20 p-4">
+                                        <div>
+                                            <div className="text-[10px] font-semibold tracking-[0.2em] text-slate-500 uppercase">Installed</div>
+                                            <div className="mt-1 font-mono text-lg font-semibold text-slate-100">{appCurrent}</div>
+                                        </div>
+                                        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-400/20 bg-amber-400/10 text-amber-200">
+                                            <FaArrowRight className="h-3.5 w-3.5" />
+                                        </div>
+                                        <div className="text-right">
+                                            <div className="text-[10px] font-semibold tracking-[0.2em] text-amber-300/70 uppercase">Available</div>
+                                            <div className="mt-1 font-mono text-lg font-semibold text-amber-100">{appAvailable}</div>
+                                        </div>
+                                    </div>
+
+                                    <div className={`mt-3 text-xs leading-5 ${appError ? 'text-red-200' : appOutdated ? 'text-amber-100' : 'text-emerald-200'}`}>
+                                        {appStatusMessage}
+                                    </div>
                                     {appError && (
-                                        <div className="mt-2 whitespace-pre-wrap break-words text-[11px] text-red-200">{appError}</div>
+                                        <div className="mt-2 whitespace-pre-wrap break-words rounded-xl border border-red-400/20 bg-red-400/8 p-3 text-[11px] text-red-200">{appError}</div>
+                                    )}
+
+                                    <button
+                                        type="button"
+                                        onClick={() => void installAppUpdate()}
+                                        disabled={!appOutdated || isInstallingAppUpdate}
+                                        className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-linear-to-r from-amber-500 to-orange-500 px-6 py-3.5 text-sm font-bold text-slate-950 shadow-lg shadow-amber-950/30 transition hover:-translate-y-0.5 hover:from-amber-400 hover:to-orange-400 disabled:cursor-not-allowed disabled:border-slate-700 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-400 disabled:shadow-none disabled:hover:translate-y-0"
+                                    >
+                                        {isInstallingAppUpdate ? <Spinner color="black" width="w-4" height="h-4" /> : appOutdated ? <FaCloudDownloadAlt /> : <FaCheckCircle />}
+                                        {isInstallingAppUpdate ? 'Installing update...' : appOutdated ? `Install ${appAvailable}` : 'You have the latest version'}
+                                    </button>
+
+                                    {(isInstallingAppUpdate || appUpdateLog.length > 0) && (
+                                        <div className="mt-5 rounded-xl border border-amber-500/20 bg-black/20 p-3 text-xs shadow-inner">
+                                            <div className="mb-2 flex items-center justify-between text-[10px] font-semibold tracking-[0.25em] text-amber-200/70 uppercase">
+                                                <span>Update details</span>
+                                                {isInstallingAppUpdate && <span className="animate-pulse text-amber-300">Installing</span>}
+                                            </div>
+                                            <div className="max-h-48 space-y-1 overflow-y-auto font-mono text-slate-300">
+                                                {appUpdateLog.length === 0 && <div className="text-slate-500">Preparing the installer...</div>}
+                                                {appUpdateLog.map((line, index) => (
+                                                    <div key={`${line}-${index}`} className="whitespace-pre-wrap break-words border-b border-slate-800/60 py-1 last:border-0">
+                                                        {line}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
                                     )}
                                 </div>
-                                <button
-                                    type="button"
-                                    onClick={() => void installAppUpdate()}
-                                    disabled={!appOutdated || isInstallingAppUpdate}
-                                    className="mt-4 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-amber-500/60 bg-amber-500/10 px-6 py-3 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {isInstallingAppUpdate
-                                        ? 'Installing App Update...'
-                                        : appOutdated
-                                          ? `Install App Update${desktopAppUpdateStatus?.targetVersion ? ` ${desktopAppUpdateStatus.targetVersion}` : ''}`
-                                          : 'App Is Up To Date'}
-                                </button>
-                                <div className="mt-4 rounded-xl border border-amber-500/30 bg-slate-950/70 p-3 text-xs shadow-inner">
-                                    <div className="mb-2 flex items-center justify-between text-[10px] font-semibold tracking-[0.25em] text-amber-200/70 uppercase">
-                                        <span>App update log</span>
-                                        {isInstallingAppUpdate && <span className="animate-pulse text-amber-300">Running</span>}
-                                    </div>
-                                    <div className="max-h-48 space-y-1 overflow-y-auto font-mono text-slate-300">
-                                        {appUpdateLog.length === 0 && <div className="text-slate-500">Update diagnostics will appear here.</div>}
-                                        {appUpdateLog.map((line, index) => (
-                                            <div key={`${line}-${index}`} className="whitespace-pre-wrap break-words border-b border-slate-800/60 py-1 last:border-0">
-                                                {line}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
+                            </section>
 
                             <div className="rounded-2xl border border-slate-600/70 bg-slate-950/45 p-6">
-                                <h2 className="mb-1 text-lg font-semibold text-slate-100">LeRobot Runtime</h2>
+                                <h2 className="mb-1 text-lg font-semibold text-slate-100">lerobot-vulcan runtime</h2>
                                 <p className="mb-4 text-xs text-slate-300">
                                     Download lerobot-vulcan, create the Python environment, and repair or refresh local runtime tools.
                                 </p>
@@ -384,7 +424,7 @@ export default function SetupPage() {
                                 </div>
 
                                 <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
-                                    <div className="font-semibold text-slate-100">LeRobot runtime release</div>
+                                    <div className="font-semibold text-slate-100">lerobot-vulcan runtime release</div>
                                     <div className="mt-1 text-slate-300">Current: {runtimeCurrent}</div>
                                     <div className="text-slate-300">Available: {runtimeAvailable}</div>
                                     <div

@@ -4,7 +4,7 @@ use crate::services::log::log_service::LogService;
 use crate::services::setup::local_setup_service::LocalSetupService;
 use sea_orm::DatabaseConnection;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex};
 use tauri::AppHandle;
@@ -26,7 +26,10 @@ pub fn init_managed_processes() -> ManagedRemoteProcesses {
 pub fn resolve_uv_runtime(app_handle: &AppHandle) -> Result<RemoteCommandRuntime, String> {
     let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
     if !lerobot_dir.exists() {
-        return Err(format!("LeRobot directory not found at: {:?}", lerobot_dir));
+        return Err(format!(
+            "lerobot-vulcan runtime directory not found at: {:?}",
+            lerobot_dir
+        ));
     }
 
     let uv_path = LocalSetupService::resolve_uv_binary(app_handle)?;
@@ -99,4 +102,42 @@ pub fn format_command_for_display(command_args: &[String]) -> String {
         .chain(command_args.iter().cloned())
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+pub fn validate_rollout_model_path(model_path: &str) -> Result<(), String> {
+    let model_path = model_path.trim();
+    let path = Path::new(model_path);
+
+    if path.is_absolute() && !path.exists() {
+        return Err(format!(
+            "The selected local model path does not exist: {}. Refresh AI Models and select the model again.",
+            model_path
+        ));
+    }
+
+    if model_path.contains('\\') && !path.is_absolute() {
+        return Err(format!(
+            "The selected model uses a relative Windows path: {}. Rollout requires the absolute local model path.",
+            model_path
+        ));
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_rollout_model_path;
+
+    #[test]
+    fn rejects_relative_windows_model_paths_before_hugging_face_parsing() {
+        let error = validate_rollout_model_path("test-shorts-fold\\xvla__sourccey-012")
+            .expect_err("relative Windows paths must be rejected");
+        assert!(error.contains("absolute local model path"));
+    }
+
+    #[test]
+    fn accepts_hugging_face_repo_ids() {
+        assert!(validate_rollout_model_path("vulcan-forge/xvla-sourccey").is_ok());
+    }
 }

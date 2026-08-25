@@ -132,6 +132,7 @@ impl LocalSetupService {
     const SOURCCEY_DESKTOP_RUNTIME_EXTRA: &str = "sourccey-desktop";
     // Desktop AI content combines the Sourccey controller profile with XVLA.
     const SOURCCEY_DESKTOP_EXTRA: &str = "sourccey-desktop,xvla";
+    const XVLA_TRANSFORMERS_REQUIREMENT: &str = "transformers>=5.4.0,<5.6.0";
 
     pub fn resolve_uv_binary(app_handle: &AppHandle) -> Result<PathBuf, String> {
         let app_data_dir = app_handle
@@ -352,32 +353,52 @@ impl LocalSetupService {
                 "reset",
                 "started",
                 Some(format!(
-                    "Checking out newest LeRobot tag {}",
+                    "Checking out newest lerobot-vulcan runtime tag {}",
                     latest_release.name
                 )),
             );
+            let repo_root = install_root.parent().ok_or_else(|| {
+                format!("Unable to resolve app repository from {:?}", install_root)
+            })?;
+            Self::run_git_command(
+                &[
+                    "submodule",
+                    "update",
+                    "--init",
+                    "--checkout",
+                    "modules/lerobot-vulcan",
+                ],
+                repo_root,
+                "git restore app-pinned lerobot-vulcan runtime",
+            )?;
             Self::run_git_command(
                 &["fetch", "--tags", "--prune"],
                 &lerobot_dir,
                 "git fetch tags",
             )?;
-            Self::run_git_command(
-                &[
-                    "checkout",
-                    "--detach",
-                    "--force",
-                    latest_release.name.as_str(),
-                ],
-                &lerobot_dir,
-                "git checkout newest vulcan tag",
-            )?;
+            let already_contains_release = latest_release
+                .commit_sha
+                .as_deref()
+                .is_some_and(|commit| Self::git_head_contains_commit(&lerobot_dir, commit));
+            if !already_contains_release {
+                Self::run_git_command(
+                    &[
+                        "checkout",
+                        "--detach",
+                        "--force",
+                        latest_release.name.as_str(),
+                    ],
+                    &lerobot_dir,
+                    "git checkout newest vulcan tag",
+                )?;
+            }
         } else {
             Self::emit_step(
                 Some(&emit),
                 "reset",
                 "started",
                 Some(format!(
-                    "Installing newest LeRobot tag {}",
+                    "Installing newest lerobot-vulcan runtime tag {}",
                     latest_release.name
                 )),
             );
@@ -505,16 +526,34 @@ impl LocalSetupService {
                 "started",
                 Some("Verifying XVLA bindings".to_string()),
             );
-            if !Self::python_can_import(&python_path, "transformers") {
-                let message =
-                    "XVLA bindings missing. Ensure xvla extras are installed.".to_string();
+            if let Some(first_import_error) =
+                Self::python_import_error(&python_path, "transformers")
+            {
                 Self::emit_step(
                     Some(&emit),
                     "xvla",
-                    "error",
-                    Some("XVLA bindings missing (transformers import failed)".to_string()),
+                    "started",
+                    Some(format!(
+                        "Transformers import failed; repairing the XVLA dependency. {}",
+                        first_import_error
+                    )),
                 );
-                return Err(message);
+                Self::repair_transformers_dependency(&uv_target, &lerobot_dir, &python_path)
+                    .map_err(|error| {
+                        Self::emit_step(Some(&emit), "xvla", "error", Some(error.clone()));
+                        error
+                    })?;
+
+                if let Some(import_error) = Self::python_import_error(&python_path, "transformers")
+                {
+                    let message = format!(
+                        "XVLA bindings are still unavailable after reinstalling {}. {}",
+                        Self::XVLA_TRANSFORMERS_REQUIREMENT,
+                        import_error
+                    );
+                    Self::emit_step(Some(&emit), "xvla", "error", Some(message.clone()));
+                    return Err(message);
+                }
             }
             Self::emit_step(Some(&emit), "xvla", "success", None);
 
@@ -821,7 +860,7 @@ impl LocalSetupService {
             .ok_or_else(|| "latest.json is missing modules.lerobot-vulcan.tag".to_string())?;
         if manifest_tag != latest_release.name {
             return Err(format!(
-                "Newest LeRobot tag {} has not been published in latest.json yet (manifest has {}).",
+                "Newest lerobot-vulcan runtime tag {} has not been published in latest.json yet (manifest has {}).",
                 latest_release.name, manifest_tag
             ));
         }
@@ -834,13 +873,13 @@ impl LocalSetupService {
             .ok_or_else(|| "latest.json is missing modules.lerobot-vulcan.zip_url".to_string())?;
         let archive_tag = Self::lerobot_tag_from_zip_url(&zip_url).ok_or_else(|| {
             format!(
-                "LeRobot archive URL does not identify a vulcan release tag: {}",
+                "lerobot-vulcan runtime archive URL does not identify a vulcan release tag: {}",
                 zip_url
             )
         })?;
         if archive_tag != latest_release.name {
             return Err(format!(
-                "LeRobot archive is for {}, but the newest release is {}.",
+                "lerobot-vulcan runtime archive is for {}, but the newest release is {}.",
                 archive_tag, latest_release.name
             ));
         }
@@ -1063,7 +1102,10 @@ impl LocalSetupService {
             None => {
                 return (
                     LerobotReleaseState::Unknown,
-                    Some("Unable to resolve the latest released LeRobot tag.".to_string()),
+                    Some(
+                        "Unable to resolve the latest released lerobot-vulcan runtime tag."
+                            .to_string(),
+                    ),
                 );
             }
         };
@@ -1073,7 +1115,7 @@ impl LocalSetupService {
             None => {
                 return (
                     LerobotReleaseState::Unknown,
-                    Some("Installed LeRobot release metadata could not be determined.".to_string()),
+                    Some("Installed lerobot-vulcan runtime release metadata could not be determined.".to_string()),
                 );
             }
         };
@@ -1082,17 +1124,17 @@ impl LocalSetupService {
             Some(Ordering::Less) => (
                 LerobotReleaseState::UpdateAvailable,
                 Some(format!(
-                    "A newer LeRobot release tag is available: {}.",
+                    "A newer lerobot-vulcan runtime release tag is available: {}.",
                     latest_release.name
                 )),
             ),
             Some(Ordering::Equal | Ordering::Greater) => (
                 LerobotReleaseState::UpToDate,
-                Some("Your LeRobot runtime is on the latest released tag.".to_string()),
+                Some("Your lerobot-vulcan runtime is on the latest released tag.".to_string()),
             ),
             None => (
                 LerobotReleaseState::Unknown,
-                Some("LeRobot release tags could not be compared.".to_string()),
+                Some("lerobot-vulcan runtime release tags could not be compared.".to_string()),
             ),
         }
     }
@@ -1435,7 +1477,9 @@ impl LocalSetupService {
     fn run_git_command(args: &[&str], working_dir: &Path, label: &str) -> Result<(), String> {
         let mut command = Command::new("git");
         command.args(args).current_dir(working_dir);
-        Self::configure_setup_command_env(&mut command);
+        // Keep Git for Windows' usr/bin on PATH. Git LFS installs hooks with a
+        // `#!/bin/sh` shebang, and filtering that directory makes Git unable to
+        // spawn otherwise-valid post-checkout/post-merge hooks.
         configure_std_command(&mut command);
         let output = command
             .output()
@@ -1460,12 +1504,34 @@ impl LocalSetupService {
         working_dir: &Path,
         profile: &str,
     ) -> Result<(), String> {
+        let scripts_dir = python_path.parent().ok_or_else(|| {
+            format!(
+                "Python executable has no scripts directory: {:?}",
+                python_path
+            )
+        })?;
+        #[cfg(windows)]
+        let setup_executable = scripts_dir.join("sourccey-setup.exe");
+        #[cfg(not(windows))]
+        let setup_executable = scripts_dir.join("sourccey-setup");
         Self::run_command(
-            python_path,
-            &["-m", "lerobot_robot_sourccey.setup", profile],
+            &setup_executable,
+            &[profile],
             working_dir,
             &format!("sourccey-setup {}", profile),
         )
+    }
+
+    fn git_head_contains_commit(repo_dir: &Path, commit: &str) -> bool {
+        let mut command = Command::new("git");
+        command
+            .args(["merge-base", "--is-ancestor", commit, "HEAD"])
+            .current_dir(repo_dir);
+        configure_std_command(&mut command);
+        command
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false)
     }
 
     fn run_uv_pip_install(
@@ -1473,9 +1539,10 @@ impl LocalSetupService {
         working_dir: &Path,
         python_path: &Path,
         extras: Option<&str>,
+        no_cache: bool,
         label: &str,
     ) -> Result<(), String> {
-        let args = Self::uv_pip_install_args(python_path, extras);
+        let args = Self::uv_pip_install_args(python_path, extras, no_cache);
         let arg_refs: Vec<&str> = args.iter().map(|arg| arg.as_str()).collect();
         Self::run_command(uv_target, &arg_refs, working_dir, label)
     }
@@ -1487,14 +1554,26 @@ impl LocalSetupService {
         extra: &str,
     ) -> Result<(), String> {
         let label = format!("uv pip install {}", extra);
-        Self::run_uv_pip_install(
+        let first_result = Self::run_uv_pip_install(
             uv_target,
             working_dir,
             python_path,
             Some(extra),
+            false,
             label.as_str(),
-        )
-        .map_err(|error| {
+        );
+        let result = match first_result {
+            Err(error) if Self::is_uv_git_checkout_collision(&error) => Self::run_uv_pip_install(
+                uv_target,
+                working_dir,
+                python_path,
+                Some(extra),
+                true,
+                &format!("{} (clean-cache retry)", label),
+            ),
+            result => result,
+        };
+        result.map_err(|error| {
             format!(
                 "Failed to install lerobot-vulcan package `{}': {}",
                 extra, error
@@ -1502,8 +1581,22 @@ impl LocalSetupService {
         })
     }
 
-    fn uv_pip_install_args(python_path: &Path, extras: Option<&str>) -> Vec<String> {
+    fn is_uv_git_checkout_collision(error: &str) -> bool {
+        let normalized = error.to_ascii_lowercase();
+        normalized.contains("git operation failed")
+            && normalized.contains("destination path")
+            && normalized.contains("already exists and is not an empty directory")
+    }
+
+    fn uv_pip_install_args(
+        python_path: &Path,
+        extras: Option<&str>,
+        no_cache: bool,
+    ) -> Vec<String> {
         let mut args = vec!["pip".to_string(), "install".to_string()];
+        if no_cache {
+            args.push("--no-cache".to_string());
+        }
         args.push("--python".to_string());
         args.push(python_path.to_string_lossy().to_string());
 
@@ -1522,6 +1615,33 @@ impl LocalSetupService {
         });
 
         args
+    }
+
+    fn uv_transformers_repair_args(python_path: &Path) -> Vec<String> {
+        vec![
+            "pip".to_string(),
+            "install".to_string(),
+            "--python".to_string(),
+            python_path.to_string_lossy().to_string(),
+            "--reinstall-package".to_string(),
+            "transformers".to_string(),
+            Self::XVLA_TRANSFORMERS_REQUIREMENT.to_string(),
+        ]
+    }
+
+    fn repair_transformers_dependency(
+        uv_target: &Path,
+        working_dir: &Path,
+        python_path: &Path,
+    ) -> Result<(), String> {
+        let args = Self::uv_transformers_repair_args(python_path);
+        let arg_refs: Vec<&str> = args.iter().map(String::as_str).collect();
+        Self::run_command(
+            uv_target,
+            &arg_refs,
+            working_dir,
+            "uv pip reinstall XVLA transformers dependency",
+        )
     }
 
     fn uv_venv_args() -> [&'static str; 4] {
@@ -1558,18 +1678,47 @@ impl LocalSetupService {
     }
 
     fn python_can_import(python_path: &Path, module: &str) -> bool {
+        Self::python_import_error(python_path, module).is_none()
+    }
+
+    fn python_import_error(python_path: &Path, module: &str) -> Option<String> {
         if !Self::python_path_is_usable(python_path) {
-            return false;
+            return Some(format!(
+                "Python executable is not usable: {}",
+                python_path.display()
+            ));
         }
         let code = format!("import {}", module);
         let mut command = Command::new(python_path);
         command.args(["-c", code.as_str()]);
         Self::configure_setup_command_env(&mut command);
         configure_std_command(&mut command);
-        command
-            .status()
-            .map(|status| status.success())
-            .unwrap_or(false)
+        match command.output() {
+            Ok(output) if output.status.success() => None,
+            Ok(output) => {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                let mut details = format!(
+                    "Python import `{}` failed using {} with status {}.",
+                    module,
+                    python_path.display(),
+                    output.status
+                );
+                if !stdout.trim().is_empty() {
+                    details.push_str(&format!("\nstdout: {}", stdout.trim()));
+                }
+                if !stderr.trim().is_empty() {
+                    details.push_str(&format!("\nstderr: {}", stderr.trim()));
+                }
+                Some(details)
+            }
+            Err(error) => Some(format!(
+                "Failed to run Python import `{}` using {}: {}",
+                module,
+                python_path.display(),
+                error
+            )),
+        }
     }
 
     fn python_path_is_usable(python_path: &Path) -> bool {

@@ -8,11 +8,11 @@ export const getLerobotRuntimeStatusMessage = (
     isLoading = false
 ) => {
     if (isLoading) {
-        return 'Checking LeRobot release status...';
+        return 'Checking lerobot-vulcan runtime release status...';
     }
 
     if (!status) {
-        return 'LeRobot release status is unavailable.';
+        return 'lerobot-vulcan runtime release status is unavailable.';
     }
 
     if (status.message?.trim()) {
@@ -21,13 +21,13 @@ export const getLerobotRuntimeStatusMessage = (
 
     switch (status.state) {
         case 'update_available':
-            return 'A newer LeRobot release tag is available.';
+            return 'A newer lerobot-vulcan runtime release tag is available.';
         case 'custom_build':
             return 'This runtime is on an untagged local checkout.';
         case 'unknown':
-            return 'LeRobot release metadata is unavailable.';
+            return 'lerobot-vulcan runtime release metadata is unavailable.';
         default:
-            return 'Your LeRobot runtime is on the latest released tag.';
+            return 'Your lerobot-vulcan runtime is on the latest released tag.';
     }
 };
 

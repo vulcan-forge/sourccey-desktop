@@ -40,34 +40,31 @@ export const formatSetupInvokeError = (error: unknown): string => {
     return 'Unknown setup error.';
 };
 
-export const getDesktopExtrasCachedStatus = () =>
-    queryClient.getQueryData<DesktopExtrasStatus | null>(DESKTOP_EXTRAS_KEY) ?? null;
-
-export const setDesktopExtrasCachedStatus = (status: DesktopExtrasStatus) =>
-    queryClient.setQueryData(DESKTOP_EXTRAS_KEY, status);
+export const setDesktopExtrasCachedStatus = (status: DesktopExtrasStatus) => queryClient.setQueryData(DESKTOP_EXTRAS_KEY, status);
 
 export const getDesktopExtrasStatus = async (): Promise<DesktopExtrasStatus> => {
     if (!isTauri()) {
         return { installed: true, missing: [] };
-    }
-    const cached = getDesktopExtrasCachedStatus();
-    if (cached?.installed === true) {
-        return cached;
     }
     const status = await invoke<DesktopExtrasStatus>('setup_desktop_extras_check');
     setDesktopExtrasCachedStatus(status);
     return status;
 };
 
-export const runDesktopExtrasSetup = async (): Promise<void> => {
-    if (!isTauri()) return;
+export const runDesktopExtrasSetup = async (): Promise<DesktopExtrasStatus> => {
+    if (!isTauri()) return { installed: true, missing: [] };
     try {
         const baseStatus = await invoke<BaseSetupStatus>('setup_check');
         if (!baseStatus.installed) {
             await invoke('setup_run', { force: false });
         }
         await invoke('setup_desktop_extras_run');
-        setDesktopExtrasCachedStatus({ installed: true, missing: [] });
+        const status = await invoke<DesktopExtrasStatus>('setup_desktop_extras_check');
+        setDesktopExtrasCachedStatus(status);
+        if (!status.installed) {
+            throw new Error(`AI runtime verification failed. Missing: ${status.missing.join(', ')}`);
+        }
+        return status;
     } catch (error) {
         throw new Error(formatSetupInvokeError(error));
     }
@@ -82,17 +79,17 @@ export const useDesktopExtrasStatus = () =>
     useQuery({
         queryKey: DESKTOP_EXTRAS_KEY,
         queryFn: getDesktopExtrasStatus,
-        staleTime: Infinity,
+        staleTime: 0,
         gcTime: Infinity,
-        refetchOnMount: false,
-        refetchOnWindowFocus: false,
+        refetchOnMount: 'always',
+        refetchOnWindowFocus: true,
     });
 
 export const useInstallDesktopExtras = () =>
     useMutation({
         mutationFn: runDesktopExtrasSetup,
-        onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: DESKTOP_EXTRAS_KEY });
+        onSuccess: (status) => {
+            setDesktopExtrasCachedStatus(status);
         },
     });
 

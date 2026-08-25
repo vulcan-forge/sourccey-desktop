@@ -182,7 +182,7 @@ export const DesktopTopNavbar = () => {
                         {showRuntimeUpdateButton && (
                             <LinkButton
                                 href="/desktop/setup"
-                                tooltip="A newer LeRobot release tag is available. Open Desktop Updates to repair or refresh modules."
+                                tooltip="A newer lerobot-vulcan runtime release tag is available. Open Desktop Updates to repair or refresh modules."
                                 className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-400/70 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:border-amber-300 hover:text-amber-100"
                             >
                                 Update Available
