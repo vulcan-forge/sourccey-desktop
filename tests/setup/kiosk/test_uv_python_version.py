@@ -53,7 +53,7 @@ def test_setup_python_environment_syncs_desktop_editable_profile(monkeypatch, tm
     assert captured[0][0] == [
         str(Path("/tmp/uv")),
         "sync",
-        "--locked",
+        "--frozen",
         "--extra",
         "sourccey-desktop",
         "--extra",
@@ -88,7 +88,7 @@ def test_setup_python_environment_syncs_robot_editable_profile(monkeypatch, tmp_
     assert captured[0][0] == [
         str(Path("/tmp/uv")),
         "sync",
-        "--locked",
+        "--frozen",
         "--extra",
         "sourccey-robot",
     ]
