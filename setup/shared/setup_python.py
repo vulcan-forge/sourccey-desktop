@@ -470,10 +470,7 @@ class PythonSetupManager:
                 return False
 
             profile = "sourccey-desktop" if desktop else "sourccey-robot"
-            # Deploy exactly the committed lockfile. `--frozen` intentionally
-            # avoids recalculating it, so a released submodule remains
-            # installable even if a newer uv would normalize lock metadata.
-            command = [uv_path, "sync", "--frozen", "--extra", profile]
+            command = [uv_path, "sync", "--locked", "--extra", profile]
             if desktop:
                 command.extend(["--extra", "xvla"])
 
