@@ -361,6 +361,7 @@ impl KioskHostService {
 
     fn build_envs() -> Result<HashMap<String, String>, String> {
         let mut envs: HashMap<String, String> = std::env::vars().collect();
+        Self::configure_python_runtime_env(&mut envs);
         let venv_path = DirectoryService::get_virtual_env_path()?;
         let lerobot_src_path = DirectoryService::get_lerobot_vulcan_dir()?.join("src");
         envs.insert(
@@ -406,6 +407,13 @@ impl KioskHostService {
         Ok(envs)
     }
 
+    fn configure_python_runtime_env(envs: &mut HashMap<String, String>) {
+        // The host's console entry point writes readiness messages with print().
+        // Since its stdout is piped into Tauri, Python would otherwise block-buffer
+        // those messages and the UI would not receive "Waiting for commands...".
+        envs.insert("PYTHONUNBUFFERED".to_string(), "1".to_string());
+    }
+
     fn cloud_device_credentials_path() -> Result<std::path::PathBuf, String> {
         KioskPairingService::current_cloud_device_credentials_file_path()
     }
@@ -421,6 +429,7 @@ impl KioskHostService {
 #[cfg(test)]
 mod tests {
     use super::KioskHostService;
+    use std::collections::HashMap;
     use std::process::{Child, Command};
     use std::sync::atomic::AtomicBool;
     use std::sync::Arc;
@@ -452,6 +461,15 @@ mod tests {
             let _ = child.kill();
             let _ = child.wait();
         }
+    }
+
+    #[test]
+    fn host_python_output_is_unbuffered_for_log_streaming() {
+        let mut envs = HashMap::new();
+
+        KioskHostService::configure_python_runtime_env(&mut envs);
+
+        assert_eq!(envs.get("PYTHONUNBUFFERED").map(String::as_str), Some("1"));
     }
 
     #[cfg(windows)]
