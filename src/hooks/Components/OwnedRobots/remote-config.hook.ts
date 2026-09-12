@@ -24,4 +24,5 @@ const defaultRemoteTeleopConfig = (): RemoteTeleopConfig => ({
     right_arm_port: '',
     keyboard: 'sourccey_keyboard',
     fps: 30,
+    display_data: false,
 });

@@ -13,6 +13,8 @@ pub struct RemoteTeleopConfig {
     pub right_arm_port: String,
     pub keyboard: String,
     pub fps: i32,
+    #[serde(default)]
+    pub display_data: bool,
 }
 
 #[command]

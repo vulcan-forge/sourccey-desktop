@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FaChevronDown, FaChevronUp, FaPlay, FaStop, FaTimes } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { toast } from 'react-toastify';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { RobotLogs } from '@/components/PageComponents/Robots/Logs/RobotDesktopLogs';
@@ -21,6 +22,7 @@ type SelectedModelPanelProps = {
     remoteConfig?: {
         remote_ip?: string;
         fps?: number;
+        display_data?: boolean;
     } | null;
     mode?: 'ai' | 'rollout';
     onClearAction: () => void;
@@ -32,15 +34,40 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
     const [durationS, setDurationS] = useState('3600');
     const [modelPath, setModelPath] = useState(model.model_path);
     const [isRolloutSettingsOpen, setIsRolloutSettingsOpen] = useState(false);
+    const [isRolloutStarting, setIsRolloutStarting] = useState(false);
+    const [startupSeconds, setStartupSeconds] = useState(0);
+    const startupListener = useRef<UnlistenFn | null>(null);
 
     const nickname = ownedRobot?.nickname ?? '';
     const normalizedNickname = nickname.startsWith('@') ? nickname.slice(1) : nickname;
     const isRolloutMode = mode === 'rollout';
     const { data: remoteRobotState }: any = useGetRemoteRobotState(nickname);
+    const robotStatus = remoteRobotState?.status;
     const isControlling = remoteRobotState?.status === RemoteRobotStatus.STARTED && remoteRobotState?.controlType === RemoteControlType.ROLLOUT;
+
+    useEffect(() => () => startupListener.current?.(), []);
+
+    useEffect(() => {
+        if (!isRolloutStarting) return;
+        setStartupSeconds(0);
+        const startedAt = Date.now();
+        const timer = window.setInterval(() => setStartupSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+        return () => window.clearInterval(timer);
+    }, [isRolloutStarting]);
+
+    useEffect(() => {
+        if (robotStatus === RemoteRobotStatus.NONE) {
+            setIsRolloutStarting(false);
+            startupListener.current?.();
+            startupListener.current = null;
+        }
+    }, [robotStatus]);
 
     useEffect(() => {
         setIsLoading(false);
+        setIsRolloutStarting(false);
+        startupListener.current?.();
+        startupListener.current = null;
     }, [model.id]);
 
     useEffect(() => {
@@ -53,7 +80,7 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
     const isValidTask = task.trim().length > 0;
 
     const startRollout = async () => {
-        if (isControlling) {
+        if (isControlling || isRolloutStarting) {
             return;
         }
         if (!remoteConfig?.remote_ip) {
@@ -79,18 +106,33 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
             model_path: modelPath.trim(),
             task: task.trim(),
             duration: Number(durationS),
+            display_data: remoteConfig.display_data ?? false,
         };
 
-        const result = await invoke('start_remote_rollout', { config: remoteRolloutConfig });
-        toast.success(`Rollout started: ${result}`, { ...toastSuccessDefaults });
-        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.ROLLOUT, ownedRobot);
+        setIsRolloutStarting(true);
+        setRemoteRobotState(nickname, RemoteRobotStatus.STARTING, RemoteControlType.ROLLOUT, ownedRobot);
+        startupListener.current?.();
+        startupListener.current = await listen<string>('rollout-log', ({ payload }) => {
+            if (!payload.startsWith(`[${normalizedNickname}] `)) return;
+            if (payload.includes('Rollout ready: control loop is running.')) {
+                setIsRolloutStarting(false);
+                setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.ROLLOUT, ownedRobot);
+                toast.success('Rollout is ready.', { ...toastSuccessDefaults });
+                startupListener.current?.();
+                startupListener.current = null;
+            }
+        });
+        await invoke('start_remote_rollout', { config: remoteRolloutConfig });
     };
 
     const stopRollout = async () => {
-        if (!isControlling) {
+        if (!isControlling && !isRolloutStarting) {
             return;
         }
         const result = await invoke('stop_remote_rollout', { nickname: normalizedNickname });
+        setIsRolloutStarting(false);
+        startupListener.current?.();
+        startupListener.current = null;
         toast.success(`Rollout stopped: ${result}`, { ...toastSuccessDefaults });
         setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
     };
@@ -98,12 +140,15 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
     const toggleRollout = async () => {
         try {
             setIsLoading(true);
-            if (isControlling) {
+            if (isControlling || isRolloutStarting) {
                 await stopRollout();
             } else {
                 await startRollout();
             }
         } catch (error) {
+            setIsRolloutStarting(false);
+            startupListener.current?.();
+            startupListener.current = null;
             console.error('Failed to toggle rollout:', error);
             toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`, {
                 ...toastErrorDefaults,
@@ -175,25 +220,45 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
                 <button
                     type="button"
                     onClick={toggleRollout}
+                    disabled={isLoading}
                     className={`inline-flex cursor-pointer items-center gap-2 rounded-lg px-6 py-3 text-sm font-semibold text-white transition-all ${
-                        isControlling
+                        isControlling || isRolloutStarting
                             ? 'bg-red-500 hover:bg-red-600'
                             : 'bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 hover:from-red-500/90 hover:via-orange-500/90 hover:to-yellow-500/90'
                     }`}
                 >
                     {isLoading ? (
                         <Spinner color="white" />
-                    ) : isControlling ? (
+                    ) : isControlling || isRolloutStarting ? (
                         <FaStop className="h-3.5 w-3.5" />
                     ) : (
                         <FaPlay className="h-3.5 w-3.5" />
                     )}
-                    {isLoading ? (isControlling ? 'Stopping...' : 'Starting...') : isControlling ? 'Stop Rollout' : 'Start Rollout'}
+                    {isLoading
+                        ? 'Working...'
+                        : isRolloutStarting
+                          ? 'Cancel startup'
+                          : isControlling
+                            ? 'Stop Rollout'
+                            : 'Start Rollout'}
                 </button>
             </div>
 
+            {isRolloutStarting && (
+                <div role="status" className="mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100">
+                    <Spinner color="white" />
+                    <div>
+                        <p className="text-sm font-semibold">Starting rollout... {startupSeconds}s</p>
+                        <p className="mt-1 text-xs">Loading the model and connecting to the robot. Waiting for the rollout loop to start.</p>
+                        {startupSeconds >= 60 && (
+                            <p className="mt-1 text-xs">Startup is taking longer than expected. Check the logs below, or cancel and retry.</p>
+                        )}
+                    </div>
+                </div>
+            )}
+
             <div className="mt-4">
-                <RobotLogs isControlling={isControlling} nickname={normalizedNickname} embedded={true} mode="rollout" />
+                <RobotLogs isControlling={isControlling || isRolloutStarting} nickname={normalizedNickname} embedded={true} mode="rollout" />
             </div>
         </div>
     );
@@ -205,4 +270,5 @@ export interface RemoteRolloutConfig {
     model_path: string;
     task: string;
     duration: number;
+    display_data: boolean;
 }

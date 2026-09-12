@@ -38,4 +38,6 @@ pub struct RemoteConfig {
     pub right_arm_port: String,
     pub keyboard: String,
     pub fps: u32,
+    #[serde(default)]
+    pub display_data: bool,
 }

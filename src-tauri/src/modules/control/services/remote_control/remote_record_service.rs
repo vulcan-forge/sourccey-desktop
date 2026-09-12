@@ -76,7 +76,8 @@ impl RemoteRecordService {
             .command(executable)
             .args(command_parts.iter())
             .current_dir(working_dir.clone())
-            .envs(envs);
+            .envs(envs)
+            .env("PYTHONUNBUFFERED", "1");
 
         let (mut rx, child) = cmd.spawn().map_err(|e| {
             let message = format!(
@@ -106,6 +107,7 @@ impl RemoteRecordService {
             .map(|p| p.to_string_lossy().to_string());
 
         tauri::async_runtime::spawn(async move {
+            let mut capture_started = false;
             while let Some(event) = rx.recv().await {
                 if shutdown_for_logs.load(Ordering::Relaxed) {
                     break;
@@ -116,6 +118,14 @@ impl RemoteRecordService {
                         let line = String::from_utf8_lossy(&line_bytes);
                         let line = line.trim_end();
                         if !line.is_empty() {
+                            if !capture_started && line.contains("Recording episode") {
+                                capture_started = true;
+                                Self::emit_record_info(
+                                    &app_handle_for_logs,
+                                    &nickname_for_logs,
+                                    "Recording ready: capture loop is running.",
+                                );
+                            }
                             let formatted = format!("[{}] {}", nickname_for_logs, line);
                             let _ = app_handle_for_logs.emit("record-log", &formatted);
                             if let Some(path) = &record_log_path {
@@ -127,6 +137,14 @@ impl RemoteRecordService {
                         let line = String::from_utf8_lossy(&line_bytes);
                         let line = line.trim_end();
                         if !line.is_empty() {
+                            if !capture_started && line.contains("Recording episode") {
+                                capture_started = true;
+                                Self::emit_record_info(
+                                    &app_handle_for_logs,
+                                    &nickname_for_logs,
+                                    "Recording ready: capture loop is running.",
+                                );
+                            }
                             let formatted = format!("[{}] {}", nickname_for_logs, line);
                             let _ = app_handle_for_logs.emit("record-log", &formatted);
                             if let Some(path) = &record_log_path {
@@ -256,7 +274,7 @@ impl RemoteRecordService {
             format!("--dataset.reset_time_s={}", config.reset_time_s),
             format!("--dataset.single_task={}", config.single_task.trim()),
             format!("--dataset.fps={}", DEFAULT_RECORD_DATASET_FPS),
-            "--display_data=true".to_string(),
+            format!("--display_data={}", config.display_data),
             "--dataset.push_to_hub=false".to_string(),
         ]);
         args
@@ -322,6 +340,7 @@ mod tests {
             episode_time_s: 300.0,
             reset_time_s: 5.0,
             single_task: "Fold the shirt".to_string(),
+            display_data: false,
         }
     }
 
@@ -361,5 +380,14 @@ mod tests {
         assert!(command_parts
             .iter()
             .any(|part| part == "--dataset.push_to_hub=false"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--display_data=false"));
+
+        let mut display_config = valid_config();
+        display_config.display_data = true;
+        assert!(RemoteRecordService::build_command_args(&display_config)
+            .iter()
+            .any(|part| part == "--display_data=true"));
     }
 }

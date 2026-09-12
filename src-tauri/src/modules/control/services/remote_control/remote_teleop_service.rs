@@ -105,7 +105,8 @@ impl RemoteTeleopService {
             .command(executable)
             .args(command_parts.iter())
             .current_dir(working_dir.clone())
-            .envs(envs);
+            .envs(envs)
+            .env("PYTHONUNBUFFERED", "1");
 
         let (mut rx, child) = cmd.spawn().map_err(|e| {
             let message = format!(
@@ -135,6 +136,7 @@ impl RemoteTeleopService {
             .map(|p| p.to_string_lossy().to_string());
 
         tauri::async_runtime::spawn(async move {
+            let mut loop_started = false;
             while let Some(event) = rx.recv().await {
                 if shutdown_for_logs.load(Ordering::Relaxed) {
                     break;
@@ -145,6 +147,19 @@ impl RemoteTeleopService {
                         let line = String::from_utf8_lossy(&line_bytes);
                         let line = line.trim_end();
                         if !line.is_empty() {
+                            // The runtime prints this on every frame. Keep one readiness
+                            // message instead of flooding the UI with timing output.
+                            if line.contains("Teleop loop time:") {
+                                if !loop_started {
+                                    loop_started = true;
+                                    Self::emit_teleop_info(
+                                        &app_handle_for_logs,
+                                        &nickname_for_logs,
+                                        "Teleop ready: control loop is running.",
+                                    );
+                                }
+                                continue;
+                            }
                             let formatted = format!("[{}] {}", nickname_for_logs, line);
                             let _ = app_handle_for_logs.emit("teleop-log", &formatted);
                             if let Some(path) = &teleop_log_path {
@@ -280,7 +295,7 @@ impl RemoteTeleopService {
         }
         args.extend([
             format!("--fps={}", config.fps),
-            "--display_data=false".to_string(),
+            format!("--display_data={}", config.display_data),
         ]);
         args
     }
@@ -327,6 +342,7 @@ mod tests {
             right_arm_port: "COM4".to_string(),
             keyboard: "keyboard".to_string(),
             fps: 30,
+            display_data: false,
         }
     }
 
@@ -364,5 +380,11 @@ mod tests {
         assert!(command_parts
             .iter()
             .any(|part| part == "--display_data=false"));
+
+        let mut display_config = valid_config();
+        display_config.display_data = true;
+        assert!(RemoteTeleopService::build_command_args(&display_config)
+            .iter()
+            .any(|part| part == "--display_data=true"));
     }
 }

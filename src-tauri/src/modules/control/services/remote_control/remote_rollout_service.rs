@@ -69,7 +69,8 @@ impl RemoteRolloutService {
             .command(executable)
             .args(command_parts.iter())
             .current_dir(working_dir.clone())
-            .envs(envs);
+            .envs(envs)
+            .env("PYTHONUNBUFFERED", "1");
 
         let (mut rx, child) = cmd.spawn().map_err(|e| {
             let message = format!(
@@ -99,6 +100,7 @@ impl RemoteRolloutService {
             .map(|p| p.to_string_lossy().to_string());
 
         tauri::async_runtime::spawn(async move {
+            let mut rollout_started = false;
             while let Some(event) = rx.recv().await {
                 if shutdown_for_logs.load(Ordering::Relaxed) {
                     break;
@@ -109,6 +111,16 @@ impl RemoteRolloutService {
                         let line = String::from_utf8_lossy(&line_bytes);
                         let line = line.trim_end();
                         if !line.is_empty() {
+                            if !rollout_started
+                                && line.contains("Rollout setup complete, starting rollout")
+                            {
+                                rollout_started = true;
+                                Self::emit_rollout_info(
+                                    &app_handle_for_logs,
+                                    &nickname_for_logs,
+                                    "Rollout ready: control loop is running.",
+                                );
+                            }
                             let formatted = format!("[{}] {}", nickname_for_logs, line);
                             let _ = app_handle_for_logs.emit("rollout-log", &formatted);
                             if let Some(path) = &rollout_log_path {
@@ -120,6 +132,16 @@ impl RemoteRolloutService {
                         let line = String::from_utf8_lossy(&line_bytes);
                         let line = line.trim_end();
                         if !line.is_empty() {
+                            if !rollout_started
+                                && line.contains("Rollout setup complete, starting rollout")
+                            {
+                                rollout_started = true;
+                                Self::emit_rollout_info(
+                                    &app_handle_for_logs,
+                                    &nickname_for_logs,
+                                    "Rollout ready: control loop is running.",
+                                );
+                            }
                             let formatted = format!("[{}] {}", nickname_for_logs, line);
                             let _ = app_handle_for_logs.emit("rollout-log", &formatted);
                             if let Some(path) = &rollout_log_path {
@@ -231,7 +253,7 @@ impl RemoteRolloutService {
             "--robot.id=sourccey".to_string(),
             format!("--robot.remote_ip={}", config.remote_ip.trim()),
             format!("--task={}", config.task.trim()),
-            "--display_data=true".to_string(),
+            format!("--display_data={}", config.display_data),
             format!("--duration={}", config.duration),
             format!("--fps={}", DEFAULT_ROLLOUT_FPS),
         ]
@@ -282,6 +304,7 @@ mod tests {
             model_path: "outputs/train/test/checkpoints/last/pretrained_model".to_string(),
             task: "Fold the shirt".to_string(),
             duration: 300.0,
+            display_data: false,
         }
     }
 
@@ -306,5 +329,14 @@ mod tests {
         assert!(command_parts
             .iter()
             .any(|part| part == "--strategy.type=base"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--display_data=false"));
+
+        let mut display_config = valid_config();
+        display_config.display_data = true;
+        assert!(RemoteRolloutService::build_command_args(&display_config)
+            .iter()
+            .any(|part| part == "--display_data=true"));
     }
 }

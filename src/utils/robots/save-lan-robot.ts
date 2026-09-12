@@ -19,6 +19,7 @@ export const saveLanRobotDraft = async (draft: LanRobotDraft): Promise<string> =
             right_arm_port: normalized.rightArmPort,
             keyboard: 'sourccey_keyboard',
             fps: 30,
+            display_data: false,
         };
 
         await invoke('write_remote_config', {

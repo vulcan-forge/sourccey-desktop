@@ -5,4 +5,5 @@ export interface RemoteConfig {
     right_arm_port: string;
     keyboard: string;
     fps: number;
+    display_data: boolean;
 }

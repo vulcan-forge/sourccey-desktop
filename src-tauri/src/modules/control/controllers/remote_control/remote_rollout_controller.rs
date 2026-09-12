@@ -12,6 +12,8 @@ pub struct RemoteRolloutConfig {
     pub model_path: String,
     pub task: String,
     pub duration: f64,
+    #[serde(default)]
+    pub display_data: bool,
 }
 
 pub fn init_remote_rollout() -> RemoteRolloutProcess {

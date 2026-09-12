@@ -17,6 +17,8 @@ pub struct RemoteRecordConfig {
     pub episode_time_s: f64,
     pub reset_time_s: f64,
     pub single_task: String,
+    #[serde(default)]
+    pub display_data: bool,
 }
 
 pub fn init_remote_record() -> RemoteRecordProcess {

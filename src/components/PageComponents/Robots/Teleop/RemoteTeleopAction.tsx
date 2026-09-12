@@ -1,5 +1,6 @@
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { invoke } from '@tauri-apps/api/core';
+import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'react-toastify';
 import { FaChevronDown, FaChevronUp, FaGamepad, FaPlay, FaStop } from 'react-icons/fa';
@@ -49,6 +50,18 @@ export const RemoteTeleopAction = ({
     const [isLoading, setIsLoading] = useState(false);
     const [isRecordSettingsOpen, setIsRecordSettingsOpen] = useState(false);
     const pressedTeleopKeys = useRef(new Set<string>());
+    const startupListener = useRef<UnlistenFn | null>(null);
+    const [isControlStarting, setIsControlStarting] = useState(false);
+    const [startupSeconds, setStartupSeconds] = useState(0);
+
+    useEffect(() => () => { startupListener.current?.(); }, []);
+    useEffect(() => {
+        if (!isControlStarting) return;
+        setStartupSeconds(0);
+        const startedAt = Date.now();
+        const timer = window.setInterval(() => setStartupSeconds(Math.floor((Date.now() - startedAt) / 1000)), 1000);
+        return () => window.clearInterval(timer);
+    }, [isControlStarting]);
 
     const nickname = ownedRobot?.nickname ?? '';
     const normalizedNickname = nickname.startsWith('@') ? nickname.slice(1) : nickname;
@@ -96,6 +109,13 @@ export const RemoteTeleopAction = ({
     const controlType = remoteRobotState?.controlType;
     const expectedControlType = isRecordingMode ? RemoteControlType.RECORDING : RemoteControlType.TELEOP;
     const isControlling = robotStatus == RemoteRobotStatus.STARTED && controlType == expectedControlType;
+    useEffect(() => {
+        if (robotStatus === RemoteRobotStatus.NONE) {
+            setIsControlStarting(false);
+            startupListener.current?.();
+            startupListener.current = null;
+        }
+    }, [robotStatus]);
 
     useEffect(() => {
         if (!isControlling) return;
@@ -209,7 +229,7 @@ export const RemoteTeleopAction = ({
           ? recordingDraftValidation.message
           : '';
     const isControlDisabled =
-        isCalibrationLoading || !readiness.ready || (isRecordingMode && !recordingDraftValidation.ready);
+        isLoading || (!(isControlling || isControlStarting) && (isLoadingCalibration || !readiness.ready || (isRecordingMode && !recordingDraftValidation.ready)));
 
     const startTeleop = async (normalized: string) => {
         if (isControlling) {
@@ -227,13 +247,22 @@ export const RemoteTeleopAction = ({
             right_arm_port: shouldUseLeaderFallback ? '' : remoteConfig.right_arm_port,
             keyboard: remoteConfig.keyboard,
             fps: remoteConfig.fps,
+            display_data: remoteConfig.display_data ?? false,
         };
 
-        const result = await invoke('start_remote_teleop', { config: remoteTeleopConfig });
-        toast.success(`Remote Teleop started: ${result}`, {
-            ...toastSuccessDefaults,
+        setIsControlStarting(true);
+        startupListener.current?.();
+        startupListener.current = await listen<string>('teleop-log', ({ payload }) => {
+            if (!payload.startsWith(`[${normalized}] `)) return;
+            if (payload.includes('Teleop ready: control loop is running.')) {
+                setIsControlStarting(false);
+                setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.TELEOP, ownedRobot);
+                toast.success('Teleop is ready.', { ...toastSuccessDefaults });
+                startupListener.current?.();
+                startupListener.current = null;
+            }
         });
-        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.TELEOP, ownedRobot);
+        await invoke('start_remote_teleop', { config: remoteTeleopConfig });
     };
 
     const startRecord = async (normalized: string) => {
@@ -259,21 +288,33 @@ export const RemoteTeleopAction = ({
             episode_time_s: recordingDraftValidation.parsed.episodeTimeS,
             reset_time_s: recordingDraftValidation.parsed.resetTimeS,
             single_task: recordingDraftValidation.parsed.task,
+            display_data: remoteConfig.display_data ?? false,
         };
 
-        const result = await invoke('start_remote_record', { config: remoteRecordConfig });
-        toast.success(`Recording started: ${result}`, {
-            ...toastSuccessDefaults,
+        setIsControlStarting(true);
+        startupListener.current?.();
+        startupListener.current = await listen<string>('record-log', ({ payload }) => {
+            if (!payload.startsWith(`[${normalized}] `)) return;
+            if (payload.includes('Recording ready: capture loop is running.')) {
+                setIsControlStarting(false);
+                setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.RECORDING, ownedRobot);
+                toast.success('Recording is ready.', { ...toastSuccessDefaults });
+                startupListener.current?.();
+                startupListener.current = null;
+            }
         });
-        setRemoteRobotState(nickname, RemoteRobotStatus.STARTED, RemoteControlType.RECORDING, ownedRobot);
+        await invoke('start_remote_record', { config: remoteRecordConfig });
     };
 
     const stopTeleop = async (normalized: string) => {
-        if (!isControlling) {
+        if (!isControlling && !isControlStarting) {
             return;
         }
 
         const result = await invoke('stop_remote_teleop', { nickname: normalized });
+        setIsControlStarting(false);
+        startupListener.current?.();
+        startupListener.current = null;
         toast.success(`Remote Teleop stopped: ${result}`, {
             ...toastSuccessDefaults,
         });
@@ -282,11 +323,14 @@ export const RemoteTeleopAction = ({
     };
 
     const stopRecord = async (normalized: string) => {
-        if (!isControlling) {
+        if (!isControlling && !isControlStarting) {
             return;
         }
 
         const result = await invoke('stop_remote_record', { nickname: normalized });
+        setIsControlStarting(false);
+        startupListener.current?.();
+        startupListener.current = null;
         toast.success(`Recording stopped: ${result}`, {
             ...toastSuccessDefaults,
         });
@@ -297,7 +341,7 @@ export const RemoteTeleopAction = ({
     const toggleControl = async () => {
         try {
             setIsLoading(true);
-            if (isControlling) {
+            if (isControlling || isControlStarting) {
                 if (isRecordingMode) {
                     await stopRecord(normalizedNickname);
                 } else {
@@ -312,6 +356,9 @@ export const RemoteTeleopAction = ({
                 }
             }
         } catch (error) {
+            setIsControlStarting(false);
+            startupListener.current?.();
+            startupListener.current = null;
             console.error('Failed to toggle control:', error);
             toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`, {
                 ...toastErrorDefaults,
@@ -350,16 +397,16 @@ export const RemoteTeleopAction = ({
                         className={`inline-flex min-w-44 items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold transition-all ${
                             isControlDisabled
                                 ? 'cursor-not-allowed bg-slate-600 text-slate-300 opacity-60'
-                                : isControlling
+                                : isControlling || isControlStarting
                                   ? 'cursor-pointer bg-red-500 text-white hover:bg-red-600'
                                   : 'cursor-pointer bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-400 hover:to-teal-400'
                         }`}
                     >
                         {isCalibrationLoading ? (
                             <Spinner color="white" />
-                        ) : isControlling ? (
+                        ) : isControlling || isControlStarting ? (
                             <>
-                                <FaStop className="h-4 w-4" /> {stopLabel}
+                                <FaStop className="h-4 w-4" /> {isControlStarting ? 'Cancel startup' : stopLabel}
                             </>
                         ) : (
                             <>
@@ -369,6 +416,20 @@ export const RemoteTeleopAction = ({
                     </button>
                 </div>
             </div>
+            {isControlStarting && (
+                <div role="status" className="mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100">
+                    <Spinner color="white" />
+                    <div>
+                        <p className="text-sm font-semibold">
+                            Starting {isRecordingMode ? 'recording' : 'teleop'}... {startupSeconds}s
+                        </p>
+                        <p className="mt-1 text-xs">
+                            Loading the runtime and connecting to the robot. Waiting for the {isRecordingMode ? 'capture' : 'control'} loop to start.
+                        </p>
+                        {startupSeconds >= 60 && <p className="mt-1 text-xs">Startup is taking longer than expected. Check the logs below, or cancel and retry.</p>}
+                    </div>
+                </div>
+            )}
             {showLeaderFallbackNotice && (
                 <div className="mt-4 rounded-2xl border border-sky-500/40 bg-sky-500/10 p-4">
                     <div className="text-sm font-semibold text-sky-100">Leader arms in fallback mode</div>
@@ -458,6 +519,7 @@ export interface RemoteTeleopConfig {
     right_arm_port: string;
     keyboard: string;
     fps: number;
+    display_data: boolean;
 }
 
 export interface RemoteRecordConfig {
@@ -471,6 +533,7 @@ export interface RemoteRecordConfig {
     episode_time_s: number;
     reset_time_s: number;
     single_task: string;
+    display_data: boolean;
 }
 
 export const startRemoteControlText = {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FaChevronDown, FaChevronUp, FaRobot, FaSlidersH, FaTerminal, FaTools, FaWifi } from 'react-icons/fa';
+import { FaChevronDown, FaChevronUp, FaGamepad, FaRobot, FaSlidersH, FaTerminal, FaTools, FaWifi } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { updateOwnedRobotNickname } from '@/api/Local/Robot/owned_robot';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
@@ -35,6 +35,7 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
     const [isSavingLogLevel, setIsSavingLogLevel] = useState(false);
     const [isIdentityOpen, setIsIdentityOpen] = useState(false);
     const [isConnectionOpen, setIsConnectionOpen] = useState(false);
+    const [isControlSettingsOpen, setIsControlSettingsOpen] = useState(false);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
     const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
     const [isLogsOpen, setIsLogsOpen] = useState(false);
@@ -53,18 +54,18 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
         setNicknameDraft(nickname);
     }, [nickname]);
 
-    const updateDraft = (key: keyof RemoteConfig, value: string | number) => {
+    const updateDraft = (key: keyof RemoteConfig, value: string | number | boolean) => {
         if (!draftConfig) return;
         setDraftConfig({ ...draftConfig, [key]: value });
     };
 
-    const saveConfig = async () => {
+    const saveConfig = async (successMessage: string) => {
         if (!draftConfig) return;
         setIsSavingConfig(true);
         try {
             await invoke('write_remote_config', { config: draftConfig, nickname });
             setRemoteConfig(nickname, draftConfig);
-            toast.success('Remote config updated.', { ...toastSuccessDefaults });
+            toast.success(successMessage, { ...toastSuccessDefaults });
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to update remote config.';
             toast.error(message, { ...toastErrorDefaults });
@@ -286,7 +287,7 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
                     <div className="mt-4 flex justify-end">
                         <button
                             type="button"
-                            onClick={saveConfig}
+                            onClick={() => void saveConfig('Connection settings updated.')}
                             disabled={isSavingConfig}
                             className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                                 isSavingConfig
@@ -295,6 +296,48 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
                             }`}
                         >
                             {isSavingConfig ? 'Saving...' : 'Save Connection'}
+                        </button>
+                    </div>
+                </ConfigSection>
+            )}
+
+            {isConfigsVisible && draftConfig && (
+                <ConfigSection
+                    title="Control settings"
+                    icon={<FaGamepad className="h-4 w-4 text-orange-300" />}
+                    description="Choose how teleoperation, recording, and rollout sessions display live data."
+                    isOpen={isControlSettingsOpen}
+                    onToggle={() => setIsControlSettingsOpen((current) => !current)}
+                >
+                    <div className="flex items-center justify-between gap-4 rounded-lg border border-slate-700/60 bg-slate-950/40 px-4 py-3">
+                        <div>
+                            <div className="text-sm font-semibold text-slate-100">Display live data</div>
+                            <p className="mt-1 text-xs text-slate-400">
+                                Open the live visualization while controlling, recording, or running a rollout.
+                            </p>
+                        </div>
+                        <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                            <input
+                                type="checkbox"
+                                checked={draftConfig.display_data ?? false}
+                                onChange={(event) => updateDraft('display_data', event.target.checked)}
+                                className="peer sr-only"
+                            />
+                            <span className="h-6 w-11 rounded-full bg-slate-700 transition-colors peer-checked:bg-orange-500 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-400/50 peer-focus-visible:outline-none after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5" />
+                        </label>
+                    </div>
+                    <div className="mt-4 flex justify-end">
+                        <button
+                            type="button"
+                            onClick={() => void saveConfig('Control settings updated.')}
+                            disabled={isSavingConfig}
+                            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+                                isSavingConfig
+                                    ? 'cursor-not-allowed bg-slate-700 text-slate-400'
+                                    : 'cursor-pointer bg-orange-500 text-white hover:bg-orange-400'
+                            }`}
+                        >
+                            {isSavingConfig ? 'Saving...' : 'Save Control Settings'}
                         </button>
                     </div>
                 </ConfigSection>

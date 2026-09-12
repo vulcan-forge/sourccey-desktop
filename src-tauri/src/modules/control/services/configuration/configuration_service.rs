@@ -252,6 +252,7 @@ impl ConfigurationService {
             right_arm_port: "COM8".to_string(),
             keyboard: "keyboard".to_string(),
             fps: 30,
+            display_data: false,
         }
     }
 
