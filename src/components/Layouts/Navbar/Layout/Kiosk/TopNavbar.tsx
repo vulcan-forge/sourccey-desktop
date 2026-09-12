@@ -3,11 +3,9 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
     FaWifi,
-    FaInfoCircle,
     FaBatteryFull,
     FaBatteryHalf,
     FaBatteryQuarter,
-    FaWindowClose,
     FaBatteryEmpty,
     FaBatteryThreeQuarters,
     FaBolt,
@@ -15,9 +13,6 @@ import {
 } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
-import { useRobotStatus } from '@/context/robot-status-context';
-import { CredentialsModal } from '@/components/Elements/Modals/KioskRobotModals/CredentialsModal';
-import { RobotStatusModal } from '@/components/Elements/Modals/KioskRobotModals/RobotStatusModal';
 import {
     calculateBatteryPercent,
     getBatteryLevelStep,
@@ -32,11 +27,8 @@ import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
 import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
 
 export const KioskTopNavbar = () => {
-    const { isRobotStarted } = useRobotStatus();
     const [shouldCheckUpdates, setShouldCheckUpdates] = useState(false);
     const [isWiFiModalOpen, setIsWiFiModalOpen] = useState(false);
-    const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-    const [isCredsModalOpen, setIsCredsModalOpen] = useState(false);
 
     const { data: systemInfo }: any = useGetSystemInfo();
     const { data: kioskUpdateStatus } = useKioskUpdateStatus({ enabled: shouldCheckUpdates });
@@ -90,11 +82,11 @@ export const KioskTopNavbar = () => {
 
     const getBatteryStyles = (percent: number) => {
         if (percent > 75) {
-            return 'bg-slate-600/60 text-green-400 hover:bg-slate-600/80 hover:text-green-300';
+            return 'bg-slate-600/60 text-green-400';
         } else if (percent >= 10) {
-            return 'bg-slate-600/60 text-white hover:bg-slate-600/80 hover:text-white';
+            return 'bg-slate-600/60 text-white';
         } else {
-            return 'bg-slate-600/60 text-red-400 hover:bg-slate-600/80 hover:text-red-300';
+            return 'bg-slate-600/60 text-red-400';
         }
     };
 
@@ -149,27 +141,12 @@ export const KioskTopNavbar = () => {
                             </LinkButton>
                         ) : null}
 
-                        {/* Connect Details button - kiosk mode */}
-                        <button
-                            onClick={() => setIsCredsModalOpen(true)}
-                            className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-slate-600/60 px-4 py-2 text-sm font-semibold text-slate-300 transition-all duration-300 hover:bg-slate-600/80 hover:text-white"
-                            title="Show Connection Details"
-                        >
-                            <FaInfoCircle className="h-5 w-5" />
-                            <span className="hidden sm:inline">Device</span>
-                        </button>
-
-                        {/* Battery Life and Robot Status button - kiosk mode */}
-                        <button
-                            onClick={() => setIsStatusModalOpen(!isStatusModalOpen)}
-                            className={`flex cursor-pointer items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-all duration-300 ${
-                                isStatusModalOpen
-                                    ? 'bg-gradient-to-r from-orange-500 to-yellow-500 text-white hover:from-orange-600 hover:to-yellow-600'
-                                    : isSystemInfoLoading
-                                      ? 'bg-slate-600/60 text-white hover:bg-slate-600/80 hover:text-white'
-                                      : getBatteryStyles(batteryPercent)
+                        {/* At-a-glance battery status */}
+                        <div
+                            className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold ${
+                                isSystemInfoLoading ? 'bg-slate-600/60 text-white' : getBatteryStyles(batteryPercent)
                             }`}
-                            title={isStatusModalOpen ? 'Close Robot Status' : 'View Robot Status'}
+                            title="Battery status"
                         >
                             {isSystemInfoLoading ? (
                                 <FaBatteryFull className="h-5 w-5 text-white" />
@@ -186,7 +163,7 @@ export const KioskTopNavbar = () => {
                             ) : (
                                 <span className="font-semibold">{batteryPercentString}</span>
                             )}
-                        </button>
+                        </div>
 
                         {/* WiFi button - show in kiosk mode */}
                         <button
@@ -206,18 +183,7 @@ export const KioskTopNavbar = () => {
                 </div>
             </div>
 
-            <RobotStatusModal
-                isOpen={isStatusModalOpen}
-                onClose={() => setIsStatusModalOpen(false)}
-                systemInfo={systemInfo}
-                isRobotStarted={isRobotStarted}
-            />
             <WiFiModal isOpen={isWiFiModalOpen} onClose={() => setIsWiFiModalOpen(false)} systemInfo={systemInfo} />
-            <CredentialsModal
-                isOpen={isCredsModalOpen}
-                onClose={() => setIsCredsModalOpen(false)}
-                systemInfo={systemInfo}
-            />
         </nav>
     );
 };

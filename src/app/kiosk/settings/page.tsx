@@ -5,7 +5,6 @@ import { FaSave, FaTimes, FaSpinner, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { markPasswordAsChanged } from '@/hooks/Components/SSH/ssh.hook';
 import { toast } from 'react-toastify';
-import type { RemoteConfig } from '@/types/remote-config';
 import {
     saveAccessPointCredentials,
     setAccessPointEnabled,
@@ -47,8 +46,6 @@ export default function KioskSettingsPage() {
     const [isTogglingAccessPoint, setIsTogglingAccessPoint] = useState(false);
     const [isSavingAccessPoint, setIsSavingAccessPoint] = useState(false);
     const [showAccessPointPassword, setShowAccessPointPassword] = useState(false);
-    const [remoteConfig, setRemoteConfig] = useState<RemoteConfig | null>(null);
-    const [isLoadingConfig, setIsLoadingConfig] = useState(false);
 
     const generateSecurePassword = (length = 12): string => {
         const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*_-+=';
@@ -121,25 +118,6 @@ export default function KioskSettingsPage() {
         fetchCredentials();
     }, []);
 
-    // Fetch RemoteConfig
-    useEffect(() => {
-        const fetchRemoteConfig = async () => {
-            setIsLoadingConfig(true);
-            try {
-                // Using 'sourccey' as default nickname for kiosk mode
-                const config = await invoke<RemoteConfig>('read_remote_config', { nickname: 'sourccey' });
-                setRemoteConfig(config);
-            } catch (error) {
-                console.error('Failed to load remote config:', error);
-                toast.error('Failed to load robot configuration');
-            } finally {
-                setIsLoadingConfig(false);
-            }
-        };
-
-        fetchRemoteConfig();
-    }, []);
-
     const handleSavePassword = async () => {
         if (!newPassword.trim()) return;
 
@@ -163,11 +141,6 @@ export default function KioskSettingsPage() {
     };
 
     const handleSaveAPValues = async () => {
-        if (!remoteConfig) {
-            toast.error('Robot configuration not loaded');
-            return;
-        }
-
         if (!accessPointSSID) {
             toast.error('SSID is required');
             return;
@@ -204,11 +177,6 @@ export default function KioskSettingsPage() {
     };
 
     const setAccessPointMode = async () => {
-        if (!remoteConfig) {
-            toast.error('Robot configuration not loaded');
-            return;
-        }
-
         if (!accessPointSSID) {
             toast.error('SSID is required');
             return;
@@ -374,15 +342,9 @@ export default function KioskSettingsPage() {
                         <p className="mt-1 text-sm text-slate-400">Manage your robot&apos;s access point configuration</p>
                     </div>
 
-                    {isLoadingConfig ? (
-                        <div className="flex items-center justify-center py-8">
-                            <FaSpinner className="h-5 w-5 animate-spin text-slate-400" />
-                            <span className="ml-2 text-sm text-slate-400">Loading configuration...</span>
-                        </div>
-                    ) : (
-                        <div className="space-y-4">
-                            {/* Toggle for Access Point Mode */}
-                            <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                    <div className="space-y-4">
+                        {/* Toggle for Access Point Mode */}
+                        <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
                                         <span className="text-sm font-medium text-slate-300">Access Point Mode</span>
@@ -404,9 +366,9 @@ export default function KioskSettingsPage() {
                                     />
                                     <div className="peer h-6 w-11 rounded-full bg-slate-600 transition-colors peer-checked:bg-blue-600 peer-focus:ring-4 peer-focus:ring-blue-800/20 peer-focus:outline-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
                                 </label>
-                            </div>
+                        </div>
 
-                            {/* SSID Input */}
+                        {/* SSID Input */}
                             <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                                 <label htmlFor="ap-ssid" className="mb-2 block text-sm font-medium text-slate-300">
                                     {isAccessPointEnabled ? 'Access Point SSID' : 'WiFi Network SSID'}
@@ -422,7 +384,7 @@ export default function KioskSettingsPage() {
                                 />
                             </div>
 
-                            {/* Password Input */}
+                        {/* Password Input */}
                             <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                                 <label htmlFor="ap-password" className="mb-2 block text-sm font-medium text-slate-300">
                                     {isAccessPointEnabled ? 'Access Point Password' : 'WiFi Password'}
@@ -449,7 +411,7 @@ export default function KioskSettingsPage() {
                                 </div>
                             </div>
 
-                            {/* Save Button */}
+                        {/* Save Button */}
                             <div className="flex items-center gap-2">
                                 <button
                                     onClick={handleSaveAPValues}
@@ -457,8 +419,7 @@ export default function KioskSettingsPage() {
                                         !accessPointSSID ||
                                         !accessPointPassword ||
                                         isTogglingAccessPoint ||
-                                        isSavingAccessPoint ||
-                                        !remoteConfig
+                                        isSavingAccessPoint
                                     }
                                     className={clsx(
                                         'flex cursor-pointer items-center gap-2 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50',
@@ -478,8 +439,25 @@ export default function KioskSettingsPage() {
                                     )}
                                 </button>
                             </div>
-                        </div>
-                    )}
+                    </div>
+                </div>
+
+                {/* Developer Settings Section */}
+                <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
+                    <div className="mb-4">
+                        <h2 className="text-xl font-semibold text-white">Developer Settings</h2>
+                        <p className="mt-1 text-sm text-slate-400">
+                            Choose which Vulcan environment this kiosk should use for cloud registration and websocket relay.
+                        </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        <LinkButton
+                            href="/kiosk/settings/developer"
+                            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
+                        >
+                            Open Developer Settings
+                        </LinkButton>
+                    </div>
                 </div>
 
                 {/* Logs Section */}
@@ -516,22 +494,6 @@ export default function KioskSettingsPage() {
                     </div>
                 </div>
 
-                <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
-                    <div className="mb-4">
-                        <h2 className="text-xl font-semibold text-white">Developer Settings</h2>
-                        <p className="mt-1 text-sm text-slate-400">
-                            Choose which Vulcan environment this kiosk should use for cloud registration and websocket relay.
-                        </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        <LinkButton
-                            href="/kiosk/settings/developer"
-                            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
-                        >
-                            Open Developer Settings
-                        </LinkButton>
-                    </div>
-                </div>
             </div>
         </div>
     );

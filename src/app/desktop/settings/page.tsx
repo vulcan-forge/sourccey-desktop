@@ -59,6 +59,28 @@ export default function DesktopSettingsPage() {
                 <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
                     <div className="flex flex-col gap-4">
                         <div>
+                            <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Developer Settings</div>
+                            <p className="mt-2 text-sm text-slate-300">
+                                Switch desktop cloud endpoints between production, staging, and developer mode without rebuilding.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <LinkButton
+                                href="/desktop/settings/developer"
+                                className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
+                            >
+                                Open Developer Settings
+                            </LinkButton>
+                            <div className="text-xs text-slate-400">
+                                Active environment: {desktopEnvironmentSettings?.displayName ?? 'Loading...'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
+                    <div className="flex flex-col gap-4">
+                        <div>
                             <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Logs</div>
                             <p className="mt-2 text-sm text-slate-300">
                                 View recent telemetry and diagnostics from the desktop app.
@@ -71,26 +93,6 @@ export default function DesktopSettingsPage() {
                             >
                                 Open Logs
                             </LinkButton>
-                        </div>
-                    </div>
-                </div>
-
-                <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
-                    <div className="flex flex-col gap-4">
-                        <div>
-                            <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Desktop Updates</div>
-                            <p className="mt-2 text-sm text-slate-300">
-                                Review desktop app updates and repair or refresh the lerobot-vulcan runtime.
-                            </p>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <LinkButton
-                                href="/desktop/setup"
-                                className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-500/50 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70"
-                            >
-                                Open Desktop Updates
-                            </LinkButton>
-                            <div className="text-xs text-slate-400">{lerobotRuntimeSummary}</div>
                         </div>
                     </div>
                 </div>
@@ -121,29 +123,27 @@ export default function DesktopSettingsPage() {
                     </div>
                 </div>
 
+                <AIRuntimeCard showSettingsLink={false} />
+
                 <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
                     <div className="flex flex-col gap-4">
                         <div>
-                            <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Developer Settings</div>
+                            <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Desktop Updates</div>
                             <p className="mt-2 text-sm text-slate-300">
-                                Switch desktop cloud endpoints between production, staging, and developer mode without rebuilding.
+                                Review desktop app updates and repair or refresh the lerobot-vulcan runtime.
                             </p>
                         </div>
                         <div className="flex flex-wrap items-center gap-3">
                             <LinkButton
-                                href="/desktop/settings/developer"
-                                className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
+                                href="/desktop/setup"
+                                className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-500/50 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70"
                             >
-                                Open Developer Settings
+                                Open Desktop Updates
                             </LinkButton>
-                            <div className="text-xs text-slate-400">
-                                Active environment: {desktopEnvironmentSettings?.displayName ?? 'Loading...'}
-                            </div>
+                            <div className="text-xs text-slate-400">{lerobotRuntimeSummary}</div>
                         </div>
                     </div>
                 </div>
-
-                <AIRuntimeCard showSettingsLink={false} />
             </div>
         </div>
     );

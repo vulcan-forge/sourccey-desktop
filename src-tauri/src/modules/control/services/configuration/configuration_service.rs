@@ -202,14 +202,34 @@ impl ConfigurationService {
             return Ok(default_config);
         }
 
-        // Read and parse the existing config file
-        let config_str = fs::read_to_string(config_path).map_err(|e| e.to_string())?;
-
-        // Parse the JSON string into our Config struct
-        let config: RemoteConfig = serde_json::from_str(&config_str)
-            .map_err(|e| format!("Failed to parse config file: {}", e))?;
-
-        Ok(config)
+        // A previous interrupted write can leave this small local file empty or
+        // malformed. Recover automatically so one bad file cannot prevent the
+        // robot from being configured again.
+        match fs::read_to_string(&config_path)
+            .map_err(|error| error.to_string())
+            .and_then(|contents| {
+                serde_json::from_str::<RemoteConfig>(&contents)
+                    .map_err(|error| format!("Failed to parse config file: {}", error))
+            }) {
+            Ok(config) => Ok(config),
+            Err(error) => {
+                eprintln!(
+                    "Remote config at '{}' is unreadable ({}). Recreating it with defaults.",
+                    config_path.display(),
+                    error
+                );
+                let default_config = Self::create_default_remote_config();
+                Self::write_remote_config(nickname, default_config.clone()).map_err(
+                    |write_error| {
+                        format!(
+                            "Failed to recreate unreadable remote config ({}): {}",
+                            error, write_error
+                        )
+                    },
+                )?;
+                Ok(default_config)
+            }
+        }
     }
 
     pub fn write_remote_config(nickname: &str, config: RemoteConfig) -> Result<(), String> {
