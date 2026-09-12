@@ -393,7 +393,7 @@ export default function KioskSettingsPage() {
                                     <input
                                         id="ap-password"
                                         type={showAccessPointPassword ? 'text' : 'password'}
-                                        value={accessPointPassword as string}
+                                        value={(accessPointPassword as string | undefined) ?? ''}
                                         onChange={(e) => setAccessPointPassword(e.target.value)}
                                         placeholder={isAccessPointEnabled ? 'Enter access point password' : 'Enter WiFi password'}
                                         className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 pr-10 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
