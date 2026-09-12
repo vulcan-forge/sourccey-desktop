@@ -3,11 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
+import Image from 'next/image';
 import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
-import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
-import { FaArrowRight, FaCheckCircle, FaCloudDownloadAlt, FaExclamationTriangle, FaSyncAlt } from 'react-icons/fa';
+import { FaCheckCircle, FaCloudDownloadAlt, FaExclamationTriangle, FaTools } from 'react-icons/fa';
 
 type StepStatus = 'pending' | 'started' | 'success' | 'error';
 type ActionKey = 'modules' | 'app';
@@ -19,382 +19,417 @@ type SetupProgress = {
 };
 
 const statusColors: Record<StepStatus, string> = {
-    pending: 'text-slate-400',
+    pending: 'text-slate-500',
     started: 'text-amber-300',
     success: 'text-emerald-300',
     error: 'text-red-300',
 };
 
 const stepsByAction = {
-    modules: [
-        { id: 'submodules', label: 'Initialize lerobot-vulcan runtime' },
-        { id: 'tag', label: 'Select newest vulcan tag' },
-        { id: 'deps', label: 'Refresh robot dependencies' },
-        { id: 'complete', label: 'Finalize' },
-    ],
     app: [
         { id: 'fetch', label: 'Fetch latest code' },
-        { id: 'reset', label: 'Reset repository' },
+        { id: 'reset', label: 'Update application files' },
         { id: 'submodules', label: 'Update submodules' },
-        { id: 'tag', label: 'Select newest vulcan tag' },
-        { id: 'setup', label: 'Run kiosk setup script' },
-        { id: 'complete', label: 'Finalize' },
+        { id: 'tag', label: 'Select runtime version' },
+        { id: 'setup', label: 'Apply kiosk setup' },
+        { id: 'complete', label: 'Finalize update' },
+    ],
+    modules: [
+        { id: 'submodules', label: 'Initialize robot runtime' },
+        { id: 'tag', label: 'Select latest version' },
+        { id: 'deps', label: 'Refresh dependencies' },
+        { id: 'complete', label: 'Finalize update' },
     ],
 } as const;
 
 type StepStateByAction = Record<ActionKey, Record<string, StepStatus>>;
 
 const buildInitialStepState = (): StepStateByAction => ({
-    modules: Object.fromEntries(stepsByAction.modules.map((step) => [step.id, 'pending'])) as Record<string, StepStatus>,
     app: Object.fromEntries(stepsByAction.app.map((step) => [step.id, 'pending'])) as Record<string, StepStatus>,
+    modules: Object.fromEntries(stepsByAction.modules.map((step) => [step.id, 'pending'])) as Record<string, StepStatus>,
 });
+
+const normalizeVersionLabel = (value?: string | null) => {
+    const trimmed = value?.trim();
+    if (!trimmed) return 'unknown';
+    return trimmed.replace(/^vulcan\//, '').replace(/^kiosk\//, '');
+};
 
 export default function KioskSetupPage() {
     const { data: kioskUpdateStatus, isLoading: isLoadingKioskUpdate, refetch: refetchKioskUpdateStatus } = useKioskUpdateStatus();
-    const {
-        data: desktopAppUpdateStatus,
-        isLoading: isLoadingDesktopAppUpdate,
-        refetch: refetchDesktopAppUpdateStatus,
-    } = useDesktopAppUpdateStatus();
 
     const [isRunning, setIsRunning] = useState(false);
     const [runningAction, setRunningAction] = useState<ActionKey | null>(null);
+    const [expandedAction, setExpandedAction] = useState<ActionKey | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [log, setLog] = useState<string[]>([]);
-    const hasMarkedCompleteRef = useRef(false);
     const runningActionRef = useRef<ActionKey | null>(null);
+    const hasMarkedCompleteRef = useRef(false);
+    const [stepStateByAction, setStepStateByAction] = useState<StepStateByAction>(buildInitialStepState);
 
-    const [stepStateByAction, setStepStateByAction] = useState<StepStateByAction>(() => buildInitialStepState());
-
-    const appendLog = useCallback((message: string) => {
-        setLog((prev) => [...prev, message]);
-    }, []);
+    const appendLog = useCallback((message: string) => setLog((previous) => [...previous, message]), []);
 
     const updateStep = useCallback(
         (action: ActionKey, step: string, status: StepStatus, message?: string | null) => {
-            setStepStateByAction((prev) => ({
-                ...prev,
-                [action]: {
-                    ...prev[action],
-                    [step]: status,
-                },
+            setStepStateByAction((previous) => ({
+                ...previous,
+                [action]: { ...previous[action], [step]: status },
             }));
-            if (message) {
-                appendLog(message);
-            }
+            if (message) appendLog(message);
         },
         [appendLog]
     );
 
     useEffect(() => {
-        runningActionRef.current = runningAction;
-    }, [runningAction]);
-
-    useEffect(() => {
         let unlisten: UnlistenFn | undefined;
         let cancelled = false;
-        const startListener = async () => {
-            unlisten = await listen<SetupProgress>('kiosk:setup-progress', (event) => {
-                const action = runningActionRef.current;
-                if (!action) {
-                    return;
-                }
 
-                const { step, status, message } = event.payload;
-                if (status === 'log') {
-                    if (message) {
-                        appendLog(message);
-                    }
-                    return;
-                }
-                const mapped: StepStatus =
-                    status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
-                updateStep(action, step, mapped, message ?? undefined);
-                if (status === 'error' && message) {
-                    setError(message);
-                    setIsRunning(false);
-                    setRunningAction(null);
-                }
-            });
-            if (cancelled && unlisten) {
-                unlisten();
+        void listen<SetupProgress>('kiosk:setup-progress', (event) => {
+            const action = runningActionRef.current;
+            if (!action) return;
+
+            const { step, status, message } = event.payload;
+            if (status === 'log') {
+                if (message) appendLog(message);
+                return;
             }
-        };
 
-        void startListener();
+            const mapped: StepStatus =
+                status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
+            updateStep(action, step, mapped, message);
+            if (step === 'complete' && status === 'success') hasMarkedCompleteRef.current = true;
+            if (status === 'error') {
+                setError(message || 'Kiosk update failed.');
+                setIsRunning(false);
+                setRunningAction(null);
+                runningActionRef.current = null;
+            }
+        }).then((stopListening) => {
+            if (cancelled) stopListening();
+            else unlisten = stopListening;
+        });
+
         return () => {
             cancelled = true;
-            if (unlisten) {
-                unlisten();
-            }
+            unlisten?.();
         };
     }, [appendLog, updateStep]);
 
     const resetState = (action: ActionKey) => {
+        runningActionRef.current = action;
         setRunningAction(action);
+        setExpandedAction(action);
         setIsRunning(true);
         setError(null);
         setLog([]);
         hasMarkedCompleteRef.current = false;
-        setStepStateByAction((prev) => {
-            const resetForAction = Object.fromEntries(stepsByAction[action].map((step) => [step.id, 'pending'])) as Record<string, StepStatus>;
-            return {
-                ...prev,
-                [action]: resetForAction,
-            };
-        });
+        setStepStateByAction((previous) => ({
+            ...previous,
+            [action]: Object.fromEntries(stepsByAction[action].map((step) => [step.id, 'pending'])) as Record<string, StepStatus>,
+        }));
     };
 
     const runSetup = async (action: ActionKey) => {
         resetState(action);
         try {
-            if (action === 'modules') {
-                await invoke('kiosk_setup_repair');
-            } else {
-                await invoke('kiosk_setup_update');
-            }
+            await invoke(action === 'modules' ? 'kiosk_setup_repair' : 'kiosk_setup_update');
             if (!hasMarkedCompleteRef.current) {
-                hasMarkedCompleteRef.current = true;
-                updateStep(action, 'complete', 'success', action === 'modules' ? 'lerobot-vulcan runtime update complete.' : 'App update complete.');
+                updateStep(
+                    action,
+                    'complete',
+                    'success',
+                    action === 'modules' ? 'Robot runtime update complete.' : 'Kiosk app update complete.'
+                );
             }
-            setIsRunning(false);
-            setRunningAction(null);
-        } catch (err) {
-            const message = err instanceof Error ? err.message : action === 'modules' ? 'lerobot-vulcan runtime update failed.' : 'App update failed.';
+        } catch (setupError) {
+            const message =
+                setupError instanceof Error
+                    ? setupError.message
+                    : action === 'modules'
+                      ? 'Robot runtime update failed.'
+                      : 'Kiosk app update failed.';
             setError(message);
+            appendLog(message);
+            updateStep(action, 'complete', 'error');
+        } finally {
             setIsRunning(false);
             setRunningAction(null);
-            appendLog(message);
-            updateStep(action, 'complete', 'error', message);
-        } finally {
+            runningActionRef.current = null;
             void refetchKioskUpdateStatus();
-            void refetchDesktopAppUpdateStatus();
         }
     };
 
-    const normalizeVersionLabel = (value?: string | null) => {
-        if (!value) {
-            return null;
-        }
-        const trimmed = value.trim();
-        if (!trimmed) {
-            return null;
-        }
-        if (trimmed.startsWith('vulcan/')) {
-            return trimmed.replace(/^vulcan\//, '');
-        }
-        if (trimmed.startsWith('kiosk/')) {
-            return trimmed.replace(/^kiosk\//, '');
-        }
-        return trimmed;
-    };
+    const appCurrent = normalizeVersionLabel(kioskUpdateStatus?.appCurrent);
+    const appLatest = normalizeVersionLabel(kioskUpdateStatus?.appRemote);
+    const appOutdated = Boolean(kioskUpdateStatus?.appUpdateAvailable);
+    const runtimeCurrent = normalizeVersionLabel(kioskUpdateStatus?.lerobotCurrent);
+    const runtimeLatest = normalizeVersionLabel(kioskUpdateStatus?.lerobotRemote);
+    const runtimeOutdated = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable);
+    const updateError = kioskUpdateStatus?.error?.trim() || null;
 
-    const lerobotCurrent = normalizeVersionLabel(kioskUpdateStatus?.lerobotCurrent) ?? 'unknown';
-    const lerobotAvailable = normalizeVersionLabel(kioskUpdateStatus?.lerobotRemote) ?? 'unknown';
-    const lerobotOutdated = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable);
-    const lerobotStatusMessage = isLoadingKioskUpdate
-        ? 'Checking lerobot-vulcan runtime version status...'
-        : lerobotOutdated
-          ? lerobotCurrent !== 'unknown' && lerobotAvailable !== 'unknown'
-              ? `Out of date: ${lerobotCurrent} is behind ${lerobotAvailable}.`
-              : 'Out of date because your local lerobot-vulcan runtime is behind the latest available version.'
-          : 'Up to date. Your local lerobot-vulcan runtime matches the latest available version.';
+    const appStatusMessage = isLoadingKioskUpdate
+        ? 'Checking for a kiosk app update...'
+        : updateError
+          ? 'The update check could not be completed.'
+          : appOutdated
+            ? `Version ${appLatest} is ready to install.`
+            : 'Your kiosk app is up to date.';
+    const runtimeStatusMessage = isLoadingKioskUpdate
+        ? 'Checking for a robot runtime update...'
+        : updateError
+          ? 'The update check could not be completed.'
+          : runtimeCurrent === 'unknown'
+            ? `No robot runtime is installed. Install${runtimeLatest === 'unknown' ? ' the latest version' : ` version ${runtimeLatest}`}.`
+            : runtimeOutdated
+              ? `Version ${runtimeLatest} is ready to install.`
+              : 'Your robot runtime is up to date.';
 
-    const appCurrent = normalizeVersionLabel(desktopAppUpdateStatus?.currentVersion) ?? 'unknown';
-    const appAvailable = normalizeVersionLabel(desktopAppUpdateStatus?.targetVersion) ?? 'unknown';
-    const appMetadataKnown = appCurrent !== 'unknown' && appAvailable !== 'unknown';
-    const appError = desktopAppUpdateStatus?.error?.trim() || null;
-    const appOutdated = Boolean(desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.targetVersion);
-    const appStatusMessage = isLoadingDesktopAppUpdate
-        ? 'Checking app version status...'
-        : appError
-          ? 'Update check returned warnings. See details below.'
-          : !appMetadataKnown
-            ? 'Unable to resolve app version metadata from latest.json yet.'
-            : appOutdated
-              ? 'Out of date because a newer signed app version is available.'
-              : 'Up to date. You are on the latest app version.';
-
-    const renderStepList = (action: ActionKey) => {
-        return (
-            <div className={action === 'app' ? 'grid gap-2 sm:grid-cols-2' : 'grid gap-3'}>
-                {stepsByAction[action].map((step, index) => {
-                    const status = stepStateByAction[action][step.id] ?? 'pending';
-                    return (
-                        <div key={`${action}-${step.id}`} className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2.5">
-                            <div className="flex items-center gap-3">
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-slate-700 text-xs text-slate-400">
-                                    {index + 1}
-                                </div>
-                                <p className="text-sm font-semibold text-slate-100">{step.label}</p>
+    return (
+        <div className="min-h-full w-full overflow-y-auto bg-linear-to-br from-slate-800 via-slate-700 to-slate-800">
+            <main className="mx-auto w-full max-w-3xl px-6 py-10">
+                <div className="rounded-3xl border border-slate-600/70 bg-slate-900/80 p-6 shadow-2xl backdrop-blur sm:p-8">
+                    <header className="flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <Image
+                                src="/assets/logo/SourcceyLogo.png"
+                                alt="Sourccey Logo"
+                                width={52}
+                                height={52}
+                                className="drop-shadow-logo"
+                            />
+                            <div>
+                                <h1 className="text-2xl font-semibold text-white sm:text-3xl">Kiosk Setup & Updates</h1>
+                                <p className="mt-1 text-sm text-slate-300">The kiosk app and robot runtime update separately.</p>
                             </div>
-                            <div className={`text-xs font-semibold tracking-[0.2em] uppercase ${statusColors[status]}`}>{status}</div>
+                        </div>
+                        <LinkButton
+                            href="/kiosk/"
+                            className="rounded-lg border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-300"
+                        >
+                            Back to home
+                        </LinkButton>
+                    </header>
+
+                    <div className="mt-7 grid gap-4">
+                        <UpdateSection
+                            section="Section 1"
+                            title="Vulcan Studio kiosk"
+                            statusMessage={appStatusMessage}
+                            current={appCurrent}
+                            latest={appLatest}
+                            loading={isLoadingKioskUpdate}
+                            warning={Boolean(updateError)}
+                            updateAvailable={appOutdated}
+                            buttonLabel={
+                                isRunning && runningAction === 'app'
+                                    ? 'Updating kiosk...'
+                                    : appOutdated
+                                      ? `Update kiosk${appLatest === 'unknown' ? '' : ` to ${appLatest}`}`
+                                      : 'Reinstall kiosk app'
+                            }
+                            buttonIcon={
+                                isRunning && runningAction === 'app' ? (
+                                    <Spinner color="black" width="w-4" height="h-4" />
+                                ) : (
+                                    <FaCloudDownloadAlt />
+                                )
+                            }
+                            disabled={isRunning}
+                            onClick={() => void runSetup('app')}
+                            expanded={expandedAction === 'app'}
+                            steps={stepsByAction.app}
+                            stepState={stepStateByAction.app}
+                            running={isRunning && runningAction === 'app'}
+                            log={log}
+                            accent="amber"
+                        />
+
+                        <UpdateSection
+                            section="Section 2"
+                            title="Robot runtime"
+                            statusMessage={runtimeStatusMessage}
+                            current={runtimeCurrent}
+                            latest={runtimeLatest}
+                            loading={isLoadingKioskUpdate}
+                            warning={Boolean(updateError)}
+                            updateAvailable={runtimeOutdated || runtimeCurrent === 'unknown'}
+                            buttonLabel={
+                                isRunning && runningAction === 'modules'
+                                    ? 'Updating runtime...'
+                                    : runtimeOutdated
+                                      ? `Update runtime${runtimeLatest === 'unknown' ? '' : ` to ${runtimeLatest}`}`
+                                      : runtimeCurrent === 'unknown'
+                                        ? 'Install runtime'
+                                        : 'Refresh runtime'
+                            }
+                            buttonIcon={
+                                isRunning && runningAction === 'modules' ? <Spinner color="white" width="w-4" height="h-4" /> : <FaTools />
+                            }
+                            disabled={isRunning}
+                            onClick={() => void runSetup('modules')}
+                            expanded={expandedAction === 'modules'}
+                            steps={stepsByAction.modules}
+                            stepState={stepStateByAction.modules}
+                            running={isRunning && runningAction === 'modules'}
+                            log={log}
+                            accent="orange"
+                        />
+                    </div>
+
+                    {updateError && <p className="mt-4 text-xs text-red-200">{updateError}</p>}
+                    {error && (
+                        <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>
+                    )}
+                </div>
+            </main>
+        </div>
+    );
+}
+
+type UpdateSectionProps = {
+    section: string;
+    title: string;
+    statusMessage: string;
+    current: string;
+    latest: string;
+    currentLabel?: string;
+    loading: boolean;
+    warning: boolean;
+    updateAvailable: boolean;
+    buttonLabel: string;
+    buttonIcon: React.ReactNode;
+    disabled: boolean;
+    onClick: () => void;
+    expanded: boolean;
+    steps: ReadonlyArray<{ id: string; label: string }>;
+    stepState: Record<string, StepStatus>;
+    running: boolean;
+    log: string[];
+    accent: 'amber' | 'orange';
+};
+
+function UpdateSection({
+    section,
+    title,
+    statusMessage,
+    current,
+    latest,
+    currentLabel = 'Installed',
+    loading,
+    warning,
+    updateAvailable,
+    buttonLabel,
+    buttonIcon,
+    disabled,
+    onClick,
+    expanded,
+    steps,
+    stepState,
+    running,
+    log,
+    accent,
+}: UpdateSectionProps) {
+    const buttonColors = accent === 'amber' ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-orange-500 text-white hover:bg-orange-400';
+    const messageColor = warning ? 'text-red-200' : updateAvailable ? 'text-amber-200' : 'text-emerald-200';
+
+    return (
+        <section className="rounded-2xl border border-slate-700 bg-slate-950/45 p-5 sm:p-6">
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">{section}</p>
+                    <h2 className="mt-1 text-xl font-semibold text-white">{title}</h2>
+                </div>
+                <StatusBadge loading={loading} warning={warning} updateAvailable={updateAvailable} />
+            </div>
+
+            <p className={`mt-4 text-sm ${messageColor}`}>{statusMessage}</p>
+            <VersionSummary current={current} latest={latest} currentLabel={currentLabel} />
+
+            <button
+                type="button"
+                onClick={onClick}
+                disabled={disabled}
+                className={`mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400 ${buttonColors}`}
+            >
+                {buttonIcon}
+                {buttonLabel}
+            </button>
+
+            {expanded && <StepDetails steps={steps} stepState={stepState} running={running} log={log} />}
+        </section>
+    );
+}
+
+function StatusBadge({ loading, warning, updateAvailable }: { loading: boolean; warning: boolean; updateAvailable: boolean }) {
+    const label = loading ? 'Checking' : warning ? 'Check unavailable' : updateAvailable ? 'Update available' : 'Up to date';
+    const color = warning
+        ? 'border-slate-500/40 bg-slate-500/10 text-slate-300'
+        : updateAvailable
+          ? 'border-amber-400/30 bg-amber-400/10 text-amber-200'
+          : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200';
+
+    return (
+        <span className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold ${color}`}>
+            {warning && <FaExclamationTriangle className="mr-1.5 inline" />}
+            {label}
+        </span>
+    );
+}
+
+function VersionSummary({ current, latest, currentLabel }: { current: string; latest: string; currentLabel: string }) {
+    return (
+        <div className="mt-4 grid grid-cols-2 divide-x divide-slate-700 rounded-xl border border-slate-700 bg-slate-900/70">
+            <div className="px-4 py-3">
+                <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">{currentLabel}</p>
+                <p className="mt-1 font-mono text-sm font-semibold text-slate-100">{current}</p>
+            </div>
+            <div className="px-4 py-3">
+                <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">Latest</p>
+                <p className="mt-1 font-mono text-sm font-semibold text-slate-100">{latest}</p>
+            </div>
+        </div>
+    );
+}
+
+function StepDetails({
+    steps,
+    stepState,
+    running,
+    log,
+}: {
+    steps: ReadonlyArray<{ id: string; label: string }>;
+    stepState: Record<string, StepStatus>;
+    running: boolean;
+    log: string[];
+}) {
+    return (
+        <div className="mt-5 border-t border-slate-700 pt-5">
+            <h3 className="text-sm font-semibold text-slate-100">Update steps</h3>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {steps.map((step, index) => {
+                    const status = stepState[step.id] ?? 'pending';
+                    return (
+                        <div key={step.id} className="flex items-center justify-between rounded-lg bg-slate-900/80 px-3 py-2.5">
+                            <span className="text-xs text-slate-200">
+                                {index + 1}. {step.label}
+                            </span>
+                            <span className={`text-[10px] font-semibold uppercase ${statusColors[status]}`}>{status}</span>
                         </div>
                     );
                 })}
             </div>
-        );
-    };
-
-    return (
-        <div className="flex min-h-full w-full flex-col bg-linear-to-br from-slate-800 via-slate-700 to-slate-800">
-            <div className="container mx-auto flex min-h-full flex-col items-center justify-start px-6 py-12">
-                <div className="relative w-full max-w-4xl">
-                    <div className="absolute -top-20 -left-16 h-36 w-36 rounded-full bg-red-400/30 blur-3xl" />
-                    <div className="absolute -right-16 -bottom-16 h-36 w-36 rounded-full bg-amber-300/30 blur-3xl" />
-
-                    <div className="relative rounded-3xl border border-slate-600/70 bg-slate-900/75 p-8 shadow-2xl backdrop-blur">
-                        <div className="flex flex-col gap-6">
-                            <div className="flex flex-wrap items-start justify-between gap-4">
-                                <div>
-                                    <h1 className="text-3xl font-semibold text-white">Kiosk Setup & Updates</h1>
-                                    <p className="mt-2 text-sm text-slate-200">App Update on top and lerobot-vulcan runtime Update below for a cleaner flow.</p>
-                                </div>
-                                <LinkButton
-                                    href="/kiosk/"
-                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-500/80 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-300"
-                                >
-                                    Back to home
-                                </LinkButton>
-                            </div>
-
-                            <section
-                                className={`relative overflow-hidden rounded-3xl border bg-linear-to-br from-slate-950 via-slate-950 to-amber-950/50 p-6 shadow-xl transition sm:p-7 ${
-                                    runningAction === 'app' ? 'border-amber-300/80 shadow-amber-950/40' : 'border-amber-500/35'
-                                }`}
-                            >
-                                <div className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full bg-amber-400/15 blur-3xl" />
-                                <div className="relative">
-                                    <div className="flex flex-wrap items-start justify-between gap-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-400/10 text-amber-200 shadow-inner">
-                                                <FaSyncAlt className="h-5 w-5" />
-                                            </div>
-                                            <div>
-                                                <div className="text-[10px] font-semibold tracking-[0.24em] text-amber-300/70 uppercase">Vulcan Studio</div>
-                                                <h2 className="mt-0.5 text-xl font-semibold text-white">App Update</h2>
-                                            </div>
-                                        </div>
-                                        <div
-                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold ${
-                                                appError
-                                                    ? 'border-red-400/30 bg-red-400/10 text-red-200'
-                                                    : appOutdated
-                                                      ? 'border-amber-400/30 bg-amber-400/10 text-amber-100'
-                                                      : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
-                                            }`}
-                                        >
-                                            {appError ? <FaExclamationTriangle /> : <FaCheckCircle />}
-                                            {appError ? 'Needs attention' : appOutdated ? 'Update available' : 'Up to date'}
-                                        </div>
-                                    </div>
-
-                                    <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300">
-                                        Install the latest kiosk app, refresh its submodules, and reapply the kiosk configuration.
-                                    </p>
-
-                                    <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/8 bg-black/20 p-4">
-                                        <div>
-                                            <div className="text-[10px] font-semibold tracking-[0.2em] text-slate-500 uppercase">Installed</div>
-                                            <div className="mt-1 font-mono text-lg font-semibold text-slate-100">{appCurrent}</div>
-                                        </div>
-                                        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-400/20 bg-amber-400/10 text-amber-200">
-                                            <FaArrowRight className="h-3.5 w-3.5" />
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-[10px] font-semibold tracking-[0.2em] text-amber-300/70 uppercase">Available</div>
-                                            <div className="mt-1 font-mono text-lg font-semibold text-amber-100">{appAvailable}</div>
-                                        </div>
-                                    </div>
-
-                                    <div className={`mt-3 text-xs leading-5 ${appError ? 'text-red-200' : appOutdated ? 'text-amber-100' : 'text-emerald-200'}`}>
-                                        {appStatusMessage}
-                                    </div>
-                                    {appError && <div className="mt-2 whitespace-pre-wrap break-words rounded-xl border border-red-400/20 bg-red-400/8 p-3 text-[11px] text-red-200">{appError}</div>}
-
-                                    <button
-                                        type="button"
-                                        onClick={() => runSetup('app')}
-                                        disabled={isRunning}
-                                        className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-linear-to-r from-amber-500 to-orange-500 px-6 py-3.5 text-sm font-bold text-slate-950 shadow-lg shadow-amber-950/30 transition hover:-translate-y-0.5 hover:from-amber-400 hover:to-orange-400 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-                                    >
-                                        {isRunning && runningAction === 'app' ? <Spinner color="black" width="w-4" height="h-4" /> : <FaCloudDownloadAlt />}
-                                        {isRunning && runningAction === 'app' ? 'Updating app...' : appOutdated ? `Update to ${appAvailable}` : 'Reinstall latest app version'}
-                                    </button>
-
-                                    <div className="mt-6 border-t border-slate-800/80 pt-5">
-                                        <div className="mb-3 text-[10px] font-semibold tracking-[0.24em] text-slate-500 uppercase">Update process</div>
-                                        {renderStepList('app')}
-                                    </div>
-                                </div>
-                            </section>
-
-                            <div
-                                className={`rounded-2xl border bg-slate-950/50 p-6 ${
-                                    runningAction === 'modules' ? 'border-slate-400/80' : 'border-slate-600/70'
-                                }`}
-                            >
-                                <h2 className="mb-1 text-lg font-semibold text-slate-100">lerobot-vulcan runtime Update</h2>
-                                <p className="mb-4 text-xs text-slate-300">Update `modules/lerobot-vulcan` to the newest released `vulcan/*` tag.</p>
-                                {renderStepList('modules')}
-                                <button
-                                    type="button"
-                                    onClick={() => runSetup('modules')}
-                                    disabled={isRunning}
-                                    className="mt-4 inline-flex w-full cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                >
-                                    {isRunning && runningAction === 'modules' ? 'Updating lerobot-vulcan runtime...' : 'Update lerobot-vulcan runtime'}
-                                </button>
-                                <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
-                                    <div className="font-semibold text-slate-100">lerobot-vulcan runtime version</div>
-                                    <div className="mt-1 text-slate-300">Current: {lerobotCurrent}</div>
-                                    <div className="text-slate-300">Available: {lerobotAvailable}</div>
-                                    <div className={`mt-2 text-[11px] ${lerobotOutdated ? 'text-amber-200' : 'text-emerald-200'}`}>
-                                        {lerobotStatusMessage}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {error && <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>}
-
-                            <div className="flex flex-col gap-4">
-                                {isRunning && (
-                                    <div className="flex items-center gap-2 text-sm text-slate-200">
-                                        <Spinner color="yellow" width="w-4" height="h-4" />
-                                        Running {runningAction === 'modules' ? 'lerobot-vulcan runtime' : 'App'} update steps
-                                    </div>
-                                )}
-                                {!isRunning && (
-                                    <LinkButton
-                                        href="/kiosk/settings"
-                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-300"
-                                    >
-                                        Back to settings
-                                    </LinkButton>
-                                )}
-                            </div>
-
-                            {(isRunning || log.length > 0) && (
-                                <div className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 text-xs text-slate-300 shadow-inner">
-                                    <div className="mb-2 flex items-center justify-between gap-3 text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">
-                                        <span>Live setup log</span>
-                                        {isRunning && <span className="animate-pulse text-amber-300">Running</span>}
-                                    </div>
-                                    <div className="max-h-64 space-y-1 overflow-y-auto font-mono">
-                                        {log.length === 0 && <div className="text-slate-500">Waiting for command output...</div>}
-                                        {log.map((line, index) => (
-                                            <div
-                                                key={`${line}-${index}`}
-                                                className="whitespace-pre-wrap break-words border-b border-slate-800/60 px-2 py-1 text-slate-200 last:border-0"
-                                            >
-                                                {line}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
+            <div className="mt-4 rounded-xl bg-black/20 p-3">
+                <div className="flex items-center justify-between text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                    <span>Details</span>
+                    {running && <span className="animate-pulse text-amber-300">Running</span>}
+                </div>
+                <div className="mt-2 max-h-48 space-y-1 overflow-y-auto font-mono text-[11px] text-slate-300">
+                    {log.length === 0 && <div className="text-slate-500">Preparing...</div>}
+                    {log.map((line, index) => (
+                        <div key={`${line}-${index}`} className="break-words whitespace-pre-wrap">
+                            {line}
                         </div>
-                    </div>
+                    ))}
                 </div>
             </div>
         </div>

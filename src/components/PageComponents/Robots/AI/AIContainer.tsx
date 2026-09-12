@@ -49,11 +49,7 @@ export const AIModelContainer = ({ ownedRobot, mode = 'ai' }: { ownedRobot: any;
     };
 
     return (
-        <AIRuntimeCard
-            title="AI runtime modules required"
-            description="Install the desktop AI runtime modules before running AI models on this robot."
-            showOpenModules={false}
-        >
+        <AIRuntimeCard title="AI Runtime" showOpenModules={false}>
             <div className="flex flex-col gap-6">
                 <div className="flex items-center justify-between rounded-xl border-2 border-slate-700/50 bg-slate-900/40 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.28)]">
                     <div>

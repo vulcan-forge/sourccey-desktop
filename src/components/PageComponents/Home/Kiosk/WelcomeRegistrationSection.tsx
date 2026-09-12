@@ -34,7 +34,8 @@ export const WelcomeRegistrationSection = ({ cloudPairing, isLoadingCloudPairing
     }, [cloudPairing?.expiresAtMs, nowMs]);
 
     return (
-        <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
+        <>
+            {/*<div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
             <div className="mb-5 flex items-center justify-between gap-4">
                 <div>
                     <div className="flex items-center gap-2 text-xl font-semibold text-white">
@@ -198,6 +199,7 @@ export const WelcomeRegistrationSection = ({ cloudPairing, isLoadingCloudPairing
                     ) : null}
                 </div>
             )}
-        </div>
+        </div>*/}
+        </>
     );
 };

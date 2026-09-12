@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import { openPath } from '@tauri-apps/plugin-opener';
 import { toast } from 'react-toastify';
+import { FaCheckCircle, FaExclamationTriangle, FaFolderOpen, FaTools } from 'react-icons/fa';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import {
     formatSetupInvokeError,
@@ -20,19 +21,34 @@ type StepStatus = 'pending' | 'started' | 'success' | 'error';
 type AIRuntimeCardProps = {
     children?: ReactNode;
     title?: string;
-    description?: string;
     showOpenModules?: boolean;
     showSettingsLink?: boolean;
     className?: string;
 };
 
-const DEFAULT_TITLE = 'AI Runtime';
-const DEFAULT_DESCRIPTION = 'Install or repair the Sourccey runtime packages needed to download and run models locally.';
+const installSteps = [
+    { id: 'check', label: 'Verify runtime' },
+    { id: 'download', label: 'Download runtime' },
+    { id: 'verify', label: 'Verify archive' },
+    { id: 'extract', label: 'Extract modules' },
+    { id: 'uv', label: 'Prepare uv runtime' },
+    { id: 'venv', label: 'Create environment' },
+    { id: 'deps', label: 'Install Sourccey packages' },
+    { id: 'post-install', label: 'Configure desktop runtime' },
+    { id: 'xvla', label: 'Verify AI bindings' },
+    { id: 'complete', label: 'Finalize setup' },
+];
+
+const statusColors: Record<StepStatus, string> = {
+    pending: 'text-slate-500',
+    started: 'text-amber-300',
+    success: 'text-emerald-300',
+    error: 'text-red-300',
+};
 
 export const AIRuntimeCard = ({
     children,
-    title = DEFAULT_TITLE,
-    description = DEFAULT_DESCRIPTION,
+    title = 'AI Runtime',
     showOpenModules = true,
     showSettingsLink = true,
     className,
@@ -43,114 +59,102 @@ export const AIRuntimeCard = ({
     const [log, setLog] = useState<string[]>([]);
     const [stepState, setStepState] = useState<Record<string, StepStatus>>({});
     const [baseInstalled, setBaseInstalled] = useState(false);
-    const [baseMissing, setBaseMissing] = useState<string[]>([]);
     const [baseError, setBaseError] = useState('');
     const [isBaseLoading, setIsBaseLoading] = useState(true);
+    const [showInstallDetails, setShowInstallDetails] = useState(false);
 
     const installed = data?.installed ?? false;
     const missing = data?.missing ?? [];
     const baseRuntimeMissing = missing.some((item) => item.includes('modules/lerobot-vulcan') || item.includes('.venv'));
+    const isChecking = isBaseLoading || isLoading;
+    const hasStatusError = Boolean(baseError || isStatusError);
     const isRuntimeActionDisabled = isPending || isBaseLoading;
 
-    const orderedSteps = useMemo(
-        () => [
-            { id: 'check', label: 'Verify runtime' },
-            { id: 'download', label: 'Download runtime' },
-            { id: 'verify', label: 'Verify archive' },
-            { id: 'extract', label: 'Extract modules' },
-            { id: 'uv', label: 'Prepare uv runtime' },
-            { id: 'venv', label: 'Create environment' },
-            { id: 'deps', label: 'Install Sourccey packages' },
-            { id: 'post-install', label: 'Configure desktop runtime' },
-            { id: 'xvla', label: 'Verify XVLA bindings' },
-            { id: 'complete', label: 'Finalize' },
-        ],
-        []
-    );
-
     const appendLog = useCallback((message: string) => {
-        const timestamp = new Date().toLocaleTimeString();
-        setLog((prev) => [...prev, `[${timestamp}] ${message}`]);
+        setLog((previous) => [...previous, `[${new Date().toLocaleTimeString()}] ${message}`]);
     }, []);
 
     const updateStep = useCallback(
         (step: string, status: StepStatus, message?: string | null) => {
-            setStepState((prev) => ({ ...prev, [step]: status }));
-            if (message) {
-                appendLog(message);
-            }
+            setStepState((previous) => ({ ...previous, [step]: status }));
+            if (message) appendLog(message);
         },
         [appendLog]
     );
 
     useEffect(() => {
-        let unlisten: UnlistenFn | undefined;
+        let unlistenExtras: UnlistenFn | undefined;
         let unlistenBase: UnlistenFn | undefined;
         let cancelled = false;
-        const startListener = async () => {
-            unlisten = await listen<{ step: string; status: string; message?: string | null }>('setup:desktop-extras-progress', (event) => {
-                const { step, status, message } = event.payload;
-                const mapped = status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
-                updateStep(step, mapped, message ?? undefined);
-            });
-            unlistenBase = await listen<{ step: string; status: string; message?: string | null }>('setup:progress', (event) => {
-                const { step, status, message } = event.payload;
-                const mapped = status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
-                updateStep(step, mapped, message ?? undefined);
-            });
-            if (cancelled && unlisten) {
-                unlisten();
+
+        const handleProgress = (payload: { step: string; status: string; message?: string | null }) => {
+            const { step, status, message } = payload;
+            if (status === 'log') {
+                if (message) appendLog(message);
+                return;
             }
-            if (cancelled && unlistenBase) {
-                unlistenBase();
-            }
+            const mapped: StepStatus =
+                status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
+            updateStep(step, mapped, message);
         };
 
-        void startListener();
+        void Promise.all([
+            listen<{ step: string; status: string; message?: string | null }>('setup:desktop-extras-progress', (event) =>
+                handleProgress(event.payload)
+            ),
+            listen<{ step: string; status: string; message?: string | null }>('setup:progress', (event) => handleProgress(event.payload)),
+        ]).then(([stopExtras, stopBase]) => {
+            if (cancelled) {
+                stopExtras();
+                stopBase();
+            } else {
+                unlistenExtras = stopExtras;
+                unlistenBase = stopBase;
+            }
+        });
+
         return () => {
             cancelled = true;
-            if (unlisten) {
-                unlisten();
-            }
-            if (unlistenBase) {
-                unlistenBase();
-            }
+            unlistenExtras?.();
+            unlistenBase?.();
         };
-    }, [updateStep]);
+    }, [appendLog, updateStep]);
 
     useEffect(() => {
         const loadBaseStatus = async () => {
             if (!isTauri()) {
                 setBaseInstalled(true);
-                setBaseMissing([]);
                 setIsBaseLoading(false);
                 return;
             }
+
             try {
-                const status = (await invoke('setup_check')) as { installed: boolean; missing: string[] };
+                const status = await invoke<{ installed: boolean; missing: string[] }>('setup_check');
                 setBaseInstalled(status.installed);
-                setBaseMissing(status.missing ?? []);
                 setBaseError('');
             } catch (error) {
                 console.error('Failed to check base setup status:', error);
                 setBaseInstalled(false);
-                setBaseError('Failed to check base setup status.');
+                setBaseError('The base runtime status could not be checked.');
             } finally {
                 setIsBaseLoading(false);
             }
         };
+
         void loadBaseStatus();
     }, []);
 
     const handleInstall = async () => {
+        setShowInstallDetails(true);
         setLog([]);
         setBaseError('');
         setStepState(baseInstalled && !baseRuntimeMissing ? { check: 'success' } : {});
-        appendLog('Starting editable AI runtime installation with sourccey-desktop and xvla extras.');
+        appendLog('Starting AI runtime installation.');
+
         try {
             await installExtras();
             await refetch();
-            appendLog('Installation finished and the XVLA runtime verification passed.');
+            appendLog('AI runtime installation and verification completed.');
             toast.success('AI runtime modules installed.', { ...toastSuccessDefaults });
         } catch (error) {
             const message = formatSetupInvokeError(error) || 'Failed to install AI runtime modules.';
@@ -173,6 +177,7 @@ export const AIRuntimeCard = ({
     };
 
     const handleClearLog = () => {
+        setShowInstallDetails(false);
         setLog([]);
         setStepState({});
         setBaseError('');
@@ -185,180 +190,149 @@ export const AIRuntimeCard = ({
         }
         try {
             await openPath(lerobotDir);
-        } catch (error: any) {
-            const message = error?.message || 'Failed to open modules folder.';
-            toast.error(message, { ...toastErrorDefaults });
+        } catch (error) {
+            toast.error(error instanceof Error ? error.message : 'Failed to open modules folder.', { ...toastErrorDefaults });
         }
     };
 
-    if (children && installed && !isLoading && !baseError) {
-        return <>{children}</>;
-    }
+    if (children && installed && !isLoading && !baseError) return <>{children}</>;
+
+    const statusMessage = isChecking
+        ? 'Checking the AI runtime...'
+        : hasStatusError
+          ? 'The AI runtime status needs attention.'
+          : installed
+            ? 'The AI runtime is installed and ready to use.'
+            : !baseInstalled
+              ? 'The robot runtime and AI modules need to be installed. Both will be set up together.'
+              : 'The AI runtime modules need to be installed.';
 
     return (
-        <div className={`rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl ${className ?? ''}`}>
-            <div className="flex flex-col gap-4">
+        <section className={`rounded-2xl border border-slate-700 bg-slate-950/45 p-5 shadow-xl sm:p-6 ${className ?? ''}`}>
+            <div className="flex items-start justify-between gap-4">
                 <div>
-                    <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">{title}</div>
-                    <p className="mt-2 text-sm text-slate-300">{description}</p>
+                    <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Setup required</p>
+                    <h2 className="mt-1 text-xl font-semibold text-white">{title}</h2>
                 </div>
-                {isBaseLoading && (
-                    <div className="flex items-center gap-2 rounded-xl border border-slate-700/60 bg-slate-900/50 px-4 py-3 text-sm text-slate-300">
-                        <Spinner color="yellow" width="w-4" height="h-4" />
-                        Checking base runtime...
-                    </div>
-                )}
-                {!isBaseLoading && !baseInstalled && (
-                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-                        Base runtime is missing. Installing AI modules will bootstrap the Sourccey runtime first, then add the desktop AI
-                        package.
-                    </div>
-                )}
-                {!isBaseLoading && (
-                    <>
-                        <div className="flex flex-wrap items-center gap-3">
-                            <button
-                                type="button"
-                                onClick={handleInstall}
-                                disabled={isRuntimeActionDisabled}
-                                className={`inline-flex items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition ${
-                                    isRuntimeActionDisabled
-                                        ? 'cursor-not-allowed border-slate-700/60 bg-slate-800/60 text-slate-400'
-                                        : 'cursor-pointer border-amber-500/50 bg-amber-500/10 text-amber-100 hover:border-amber-400/70'
-                                }`}
-                            >
-                                {isPending ? 'Installing...' : installed ? 'Reinstall AI Modules' : 'Install AI Modules'}
-                            </button>
-                            <div className="text-xs text-slate-400">
-                                {isBaseLoading
-                                    ? 'Checking base runtime...'
-                                    : isLoading
-                                      ? 'Checking status...'
-                                      : installed
-                                        ? 'Status: Installed'
-                                        : 'Status: Not installed'}
-                            </div>
-                            <div className="grow"></div>
-                            {showOpenModules && installed && !isBaseLoading && (
+                <StatusBadge checking={isChecking} error={hasStatusError} installed={installed} />
+            </div>
+
+            <p className={`mt-4 text-sm ${hasStatusError ? 'text-red-200' : installed ? 'text-emerald-200' : 'text-amber-200'}`}>
+                {statusMessage}
+            </p>
+
+            <button
+                type="button"
+                onClick={() => void handleInstall()}
+                disabled={isRuntimeActionDisabled}
+                className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
+            >
+                {isPending ? <Spinner color="white" width="w-4" height="h-4" /> : <FaTools />}
+                {isPending ? 'Installing AI runtime...' : installed ? 'Reinstall AI runtime' : 'Install AI runtime'}
+            </button>
+
+            {(showOpenModules && installed) || (showSettingsLink && baseRuntimeMissing) ? (
+                <div className="mt-3 flex flex-wrap justify-end gap-2">
+                    {showSettingsLink && baseRuntimeMissing && (
+                        <LinkButton
+                            href="/desktop/settings"
+                            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-slate-500"
+                        >
+                            Open settings
+                        </LinkButton>
+                    )}
+                    {showOpenModules && installed && (
+                        <button
+                            type="button"
+                            onClick={() => void handleOpenModules()}
+                            className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-700 px-3 py-1.5 text-xs font-semibold text-slate-300 transition hover:border-slate-500"
+                        >
+                            <FaFolderOpen /> Open modules
+                        </button>
+                    )}
+                </div>
+            ) : null}
+
+            {showInstallDetails && (
+                <div className="mt-5 border-t border-slate-700 pt-5">
+                    <div className="flex items-center justify-between gap-3">
+                        <h3 className="text-sm font-semibold text-slate-100">Installation steps</h3>
+                        <div className="flex gap-2">
+                            {log.length > 0 && (
                                 <button
                                     type="button"
-                                    onClick={handleOpenModules}
-                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-4 py-2 text-sm font-semibold text-slate-100 transition hover:border-slate-300"
+                                    onClick={() => void handleCopyLog()}
+                                    className="cursor-pointer text-[11px] font-semibold text-slate-400 hover:text-slate-200"
                                 >
-                                    Open Modules Folder
+                                    Copy log
                                 </button>
                             )}
+                            <button
+                                type="button"
+                                onClick={handleClearLog}
+                                disabled={isPending}
+                                className="cursor-pointer text-[11px] font-semibold text-slate-400 hover:text-slate-200 disabled:cursor-not-allowed disabled:opacity-40"
+                            >
+                                Hide
+                            </button>
                         </div>
-                        {missing.length > 0 && (
-                            <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-[11px] text-slate-400">
-                                {`Missing: ${missing.join(', ')}`}
+                    </div>
+
+                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {installSteps.map((step, index) => {
+                            const status = stepState[step.id] ?? 'pending';
+                            return (
+                                <div key={step.id} className="flex items-center justify-between rounded-lg bg-slate-900/80 px-3 py-2.5">
+                                    <span className="text-xs text-slate-200">
+                                        {index + 1}. {step.label}
+                                    </span>
+                                    <span className={`text-[10px] font-semibold uppercase ${statusColors[status]}`}>{status}</span>
+                                </div>
+                            );
+                        })}
+                    </div>
+
+                    {(missing.length > 0 || log.length > 0 || isStatusError) && (
+                        <div className="mt-4 rounded-xl bg-black/20 p-3">
+                            <div className="flex items-center justify-between text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                                <span>Details</span>
+                                {isPending && <span className="animate-pulse text-amber-300">Running</span>}
                             </div>
-                        )}
-                        {isStatusError && (
-                            <div className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 font-mono text-xs break-words whitespace-pre-wrap text-red-200">
-                                {`Runtime status check failed:\n${formatSetupInvokeError(statusError)}`}
-                            </div>
-                        )}
-                        {baseRuntimeMissing && (
-                            <div className="flex flex-wrap items-center gap-2 text-xs text-amber-200/90">
-                                <span>Default runtime is missing. Installing AI modules will set up the Sourccey runtime first.</span>
-                                {showSettingsLink && (
-                                    <LinkButton
-                                        href="/desktop/settings"
-                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-500/40 px-3 py-1 text-[11px] font-semibold text-amber-100 transition hover:border-amber-300/70"
-                                    >
-                                        Open Settings
-                                    </LinkButton>
+                            <div className="mt-2 max-h-48 space-y-1 overflow-y-auto font-mono text-[11px] text-slate-300">
+                                {missing.length > 0 && <div className="text-amber-200">Missing: {missing.join(', ')}</div>}
+                                {log.map((line, index) => (
+                                    <div key={`${line}-${index}`} className="break-words whitespace-pre-wrap">
+                                        {line}
+                                    </div>
+                                ))}
+                                {isStatusError && (
+                                    <div className="break-words whitespace-pre-wrap text-red-200">
+                                        {`Runtime status error:\n${formatSetupInvokeError(statusError)}`}
+                                    </div>
                                 )}
                             </div>
-                        )}
-                        {isPending && (
-                            <div className="rounded-lg border border-slate-700/60 bg-slate-950/40 px-3 py-2 text-[11px] text-slate-400">
-                                Installing Sourccey AI modules. This can take a few minutes.
-                            </div>
-                        )}
-                        {(isPending || log.length > 0 || isStatusError) && (
-                            <>
-                                <div className="rounded-2xl border border-slate-700/70 bg-slate-900/70 p-4 text-xs text-slate-300 shadow-inner">
-                                    <div className="mb-3 flex flex-wrap items-center gap-2">
-                                        <div className="text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">
-                                            Install diagnostics
-                                        </div>
-                                        <div className="grow" />
-                                        {(log.length > 0 || isStatusError) && (
-                                            <button
-                                                type="button"
-                                                onClick={handleCopyLog}
-                                                className="cursor-pointer rounded-md border border-slate-700 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:border-amber-400/60 hover:text-amber-100"
-                                            >
-                                                Copy log
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={handleClearLog}
-                                            disabled={isPending}
-                                            className="cursor-pointer rounded-md border border-slate-700 px-2 py-1 text-[10px] font-semibold text-slate-300 hover:border-slate-500 disabled:cursor-not-allowed disabled:opacity-40"
-                                        >
-                                            Clear
-                                        </button>
-                                    </div>
-                                    <div className="mb-2 text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">
-                                        Install steps
-                                    </div>
-                                    <div className="grid gap-2">
-                                        {orderedSteps.map((step) => {
-                                            const status = stepState[step.id] ?? 'pending';
-                                            const statusClass =
-                                                status === 'success'
-                                                    ? 'text-emerald-300'
-                                                    : status === 'error'
-                                                      ? 'text-red-300'
-                                                      : status === 'started'
-                                                        ? 'text-amber-300'
-                                                        : 'text-slate-400';
-                                            return (
-                                                <div
-                                                    key={step.id}
-                                                    className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-950/40 px-3 py-2"
-                                                >
-                                                    <div className="text-[11px] font-semibold text-slate-100">{step.label}</div>
-                                                    <div className={`text-[10px] font-semibold tracking-[0.2em] uppercase ${statusClass}`}>
-                                                        {status}
-                                                    </div>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                    {(log.length > 0 || isStatusError) && (
-                                        <div className="mt-3 space-y-2">
-                                            <div className="text-[10px] font-semibold tracking-[0.3em] text-slate-500 uppercase">
-                                                Install log
-                                            </div>
-                                            <div className="max-h-64 space-y-2 overflow-y-auto">
-                                                {log.map((line, index) => (
-                                                    <div
-                                                        key={`${line}-${index}`}
-                                                        className="rounded-md border border-slate-800/80 bg-slate-950/70 px-3 py-2 font-mono break-words whitespace-pre-wrap text-slate-200 select-text"
-                                                    >
-                                                        {line}
-                                                    </div>
-                                                ))}
-                                                {isStatusError && (
-                                                    <div className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 font-mono break-words whitespace-pre-wrap text-red-200 select-text">
-                                                        {`Runtime status error:\n${formatSetupInvokeError(statusError)}`}
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
-                            </>
-                        )}
-                        {baseError && <div className="text-sm text-red-300">{baseError}</div>}
-                    </>
-                )}
-            </div>
-        </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {baseError && <div className="mt-4 text-sm text-red-300">{baseError}</div>}
+        </section>
     );
 };
+
+function StatusBadge({ checking, error, installed }: { checking: boolean; error: boolean; installed: boolean }) {
+    const label = checking ? 'Checking' : error ? 'Needs attention' : installed ? 'Installed' : 'Setup required';
+    const color = error
+        ? 'border-red-400/30 bg-red-400/10 text-red-200'
+        : installed
+          ? 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
+          : 'border-amber-400/30 bg-amber-400/10 text-amber-200';
+
+    return (
+        <span className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold ${color}`}>
+            {error ? <FaExclamationTriangle className="mr-1.5 inline" /> : installed ? <FaCheckCircle className="mr-1.5 inline" /> : null}
+            {label}
+        </span>
+    );
+}

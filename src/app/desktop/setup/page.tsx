@@ -1,20 +1,16 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import Image from 'next/image';
-import { useRouter } from 'next/navigation';
 import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
 import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
 import { installAvailableDesktopUpdate } from '@/utils/updater/updater';
-import {
-    formatLerobotRuntimeVersionLabel,
-    getLerobotRuntimeStatusMessage,
-} from '@/utils/updater/lerobot-runtime';
-import { FaArrowRight, FaCheckCircle, FaCloudDownloadAlt, FaExclamationTriangle, FaSyncAlt } from 'react-icons/fa';
+import { formatLerobotRuntimeVersionLabel, getLerobotRuntimeStatusMessage } from '@/utils/updater/lerobot-runtime';
+import { FaCheckCircle, FaCloudDownloadAlt, FaExclamationTriangle, FaTools } from 'react-icons/fa';
 
 const steps = [
     { id: 'reset', label: 'Reset modules' },
@@ -41,133 +37,89 @@ type SetupStatus = {
 };
 
 const statusColors: Record<StepStatus, string> = {
-    pending: 'text-slate-400',
+    pending: 'text-slate-500',
     started: 'text-amber-300',
     success: 'text-emerald-300',
     error: 'text-red-300',
 };
 
+const initialStepState = () => Object.fromEntries(steps.map((step) => [step.id, 'pending'])) as Record<string, StepStatus>;
+
 export default function SetupPage() {
-    const router = useRouter();
     const { data: lerobotStatus, refetch: refetchLerobotStatus, isLoading: isLoadingLerobotStatus } = useLerobotUpdateStatus();
-    const { data: desktopAppUpdateStatus, refetch: refetchDesktopAppUpdateStatus, isLoading: isLoadingDesktopAppStatus } = useDesktopAppUpdateStatus();
+    const {
+        data: desktopAppUpdateStatus,
+        refetch: refetchDesktopAppUpdateStatus,
+        isLoading: isLoadingDesktopAppStatus,
+    } = useDesktopAppUpdateStatus();
 
     const [isReady, setIsReady] = useState(false);
     const [isRunning, setIsRunning] = useState(false);
-    const [isComplete, setIsComplete] = useState(false);
     const [isInstalled, setIsInstalled] = useState(false);
     const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
+    const [showRuntimeSteps, setShowRuntimeSteps] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [log, setLog] = useState<string[]>([]);
     const [appUpdateLog, setAppUpdateLog] = useState<string[]>([]);
     const hasMarkedInstalledRef = useRef(false);
-    const [stepState, setStepState] = useState<Record<string, StepStatus>>(() => {
-        const initial: Record<string, StepStatus> = {};
-        steps.forEach((step) => {
-            initial[step.id] = 'pending';
-        });
-        return initial;
-    });
-
-    const orderedSteps = useMemo(() => steps, []);
+    const [stepState, setStepState] = useState<Record<string, StepStatus>>(initialStepState);
 
     const formatLogLine = useCallback((message: string) => `[${new Date().toLocaleTimeString()}] ${message}`, []);
-
-    const appendLog = useCallback((message: string) => {
-        setLog((prev) => [...prev, formatLogLine(message)]);
-    }, [formatLogLine]);
-
-    const appendAppUpdateLog = useCallback((message: string) => {
-        setAppUpdateLog((prev) => [...prev, formatLogLine(message)]);
-    }, [formatLogLine]);
-
-    const getErrorMessage = useCallback((err: unknown) => {
-        if (typeof err === 'string') {
-            return err;
-        }
-        if (err instanceof Error) {
-            return err.message;
-        }
-        if (err && typeof err === 'object' && 'message' in err && typeof err.message === 'string') {
-            return err.message;
-        }
-        try {
-            return JSON.stringify(err, null, 2);
-        } catch {
-            return 'Setup failed.';
-        }
-    }, []);
-
-    const updateStep = useCallback(
-        (step: string, status: StepStatus, message?: string | null) => {
-            setStepState((prev) => ({
-                ...prev,
-                [step]: status,
-            }));
-            if (message) {
-                appendLog(message);
-            }
-            if (step === 'complete' && status === 'success') {
-                setIsComplete(true);
-            }
-        },
-        [appendLog]
+    const appendLog = useCallback((message: string) => setLog((previous) => [...previous, formatLogLine(message)]), [formatLogLine]);
+    const appendAppUpdateLog = useCallback(
+        (message: string) => setAppUpdateLog((previous) => [...previous, formatLogLine(message)]),
+        [formatLogLine]
     );
 
-    const markInstalled = useCallback((message: string) => {
-        if (hasMarkedInstalledRef.current) {
-            return;
+    const getErrorMessage = useCallback((value: unknown) => {
+        if (typeof value === 'string') return value;
+        if (value instanceof Error) return value.message;
+        if (value && typeof value === 'object' && 'message' in value && typeof value.message === 'string') {
+            return value.message;
         }
+        return 'Setup failed.';
+    }, []);
+
+    const markInstalled = useCallback((message: string) => {
+        if (hasMarkedInstalledRef.current) return;
         hasMarkedInstalledRef.current = true;
         setIsInstalled(true);
-        setIsComplete(true);
-        setStepState((prev) => {
-            const next = { ...prev };
-            steps.forEach((step) => {
-                next[step.id] = 'success';
-            });
-            return next;
-        });
-        setLog((prev) => (prev.length > 0 ? prev : [message]));
+        setStepState(Object.fromEntries(steps.map((step) => [step.id, 'success'])) as Record<string, StepStatus>);
+        setLog((previous) => (previous.length > 0 ? previous : [message]));
     }, []);
 
     useEffect(() => {
         let unlisten: UnlistenFn | undefined;
         let cancelled = false;
-        const startListener = async () => {
-            unlisten = await listen<SetupProgress>('setup:progress', (event) => {
-                const { step, status, message } = event.payload;
-                if (status === 'log') {
-                    if (message) {
-                        appendLog(message);
-                    }
-                    return;
-                }
-                const mapped: StepStatus =
-                    status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
-                const stepLabel = steps.find((candidate) => candidate.id === step)?.label ?? step;
-                updateStep(step, mapped, message ?? `${stepLabel}: ${mapped}`);
-                if (status === 'error' && message) {
-                    setError(message);
-                    setIsRunning(false);
-                }
-            });
-            if (cancelled && unlisten) {
-                unlisten();
-            }
-        };
 
-        void startListener();
+        void listen<SetupProgress>('setup:progress', (event) => {
+            const { step, status, message } = event.payload;
+            if (status === 'log') {
+                if (message) appendLog(message);
+                return;
+            }
+
+            const mapped: StepStatus =
+                status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
+            setStepState((previous) => ({ ...previous, [step]: mapped }));
+            if (message) appendLog(message);
+            if (status === 'error') {
+                setError(message || 'Runtime setup failed.');
+                setIsRunning(false);
+            }
+        }).then((stopListening) => {
+            if (cancelled) stopListening();
+            else unlisten = stopListening;
+        });
+
         return () => {
             cancelled = true;
-            if (unlisten) {
-                unlisten();
-            }
+            unlisten?.();
         };
-    }, [appendLog, updateStep]);
+    }, [appendLog]);
 
     useEffect(() => {
-        const check = async () => {
+        const checkSetup = async () => {
             if (!isTauri()) {
                 markInstalled('Setup already complete.');
                 setIsReady(true);
@@ -175,62 +127,47 @@ export default function SetupPage() {
             }
 
             try {
-                const status = (await invoke('setup_check')) as SetupStatus;
+                const status = await invoke<SetupStatus>('setup_check');
                 setIsInstalled(status.installed);
-                if (status.installed) {
-                    markInstalled('Setup already complete.');
-                }
-            } catch (err) {
-                console.error('Setup status check failed:', err);
+                if (status.installed) markInstalled('Setup already complete.');
+            } catch (setupError) {
+                console.error('Setup status check failed:', setupError);
+            } finally {
+                setIsReady(true);
             }
-            setIsReady(true);
         };
 
-        void check();
-    }, [markInstalled, router]);
+        void checkSetup();
+    }, [markInstalled]);
 
     const runSetup = async (action: 'repair' | 'update') => {
+        setShowRuntimeSteps(true);
         setIsRunning(true);
         setError(null);
         setLog([]);
-        setIsComplete(false);
-        setStepState((prev) => {
-            const reset = { ...prev };
-            Object.keys(reset).forEach((key) => {
-                reset[key] = 'pending';
-            });
-            if (action === 'repair' && isInstalled) {
-                reset['reset'] = 'success';
-            }
+        setStepState(() => {
+            const reset = initialStepState();
+            if (action === 'repair' && isInstalled) reset.reset = 'success';
             return reset;
         });
         appendLog(
             action === 'update'
-                ? 'Starting full runtime update: remove, download, verify, extract, and reinstall.'
+                ? 'Starting the runtime update.'
                 : isInstalled
-                  ? 'Starting runtime repair: preserve source files and refresh the environment.'
-                  : 'Starting initial runtime installation.'
+                  ? 'Starting the runtime repair.'
+                  : 'Starting the runtime installation.'
         );
 
         try {
-            if (action === 'update') {
-                await invoke('setup_reset');
-            } else {
-                await invoke('setup_run', { force: isInstalled });
-            }
+            if (action === 'update') await invoke('setup_reset');
+            else await invoke('setup_run', { force: isInstalled });
+
             appendLog(action === 'update' ? 'Runtime update completed successfully.' : 'Runtime setup completed successfully.');
-            await refetchLerobotStatus();
-            await refetchDesktopAppUpdateStatus();
+            await Promise.all([refetchLerobotStatus(), refetchDesktopAppUpdateStatus()]);
             setIsRunning(false);
-            if (action === 'repair' && isInstalled) {
-                setStepState((prev) => ({
-                    ...prev,
-                    reset: 'success',
-                }));
-            }
             markInstalled('Setup complete. Ready to continue.');
-        } catch (err) {
-            const message = getErrorMessage(err);
+        } catch (setupError) {
+            const message = getErrorMessage(setupError);
             setError(message);
             setIsRunning(false);
             appendLog(message);
@@ -239,279 +176,259 @@ export default function SetupPage() {
 
     const installAppUpdate = async () => {
         const targetVersion = desktopAppUpdateStatus?.targetVersion ?? null;
-        if (!targetVersion || isInstallingAppUpdate) {
-            return;
-        }
+        if (!targetVersion || isInstallingAppUpdate) return;
 
         setIsInstallingAppUpdate(true);
         setAppUpdateLog([]);
         appendAppUpdateLog(`Preparing to install desktop app ${targetVersion}.`);
         try {
-            await installAvailableDesktopUpdate({
-                expectedVersion: targetVersion,
-                onLog: appendAppUpdateLog,
-            });
+            await installAvailableDesktopUpdate({ expectedVersion: targetVersion, onLog: appendAppUpdateLog });
         } finally {
             setIsInstallingAppUpdate(false);
             await refetchDesktopAppUpdateStatus();
         }
     };
 
-    const formatVersionLabel = (tag?: string | null, commit?: string | null) =>
-        formatLerobotRuntimeVersionLabel(tag, commit);
-
-    const runtimeCurrent = formatVersionLabel(lerobotStatus?.currentTag, lerobotStatus?.currentCommit);
-    const runtimeAvailable = formatVersionLabel(lerobotStatus?.latestTag, lerobotStatus?.latestCommit);
+    const runtimeCurrent = formatLerobotRuntimeVersionLabel(lerobotStatus?.currentTag, lerobotStatus?.currentCommit);
+    const runtimeAvailable = formatLerobotRuntimeVersionLabel(lerobotStatus?.latestTag, lerobotStatus?.latestCommit);
     const runtimeState = lerobotStatus?.state ?? 'unknown';
     const runtimeOutdated = runtimeState === 'update_available';
+    const runtimeError = runtimeState === 'unknown';
     const runtimeStatusMessage = getLerobotRuntimeStatusMessage(lerobotStatus, isLoadingLerobotStatus);
 
-    const appCurrent = formatVersionLabel(desktopAppUpdateStatus?.currentVersion, null);
-    const appAvailable = formatVersionLabel(desktopAppUpdateStatus?.targetVersion, null);
-    const appMetadataKnown = appCurrent !== 'unknown' && appAvailable !== 'unknown';
+    const appCurrent = formatLerobotRuntimeVersionLabel(desktopAppUpdateStatus?.currentVersion, null);
+    const appAvailable = formatLerobotRuntimeVersionLabel(desktopAppUpdateStatus?.targetVersion, null);
     const appError = desktopAppUpdateStatus?.error?.trim() || null;
     const appOutdated = Boolean(desktopAppUpdateStatus?.updateAvailable && desktopAppUpdateStatus?.targetVersion);
     const appStatusMessage = isLoadingDesktopAppStatus
-        ? 'Checking app version status...'
+        ? 'Checking for a desktop app update...'
         : appError
-          ? 'Update check returned warnings. See details below.'
-          : !appMetadataKnown
-            ? 'Unable to resolve app version metadata from latest.json yet.'
-            : appOutdated
-              ? 'Out of date because a newer signed app version is available.'
-              : 'Up to date. You are on the latest app version.';
+          ? 'The desktop update check could not be completed.'
+          : appOutdated
+            ? `Version ${appAvailable} is ready to install.`
+            : 'Your desktop app is up to date.';
+    const runtimeAction = !isInstalled ? 'repair' : runtimeOutdated ? 'update' : 'repair';
+    const runtimeButtonLabel = isRunning
+        ? !isInstalled
+            ? 'Installing runtime...'
+            : runtimeOutdated
+              ? 'Updating runtime...'
+              : 'Repairing runtime...'
+        : !isInstalled
+          ? 'Install runtime'
+          : runtimeOutdated
+            ? `Update runtime${runtimeAvailable === 'unknown' ? '' : ` to ${runtimeAvailable}`}`
+            : 'Repair runtime';
 
     if (!isReady) {
         return <div className="min-h-screen bg-linear-to-br from-slate-800 via-slate-700 to-slate-800" />;
     }
 
     return (
-        <div className="flex h-screen w-full overflow-y-auto bg-linear-to-br from-slate-800 via-slate-700 to-slate-800">
-            <div className="container mx-auto flex min-h-full flex-col items-center justify-start px-6 py-12">
-                <div className="relative w-full max-w-3xl">
-                    <div className="absolute -top-20 -left-16 h-36 w-36 rounded-full bg-red-400/30 blur-3xl" />
-                    <div className="absolute -right-16 -bottom-16 h-36 w-36 rounded-full bg-amber-300/30 blur-3xl" />
+        <div className="min-h-screen w-full overflow-y-auto bg-linear-to-br from-slate-800 via-slate-700 to-slate-800">
+            <main className="mx-auto w-full max-w-3xl px-6 py-10">
+                <div className="rounded-3xl border border-slate-600/70 bg-slate-900/80 p-6 shadow-2xl backdrop-blur sm:p-8">
+                    <header className="flex flex-wrap items-center justify-between gap-4">
+                        <div className="flex items-center gap-4">
+                            <Image
+                                src="/assets/logo/SourcceyLogo.png"
+                                alt="Sourccey Logo"
+                                width={52}
+                                height={52}
+                                className="drop-shadow-logo"
+                            />
+                            <div>
+                                <h1 className="text-2xl font-semibold text-white sm:text-3xl">Desktop Setup & Updates</h1>
+                                <p className="mt-1 text-sm text-slate-300">The app and robot runtime update separately.</p>
+                            </div>
+                        </div>
+                        <LinkButton
+                            href="/desktop/"
+                            className="cursor-pointer rounded-lg border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-300"
+                        >
+                            Back to home
+                        </LinkButton>
+                    </header>
 
-                    <div className="relative rounded-3xl border border-slate-600/70 bg-slate-900/75 p-8 shadow-2xl backdrop-blur">
-                        <div className="flex flex-col gap-6">
-                            <div className="flex flex-wrap items-start justify-between gap-4">
-                                <div className="flex items-center gap-4">
-                                    <Image
-                                        src="/assets/logo/SourcceyLogo.png"
-                                        alt="Sourccey Logo"
-                                        width={56}
-                                        height={56}
-                                        className="drop-shadow-logo"
-                                    />
-                                    <div>
-                                        <h1 className="text-3xl font-semibold text-white">Desktop Setup & Updates</h1>
-                                        <p className="mt-1 text-sm text-slate-200">App update on top and lerobot-vulcan runtime below for the same flow as kiosk.</p>
-                                    </div>
+                    <div className="mt-7 grid gap-4">
+                        <section className="rounded-2xl border border-slate-700 bg-slate-950/45 p-5 sm:p-6">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Section 1</p>
+                                    <h2 className="mt-1 text-xl font-semibold text-white">Vulcan Studio app</h2>
                                 </div>
-                                <LinkButton
-                                    href="/desktop/"
-                                    className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-500/80 bg-slate-800/80 px-4 py-2 text-xs font-semibold text-slate-100 transition hover:border-slate-300"
-                                >
-                                    Back to home
-                                </LinkButton>
+                                <StatusBadge loading={isLoadingDesktopAppStatus} warning={Boolean(appError)} updateAvailable={appOutdated} />
                             </div>
 
-                            <section className="relative overflow-hidden rounded-3xl border border-amber-500/35 bg-linear-to-br from-slate-950 via-slate-950 to-amber-950/50 p-6 shadow-xl sm:p-7">
-                                <div className="pointer-events-none absolute -top-20 -right-16 h-48 w-48 rounded-full bg-amber-400/15 blur-3xl" />
-                                <div className="relative">
-                                    <div className="flex flex-wrap items-start justify-between gap-4">
-                                        <div className="flex items-center gap-3">
-                                            <div className="flex h-11 w-11 items-center justify-center rounded-2xl border border-amber-400/30 bg-amber-400/10 text-amber-200 shadow-inner">
-                                                <FaSyncAlt className="h-5 w-5" />
-                                            </div>
-                                            <div>
-                                                <div className="text-[10px] font-semibold tracking-[0.24em] text-amber-300/70 uppercase">Vulcan Studio</div>
-                                                <h2 className="mt-0.5 text-xl font-semibold text-white">App Update</h2>
-                                            </div>
-                                        </div>
-                                        <div
-                                            className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-[11px] font-semibold ${
-                                                appError
-                                                    ? 'border-red-400/30 bg-red-400/10 text-red-200'
-                                                    : appOutdated
-                                                      ? 'border-amber-400/30 bg-amber-400/10 text-amber-100'
-                                                      : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200'
-                                            }`}
-                                        >
-                                            {appError ? <FaExclamationTriangle /> : <FaCheckCircle />}
-                                            {appError ? 'Needs attention' : appOutdated ? 'Update available' : 'Up to date'}
-                                        </div>
-                                    </div>
+                            <p className={`mt-4 text-sm ${appError ? 'text-red-200' : appOutdated ? 'text-amber-200' : 'text-emerald-200'}`}>
+                                {appStatusMessage}
+                            </p>
+                            <VersionSummary installed={appCurrent} latest={appAvailable} />
+                            {appError && <p className="mt-2 text-xs break-words text-red-200">{appError}</p>}
 
-                                    <p className="mt-4 max-w-xl text-sm leading-6 text-slate-300">
-                                        Keep Vulcan Studio current with the latest signed desktop release.
-                                    </p>
+                            <button
+                                type="button"
+                                onClick={() => void installAppUpdate()}
+                                disabled={!appOutdated || isInstallingAppUpdate}
+                                className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
+                            >
+                                {isInstallingAppUpdate ? (
+                                    <Spinner color="black" width="w-4" height="h-4" />
+                                ) : appOutdated ? (
+                                    <FaCloudDownloadAlt />
+                                ) : (
+                                    <FaCheckCircle />
+                                )}
+                                {isInstallingAppUpdate
+                                    ? 'Installing update...'
+                                    : appOutdated
+                                      ? `Update app to ${appAvailable}`
+                                      : 'App is up to date'}
+                            </button>
 
-                                    <div className="mt-5 grid grid-cols-[1fr_auto_1fr] items-center gap-3 rounded-2xl border border-white/8 bg-black/20 p-4">
-                                        <div>
-                                            <div className="text-[10px] font-semibold tracking-[0.2em] text-slate-500 uppercase">Installed</div>
-                                            <div className="mt-1 font-mono text-lg font-semibold text-slate-100">{appCurrent}</div>
-                                        </div>
-                                        <div className="flex h-9 w-9 items-center justify-center rounded-full border border-amber-400/20 bg-amber-400/10 text-amber-200">
-                                            <FaArrowRight className="h-3.5 w-3.5" />
-                                        </div>
-                                        <div className="text-right">
-                                            <div className="text-[10px] font-semibold tracking-[0.2em] text-amber-300/70 uppercase">Available</div>
-                                            <div className="mt-1 font-mono text-lg font-semibold text-amber-100">{appAvailable}</div>
-                                        </div>
-                                    </div>
+                            {(isInstallingAppUpdate || appUpdateLog.length > 0) && (
+                                <ProgressLog title="App update steps" running={isInstallingAppUpdate} lines={appUpdateLog} />
+                            )}
+                        </section>
 
-                                    <div className={`mt-3 text-xs leading-5 ${appError ? 'text-red-200' : appOutdated ? 'text-amber-100' : 'text-emerald-200'}`}>
-                                        {appStatusMessage}
-                                    </div>
-                                    {appError && (
-                                        <div className="mt-2 whitespace-pre-wrap break-words rounded-xl border border-red-400/20 bg-red-400/8 p-3 text-[11px] text-red-200">{appError}</div>
-                                    )}
-
-                                    <button
-                                        type="button"
-                                        onClick={() => void installAppUpdate()}
-                                        disabled={!appOutdated || isInstallingAppUpdate}
-                                        className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl border border-amber-300/40 bg-linear-to-r from-amber-500 to-orange-500 px-6 py-3.5 text-sm font-bold text-slate-950 shadow-lg shadow-amber-950/30 transition hover:-translate-y-0.5 hover:from-amber-400 hover:to-orange-400 disabled:cursor-not-allowed disabled:border-slate-700 disabled:from-slate-800 disabled:to-slate-800 disabled:text-slate-400 disabled:shadow-none disabled:hover:translate-y-0"
-                                    >
-                                        {isInstallingAppUpdate ? <Spinner color="black" width="w-4" height="h-4" /> : appOutdated ? <FaCloudDownloadAlt /> : <FaCheckCircle />}
-                                        {isInstallingAppUpdate ? 'Installing update...' : appOutdated ? `Install ${appAvailable}` : 'You have the latest version'}
-                                    </button>
-
-                                    {(isInstallingAppUpdate || appUpdateLog.length > 0) && (
-                                        <div className="mt-5 rounded-xl border border-amber-500/20 bg-black/20 p-3 text-xs shadow-inner">
-                                            <div className="mb-2 flex items-center justify-between text-[10px] font-semibold tracking-[0.25em] text-amber-200/70 uppercase">
-                                                <span>Update details</span>
-                                                {isInstallingAppUpdate && <span className="animate-pulse text-amber-300">Installing</span>}
-                                            </div>
-                                            <div className="max-h-48 space-y-1 overflow-y-auto font-mono text-slate-300">
-                                                {appUpdateLog.length === 0 && <div className="text-slate-500">Preparing the installer...</div>}
-                                                {appUpdateLog.map((line, index) => (
-                                                    <div key={`${line}-${index}`} className="whitespace-pre-wrap break-words border-b border-slate-800/60 py-1 last:border-0">
-                                                        {line}
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        </div>
-                                    )}
+                        <section className="rounded-2xl border border-slate-700 bg-slate-950/45 p-5 sm:p-6">
+                            <div className="flex items-start justify-between gap-4">
+                                <div>
+                                    <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Section 2</p>
+                                    <h2 className="mt-1 text-xl font-semibold text-white">Robot runtime</h2>
                                 </div>
-                            </section>
+                                <StatusBadge
+                                    loading={isLoadingLerobotStatus}
+                                    warning={runtimeError}
+                                    updateAvailable={!isInstalled || runtimeOutdated}
+                                    installed={isInstalled}
+                                />
+                            </div>
 
-                            <div className="rounded-2xl border border-slate-600/70 bg-slate-950/45 p-6">
-                                <h2 className="mb-1 text-lg font-semibold text-slate-100">lerobot-vulcan runtime</h2>
-                                <p className="mb-4 text-xs text-slate-300">
-                                    Download lerobot-vulcan, create the Python environment, and repair or refresh local runtime tools.
-                                </p>
+                            <p
+                                className={`mt-4 text-sm ${runtimeError ? 'text-slate-300' : runtimeOutdated || !isInstalled ? 'text-amber-200' : 'text-emerald-200'}`}
+                            >
+                                {!isInstalled
+                                    ? runtimeCurrent === 'unknown'
+                                        ? `No robot runtime is installed. Install${runtimeAvailable === 'unknown' ? ' the latest version' : ` version ${runtimeAvailable}`}.`
+                                        : `Runtime files for version ${runtimeCurrent} were downloaded, but setup is not complete. Finish setup to use them.`
+                                    : runtimeStatusMessage}
+                            </p>
+                            <VersionSummary
+                                installed={runtimeCurrent}
+                                latest={runtimeAvailable}
+                                installedLabel={isInstalled ? 'Installed' : 'Downloaded'}
+                            />
 
-                                <div className="grid gap-3">
-                                    {orderedSteps.map((step, index) => {
-                                        const status = stepState[step.id] ?? 'pending';
-                                        return (
-                                            <div
-                                                key={step.id}
-                                                className="flex items-center justify-between rounded-xl border border-slate-800/60 bg-slate-950/40 px-4 py-3"
-                                            >
-                                                <div className="flex items-center gap-3">
-                                                    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-slate-700 text-sm text-slate-400">
-                                                        {index + 1}
-                                                    </div>
-                                                    <p className="text-sm font-semibold text-slate-100">{step.label}</p>
+                            <button
+                                type="button"
+                                onClick={() => void runSetup(runtimeAction)}
+                                disabled={isRunning}
+                                className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
+                            >
+                                {isRunning ? <Spinner color="white" width="w-4" height="h-4" /> : <FaTools />}
+                                {runtimeButtonLabel}
+                            </button>
+
+                            {showRuntimeSteps && (
+                                <div className="mt-5 border-t border-slate-700 pt-5">
+                                    <h3 className="text-sm font-semibold text-slate-100">Runtime setup steps</h3>
+                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                                        {steps.map((step, index) => {
+                                            const status = stepState[step.id] ?? 'pending';
+                                            return (
+                                                <div
+                                                    key={step.id}
+                                                    className="flex items-center justify-between rounded-lg bg-slate-900/80 px-3 py-2.5"
+                                                >
+                                                    <span className="text-xs text-slate-200">
+                                                        {index + 1}. {step.label}
+                                                    </span>
+                                                    <span className={`text-[10px] font-semibold uppercase ${statusColors[status]}`}>
+                                                        {status}
+                                                    </span>
                                                 </div>
-                                                <div className={`text-xs font-semibold tracking-[0.2em] uppercase ${statusColors[status]}`}>{status}</div>
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-
-                                <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-900/70 px-4 py-3 text-xs text-slate-200">
-                                    <div className="font-semibold text-slate-100">lerobot-vulcan runtime release</div>
-                                    <div className="mt-1 text-slate-300">Current: {runtimeCurrent}</div>
-                                    <div className="text-slate-300">Available: {runtimeAvailable}</div>
-                                    <div
-                                        className={`mt-2 text-[11px] ${
-                                            runtimeOutdated
-                                                ? 'text-amber-200'
-                                                : runtimeState === 'custom_build'
-                                                  ? 'text-sky-200'
-                                                  : runtimeState === 'unknown'
-                                                    ? 'text-slate-300'
-                                                    : 'text-emerald-200'
-                                        }`}
-                                    >
-                                        {runtimeStatusMessage}
+                                            );
+                                        })}
                                     </div>
-                                </div>
-
-                                <div className="mt-4 flex flex-wrap items-center gap-4">
-                                    <button
-                                        type="button"
-                                        onClick={() => runSetup('repair')}
-                                        disabled={isRunning}
-                                        title={
-                                            isInstalled
-                                                ? 'Repairs the setup without deleting existing modules.'
-                                                : 'Install the robot runtime for the first time.'
-                                        }
-                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                    >
-                                        {isRunning ? 'Setting up...' : isInstalled ? 'Repair modules' : 'Install modules'}
-                                    </button>
-
-                                    {isInstalled && (
-                                        <button
-                                            type="button"
-                                            onClick={() => runSetup('update')}
-                                            disabled={isRunning}
-                                            title="Redownloads all files from scratch, perfect after a larger update."
-                                            className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-slate-600 px-6 py-3 text-sm font-semibold text-slate-100 transition hover:border-slate-300 disabled:cursor-not-allowed disabled:opacity-60"
-                                        >
-                                            Update modules
-                                        </button>
-                                    )}
-
-                                    {isRunning && (
-                                        <div className="flex items-center gap-2 text-sm text-slate-300">
-                                            <Spinner color="yellow" width="w-4" height="h-4" />
-                                            Running setup steps
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="mt-4 rounded-xl border border-slate-700/70 bg-slate-950/70 p-3 text-xs shadow-inner">
-                                    <div className="mb-2 flex items-center justify-between text-[10px] font-semibold tracking-[0.25em] text-slate-500 uppercase">
-                                        <span>Runtime setup log</span>
-                                        {isRunning && <span className="animate-pulse text-amber-300">Running</span>}
-                                    </div>
-                                    <div className="max-h-64 space-y-1 overflow-y-auto font-mono text-slate-300">
-                                        {log.length === 0 && <div className="text-slate-500">Repair and update diagnostics will appear here.</div>}
-                                        {log.map((line, index) => (
-                                            <div key={`${line}-${index}`} className="whitespace-pre-wrap break-words border-b border-slate-800/60 py-1 last:border-0">
-                                                {line}
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            </div>
-
-                            {error && (
-                                <div className="rounded-2xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                                    <pre className="overflow-x-auto whitespace-pre-wrap break-words font-sans">{error}</pre>
+                                    <ProgressLog title="Details" running={isRunning} lines={log} />
                                 </div>
                             )}
-
-                            <div className="border-t border-slate-700/60 pt-4">
-                                {isComplete && !isRunning && (
-                                    <LinkButton
-                                        href="/desktop/"
-                                        className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-gradient-to-r from-red-500/70 via-orange-500/70 to-amber-400/70 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:from-red-500 hover:via-orange-500 hover:to-amber-400"
-                                    >
-                                        Go to home
-                                    </LinkButton>
-                                )}
-                            </div>
-
-                        </div>
+                        </section>
                     </div>
+
+                    {error && (
+                        <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</div>
+                    )}
                 </div>
+            </main>
+        </div>
+    );
+}
+
+function StatusBadge({
+    loading,
+    warning,
+    updateAvailable,
+    installed = true,
+}: {
+    loading: boolean;
+    warning: boolean;
+    updateAvailable: boolean;
+    installed?: boolean;
+}) {
+    const label = loading
+        ? 'Checking'
+        : warning
+          ? 'Check unavailable'
+          : !installed
+            ? 'Setup required'
+            : updateAvailable
+              ? 'Update available'
+              : 'Up to date';
+    const color = warning
+        ? 'border-slate-500/40 bg-slate-500/10 text-slate-300'
+        : updateAvailable
+          ? 'border-amber-400/30 bg-amber-400/10 text-amber-200'
+          : 'border-emerald-400/30 bg-emerald-400/10 text-emerald-200';
+
+    return (
+        <span className={`shrink-0 rounded-full border px-3 py-1 text-[11px] font-semibold ${color}`}>
+            {warning && <FaExclamationTriangle className="mr-1.5 inline" />}
+            {label}
+        </span>
+    );
+}
+
+function ProgressLog({ title, running, lines }: { title: string; running: boolean; lines: string[] }) {
+    return (
+        <div className="mt-4 rounded-xl bg-black/20 p-3">
+            <div className="flex items-center justify-between text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
+                <span>{title}</span>
+                {running && <span className="animate-pulse text-amber-300">Running</span>}
+            </div>
+            <div className="mt-2 max-h-48 space-y-1 overflow-y-auto font-mono text-[11px] text-slate-300">
+                {lines.length === 0 && <div className="text-slate-500">Preparing...</div>}
+                {lines.map((line, index) => (
+                    <div key={`${line}-${index}`} className="break-words whitespace-pre-wrap">
+                        {line}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+}
+
+function VersionSummary({ installed, latest, installedLabel = 'Installed' }: { installed: string; latest: string; installedLabel?: string }) {
+    return (
+        <div className="mt-4 grid grid-cols-2 divide-x divide-slate-700 rounded-xl border border-slate-700 bg-slate-900/70">
+            <div className="px-4 py-3">
+                <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">{installedLabel}</p>
+                <p className="mt-1 font-mono text-sm font-semibold text-slate-100">{installed}</p>
+            </div>
+            <div className="px-4 py-3">
+                <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">Latest</p>
+                <p className="mt-1 font-mono text-sm font-semibold text-slate-100">{latest}</p>
             </div>
         </div>
     );
