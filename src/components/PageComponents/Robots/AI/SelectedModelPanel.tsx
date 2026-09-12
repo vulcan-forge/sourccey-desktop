@@ -23,6 +23,7 @@ type SelectedModelPanelProps = {
         remote_ip?: string;
         fps?: number;
         display_data?: boolean;
+        record_rollout_data?: boolean;
     } | null;
     mode?: 'ai' | 'rollout';
     onClearAction: () => void;
@@ -107,6 +108,7 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
             task: task.trim(),
             duration: Number(durationS),
             display_data: remoteConfig.display_data ?? false,
+            record_data: remoteConfig.record_rollout_data ?? true,
         };
 
         setIsRolloutStarting(true);
@@ -235,7 +237,9 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
                         <FaPlay className="h-3.5 w-3.5" />
                     )}
                     {isLoading
-                        ? 'Working...'
+                        ? isControlling
+                            ? 'Saving rollout...'
+                            : 'Working...'
                         : isRolloutStarting
                           ? 'Cancel startup'
                           : isControlling
@@ -245,11 +249,18 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
             </div>
 
             {isRolloutStarting && (
-                <div role="status" className="mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100">
+                <div
+                    role="status"
+                    className="mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100"
+                >
                     <Spinner color="white" />
                     <div>
                         <p className="text-sm font-semibold">Starting rollout... {startupSeconds}s</p>
-                        <p className="mt-1 text-xs">Loading the model and connecting to the robot. Waiting for the rollout loop to start.</p>
+                        <p className="mt-1 text-xs">
+                            {(remoteConfig?.record_rollout_data ?? true)
+                                ? 'Loading the model, connecting to the robot, and preparing the recorded episode.'
+                                : 'Loading the model and connecting to the robot. Waiting for the rollout loop to start.'}
+                        </p>
                         {startupSeconds >= 60 && (
                             <p className="mt-1 text-xs">Startup is taking longer than expected. Check the logs below, or cancel and retry.</p>
                         )}
@@ -271,4 +282,5 @@ export interface RemoteRolloutConfig {
     task: string;
     duration: number;
     display_data: boolean;
+    record_data: boolean;
 }

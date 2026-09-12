@@ -1,6 +1,10 @@
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ConfigConfig {
     pub nickname: String,
@@ -40,4 +44,29 @@ pub struct RemoteConfig {
     pub fps: u32,
     #[serde(default)]
     pub display_data: bool,
+    #[serde(default = "default_true")]
+    pub record_rollout_data: bool,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RemoteConfig;
+
+    #[test]
+    fn legacy_remote_config_defaults_to_recording_rollouts() {
+        let config: RemoteConfig = serde_json::from_str(
+            r#"{
+                "remote_ip": "192.168.1.10",
+                "remote_port": "22",
+                "left_arm_port": "",
+                "right_arm_port": "",
+                "keyboard": "sourccey_keyboard",
+                "fps": 30,
+                "display_data": false
+            }"#,
+        )
+        .expect("legacy remote config should deserialize");
+
+        assert!(config.record_rollout_data);
+    }
 }

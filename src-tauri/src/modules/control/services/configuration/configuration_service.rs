@@ -253,6 +253,7 @@ impl ConfigurationService {
             keyboard: "keyboard".to_string(),
             fps: 30,
             display_data: false,
+            record_rollout_data: true,
         }
     }
 

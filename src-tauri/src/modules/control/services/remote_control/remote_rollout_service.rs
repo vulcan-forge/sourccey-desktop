@@ -57,8 +57,13 @@ impl RemoteRolloutService {
         let command_display = format_command_for_display(&command_parts);
 
         let start_message = format!(
-            "Starting rollout: nickname={}, remote_ip={}, model_path={}, duration={}, task={}",
-            config.nickname, config.remote_ip, config.model_path, config.duration, config.task
+            "Starting rollout: nickname={}, remote_ip={}, model_path={}, duration={}, task={}, recording={}",
+            config.nickname,
+            config.remote_ip,
+            config.model_path,
+            config.duration,
+            config.task,
+            config.record_data
         );
         Self::log_rollout_info(&start_message);
         Self::log_rollout_info(&format!("Command: {}", command_display));
@@ -216,16 +221,73 @@ impl RemoteRolloutService {
         {
             shutdown_flag.store(true, Ordering::Relaxed);
 
-            ProcessService::on_process_shutdown(
-                app_handle,
-                child.pid(),
-                db_connection,
-                command_log_id,
-            );
+            let pid = child.pid();
 
+            ProcessService::on_process_shutdown(app_handle, pid, db_connection, command_log_id);
+
+            #[cfg(unix)]
+            {
+                Self::emit_rollout_info(
+                    app_handle,
+                    &nickname,
+                    "Stopping rollout and finalizing recorded data...",
+                );
+
+                let signal_result = std::process::Command::new("kill")
+                    .args(["-INT", &pid.to_string()])
+                    .status();
+
+                let graceful_shutdown_requested = match signal_result {
+                    Ok(status) if status.success() => true,
+                    Ok(status) => {
+                        Self::log_rollout_error(&format!(
+                            "Graceful rollout shutdown returned status: {}",
+                            status
+                        ));
+                        false
+                    }
+                    Err(error) => {
+                        Self::log_rollout_error(&format!(
+                            "Failed to request graceful rollout shutdown: {}",
+                            error
+                        ));
+                        false
+                    }
+                };
+
+                if !graceful_shutdown_requested {
+                    let _ = child.kill();
+                } else {
+                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
+                    loop {
+                        match child.try_wait() {
+                            Ok(Some(_)) => break,
+                            Ok(None) if std::time::Instant::now() < deadline => {
+                                std::thread::sleep(std::time::Duration::from_millis(100));
+                            }
+                            Ok(None) => {
+                                Self::log_rollout_error(
+                                    "Rollout did not finish finalizing within 10 seconds; forcing it to stop.",
+                                );
+                                let _ = child.kill();
+                                break;
+                            }
+                            Err(error) => {
+                                Self::log_rollout_error(&format!(
+                                    "Failed while waiting for rollout shutdown: {}",
+                                    error
+                                ));
+                                let _ = child.kill();
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            #[cfg(not(unix))]
             if let Err(err) = child.kill() {
-                let message = format!("Failed to kill rollout process: {}", err);
-                Self::log_rollout_error(&message);
+                Self::log_rollout_error(&format!("Failed to kill rollout process: {}", err));
             }
 
             Ok(format!(
@@ -243,11 +305,30 @@ impl RemoteRolloutService {
     }
 
     fn build_command_args(config: &RemoteRolloutConfig) -> Vec<String> {
-        vec![
+        let mut command_parts = vec![
             "run".to_string(),
             "--no-sync".to_string(),
             "lerobot-rollout".to_string(),
-            "--strategy.type=base".to_string(),
+        ];
+
+        if config.record_data {
+            command_parts.extend([
+                "--strategy.type=episodic".to_string(),
+                format!(
+                    "--dataset.repo_id=local/rollout_{}",
+                    Self::dataset_robot_slug(&config.nickname)
+                ),
+                "--dataset.num_episodes=1".to_string(),
+                format!("--dataset.episode_time_s={}", config.duration),
+                format!("--dataset.single_task={}", config.task.trim()),
+                "--dataset.push_to_hub=false".to_string(),
+                "--dataset.streaming_encoding=true".to_string(),
+            ]);
+        } else {
+            command_parts.push("--strategy.type=base".to_string());
+        }
+
+        command_parts.extend([
             format!("--policy.path={}", config.model_path.trim()),
             "--robot.type=sourccey_client".to_string(),
             "--robot.id=sourccey".to_string(),
@@ -256,7 +337,32 @@ impl RemoteRolloutService {
             format!("--display_data={}", config.display_data),
             format!("--duration={}", config.duration),
             format!("--fps={}", DEFAULT_ROLLOUT_FPS),
-        ]
+        ]);
+
+        command_parts
+    }
+
+    fn dataset_robot_slug(nickname: &str) -> String {
+        let slug = nickname
+            .trim()
+            .trim_start_matches('@')
+            .chars()
+            .map(|character| {
+                if character.is_ascii_alphanumeric() || character == '-' {
+                    character.to_ascii_lowercase()
+                } else {
+                    '-'
+                }
+            })
+            .collect::<String>()
+            .trim_matches('-')
+            .to_string();
+
+        if slug.is_empty() {
+            "robot".to_string()
+        } else {
+            slug
+        }
     }
 
     fn validate_config(config: &RemoteRolloutConfig) -> Result<(), String> {
@@ -305,6 +411,7 @@ mod tests {
             task: "Fold the shirt".to_string(),
             duration: 300.0,
             display_data: false,
+            record_data: true,
         }
     }
 
@@ -328,7 +435,25 @@ mod tests {
         assert_eq!(command_parts[2], "lerobot-rollout");
         assert!(command_parts
             .iter()
-            .any(|part| part == "--strategy.type=base"));
+            .any(|part| part == "--strategy.type=episodic"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--dataset.repo_id=local/rollout_robot-1"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--dataset.num_episodes=1"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--dataset.episode_time_s=300"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--dataset.single_task=Fold the shirt"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--dataset.push_to_hub=false"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--dataset.streaming_encoding=true"));
         assert!(command_parts
             .iter()
             .any(|part| part == "--display_data=false"));
@@ -338,5 +463,24 @@ mod tests {
         assert!(RemoteRolloutService::build_command_args(&display_config)
             .iter()
             .any(|part| part == "--display_data=true"));
+
+        let mut unrecorded_config = valid_config();
+        unrecorded_config.record_data = false;
+        let unrecorded_command = RemoteRolloutService::build_command_args(&unrecorded_config);
+        assert!(unrecorded_command
+            .iter()
+            .any(|part| part == "--strategy.type=base"));
+        assert!(!unrecorded_command
+            .iter()
+            .any(|part| part.starts_with("--dataset.")));
+    }
+
+    #[test]
+    fn creates_safe_dataset_robot_slugs() {
+        assert_eq!(
+            RemoteRolloutService::dataset_robot_slug("@Robot One!"),
+            "robot-one"
+        );
+        assert_eq!(RemoteRolloutService::dataset_robot_slug("---"), "robot");
     }
 }

@@ -18,6 +18,7 @@ export const defaultRemoteConfig: RemoteConfig = {
     keyboard: 'sourccey_keyboard',
     fps: 30,
     display_data: false,
+    record_rollout_data: true,
 };
 
 const normalizeNickname = (nickname: string) => (nickname.startsWith('@') ? nickname.slice(1) : nickname);

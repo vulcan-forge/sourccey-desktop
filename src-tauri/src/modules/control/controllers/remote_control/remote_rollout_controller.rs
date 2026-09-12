@@ -5,6 +5,10 @@ use serde::{Deserialize, Serialize};
 use tauri::command;
 use tauri::{AppHandle, Manager, State};
 
+fn default_true() -> bool {
+    true
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RemoteRolloutConfig {
     pub nickname: String,
@@ -14,6 +18,8 @@ pub struct RemoteRolloutConfig {
     pub duration: f64,
     #[serde(default)]
     pub display_data: bool,
+    #[serde(default = "default_true")]
+    pub record_data: bool,
 }
 
 pub fn init_remote_rollout() -> RemoteRolloutProcess {

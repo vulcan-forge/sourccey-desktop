@@ -6,4 +6,5 @@ export interface RemoteConfig {
     keyboard: string;
     fps: number;
     display_data: boolean;
+    record_rollout_data: boolean;
 }

@@ -290,9 +290,7 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
                             onClick={() => void saveConfig('Connection settings updated.')}
                             disabled={isSavingConfig}
                             className={`cursor-pointer rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
-                                isSavingConfig
-                                    ? 'cursor-not-allowed bg-slate-700 text-slate-400'
-                                    : 'bg-blue-500 text-white hover:bg-blue-600'
+                                isSavingConfig ? 'cursor-not-allowed bg-slate-700 text-slate-400' : 'bg-blue-500 text-white hover:bg-blue-600'
                             }`}
                         >
                             {isSavingConfig ? 'Saving...' : 'Save Connection'}
@@ -305,7 +303,7 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
                 <ConfigSection
                     title="Control settings"
                     icon={<FaGamepad className="h-4 w-4 text-orange-300" />}
-                    description="Choose how teleoperation, recording, and rollout sessions display live data."
+                    description="Choose how control sessions display and save data."
                     isOpen={isControlSettingsOpen}
                     onToggle={() => setIsControlSettingsOpen((current) => !current)}
                 >
@@ -321,6 +319,23 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
                                 type="checkbox"
                                 checked={draftConfig.display_data ?? false}
                                 onChange={(event) => updateDraft('display_data', event.target.checked)}
+                                className="peer sr-only"
+                            />
+                            <span className="h-6 w-11 rounded-full bg-slate-700 transition-colors peer-checked:bg-orange-500 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-400/50 peer-focus-visible:outline-none after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5" />
+                        </label>
+                    </div>
+                    <div className="mt-3 flex items-center justify-between gap-4 rounded-lg border border-slate-700/60 bg-slate-950/40 px-4 py-3">
+                        <div>
+                            <div className="text-sm font-semibold text-slate-100">Record rollout data</div>
+                            <p className="mt-1 text-xs text-slate-400">
+                                Save each rollout as one episode with camera, robot state, and policy action data.
+                            </p>
+                        </div>
+                        <label className="relative inline-flex shrink-0 cursor-pointer items-center">
+                            <input
+                                type="checkbox"
+                                checked={draftConfig.record_rollout_data ?? true}
+                                onChange={(event) => updateDraft('record_rollout_data', event.target.checked)}
                                 className="peer sr-only"
                             />
                             <span className="h-6 w-11 rounded-full bg-slate-700 transition-colors peer-checked:bg-orange-500 peer-focus-visible:ring-2 peer-focus-visible:ring-orange-400/50 peer-focus-visible:outline-none after:absolute after:top-0.5 after:left-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-transform after:content-[''] peer-checked:after:translate-x-5" />
@@ -367,9 +382,7 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
                         Log Level
                         <select
                             value={desktopEnvironmentSettings?.teleopLogLevel ?? 'warning'}
-                            onChange={(event) =>
-                                void saveLogLevel(event.target.value as DesktopEnvironmentSettings['teleopLogLevel'])
-                            }
+                            onChange={(event) => void saveLogLevel(event.target.value as DesktopEnvironmentSettings['teleopLogLevel'])}
                             disabled={!desktopEnvironmentSettings || isSavingLogLevel}
                             className="rounded-lg border border-slate-600/80 bg-slate-900 px-3 py-2 text-sm text-slate-100 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.06)] focus:border-slate-500 focus:ring-2 focus:ring-slate-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                         >
@@ -412,7 +425,9 @@ const ConfigSection = ({
                     <div className="mt-1 text-xs text-slate-400">{description}</div>
                 </div>
             </div>
-            <div className="shrink-0 text-slate-400">{isOpen ? <FaChevronUp className="h-4 w-4" /> : <FaChevronDown className="h-4 w-4" />}</div>
+            <div className="shrink-0 text-slate-400">
+                {isOpen ? <FaChevronUp className="h-4 w-4" /> : <FaChevronDown className="h-4 w-4" />}
+            </div>
         </button>
         {isOpen ? <div className="border-t border-slate-700/60 px-4 py-4">{children}</div> : null}
     </div>
