@@ -259,28 +259,17 @@ impl RemoteRolloutService {
                     let _ = child.kill();
                 } else {
                     let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-                    loop {
-                        match child.try_wait() {
-                            Ok(Some(_)) => break,
-                            Ok(None) if std::time::Instant::now() < deadline => {
-                                std::thread::sleep(std::time::Duration::from_millis(100));
-                            }
-                            Ok(None) => {
-                                Self::log_rollout_error(
-                                    "Rollout did not finish finalizing within 10 seconds; forcing it to stop.",
-                                );
-                                let _ = child.kill();
-                                break;
-                            }
-                            Err(error) => {
-                                Self::log_rollout_error(&format!(
-                                    "Failed while waiting for rollout shutdown: {}",
-                                    error
-                                ));
-                                let _ = child.kill();
-                                break;
-                            }
-                        }
+                    while ProcessService::is_process_alive(app_handle, pid)
+                        && std::time::Instant::now() < deadline
+                    {
+                        std::thread::sleep(std::time::Duration::from_millis(100));
+                    }
+
+                    if ProcessService::is_process_alive(app_handle, pid) {
+                        Self::log_rollout_error(
+                            "Rollout did not finish finalizing within 10 seconds; forcing it to stop.",
+                        );
+                        let _ = child.kill();
                     }
                 }
             }
