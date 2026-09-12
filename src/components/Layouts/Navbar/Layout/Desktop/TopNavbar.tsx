@@ -189,7 +189,7 @@ export const DesktopTopNavbar = () => {
                             </LinkButton>
                         )}
 
-                        <LinkButton
+                        {/* <LinkButton
                             href="/desktop/account"
                             className={`inline-flex cursor-pointer items-center justify-center rounded-lg border px-4 py-2 text-sm font-semibold transition ${
                                 isAccountPage
@@ -198,14 +198,10 @@ export const DesktopTopNavbar = () => {
                             }`}
                         >
                             {isAuthenticated ? 'Account' : 'Log In'}
-                        </LinkButton>
+                        </LinkButton> */}
                     </div>
                 </div>
             </div>
         </nav>
     );
 };
-
-
-
-

@@ -21,6 +21,8 @@ type StepStatus = 'pending' | 'started' | 'success' | 'error';
 type AIRuntimeCardProps = {
     children?: ReactNode;
     title?: string;
+    showInstallAction?: boolean;
+    installOnlyWhenMissing?: boolean;
     showOpenModules?: boolean;
     showSettingsLink?: boolean;
     className?: string;
@@ -49,6 +51,8 @@ const statusColors: Record<StepStatus, string> = {
 export const AIRuntimeCard = ({
     children,
     title = 'AI Runtime',
+    showInstallAction = true,
+    installOnlyWhenMissing = false,
     showOpenModules = true,
     showSettingsLink = true,
     className,
@@ -68,7 +72,10 @@ export const AIRuntimeCard = ({
     const baseRuntimeMissing = missing.some((item) => item.includes('modules/lerobot-vulcan') || item.includes('.venv'));
     const isChecking = isBaseLoading || isLoading;
     const hasStatusError = Boolean(baseError || isStatusError);
+    const runtimeInstalled = baseInstalled && installed;
     const isRuntimeActionDisabled = isPending || isBaseLoading;
+    const shouldShowInstallAction =
+        showInstallAction && !isChecking && !hasStatusError && (!installOnlyWhenMissing || !runtimeInstalled);
 
     const appendLog = useCallback((message: string) => {
         setLog((previous) => [...previous, `[${new Date().toLocaleTimeString()}] ${message}`]);
@@ -195,13 +202,13 @@ export const AIRuntimeCard = ({
         }
     };
 
-    if (children && installed && !isLoading && !baseError) return <>{children}</>;
+    if (children && runtimeInstalled && !isChecking && !hasStatusError) return <>{children}</>;
 
     const statusMessage = isChecking
         ? 'Checking the AI runtime...'
         : hasStatusError
           ? 'The AI runtime status needs attention.'
-          : installed
+          : runtimeInstalled
             ? 'The AI runtime is installed and ready to use.'
             : !baseInstalled
               ? 'The robot runtime and AI modules need to be installed. Both will be set up together.'
@@ -214,24 +221,28 @@ export const AIRuntimeCard = ({
                     <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">Setup required</p>
                     <h2 className="mt-1 text-xl font-semibold text-white">{title}</h2>
                 </div>
-                <StatusBadge checking={isChecking} error={hasStatusError} installed={installed} />
+                <StatusBadge checking={isChecking} error={hasStatusError} installed={runtimeInstalled} />
             </div>
 
-            <p className={`mt-4 text-sm ${hasStatusError ? 'text-red-200' : installed ? 'text-emerald-200' : 'text-amber-200'}`}>
+            <p
+                className={`mt-4 text-sm ${hasStatusError ? 'text-red-200' : runtimeInstalled ? 'text-emerald-200' : 'text-amber-200'}`}
+            >
                 {statusMessage}
             </p>
 
-            <button
-                type="button"
-                onClick={() => void handleInstall()}
-                disabled={isRuntimeActionDisabled}
-                className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
-            >
-                {isPending ? <Spinner color="white" width="w-4" height="h-4" /> : <FaTools />}
-                {isPending ? 'Installing AI runtime...' : installed ? 'Reinstall AI runtime' : 'Install AI runtime'}
-            </button>
+            {shouldShowInstallAction && (
+                <button
+                    type="button"
+                    onClick={() => void handleInstall()}
+                    disabled={isRuntimeActionDisabled}
+                    className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
+                >
+                    {isPending ? <Spinner color="white" width="w-4" height="h-4" /> : <FaTools />}
+                    {isPending ? 'Installing AI runtime...' : runtimeInstalled ? 'Reinstall AI runtime' : 'Install AI runtime'}
+                </button>
+            )}
 
-            {(showOpenModules && installed) || (showSettingsLink && baseRuntimeMissing) ? (
+            {(showOpenModules && runtimeInstalled) || (showSettingsLink && baseRuntimeMissing) ? (
                 <div className="mt-3 flex flex-wrap justify-end gap-2">
                     {showSettingsLink && baseRuntimeMissing && (
                         <LinkButton
@@ -241,7 +252,7 @@ export const AIRuntimeCard = ({
                             Open settings
                         </LinkButton>
                     )}
-                    {showOpenModules && installed && (
+                    {showOpenModules && runtimeInstalled && (
                         <button
                             type="button"
                             onClick={() => void handleOpenModules()}
@@ -253,7 +264,7 @@ export const AIRuntimeCard = ({
                 </div>
             ) : null}
 
-            {showInstallDetails && (
+            {showInstallAction && showInstallDetails && (
                 <div className="mt-5 border-t border-slate-700 pt-5">
                     <div className="flex items-center justify-between gap-3">
                         <h3 className="text-sm font-semibold text-slate-100">Installation steps</h3>
