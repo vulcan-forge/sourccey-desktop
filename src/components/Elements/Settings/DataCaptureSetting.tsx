@@ -27,13 +27,11 @@ export function DataCaptureSetting() {
     };
 
     return (
-        <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
+        <div className="border-t border-slate-700/70 px-1 pt-5">
             <div className="flex items-center justify-between gap-6">
                 <div>
-                    <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">
-                        Data Capture
-                    </div>
-                    <p className="mt-2 text-sm text-slate-300">Allow sending telemetry data to help improve the product.</p>
+                    <div className="text-sm font-medium text-slate-300">Data capture</div>
+                    <p className="mt-1 text-xs text-slate-500">Allow sending telemetry data to help improve the product.</p>
                 </div>
                 <button
                     type="button"
@@ -42,15 +40,15 @@ export function DataCaptureSetting() {
                     aria-label="Allow sending telemetry data"
                     onClick={handleToggle}
                     className={clsx(
-                        'relative inline-flex h-7 w-12 shrink-0 cursor-pointer items-center rounded-full border transition-colors focus:ring-2 focus:ring-amber-400/60 focus:ring-offset-2 focus:ring-offset-slate-900 focus:outline-none',
-                        enabled ? 'border-amber-400 bg-amber-500' : 'border-slate-500 bg-slate-700'
+                        'relative inline-flex h-6 w-10 shrink-0 cursor-pointer items-center rounded-full border transition-colors focus:ring-2 focus:ring-slate-400/50 focus:ring-offset-2 focus:ring-offset-slate-900 focus:outline-none',
+                        enabled ? 'border-slate-400/60 bg-slate-500/70' : 'border-slate-700 bg-slate-800/70'
                     )}
                 >
                     <span
                         aria-hidden="true"
                         className={clsx(
-                            'inline-block h-5 w-5 rounded-full bg-white shadow transition-transform',
-                            enabled ? 'translate-x-6' : 'translate-x-1'
+                            'inline-block h-4 w-4 rounded-full bg-slate-300 shadow-sm transition-transform',
+                            enabled ? 'translate-x-5' : 'translate-x-1'
                         )}
                     />
                 </button>

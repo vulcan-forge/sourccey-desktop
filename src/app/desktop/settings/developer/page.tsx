@@ -4,14 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { FaArrowLeft, FaCheckCircle, FaGlobe, FaSpinner } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
-import {
-    saveDesktopEnvironmentSettings,
-    useDesktopEnvironmentSettings,
-} from '@/hooks/System/desktop-environment.hook';
-import type {
-    DesktopEnvironment,
-    DesktopEnvironmentSettings,
-} from '@/types/desktop-environment';
+import { DataCaptureSetting } from '@/components/Elements/Settings/DataCaptureSetting';
+import { saveDesktopEnvironmentSettings, useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
+import type { DesktopEnvironment, DesktopEnvironmentSettings } from '@/types/desktop-environment';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 
 const environmentCards: Array<{
@@ -90,13 +85,7 @@ export default function DesktopDeveloperSettingsPage() {
                       ? 'https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/latest.json'
                       : customUpdaterManifestUrl,
         };
-    }, [
-        customGraphqlApiUrl,
-        customStudioWebUrl,
-        customUpdaterManifestUrl,
-        environment,
-        resolvedSettings,
-    ]);
+    }, [customGraphqlApiUrl, customStudioWebUrl, customUpdaterManifestUrl, environment, resolvedSettings]);
 
     const persistEnvironmentSettings = async (
         nextEnvironment: DesktopEnvironment,
@@ -120,10 +109,7 @@ export default function DesktopDeveloperSettingsPage() {
             setCustomUpdaterManifestUrl(saved.customUpdaterManifestUrl);
             toast.success(
                 <div className="space-y-1">
-                    <div className="flex items-center gap-2 font-semibold">
-                        <FaCheckCircle className="h-4 w-4 text-emerald-300" />
-                        Desktop environment updated
-                    </div>
+                    <div className="flex items-center gap-2 font-semibold">Desktop environment updated</div>
                     <div className="text-sm text-slate-200">
                         Vulcan Studio now points at <span className="font-semibold text-white">{saved.displayName}</span>.
                     </div>
@@ -148,24 +134,14 @@ export default function DesktopDeveloperSettingsPage() {
 
     const handleEnvironmentSelect = async (nextEnvironment: DesktopEnvironment) => {
         setEnvironment(nextEnvironment);
-        await persistEnvironmentSettings(
-            nextEnvironment,
-            customGraphqlApiUrl,
-            customStudioWebUrl,
-            customUpdaterManifestUrl
-        );
+        await persistEnvironmentSettings(nextEnvironment, customGraphqlApiUrl, customStudioWebUrl, customUpdaterManifestUrl);
     };
 
     const handleDeveloperInputsBlur = async () => {
         if (!isDeveloperEnvironment) {
             return;
         }
-        await persistEnvironmentSettings(
-            'local',
-            customGraphqlApiUrl,
-            customStudioWebUrl,
-            customUpdaterManifestUrl
-        );
+        await persistEnvironmentSettings('local', customGraphqlApiUrl, customStudioWebUrl, customUpdaterManifestUrl);
     };
 
     return (
@@ -269,10 +245,7 @@ export default function DesktopDeveloperSettingsPage() {
                                     </div>
 
                                     <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4 md:col-span-2">
-                                        <label
-                                            htmlFor="custom-updater-manifest-url"
-                                            className="mb-2 block text-sm font-medium text-slate-300"
-                                        >
+                                        <label htmlFor="custom-updater-manifest-url" className="mb-2 block text-sm font-medium text-slate-300">
                                             Updater Manifest URL
                                         </label>
                                         <input
@@ -291,15 +264,15 @@ export default function DesktopDeveloperSettingsPage() {
                             <div className="grid gap-4 rounded-xl border border-slate-700 bg-slate-900/40 p-4 md:grid-cols-2">
                                 <div>
                                     <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">GraphQL API</div>
-                                    <div className="mt-2 break-all text-sm text-white">{previewSettings?.graphqlApiUrl ?? '...'}</div>
+                                    <div className="mt-2 text-sm break-all text-white">{previewSettings?.graphqlApiUrl ?? '...'}</div>
                                 </div>
                                 <div>
                                     <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Studio Website</div>
-                                    <div className="mt-2 break-all text-sm text-white">{previewSettings?.studioWebUrl ?? '...'}</div>
+                                    <div className="mt-2 text-sm break-all text-white">{previewSettings?.studioWebUrl ?? '...'}</div>
                                 </div>
                                 <div className="md:col-span-2">
                                     <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Updater Manifest</div>
-                                    <div className="mt-2 break-all text-sm text-white">{previewSettings?.updaterManifestUrl ?? '...'}</div>
+                                    <div className="mt-2 text-sm break-all text-white">{previewSettings?.updaterManifestUrl ?? '...'}</div>
                                 </div>
                             </div>
 
@@ -307,6 +280,8 @@ export default function DesktopDeveloperSettingsPage() {
                         </div>
                     )}
                 </div>
+
+                <DataCaptureSetting />
             </div>
         </div>
     );
