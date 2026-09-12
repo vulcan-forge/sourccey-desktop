@@ -3,6 +3,7 @@
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { useEffect, useState } from 'react';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
+import { DataCaptureSetting } from '@/components/Elements/Settings/DataCaptureSetting';
 import { AIRuntimeCard } from '@/components/Elements/Setup/AIRuntimeCard';
 import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
 import { useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
@@ -55,6 +56,8 @@ export default function DesktopSettingsPage() {
                         <p className="text-sm text-slate-300">Access diagnostics, update tools, and runtime environment controls for Vulcan Studio.</p>
                     </div>
                 </div>
+
+                <DataCaptureSetting />
 
                 <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
                     <div className="flex flex-col gap-4">
