@@ -1,7 +1,7 @@
 use crate::modules::dataset_sync::services::upload_service::UploadService;
 use crate::modules::dataset_sync::types::{
-    DatasetSyncIdentity, DiscoveryReport, JobsReport, QueueDatasetMetadataRequest,
-    QueuedDatasetMetadata,
+    DatasetSyncIdentity, DiscoveryReport, JobsReport, MetadataTransmissionReport,
+    QueueDatasetMetadataRequest, QueuedDatasetMetadata,
 };
 use tauri::{AppHandle, Manager};
 
@@ -43,4 +43,13 @@ pub async fn queue_dataset_metadata(
 ) -> Result<QueuedDatasetMetadata, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     UploadService::queue_metadata(db_manager.get_connection(), request).await
+}
+
+#[tauri::command]
+pub async fn transmit_queued_metadata(
+    app_handle: AppHandle,
+    limit: Option<u64>,
+) -> Result<MetadataTransmissionReport, String> {
+    let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
+    UploadService::transmit_queued_metadata(db_manager.get_connection(), limit.unwrap_or(20)).await
 }

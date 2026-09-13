@@ -1,5 +1,6 @@
 import type {
     DatasetSyncIdentity,
+    MetadataTransmissionReport,
     QueueDatasetMetadataRequest,
     QueuedDatasetMetadata,
     UploadDiscoveryReport,
@@ -23,4 +24,8 @@ export const queueDatasetMetadata = async (
     request: QueueDatasetMetadataRequest,
 ): Promise<QueuedDatasetMetadata> => {
     return invoke<QueuedDatasetMetadata>('queue_dataset_metadata', { request });
+};
+
+export const transmitQueuedMetadata = async (limit = 20): Promise<MetadataTransmissionReport> => {
+    return invoke<MetadataTransmissionReport>('transmit_queued_metadata', { limit });
 };
