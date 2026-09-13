@@ -1,6 +1,7 @@
 use migration::MigratorTrait;
 use sea_orm::*;
 use tauri::{AppHandle, Manager};
+use uuid::Uuid;
 
 pub struct DatabaseManager {
     connection: DatabaseConnection,
@@ -24,6 +25,7 @@ impl DatabaseManager {
 
         // Run migrations
         Self::run_migrations(&connection).await?;
+        Self::ensure_installation_identity(&connection).await?;
 
         Ok(Self { connection })
     }
@@ -35,6 +37,24 @@ impl DatabaseManager {
     async fn run_migrations(connection: &DatabaseConnection) -> Result<(), DbErr> {
         // Run all migrations automatically
         migration::Migrator::up(connection, None).await?;
+        Ok(())
+    }
+
+    async fn ensure_installation_identity(connection: &DatabaseConnection) -> Result<(), DbErr> {
+        let now = chrono::Utc::now();
+        connection
+            .execute(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                "INSERT OR IGNORE INTO installation_identity \
+                 (singleton_key, installation_id, customer_id, created_at, updated_at) \
+                 VALUES (1, ?, NULL, ?, ?)",
+                [
+                    Uuid::now_v7().to_string().into(),
+                    now.into(),
+                    now.into(),
+                ],
+            ))
+            .await?;
         Ok(())
     }
 

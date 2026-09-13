@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -53,4 +54,30 @@ pub struct UploadJob {
 pub struct JobsReport {
     pub protocol_version: u32,
     pub jobs: Vec<UploadJob>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DatasetSyncIdentity {
+    pub installation_id: String,
+    pub customer_id: Option<String>,
+    pub created_at: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueDatasetMetadataRequest {
+    pub robot_id: String,
+    pub dataset_id: String,
+    pub metadata: Value,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QueuedDatasetMetadata {
+    pub id: String,
+    pub object_key: String,
+    pub payload_sha256: String,
+    pub state: String,
+    pub duplicate: bool,
 }

@@ -77,8 +77,8 @@ use modules::control::services::kiosk_control::discovery_responder_service::Kios
 use modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
 };
-use modules::huggingface_upload::controllers::upload_controller::{
-    discover_upload_datasets, get_upload_jobs,
+use modules::dataset_sync::controllers::upload_controller::{
+    discover_upload_datasets, get_dataset_sync_identity, get_upload_jobs, queue_dataset_metadata,
 };
 use modules::settings::controllers::access_point::access_point_controller::{
     get_access_point_credentials, is_access_point_active, save_access_point_credentials,
@@ -711,9 +711,11 @@ fn main() {
             download_ai_model_from_huggingface,
             get_ai_model_cache_path,
 
-            // Hugging Face Upload API
+            // LeRobot Dataset Sync API
             discover_upload_datasets,
             get_upload_jobs,
+            get_dataset_sync_identity,
+            queue_dataset_metadata,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
