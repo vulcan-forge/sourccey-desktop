@@ -1,7 +1,7 @@
 import { FaGamepad, FaSlidersH } from 'react-icons/fa';
 
 import { setContent, useGetContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
-import { FaArrowLeft, FaDatabase, FaRobot } from 'react-icons/fa';
+import { FaArrowLeft, FaDatabase, FaPlayCircle, FaRobot } from 'react-icons/fa';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
 export const RobotNavbar = () => {
@@ -9,11 +9,13 @@ export const RobotNavbar = () => {
 
     const teleoperate = 'teleoperate';
     const recording = 'recording';
+    const replay = 'replay';
     const rollout = 'rollout';
     const config = 'config';
 
     const isTeleoperateActive = content === teleoperate;
     const isRecordingActive = content === recording;
+    const isReplayActive = content === replay;
     const isRolloutActive = content === rollout;
     const isConfigActive = content === config;
 
@@ -36,6 +38,9 @@ export const RobotNavbar = () => {
                     </NavButton>
                     <NavButton content={recording} icon={FaDatabase} isActive={isRecordingActive}>
                         Record Data
+                    </NavButton>
+                    <NavButton content={replay} icon={FaPlayCircle} isActive={isReplayActive}>
+                        Replay
                     </NavButton>
                     <NavButton content={rollout} icon={FaRobot} isActive={isRolloutActive}>
                         Rollout

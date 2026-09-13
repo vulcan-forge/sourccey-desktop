@@ -99,7 +99,6 @@ impl RemoteRolloutService {
         let pid = child.pid();
         let nickname_for_logs = config.nickname.clone();
         let app_handle_for_logs = app_handle.clone();
-        let shutdown_for_logs = shutdown_flag.clone();
         let rollout_log_path = process_log_path("rollout")
             .ok()
             .map(|p| p.to_string_lossy().to_string());
@@ -107,10 +106,6 @@ impl RemoteRolloutService {
         tauri::async_runtime::spawn(async move {
             let mut rollout_started = false;
             while let Some(event) = rx.recv().await {
-                if shutdown_for_logs.load(Ordering::Relaxed) {
-                    break;
-                }
-
                 match event {
                     CommandEvent::Stdout(line_bytes) => {
                         let line = String::from_utf8_lossy(&line_bytes);
@@ -225,59 +220,37 @@ impl RemoteRolloutService {
 
             ProcessService::on_process_shutdown(app_handle, pid, db_connection, command_log_id);
 
-            #[cfg(unix)]
-            {
-                Self::emit_rollout_info(
-                    app_handle,
-                    &nickname,
-                    "Stopping rollout and finalizing recorded data...",
-                );
+            Self::emit_rollout_info(
+                app_handle,
+                &nickname,
+                "Stopping rollout and finalizing recorded data...",
+            );
 
-                let signal_result = std::process::Command::new("kill")
-                    .args(["-INT", &pid.to_string()])
-                    .status();
+            let graceful_shutdown_requested = Self::request_graceful_stop(pid);
+            let app_handle_for_stop = app_handle.clone();
+            std::thread::spawn(move || {
+                let grace_period = if graceful_shutdown_requested { 30 } else { 0 };
+                let deadline =
+                    std::time::Instant::now() + std::time::Duration::from_secs(grace_period);
+                while ProcessService::is_process_alive(&app_handle_for_stop, pid)
+                    && std::time::Instant::now() < deadline
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
 
-                let graceful_shutdown_requested = match signal_result {
-                    Ok(status) if status.success() => true,
-                    Ok(status) => {
-                        Self::log_rollout_error(&format!(
-                            "Graceful rollout shutdown returned status: {}",
-                            status
-                        ));
-                        false
-                    }
-                    Err(error) => {
-                        Self::log_rollout_error(&format!(
-                            "Failed to request graceful rollout shutdown: {}",
-                            error
-                        ));
-                        false
-                    }
-                };
-
-                if !graceful_shutdown_requested {
-                    let _ = child.kill();
-                } else {
-                    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(10);
-                    while ProcessService::is_process_alive(app_handle, pid)
-                        && std::time::Instant::now() < deadline
+                if ProcessService::is_process_alive(&app_handle_for_stop, pid) {
+                    Self::log_rollout_error(
+                        "Rollout did not finish within its shutdown window; forcing its process tree to stop.",
+                    );
+                    if let Err(error) = ProcessService::kill_process_tree(&app_handle_for_stop, pid)
                     {
-                        std::thread::sleep(std::time::Duration::from_millis(100));
-                    }
-
-                    if ProcessService::is_process_alive(app_handle, pid) {
-                        Self::log_rollout_error(
-                            "Rollout did not finish finalizing within 10 seconds; forcing it to stop.",
-                        );
+                        Self::log_rollout_error(&format!(
+                            "Failed to kill rollout process tree: {error}"
+                        ));
                         let _ = child.kill();
                     }
                 }
-            }
-
-            #[cfg(not(unix))]
-            if let Err(err) = child.kill() {
-                Self::log_rollout_error(&format!("Failed to kill rollout process: {}", err));
-            }
+            });
 
             Ok(format!(
                 "Rollout command stop sent for nickname: {}",
@@ -291,6 +264,19 @@ impl RemoteRolloutService {
             Self::log_rollout_error(&message);
             Ok(message)
         }
+    }
+
+    #[cfg(unix)]
+    fn request_graceful_stop(pid: u32) -> bool {
+        std::process::Command::new("pkill")
+            .args(["-INT", "-P", &pid.to_string()])
+            .status()
+            .is_ok_and(|status| status.success())
+    }
+
+    #[cfg(not(unix))]
+    fn request_graceful_stop(_pid: u32) -> bool {
+        false
     }
 
     fn build_command_args(config: &RemoteRolloutConfig) -> Vec<String> {

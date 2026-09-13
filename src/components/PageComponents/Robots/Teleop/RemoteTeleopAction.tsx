@@ -9,10 +9,7 @@ import { RemoteControlType, RemoteRobotStatus, setRemoteRobotState, useGetRemote
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { Spinner } from '@/components/Elements/Spinner';
 import { DEFAULT_DESKTOP_TELEOP_TYPE, useDesktopTeleopCalibrationStatus } from '@/hooks/Control/desktop-calibration.hook';
-import {
-    getRemoteTeleopBlockingMessage,
-    getRemoteTeleopReadiness,
-} from '@/utils/teleop/remote-teleop-readiness';
+import { getRemoteTeleopBlockingMessage, getRemoteTeleopReadiness } from '@/utils/teleop/remote-teleop-readiness';
 import { buildDefaultRecordPath, isGeneratedRecordPath } from '@/utils/teleop/remote-record-path';
 
 export enum RobotControlStatus {
@@ -49,13 +46,19 @@ export const RemoteTeleopAction = ({
     logsSlot?: React.ReactNode;
 }) => {
     const [isLoading, setIsLoading] = useState(false);
+    const [isStoppingRecord, setIsStoppingRecord] = useState(false);
     const [isRecordSettingsOpen, setIsRecordSettingsOpen] = useState(false);
     const pressedTeleopKeys = useRef(new Set<string>());
     const startupListener = useRef<UnlistenFn | null>(null);
     const [isControlStarting, setIsControlStarting] = useState(false);
     const [startupSeconds, setStartupSeconds] = useState(0);
 
-    useEffect(() => () => { startupListener.current?.(); }, []);
+    useEffect(
+        () => () => {
+            startupListener.current?.();
+        },
+        []
+    );
     useEffect(() => {
         if (!isControlStarting) return;
         setStartupSeconds(0);
@@ -115,8 +118,22 @@ export const RemoteTeleopAction = ({
         if (!isControlling) return;
 
         const supportedKeys = new Set([
-            'w', 'a', 's', 'd', 'q', 'e', 'z', 'x', 'r', 'f', 'n', 'm',
-            'space', 'arrowleft', 'arrowright', 'escape',
+            'w',
+            'a',
+            's',
+            'd',
+            'q',
+            'e',
+            'z',
+            'x',
+            'r',
+            'f',
+            'n',
+            'm',
+            'space',
+            'arrowleft',
+            'arrowright',
+            'escape',
         ]);
         const normalizeKey = (key: string) => (key === ' ' ? 'space' : key.toLowerCase());
         const publish = () => {
@@ -171,11 +188,12 @@ export const RemoteTeleopAction = ({
     const shouldUseLeaderFallback = arePortsMissing || !isTeleopCalibrated;
     const showLeaderFallbackNotice = shouldUseLeaderFallback;
     const operationLabel = isRecordingMode ? 'Recording' : 'Teleop';
-    const leaderFallbackNotice = arePortsMissing && !isTeleopCalibrated
-        ? `No teleoperator ports or desktop teleop calibration file were found. ${operationLabel} will still start, but the arms will be down to the side. Go to Setup to add teleop arm ports and run calibration.`
-        : arePortsMissing
-          ? `No teleoperator ports were found. ${operationLabel} will still start, but the arms will be down to the side. Go to Setup to add teleop arm ports.`
-          : `No desktop teleop calibration file was found. ${operationLabel} will still start, but the arms will be down to the side until calibration is completed.`;
+    const leaderFallbackNotice =
+        arePortsMissing && !isTeleopCalibrated
+            ? `No teleoperator ports or desktop teleop calibration file were found. ${operationLabel} will still start, but the arms will be down to the side. Go to Setup to add teleop arm ports and run calibration.`
+            : arePortsMissing
+              ? `No teleoperator ports were found. ${operationLabel} will still start, but the arms will be down to the side. Go to Setup to add teleop arm ports.`
+              : `No desktop teleop calibration file was found. ${operationLabel} will still start, but the arms will be down to the side until calibration is completed.`;
 
     const recordingDraftValidation = useMemo(() => {
         if (!isRecordingMode) {
@@ -223,7 +241,9 @@ export const RemoteTeleopAction = ({
           ? recordingDraftValidation.message
           : '';
     const isControlDisabled =
-        isLoading || (!(isControlling || isControlStarting) && (isLoadingCalibration || !readiness.ready || (isRecordingMode && !recordingDraftValidation.ready)));
+        isLoading ||
+        (!(isControlling || isControlStarting) &&
+            (isLoadingCalibration || !readiness.ready || (isRecordingMode && !recordingDraftValidation.ready)));
 
     const startTeleop = async (normalized: string) => {
         if (isControlling) {
@@ -322,15 +342,35 @@ export const RemoteTeleopAction = ({
             return;
         }
 
-        const result = await invoke('stop_remote_record', { nickname: normalized });
-        setIsControlStarting(false);
-        startupListener.current?.();
-        startupListener.current = null;
-        toast.success(`Recording stopped: ${result}`, {
-            ...toastSuccessDefaults,
+        setIsStoppingRecord(true);
+        let resolveFinalized: () => void = () => {};
+        const finalized = new Promise<void>((resolve) => {
+            resolveFinalized = resolve;
         });
-        setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
-        onClose();
+        const stopListener = await listen<{ nickname: string }>('record-process-finalized', ({ payload }) => {
+            if (payload.nickname === normalized) resolveFinalized();
+        });
+
+        try {
+            const result = await invoke<string>('stop_remote_record', { nickname: normalized });
+            if (result.includes('stop requested')) {
+                await Promise.race([
+                    finalized,
+                    new Promise<never>((_, reject) =>
+                        window.setTimeout(() => reject(new Error('Recording took too long to finish saving. Check the record logs.')), 35_000)
+                    ),
+                ]);
+            }
+            setIsControlStarting(false);
+            startupListener.current?.();
+            startupListener.current = null;
+            toast.success('Recording stopped and saved.', { ...toastSuccessDefaults });
+            setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
+            onClose();
+        } finally {
+            stopListener();
+            setIsStoppingRecord(false);
+        }
     };
 
     const toggleControl = async () => {
@@ -397,7 +437,11 @@ export const RemoteTeleopAction = ({
                                   : 'cursor-pointer bg-gradient-to-r from-emerald-500 to-teal-500 text-white hover:from-emerald-400 hover:to-teal-400'
                         }`}
                     >
-                        {isCalibrationLoading ? (
+                        {isStoppingRecord ? (
+                            <>
+                                <Spinner color="white" /> Stopping Recording...
+                            </>
+                        ) : isCalibrationLoading ? (
                             <Spinner color="white" />
                         ) : isControlling || isControlStarting ? (
                             <>
@@ -411,17 +455,35 @@ export const RemoteTeleopAction = ({
                     </button>
                 </div>
             </div>
+            {isStoppingRecord && (
+                <div
+                    role="status"
+                    className="mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100"
+                >
+                    <Spinner color="white" />
+                    <div>
+                        <p className="text-sm font-semibold">Stopping recording and saving the dataset...</p>
+                        <p className="mt-1 text-xs">Finalizing frames and video files. Keep Vulcan Studio open until this finishes.</p>
+                    </div>
+                </div>
+            )}
             {isControlStarting && (
-                <div role="status" className="mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100">
+                <div
+                    role="status"
+                    className="mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100"
+                >
                     <Spinner color="white" />
                     <div>
                         <p className="text-sm font-semibold">
                             Starting {isRecordingMode ? 'recording' : 'teleop'}... {startupSeconds}s
                         </p>
                         <p className="mt-1 text-xs">
-                            Loading the runtime and connecting to the robot. Waiting for the {isRecordingMode ? 'capture' : 'control'} loop to start.
+                            Loading the runtime and connecting to the robot. Waiting for the {isRecordingMode ? 'capture' : 'control'} loop to
+                            start.
                         </p>
-                        {startupSeconds >= 60 && <p className="mt-1 text-xs">Startup is taking longer than expected. Check the logs below, or cancel and retry.</p>}
+                        {startupSeconds >= 60 && (
+                            <p className="mt-1 text-xs">Startup is taking longer than expected. Check the logs below, or cancel and retry.</p>
+                        )}
                     </div>
                 </div>
             )}
@@ -435,8 +497,8 @@ export const RemoteTeleopAction = ({
                 <div className="mt-4 rounded-2xl border border-emerald-500/40 bg-emerald-500/10 p-4">
                     <div className="text-sm font-semibold text-emerald-100">Recording keyboard controls</div>
                     <p className="mt-1 text-xs text-emerald-100/90">
-                        Press the left arrow key to reset the current run without saving. Press the right arrow key to stop the
-                        recording and save it.
+                        Press the left arrow key to reset the current run without saving. Press the right arrow key to stop the recording and
+                        save it.
                     </p>
                 </div>
             )}
@@ -535,11 +597,13 @@ export interface RemoteRecordConfig {
 export const startRemoteControlText = {
     [RemoteControlType.TELEOP]: 'Start Control',
     [RemoteControlType.RECORDING]: 'Start Recording',
+    [RemoteControlType.REPLAY]: 'Start Replay',
     [RemoteControlType.INFERENCE]: 'Start Inference',
 };
 
 export const stopRemoteControlText = {
     [RemoteControlType.TELEOP]: 'Stop Control',
     [RemoteControlType.RECORDING]: 'Stop Recording',
+    [RemoteControlType.REPLAY]: 'Stop Replay',
     [RemoteControlType.INFERENCE]: 'Stop Inference',
 };

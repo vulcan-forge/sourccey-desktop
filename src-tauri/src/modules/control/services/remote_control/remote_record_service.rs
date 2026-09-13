@@ -109,7 +109,6 @@ impl RemoteRecordService {
         #[cfg(feature = "desktop")]
         let db_connection_for_sync = db_connection.clone();
         let app_handle_for_logs = app_handle.clone();
-        let shutdown_for_logs = shutdown_flag.clone();
         let record_log_path = process_log_path("record")
             .ok()
             .map(|p| p.to_string_lossy().to_string());
@@ -117,10 +116,6 @@ impl RemoteRecordService {
         tauri::async_runtime::spawn(async move {
             let mut capture_started = false;
             while let Some(event) = rx.recv().await {
-                if shutdown_for_logs.load(Ordering::Relaxed) {
-                    break;
-                }
-
                 match event {
                     CommandEvent::Stdout(line_bytes) => {
                         let line = String::from_utf8_lossy(&line_bytes);
@@ -217,7 +212,9 @@ impl RemoteRecordService {
                                             Self::emit_record_info(
                                                 &app_handle_for_sync,
                                                 &nickname_for_sync,
-                                                &format!("Dataset metadata remains queued: {error}"),
+                                                &format!(
+                                                    "Dataset metadata remains queued: {error}"
+                                                ),
                                             );
                                         }
                                     }
@@ -274,21 +271,76 @@ impl RemoteRecordService {
         {
             shutdown_flag.store(true, Ordering::Relaxed);
 
-            ProcessService::on_process_shutdown(
+            let pid = child.pid();
+
+            ProcessService::on_process_shutdown(app_handle, pid, db_connection, command_log_id);
+
+            Self::emit_record_info(
                 app_handle,
-                child.pid(),
-                db_connection,
-                command_log_id,
+                &nickname,
+                "Stopping recording and finalizing captured data...",
             );
 
-            if let Err(err) = child.kill() {
-                let message = format!("Failed to kill record process: {}", err);
-                Self::log_record_error(&message);
-            }
-            let _ = std::fs::remove_file(RemoteTeleopService::keyboard_state_path(&nickname));
+            // The recorder already treats an Escape key edge as a graceful stop.
+            // Send that through the focused keyboard bridge so its control loop
+            // stops immediately and its existing finally block can save the
+            // episode, finalize video, and disconnect the robot.
+            let graceful_stop_requested = match RemoteTeleopService::update_keyboard_state(
+                &nickname,
+                &["escape".to_string()],
+            ) {
+                Ok(()) => true,
+                Err(err) => {
+                    let message = format!("Failed to request graceful recording stop: {}", err);
+                    Self::log_record_error(&message);
+                    false
+                }
+            };
+
+            // Keep ownership of the wrapper while Python finalizes. If the
+            // graceful stop is not honored, terminate the complete uv/Python
+            // process tree instead of killing only uv and orphaning Python.
+            let app_handle_for_stop = app_handle.clone();
+            let nickname_for_stop = nickname.clone();
+            std::thread::spawn(move || {
+                let grace_period = if graceful_stop_requested { 30 } else { 0 };
+                let deadline =
+                    std::time::Instant::now() + std::time::Duration::from_secs(grace_period);
+                while ProcessService::is_process_alive(&app_handle_for_stop, pid)
+                    && std::time::Instant::now() < deadline
+                {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                }
+
+                if ProcessService::is_process_alive(&app_handle_for_stop, pid) {
+                    Self::log_record_error(
+                        "Recording did not finish finalizing within 30 seconds; forcing its process tree to stop.",
+                    );
+                    if let Err(err) = ProcessService::kill_process_tree(&app_handle_for_stop, pid) {
+                        Self::log_record_error(&format!(
+                            "Failed to kill record process tree: {}",
+                            err
+                        ));
+                        let _ = child.kill();
+                    }
+                }
+
+                let _ = std::fs::remove_file(RemoteTeleopService::keyboard_state_path(
+                    &nickname_for_stop,
+                ));
+                Self::emit_record_info(
+                    &app_handle_for_stop,
+                    &nickname_for_stop,
+                    "Recording stopped and captured data is saved.",
+                );
+                let _ = app_handle_for_stop.emit(
+                    "record-process-finalized",
+                    serde_json::json!({ "nickname": nickname_for_stop }),
+                );
+            });
 
             Ok(format!(
-                "Record command stop sent for nickname: {}",
+                "Record command stop requested for nickname: {}",
                 nickname
             ))
         } else {
@@ -316,12 +368,10 @@ impl RemoteRecordService {
             "--teleop_keyboard.type=keyboard".to_string(),
             format!("--teleop_keyboard.id={}", config.keyboard.trim()),
         ];
-        if cfg!(target_os = "macos") {
-            args.push(format!(
-                "--teleop_keyboard.input_state_path={}",
-                RemoteTeleopService::keyboard_state_path(&config.nickname).display()
-            ));
-        }
+        args.push(format!(
+            "--teleop_keyboard.input_state_path={}",
+            RemoteTeleopService::keyboard_state_path(&config.nickname).display()
+        ));
         args.extend([
             format!("--dataset.repo_id={}", config.repo_id.trim()),
             format!("--dataset.num_episodes={}", config.num_episodes),
@@ -436,6 +486,10 @@ mod tests {
         assert!(command_parts
             .iter()
             .any(|part| part == "--teleop_keyboard.id=keyboard"));
+        assert!(command_parts.iter().any(|part| {
+            part.starts_with("--teleop_keyboard.input_state_path=")
+                && part.ends_with("sourccey-keyboard-robot_1.json")
+        }));
         assert!(command_parts
             .iter()
             .any(|part| part == "--dataset.push_to_hub=false"));

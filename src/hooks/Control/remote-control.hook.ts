@@ -25,6 +25,7 @@ export enum RemoteControlType {
     NONE = 'none',
     TELEOP = 'teleop',
     RECORDING = 'recording',
+    REPLAY = 'replay',
     ROLLOUT = 'rollout',
     INFERENCE = 'inference',
 }

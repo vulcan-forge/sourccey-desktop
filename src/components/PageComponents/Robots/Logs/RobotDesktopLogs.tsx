@@ -11,7 +11,7 @@ type RobotDesktopLogsProps = {
     isControlling: boolean;
     nickname?: string;
     embedded?: boolean;
-    mode?: 'teleoperation' | 'recording' | 'rollout' | 'inference';
+    mode?: 'teleoperation' | 'recording' | 'replay' | 'rollout' | 'inference';
 };
 
 type SshPayload = {
@@ -72,6 +72,14 @@ const MODE_COPY = {
         inactiveLabel: 'Recording log stream is inactive',
         eventNames: ['record-log'],
     },
+    replay: {
+        title: 'Replay Logs',
+        activeLabel: 'Live replay output',
+        idleLabel: 'Replay idle',
+        waitingLabel: 'Waiting for replay output...',
+        inactiveLabel: 'Replay log stream is inactive',
+        eventNames: ['replay-log'],
+    },
     rollout: {
         title: 'Rollout Logs',
         activeLabel: 'Live rollout output',
@@ -90,12 +98,7 @@ const MODE_COPY = {
     },
 } as const;
 
-export const RobotDesktopLogs = ({
-    isControlling,
-    nickname,
-    embedded = false,
-    mode = 'teleoperation',
-}: RobotDesktopLogsProps) => {
+export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false, mode = 'teleoperation' }: RobotDesktopLogsProps) => {
     const { data: desktopEnvironmentSettings } = useDesktopEnvironmentSettings();
     const [controlLogs, setControlLogs] = useState<string[]>([]);
     const [isExpanded, setIsExpanded] = useState(isControlling);
@@ -270,9 +273,7 @@ export const RobotDesktopLogs = ({
                                     </div>
                                 ))
                             ) : (
-                                <div className="text-sm text-slate-400">
-                                    {isControlling ? modeCopy.waitingLabel : modeCopy.inactiveLabel}
-                                </div>
+                                <div className="text-sm text-slate-400">{isControlling ? modeCopy.waitingLabel : modeCopy.inactiveLabel}</div>
                             )}
                         </div>
                     </div>

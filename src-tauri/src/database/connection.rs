@@ -48,11 +48,7 @@ impl DatabaseManager {
                 "INSERT OR IGNORE INTO installation_identity \
                  (singleton_key, installation_id, customer_id, created_at, updated_at) \
                  VALUES (1, ?, NULL, ?, ?)",
-                [
-                    Uuid::now_v7().to_string().into(),
-                    now.into(),
-                    now.into(),
-                ],
+                [Uuid::now_v7().to_string().into(), now.into(), now.into()],
             ))
             .await?;
         Ok(())

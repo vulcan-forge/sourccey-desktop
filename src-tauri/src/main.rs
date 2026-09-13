@@ -67,6 +67,9 @@ use modules::control::controllers::remote_control::remote_inference_controller::
 use modules::control::controllers::remote_control::remote_record_controller::{
     init_remote_record, start_remote_record, stop_remote_record,
 };
+use modules::control::controllers::remote_control::remote_replay_controller::{
+    discover_replay_datasets, init_remote_replay, start_remote_replay, stop_remote_replay,
+};
 use modules::control::controllers::remote_control::remote_rollout_controller::{
     init_remote_rollout, start_remote_rollout, stop_remote_rollout,
 };
@@ -598,6 +601,7 @@ fn main() {
         // Initialize all services
         .manage(init_remote_teleop())
         .manage(init_remote_record())
+        .manage(init_remote_replay())
         .manage(init_remote_rollout())
         .manage(init_remote_inference())
         .manage(kiosk_host_state)
@@ -660,6 +664,9 @@ fn main() {
             set_remote_teleop_keys,
             start_remote_record,
             stop_remote_record,
+            start_remote_replay,
+            stop_remote_replay,
+            discover_replay_datasets,
             start_remote_rollout,
             stop_remote_rollout,
             start_remote_inference,

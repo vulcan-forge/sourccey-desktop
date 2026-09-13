@@ -118,7 +118,8 @@ impl UploadService {
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|error| format!("Failed to initialize dataset sync client: {error}"))?;
-        let token = Self::register_installation(&client, &api_base, &identity.installation_id).await?;
+        let token =
+            Self::register_installation(&client, &api_base, &identity.installation_id).await?;
 
         for row in rows {
             let id: String = row.try_get("", "id").map_err(|error| error.to_string())?;
@@ -176,7 +177,9 @@ impl UploadService {
         installation_id: &str,
     ) -> Result<String, String> {
         let response = client
-            .post(format!("{api_base}/api/v1/dataset-sync/installations/register"))
+            .post(format!(
+                "{api_base}/api/v1/dataset-sync/installations/register"
+            ))
             .json(&InstallationRegistrationRequest {
                 installation_id: installation_id.to_string(),
             })
@@ -192,7 +195,9 @@ impl UploadService {
                 .chars()
                 .take(1024)
                 .collect();
-            return Err(format!("Dataset sync registration failed ({status}): {detail}"));
+            return Err(format!(
+                "Dataset sync registration failed ({status}): {detail}"
+            ));
         }
 
         response
@@ -248,8 +253,13 @@ impl UploadService {
 
         let mut upload = client.put(&presigned.upload_url).body(payload_json);
         for (name, value) in &presigned.required_headers {
-            if !matches!(name.to_ascii_lowercase().as_str(), "content-type" | "content-length") {
-                return Err(format!("Backend returned an unsupported required header: {name}"));
+            if !matches!(
+                name.to_ascii_lowercase().as_str(),
+                "content-type" | "content-length"
+            ) {
+                return Err(format!(
+                    "Backend returned an unsupported required header: {name}"
+                ));
             }
             upload = upload.header(name, value);
         }
@@ -258,7 +268,10 @@ impl UploadService {
             .await
             .map_err(|error| format!("Failed to upload metadata to object storage: {error}"))?;
         if !response.status().is_success() {
-            return Err(format!("Object storage rejected metadata with status {}", response.status()));
+            return Err(format!(
+                "Object storage rejected metadata with status {}",
+                response.status()
+            ));
         }
         let etag = response
             .headers()

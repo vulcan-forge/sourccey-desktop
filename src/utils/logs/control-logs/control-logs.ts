@@ -167,6 +167,7 @@ class ProcessShutdownManager {
         const shutdownEvents = [
             { event: 'teleop-process-shutdown', controlType: ControlType.TELEOP, name: 'Teleop' },
             { event: 'record-process-shutdown', controlType: ControlType.RECORDING, name: 'Recording' },
+            { event: 'replay-process-shutdown', controlType: ControlType.REPLAY, name: 'Replay' },
             { event: 'rollout-process-shutdown', controlType: ControlType.ROLLOUT, name: 'Rollout' },
             { event: 'inference-process-shutdown', controlType: ControlType.AIMODEL, name: 'Inference' },
         ];

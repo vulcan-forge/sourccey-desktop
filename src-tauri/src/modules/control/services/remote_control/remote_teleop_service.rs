@@ -287,12 +287,13 @@ impl RemoteTeleopService {
             "--teleop_keyboard.type=keyboard".to_string(),
             format!("--teleop_keyboard.id={}", config.keyboard.trim()),
         ];
-        if cfg!(target_os = "macos") {
-            args.push(format!(
-                "--teleop_keyboard.input_state_path={}",
-                Self::keyboard_state_path(&config.nickname).display()
-            ));
-        }
+        // Always use the app-owned keyboard bridge. Besides working when the
+        // LeRobot process is not focused, this gives teleop the same
+        // deterministic middle-speed startup behavior as recording.
+        args.push(format!(
+            "--teleop_keyboard.input_state_path={}",
+            Self::keyboard_state_path(&config.nickname).display()
+        ));
         args.extend([
             format!("--fps={}", config.fps),
             format!("--display_data={}", config.display_data),
@@ -377,6 +378,9 @@ mod tests {
         assert!(command_parts
             .iter()
             .any(|part| part == "--teleop_keyboard.id=keyboard"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part.starts_with("--teleop_keyboard.input_state_path=")));
         assert!(command_parts
             .iter()
             .any(|part| part == "--display_data=false"));

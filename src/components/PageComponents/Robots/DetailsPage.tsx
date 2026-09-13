@@ -13,7 +13,11 @@ export const RobotDetailsPage = () => {
     const activeContent = (content as string) ?? 'teleoperate';
     const showConfigContent = activeContent === 'config' || activeContent === 'calibration';
     const showOperationsWorkspace =
-        activeContent === 'overview' || activeContent === 'teleoperate' || activeContent === 'recording' || activeContent === 'rollout';
+        activeContent === 'overview' ||
+        activeContent === 'teleoperate' ||
+        activeContent === 'recording' ||
+        activeContent === 'replay' ||
+        activeContent === 'rollout';
     const workspaceContent = activeContent === 'overview' ? 'teleoperate' : activeContent;
 
     if (!ownedRobot) {
