@@ -24,6 +24,24 @@ const STDERR_LIMIT: usize = 4096;
 pub struct UploadService;
 
 impl UploadService {
+    pub async fn retry_metadata_on_startup(
+        connection: &DatabaseConnection,
+    ) -> Result<MetadataTransmissionReport, String> {
+        connection
+            .execute(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                "UPDATE dataset_metadata_upload \
+                 SET state = 'queued', updated_at = ?, next_attempt_at = NULL, \
+                     last_error = 'Upload interrupted by application shutdown' \
+                 WHERE state = 'uploading'",
+                [Utc::now().into()],
+            ))
+            .await
+            .map_err(|error| format!("Failed to recover interrupted metadata uploads: {error}"))?;
+
+        Self::transmit_queued_metadata(connection, 20).await
+    }
+
     pub async fn queue_completed_dataset_metadata(
         connection: &DatabaseConnection,
         robot_id: &str,
@@ -68,17 +86,6 @@ impl UploadService {
         limit: u64,
     ) -> Result<MetadataTransmissionReport, String> {
         let limit = limit.clamp(1, 100);
-        let identity = Self::get_identity(connection)
-            .await
-            .map_err(|error| format!("Failed to load installation identity: {error}"))?;
-        let api_base = Self::dataset_sync_api_base_url()?;
-        let client = reqwest::Client::builder()
-            .timeout(Duration::from_secs(60))
-            .redirect(reqwest::redirect::Policy::none())
-            .build()
-            .map_err(|error| format!("Failed to initialize dataset sync client: {error}"))?;
-        let token = Self::register_installation(&client, &api_base, &identity.installation_id).await?;
-
         let rows = connection
             .query_all(Statement::from_sql_and_values(
                 DbBackend::Sqlite,
@@ -98,6 +105,20 @@ impl UploadService {
             completed: 0,
             failed: 0,
         };
+        if rows.is_empty() {
+            return Ok(report);
+        }
+
+        let identity = Self::get_identity(connection)
+            .await
+            .map_err(|error| format!("Failed to load installation identity: {error}"))?;
+        let api_base = Self::dataset_sync_api_base_url()?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(60))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|error| format!("Failed to initialize dataset sync client: {error}"))?;
+        let token = Self::register_installation(&client, &api_base, &identity.installation_id).await?;
 
         for row in rows {
             let id: String = row.try_get("", "id").map_err(|error| error.to_string())?;
