@@ -351,6 +351,11 @@ fn is_kiosk_from_args() -> bool {
     is_kiosk_from_env() || std::env::args().any(|a| a == "--kiosk")
 }
 
+#[cfg(feature = "desktop")]
+fn should_start_dataset_sync(kiosk: bool) -> bool {
+    !kiosk
+}
+
 #[tauri::command]
 fn get_app_mode(state: tauri::State<AppMode>) -> bool {
     state.0
@@ -530,8 +535,16 @@ fn main() {
                         app_handle.manage(db_manager);
                         println!("Database manager added to app state");
                         #[cfg(feature = "desktop")]
-                        if !kiosk {
+                        if should_start_dataset_sync(kiosk) {
                             tauri::async_runtime::spawn(async move {
+                                if let Err(error) = UploadService::register_on_startup(
+                                    &dataset_sync_connection,
+                                )
+                                .await
+                                {
+                                    eprintln!("Dataset sync startup registration deferred: {error}");
+                                }
+
                                 match UploadService::retry_metadata_on_startup(
                                     &dataset_sync_connection,
                                 )
