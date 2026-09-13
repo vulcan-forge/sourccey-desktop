@@ -24,6 +24,21 @@ const STDERR_LIMIT: usize = 4096;
 pub struct UploadService;
 
 impl UploadService {
+    pub async fn register_on_startup(connection: &DatabaseConnection) -> Result<(), String> {
+        let identity = Self::get_identity(connection)
+            .await
+            .map_err(|error| format!("Failed to load installation identity: {error}"))?;
+        let api_base = Self::dataset_sync_api_base_url()?;
+        let client = reqwest::Client::builder()
+            .timeout(Duration::from_secs(30))
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|error| format!("Failed to initialize dataset sync client: {error}"))?;
+
+        Self::register_installation(&client, &api_base, &identity.installation_id).await?;
+        Ok(())
+    }
+
     pub async fn retry_metadata_on_startup(
         connection: &DatabaseConnection,
     ) -> Result<MetadataTransmissionReport, String> {
