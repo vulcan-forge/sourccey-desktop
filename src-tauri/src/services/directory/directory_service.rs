@@ -105,10 +105,10 @@ impl DirectoryService {
         Ok(lerobot_vulcan_dir)
     }
 
-    pub fn get_huggingface_upload_dir() -> Result<PathBuf, String> {
+    pub fn get_dataset_sync_dir() -> Result<PathBuf, String> {
         Ok(Self::get_current_dir()?
             .join("modules")
-            .join("huggingface-upload"))
+            .join("lerobot-dataset-sync"))
     }
 
     pub fn get_lerobot_cache_dir() -> Result<PathBuf, String> {

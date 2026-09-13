@@ -42,3 +42,23 @@ export interface UploadJobsReport {
     protocolVersion: number;
     jobs: UploadJob[];
 }
+
+export interface DatasetSyncIdentity {
+    installationId: string;
+    customerId: string | null;
+    createdAt: string;
+}
+
+export interface QueueDatasetMetadataRequest {
+    robotId: string;
+    datasetId: string;
+    metadata: unknown;
+}
+
+export interface QueuedDatasetMetadata {
+    id: string;
+    objectKey: string;
+    payloadSha256: string;
+    state: string;
+    duplicate: boolean;
+}

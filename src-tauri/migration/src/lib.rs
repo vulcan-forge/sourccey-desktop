@@ -11,6 +11,7 @@ mod m20250727_000001_add_owned_robot_indexes;
 mod m20260219_000001_drop_owned_robot_profile_id;
 mod m20260219_000002_add_ai_model_table;
 mod m20260220_000001_add_ai_model_metadata;
+mod m20260913_000001_add_dataset_sync_tables;
 
 pub struct Migrator;
 
@@ -29,6 +30,7 @@ impl MigratorTrait for Migrator {
             Box::new(m20260219_000001_drop_owned_robot_profile_id::Migration),
             Box::new(m20260219_000002_add_ai_model_table::Migration),
             Box::new(m20260220_000001_add_ai_model_metadata::Migration),
+            Box::new(m20260913_000001_add_dataset_sync_tables::Migration),
         ]
     }
 }
