@@ -4,6 +4,7 @@ use crate::modules::control::services::remote_control::remote_command_utils::{
     resolve_uv_runtime, write_process_log, ManagedRemoteProcesses,
 };
 use crate::modules::control::services::remote_control::remote_teleop_service::RemoteTeleopService;
+#[cfg(feature = "desktop")]
 use crate::modules::dataset_sync::services::upload_service::UploadService;
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
@@ -101,8 +102,11 @@ impl RemoteRecordService {
 
         let pid = child.pid();
         let nickname_for_logs = config.nickname.clone();
+        #[cfg(feature = "desktop")]
         let robot_id_for_sync = config.robot_id.clone();
+        #[cfg(feature = "desktop")]
         let repo_id_for_sync = config.repo_id.clone();
+        #[cfg(feature = "desktop")]
         let db_connection_for_sync = db_connection.clone();
         let app_handle_for_logs = app_handle.clone();
         let shutdown_for_logs = shutdown_flag.clone();
@@ -167,6 +171,7 @@ impl RemoteRecordService {
                         }
                     }
                     CommandEvent::Terminated(payload) => {
+                        #[cfg(feature = "desktop")]
                         let completed_successfully = capture_started && payload.code == Some(0);
                         let message = format!(
                             "Record process terminated (code={:?}, signal={:?})",
@@ -179,6 +184,7 @@ impl RemoteRecordService {
                         if let Some(path) = &record_log_path {
                             LogService::write_log_line(path, Some("record"), &message);
                         }
+                        #[cfg(feature = "desktop")]
                         if completed_successfully {
                             let app_handle_for_sync = app_handle_for_logs.clone();
                             let nickname_for_sync = nickname_for_logs.clone();
@@ -382,6 +388,7 @@ mod tests {
 
     fn valid_config() -> RemoteRecordConfig {
         RemoteRecordConfig {
+            robot_id: "robot-id-1".to_string(),
             nickname: "robot-1".to_string(),
             remote_ip: "192.168.1.100".to_string(),
             left_arm_port: "/dev/ttyACM0".to_string(),

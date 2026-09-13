@@ -77,10 +77,12 @@ use modules::control::services::kiosk_control::discovery_responder_service::Kios
 use modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
 };
+#[cfg(feature = "desktop")]
 use modules::dataset_sync::controllers::upload_controller::{
     discover_upload_datasets, get_dataset_sync_identity, get_upload_jobs, queue_dataset_metadata,
     transmit_queued_metadata,
 };
+#[cfg(feature = "desktop")]
 use modules::dataset_sync::services::upload_service::UploadService;
 use modules::settings::controllers::access_point::access_point_controller::{
     get_access_point_credentials, is_access_point_active, save_access_point_credentials,
@@ -520,9 +522,11 @@ fn main() {
                 match DatabaseManager::new(&app_handle).await {
                     Ok(db_manager) => {
                         println!("Database initialized successfully");
+                        #[cfg(feature = "desktop")]
                         let dataset_sync_connection = db_manager.get_connection().clone();
                         app_handle.manage(db_manager);
                         println!("Database manager added to app state");
+                        #[cfg(feature = "desktop")]
                         if !kiosk {
                             tauri::async_runtime::spawn(async move {
                                 match UploadService::retry_metadata_on_startup(
@@ -733,10 +737,15 @@ fn main() {
             get_ai_model_cache_path,
 
             // LeRobot Dataset Sync API
+            #[cfg(feature = "desktop")]
             discover_upload_datasets,
+            #[cfg(feature = "desktop")]
             get_upload_jobs,
+            #[cfg(feature = "desktop")]
             get_dataset_sync_identity,
+            #[cfg(feature = "desktop")]
             queue_dataset_metadata,
+            #[cfg(feature = "desktop")]
             transmit_queued_metadata,
         ])
         .run(tauri::generate_context!())

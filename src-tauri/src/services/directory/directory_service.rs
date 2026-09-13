@@ -105,6 +105,7 @@ impl DirectoryService {
         Ok(lerobot_vulcan_dir)
     }
 
+    #[cfg(feature = "desktop")]
     pub fn get_dataset_sync_dir() -> Result<PathBuf, String> {
         Ok(Self::get_current_dir()?
             .join("modules")
