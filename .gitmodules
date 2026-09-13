@@ -2,3 +2,7 @@
 	path = modules/lerobot-vulcan
 	url = https://github.com/vulcan-forge/lerobot-vulcan.git
 	branch = main
+[submodule "modules/huggingface-upload"]
+	path = modules/huggingface-upload
+	url = https://github.com/vulcan-forge/huggingface-upload.git
+	branch = main
