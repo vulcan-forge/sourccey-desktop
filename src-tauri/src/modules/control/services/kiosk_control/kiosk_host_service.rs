@@ -245,10 +245,85 @@ impl KioskHostService {
             // Wait for a short time for graceful shutdown
             std::thread::sleep(std::time::Duration::from_secs(2));
 
-            // Force kill if still running
-            if let Err(_) = child.try_wait() {
-                println!("Force killing kiosk host process PID: {}", pid);
-                let _ = child.kill();
+            // `try_wait()` returns Ok(None) while the process is still alive.
+            // The previous check only killed on Err, so a normally-running host
+            // was removed from managed state but left alive on the machine.
+            let still_running = match child.try_wait() {
+                Ok(Some(status)) => {
+                    println!(
+                        "Kiosk host process PID {} exited gracefully with status {}",
+                        pid, status
+                    );
+                    false
+                }
+                Ok(None) => true,
+                Err(error) => {
+                    Self::debug_emit(
+                        &app_handle,
+                        &format!(
+                            "Could not query kiosk host process PID {} before forced shutdown: {}",
+                            pid, error
+                        ),
+                    );
+                    true
+                }
+            };
+
+            if still_running {
+                println!("Force killing kiosk host process tree PID: {}", pid);
+                let tree_kill_result = ProcessService::kill_process_tree(&app_handle, pid);
+
+                // Ensure the direct child is terminated too. This is important on
+                // Unix where kill_process_tree first requests SIGTERM, while on
+                // Windows taskkill may already have ended the child.
+                let direct_kill_result = child.kill();
+
+                let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+                let stopped = loop {
+                    match child.try_wait() {
+                        Ok(Some(status)) => {
+                            println!(
+                                "Kiosk host process PID {} stopped with status {}",
+                                pid, status
+                            );
+                            break true;
+                        }
+                        Ok(None) if std::time::Instant::now() < deadline => {
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                        }
+                        Ok(None) => break false,
+                        Err(error) => {
+                            Self::debug_emit(
+                                &app_handle,
+                                &format!(
+                                    "Failed to verify kiosk host process PID {} shutdown: {}",
+                                    pid, error
+                                ),
+                            );
+                            break false;
+                        }
+                    }
+                };
+
+                if !stopped {
+                    let error = format!(
+                        "Failed to stop kiosk host process PID {} (tree kill: {:?}, direct kill: {:?})",
+                        pid,
+                        tree_kill_result.err(),
+                        direct_kill_result.err()
+                    );
+                    Self::debug_emit(&app_handle, &error);
+                    if emit_events {
+                        let _ = app_handle.emit(
+                            "kiosk-host-stop-error",
+                            serde_json::json!({
+                                "nickname": nickname,
+                                "error": error,
+                            }),
+                        );
+                    }
+                    return Err(error);
+                }
             }
 
             // Emit stop success event

@@ -257,9 +257,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
 
                 if (!isRobotStarted && !isStopping && !suppressAutoStartingRef.current) {
                     const hasPendingManualStart = startRequestedAtRef.current > 0;
-                    const hasWaitedLongEnough =
-                        hasPendingManualStart &&
-                        Date.now() - startRequestedAtRef.current >= ACTIVE_START_CONFIRM_MS;
+                    const hasWaitedLongEnough = hasPendingManualStart && Date.now() - startRequestedAtRef.current >= ACTIVE_START_CONFIRM_MS;
 
                     if (hasWaitedLongEnough || !hasPendingManualStart) {
                         hasConfirmedStartRef.current = true;
@@ -326,6 +324,10 @@ export const useKioskRobotStartStop = (nickname: string) => {
         setIsStarting(false);
         try {
             await invoke<string>('stop_kiosk_host', { nickname });
+            // The backend only resolves after it has verified that the host
+            // process exited. Keep the UI correct even if the Tauri success
+            // event was emitted before the shared listener finished attaching.
+            completeStop();
         } catch (error: any) {
             failStop();
 
