@@ -42,7 +42,14 @@ pub async fn queue_dataset_metadata(
     request: QueueDatasetMetadataRequest,
 ) -> Result<QueuedDatasetMetadata, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
-    UploadService::queue_metadata(db_manager.get_connection(), request).await
+    let queued = UploadService::queue_metadata(db_manager.get_connection(), request).await?;
+    let connection = db_manager.get_connection().clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = UploadService::transmit_queued_metadata(&connection, 20).await {
+            eprintln!("Dataset metadata remains queued: {error}");
+        }
+    });
+    Ok(queued)
 }
 
 #[tauri::command]
