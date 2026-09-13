@@ -27,6 +27,7 @@ pub struct ReplayDatasetSummary {
     pub name: String,
     pub repo_id: String,
     pub path: String,
+    pub created_at_ms: Option<u64>,
     pub total_episodes: u64,
     pub total_frames: u64,
 }

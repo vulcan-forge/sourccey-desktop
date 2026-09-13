@@ -1,7 +1,8 @@
 use crate::modules::control::controllers::remote_control::remote_inference_controller::RemoteInferenceConfig;
 use crate::modules::control::services::remote_control::remote_command_utils::{
     create_command_log, format_command_for_display, init_managed_processes, process_log_path,
-    resolve_uv_runtime, validate_rollout_model_path, write_process_log, ManagedRemoteProcesses,
+    resolve_policy_model_path, resolve_uv_runtime, validate_rollout_model_path, write_process_log,
+    ManagedRemoteProcesses,
 };
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
@@ -26,7 +27,7 @@ impl RemoteInferenceService {
         app_handle: AppHandle,
         db_connection: DatabaseConnection,
         state: &RemoteInferenceProcess,
-        config: RemoteInferenceConfig,
+        mut config: RemoteInferenceConfig,
     ) -> Result<String, String> {
         Self::validate_config(&config)?;
 
@@ -51,6 +52,8 @@ impl RemoteInferenceService {
         let executable = runtime.executable.clone();
         let working_dir = runtime.working_dir.clone();
         let envs = runtime.envs;
+        config.model_path =
+            resolve_policy_model_path(&config.model_path, std::path::Path::new(&working_dir))?;
         let command_parts = Self::build_command_args(&config);
         let command_display = format_command_for_display(&command_parts);
 

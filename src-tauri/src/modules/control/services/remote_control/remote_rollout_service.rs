@@ -1,7 +1,8 @@
 use crate::modules::control::controllers::remote_control::remote_rollout_controller::RemoteRolloutConfig;
 use crate::modules::control::services::remote_control::remote_command_utils::{
     create_command_log, format_command_for_display, init_managed_processes, process_log_path,
-    resolve_uv_runtime, validate_rollout_model_path, write_process_log, ManagedRemoteProcesses,
+    resolve_policy_model_path, resolve_uv_runtime, validate_rollout_model_path, write_process_log,
+    ManagedRemoteProcesses,
 };
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
@@ -28,7 +29,7 @@ impl RemoteRolloutService {
         app_handle: AppHandle,
         db_connection: DatabaseConnection,
         state: &RemoteRolloutProcess,
-        config: RemoteRolloutConfig,
+        mut config: RemoteRolloutConfig,
     ) -> Result<String, String> {
         Self::validate_config(&config)?;
 
@@ -53,6 +54,10 @@ impl RemoteRolloutService {
         let executable = runtime.executable.clone();
         let working_dir = runtime.working_dir.clone();
         let envs = runtime.envs;
+        let stop_path = Self::stop_request_path(&config.nickname);
+        let _ = std::fs::remove_file(&stop_path);
+        config.model_path =
+            resolve_policy_model_path(&config.model_path, std::path::Path::new(&working_dir))?;
         let command_parts = Self::build_command_args(&config);
         let command_display = format_command_for_display(&command_parts);
 
@@ -171,6 +176,7 @@ impl RemoteRolloutService {
                         if let Some(path) = &rollout_log_path {
                             LogService::write_log_line(path, Some("rollout"), &message);
                         }
+                        let _ = std::fs::remove_file(Self::stop_request_path(&nickname_for_logs));
                         break;
                     }
                     _ => {}
@@ -226,10 +232,21 @@ impl RemoteRolloutService {
                 "Stopping rollout and finalizing recorded data...",
             );
 
-            let graceful_shutdown_requested = Self::request_graceful_stop(pid);
+            let stop_path = Self::stop_request_path(&nickname);
+            let graceful_shutdown_requested = match std::fs::write(&stop_path, b"stop") {
+                Ok(()) => true,
+                Err(error) => {
+                    Self::log_rollout_error(&format!(
+                        "Failed to request graceful rollout shutdown through {}: {error}",
+                        stop_path.display()
+                    ));
+                    Self::request_signal_stop(pid)
+                }
+            };
             let app_handle_for_stop = app_handle.clone();
+            let nickname_for_stop = nickname.clone();
             std::thread::spawn(move || {
-                let grace_period = if graceful_shutdown_requested { 30 } else { 0 };
+                let grace_period = if graceful_shutdown_requested { 60 } else { 0 };
                 let deadline =
                     std::time::Instant::now() + std::time::Duration::from_secs(grace_period);
                 while ProcessService::is_process_alive(&app_handle_for_stop, pid)
@@ -238,7 +255,9 @@ impl RemoteRolloutService {
                     std::thread::sleep(std::time::Duration::from_millis(100));
                 }
 
+                let mut forced = false;
                 if ProcessService::is_process_alive(&app_handle_for_stop, pid) {
+                    forced = true;
                     Self::log_rollout_error(
                         "Rollout did not finish within its shutdown window; forcing its process tree to stop.",
                     );
@@ -250,6 +269,17 @@ impl RemoteRolloutService {
                         let _ = child.kill();
                     }
                 }
+                let _ = std::fs::remove_file(&stop_path);
+                let message = if forced {
+                    "Rollout stopped before dataset finalization completed."
+                } else {
+                    "Rollout stopped and recorded data is saved."
+                };
+                Self::emit_rollout_info(&app_handle_for_stop, &nickname_for_stop, message);
+                let _ = app_handle_for_stop.emit(
+                    "rollout-process-finalized",
+                    serde_json::json!({ "nickname": nickname_for_stop, "forced": forced }),
+                );
             });
 
             Ok(format!(
@@ -257,17 +287,14 @@ impl RemoteRolloutService {
                 nickname
             ))
         } else {
-            let message = format!(
-                "Rollout process not found. Stop command sent for nickname: {}",
-                nickname
-            );
+            let message = format!("Rollout process not found for nickname: {}", nickname);
             Self::log_rollout_error(&message);
-            Ok(message)
+            Err(message)
         }
     }
 
     #[cfg(unix)]
-    fn request_graceful_stop(pid: u32) -> bool {
+    fn request_signal_stop(pid: u32) -> bool {
         std::process::Command::new("pkill")
             .args(["-INT", "-P", &pid.to_string()])
             .status()
@@ -275,8 +302,15 @@ impl RemoteRolloutService {
     }
 
     #[cfg(not(unix))]
-    fn request_graceful_stop(_pid: u32) -> bool {
+    fn request_signal_stop(_pid: u32) -> bool {
         false
+    }
+
+    fn stop_request_path(nickname: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "vulcan-studio-rollout-{}.stop",
+            Self::dataset_robot_slug(nickname)
+        ))
     }
 
     fn build_command_args(config: &RemoteRolloutConfig) -> Vec<String> {
@@ -290,7 +324,7 @@ impl RemoteRolloutService {
             command_parts.extend([
                 "--strategy.type=episodic".to_string(),
                 format!(
-                    "--dataset.repo_id=local/rollout_{}",
+                    "--dataset.repo_id=vulcan-studio/rollout_{}",
                     Self::dataset_robot_slug(&config.nickname)
                 ),
                 "--dataset.num_episodes=1".to_string(),
@@ -304,6 +338,10 @@ impl RemoteRolloutService {
         }
 
         command_parts.extend([
+            format!(
+                "--shutdown_event_path={}",
+                Self::stop_request_path(&config.nickname).display()
+            ),
             format!("--policy.path={}", config.model_path.trim()),
             "--robot.type=sourccey_client".to_string(),
             "--robot.id=sourccey".to_string(),
@@ -413,7 +451,7 @@ mod tests {
             .any(|part| part == "--strategy.type=episodic"));
         assert!(command_parts
             .iter()
-            .any(|part| part == "--dataset.repo_id=local/rollout_robot-1"));
+            .any(|part| part == "--dataset.repo_id=vulcan-studio/rollout_robot-1"));
         assert!(command_parts
             .iter()
             .any(|part| part == "--dataset.num_episodes=1"));
@@ -429,6 +467,9 @@ mod tests {
         assert!(command_parts
             .iter()
             .any(|part| part == "--dataset.streaming_encoding=true"));
+        assert!(command_parts
+            .iter()
+            .any(|part| part.starts_with("--shutdown_event_path=")));
         assert!(command_parts
             .iter()
             .any(|part| part == "--display_data=false"));

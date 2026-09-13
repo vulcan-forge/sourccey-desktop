@@ -14,7 +14,14 @@ import { toast } from 'react-toastify';
 import { Tooltip } from 'react-tooltip';
 
 type ReplayDraft = { repoId: string; root: string; episode: string; fps: string; playSounds: boolean };
-type ReplayDataset = { name: string; repoId: string; path: string; totalEpisodes: number; totalFrames: number };
+type ReplayDataset = {
+    name: string;
+    repoId: string;
+    path: string;
+    createdAtMs: number | null;
+    totalEpisodes: number;
+    totalFrames: number;
+};
 type RemoteReplayConfig = {
     nickname: string;
     remote_ip: string;
@@ -223,6 +230,9 @@ export const RemoteReplayAction = ({ ownedRobot }: { ownedRobot: any }) => {
                                     <span className="mt-2 block text-xs text-slate-400">
                                         {dataset.totalEpisodes} {dataset.totalEpisodes === 1 ? 'episode' : 'episodes'} ·{' '}
                                         {dataset.totalFrames.toLocaleString()} frames
+                                    </span>
+                                    <span className="mt-1 block text-[10px] leading-4 text-slate-500">
+                                        Created {dataset.createdAtMs ? new Date(dataset.createdAtMs).toLocaleString() : 'date unavailable'}
                                     </span>
                                 </button>
                             );

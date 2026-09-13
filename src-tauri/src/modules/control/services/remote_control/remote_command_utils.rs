@@ -114,7 +114,6 @@ pub fn validate_rollout_model_path(model_path: &str) -> Result<(), String> {
             model_path
         ));
     }
-
     if model_path.contains('\\') && !path.is_absolute() {
         return Err(format!(
             "The selected model uses a relative Windows path: {}. Rollout requires the absolute local model path.",
@@ -125,9 +124,77 @@ pub fn validate_rollout_model_path(model_path: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn resolve_policy_model_path(model_path: &str, working_dir: &Path) -> Result<String, String> {
+    validate_rollout_model_path(model_path)?;
+    let supplied = Path::new(model_path.trim());
+    let local_path = if supplied.is_absolute() {
+        supplied.to_path_buf()
+    } else {
+        working_dir.join(supplied)
+    };
+
+    if !local_path.is_dir() {
+        // A non-local value is a Hugging Face repository ID and is resolved by LeRobot.
+        return Ok(model_path.trim().to_string());
+    }
+
+    let mut candidates = vec![local_path.clone(), local_path.join("pretrained_model")];
+    let checkpoints = local_path.join("checkpoints");
+    if let Ok(entries) = std::fs::read_dir(&checkpoints) {
+        let mut numbered = entries
+            .flatten()
+            .filter_map(|entry| {
+                let step = entry.file_name().to_string_lossy().parse::<u64>().ok()?;
+                entry.path().is_dir().then_some((step, entry.path()))
+            })
+            .collect::<Vec<_>>();
+        numbered.sort_by(|left, right| right.0.cmp(&left.0));
+        candidates.extend(
+            numbered
+                .into_iter()
+                .map(|(_, checkpoint)| checkpoint.join("pretrained_model")),
+        );
+    }
+
+    for candidate in candidates {
+        let config_path = candidate.join("config.json");
+        let Ok(metadata) = std::fs::metadata(&config_path) else {
+            continue;
+        };
+        if !metadata.is_file() || metadata.len() > 1024 * 1024 {
+            continue;
+        }
+        let bytes = std::fs::read(&config_path).map_err(|error| {
+            format!(
+                "Failed to read policy config {}: {error}",
+                config_path.display()
+            )
+        })?;
+        let config: serde_json::Value = serde_json::from_slice(&bytes).map_err(|error| {
+            format!(
+                "Policy config {} is invalid JSON: {error}",
+                config_path.display()
+            )
+        })?;
+        if config
+            .get("type")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|value| !value.trim().is_empty())
+        {
+            return Ok(candidate.to_string_lossy().to_string());
+        }
+    }
+
+    Err(format!(
+        "No valid pretrained policy was found under {}. Expected config.json with a non-empty 'type', usually in checkpoints/<step>/pretrained_model.",
+        local_path.display()
+    ))
+}
+
 #[cfg(test)]
 mod tests {
-    use super::validate_rollout_model_path;
+    use super::{resolve_policy_model_path, validate_rollout_model_path};
+    use std::path::Path;
 
     #[test]
     fn rejects_relative_windows_model_paths_before_hugging_face_parsing() {
@@ -139,5 +206,27 @@ mod tests {
     #[test]
     fn accepts_hugging_face_repo_ids() {
         assert!(validate_rollout_model_path("vulcan-forge/xvla-sourccey").is_ok());
+    }
+
+    #[test]
+    fn resolves_latest_pretrained_checkpoint() {
+        let root =
+            std::env::temp_dir().join(format!("vulcan-policy-resolution-{}", std::process::id()));
+        let older = root
+            .join("checkpoints")
+            .join("000400")
+            .join("pretrained_model");
+        let latest = root
+            .join("checkpoints")
+            .join("100000")
+            .join("pretrained_model");
+        std::fs::create_dir_all(&older).unwrap();
+        std::fs::create_dir_all(&latest).unwrap();
+        std::fs::write(older.join("config.json"), r#"{"type":"act"}"#).unwrap();
+        std::fs::write(latest.join("config.json"), r#"{"type":"xvla"}"#).unwrap();
+
+        let resolved = resolve_policy_model_path(root.to_str().unwrap(), Path::new(".")).unwrap();
+        assert_eq!(Path::new(&resolved), latest);
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

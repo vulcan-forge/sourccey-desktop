@@ -31,6 +31,7 @@ type SelectedModelPanelProps = {
 
 export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai', onClearAction }: SelectedModelPanelProps) => {
     const [isLoading, setIsLoading] = useState(false);
+    const [isStoppingRollout, setIsStoppingRollout] = useState(false);
     const [task, setTask] = useState('Fold the shirt');
     const [durationS, setDurationS] = useState('3600');
     const [modelPath, setModelPath] = useState(model.model_path);
@@ -131,12 +132,37 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
         if (!isControlling && !isRolloutStarting) {
             return;
         }
-        const result = await invoke('stop_remote_rollout', { nickname: normalizedNickname });
-        setIsRolloutStarting(false);
-        startupListener.current?.();
-        startupListener.current = null;
-        toast.success(`Rollout stopped: ${result}`, { ...toastSuccessDefaults });
-        setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
+        setIsStoppingRollout(true);
+        let resolveFinalized: (payload: { nickname: string; forced: boolean }) => void = () => {};
+        const finalized = new Promise<{ nickname: string; forced: boolean }>((resolve) => {
+            resolveFinalized = resolve;
+        });
+        const stopListener = await listen<{ nickname: string; forced: boolean }>('rollout-process-finalized', ({ payload }) => {
+            if (payload.nickname === normalizedNickname) resolveFinalized(payload);
+        });
+
+        try {
+            const result = await invoke<string>('stop_remote_rollout', { nickname: normalizedNickname });
+            if (result.includes('stop sent')) {
+                const payload = await Promise.race([
+                    finalized,
+                    new Promise<never>((_, reject) =>
+                        window.setTimeout(() => reject(new Error('Rollout took too long to finish saving. Check the rollout logs.')), 65_000)
+                    ),
+                ]);
+                if (payload.forced) throw new Error('Rollout had to be forced closed before the recorded dataset finished saving.');
+            }
+            setIsRolloutStarting(false);
+            startupListener.current?.();
+            startupListener.current = null;
+            toast.success((remoteConfig?.record_rollout_data ?? true) ? 'Rollout stopped and dataset saved.' : 'Rollout stopped.', {
+                ...toastSuccessDefaults,
+            });
+            setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);
+        } finally {
+            stopListener();
+            setIsStoppingRollout(false);
+        }
     };
 
     const toggleRollout = async () => {
@@ -229,24 +255,43 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
                             : 'bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 hover:from-red-500/90 hover:via-orange-500/90 hover:to-yellow-500/90'
                     }`}
                 >
-                    {isLoading ? (
+                    {isStoppingRollout ? (
+                        <Spinner color="white" />
+                    ) : isLoading ? (
                         <Spinner color="white" />
                     ) : isControlling || isRolloutStarting ? (
                         <FaStop className="h-3.5 w-3.5" />
                     ) : (
                         <FaPlay className="h-3.5 w-3.5" />
                     )}
-                    {isLoading
-                        ? isControlling
-                            ? 'Saving rollout...'
-                            : 'Working...'
-                        : isRolloutStarting
-                          ? 'Cancel startup'
-                          : isControlling
-                            ? 'Stop Rollout'
-                            : 'Start Rollout'}
+                    {isStoppingRollout
+                        ? (remoteConfig?.record_rollout_data ?? true)
+                            ? 'Stopping and saving...'
+                            : 'Stopping rollout...'
+                        : isLoading
+                          ? 'Working...'
+                          : isRolloutStarting
+                            ? 'Cancel startup'
+                            : isControlling
+                              ? 'Stop Rollout'
+                              : 'Start Rollout'}
                 </button>
             </div>
+
+            {isStoppingRollout && (
+                <div
+                    role="status"
+                    className="mt-4 flex items-center gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-100"
+                >
+                    <Spinner color="white" />
+                    <div>
+                        <p className="text-sm font-semibold">Stopping rollout and saving the recorded episode...</p>
+                        <p className="mt-1 text-xs">
+                            Finalizing actions, metadata, and video files. Keep Vulcan Studio open until this finishes.
+                        </p>
+                    </div>
+                </div>
+            )}
 
             {isRolloutStarting && (
                 <div
@@ -269,7 +314,12 @@ export const SelectedModelPanel = ({ model, ownedRobot, remoteConfig, mode = 'ai
             )}
 
             <div className="mt-4">
-                <RobotLogs isControlling={isControlling || isRolloutStarting} nickname={normalizedNickname} embedded={true} mode="rollout" />
+                <RobotLogs
+                    isControlling={isControlling || isRolloutStarting || isStoppingRollout}
+                    nickname={normalizedNickname}
+                    embedded={true}
+                    mode="rollout"
+                />
             </div>
         </div>
     );

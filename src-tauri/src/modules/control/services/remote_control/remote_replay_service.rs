@@ -71,6 +71,12 @@ impl RemoteReplayService {
                 repo_id: format!("vulcan-studio/{name}"),
                 name,
                 path: dataset_path.to_string_lossy().to_string(),
+                created_at_ms: metadata
+                    .created()
+                    .or_else(|_| metadata.modified())
+                    .ok()
+                    .and_then(|timestamp| timestamp.duration_since(std::time::UNIX_EPOCH).ok())
+                    .and_then(|duration| u64::try_from(duration.as_millis()).ok()),
                 total_episodes: info
                     .get("total_episodes")
                     .and_then(serde_json::Value::as_u64)
