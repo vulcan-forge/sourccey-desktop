@@ -2,6 +2,8 @@ use super::{
     extract_version_core, is_kiosk_env_value, is_target_newer_version,
     parse_numeric_version_segments, parse_simple_version, SimpleVersion,
 };
+#[cfg(feature = "desktop")]
+use super::should_start_dataset_sync;
 
 #[test]
 fn kiosk_env_parser_accepts_expected_values() {
@@ -57,4 +59,11 @@ fn detects_newer_target_versions() {
     assert!(!is_target_newer_version("0.0.7", "0.0.6"));
     assert!(!is_target_newer_version("0.0.13", "0.0.6"));
     assert!(!is_target_newer_version("0.0.13.0", "0.0.6"));
+}
+
+#[cfg(feature = "desktop")]
+#[test]
+fn dataset_sync_starts_only_in_desktop_mode() {
+    assert!(should_start_dataset_sync(false));
+    assert!(!should_start_dataset_sync(true));
 }
