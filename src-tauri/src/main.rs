@@ -532,6 +532,14 @@ fn main() {
                         #[cfg(feature = "desktop")]
                         if !kiosk {
                             tauri::async_runtime::spawn(async move {
+                                if let Err(error) = UploadService::register_on_startup(
+                                    &dataset_sync_connection,
+                                )
+                                .await
+                                {
+                                    eprintln!("Dataset sync startup registration deferred: {error}");
+                                }
+
                                 match UploadService::retry_metadata_on_startup(
                                     &dataset_sync_connection,
                                 )
