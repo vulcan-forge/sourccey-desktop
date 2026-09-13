@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::HashMap;
 
 #[derive(Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -80,4 +81,45 @@ pub struct QueuedDatasetMetadata {
     pub payload_sha256: String,
     pub state: String,
     pub duplicate: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MetadataTransmissionReport {
+    pub attempted: u64,
+    pub completed: u64,
+    pub failed: u64,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct InstallationRegistrationRequest {
+    pub installation_id: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct InstallationRegistrationResponse {
+    pub installation_token: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PresignMetadataRequest {
+    pub installation_id: String,
+    pub robot_id: String,
+    pub dataset_id: String,
+    pub kind: String,
+    pub relative_path: Option<String>,
+    pub content_type: String,
+    pub content_length: u64,
+    pub sha256: String,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PresignedUpload {
+    pub upload_url: String,
+    pub object_key: String,
+    pub required_headers: HashMap<String, String>,
 }

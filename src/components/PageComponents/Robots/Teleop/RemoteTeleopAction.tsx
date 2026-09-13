@@ -278,6 +278,7 @@ export const RemoteTeleopAction = ({
         }
 
         const remoteRecordConfig: RemoteRecordConfig = {
+            robot_id: ownedRobot?.id,
             nickname: normalized,
             remote_ip: remoteConfig.remote_ip,
             left_arm_port: shouldUseLeaderFallback ? '' : remoteConfig.left_arm_port,
@@ -523,6 +524,7 @@ export interface RemoteTeleopConfig {
 }
 
 export interface RemoteRecordConfig {
+    robot_id: string;
     nickname: string;
     remote_ip: string;
     left_arm_port: string;

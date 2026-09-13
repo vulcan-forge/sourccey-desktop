@@ -62,3 +62,9 @@ export interface QueuedDatasetMetadata {
     state: string;
     duplicate: boolean;
 }
+
+export interface MetadataTransmissionReport {
+    attempted: number;
+    completed: number;
+    failed: number;
+}
