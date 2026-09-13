@@ -95,6 +95,10 @@ impl MigrationTrait for Migration {
                     .col(ColumnDef::new(DatasetMetadataUpload::LastError).text())
                     .col(ColumnDef::new(DatasetMetadataUpload::Etag).string())
                     .col(
+                        ColumnDef::new(DatasetMetadataUpload::NextAttemptAt)
+                            .timestamp_with_time_zone(),
+                    )
+                    .col(
                         ColumnDef::new(DatasetMetadataUpload::CreatedAt)
                             .timestamp_with_time_zone()
                             .not_null(),
@@ -188,6 +192,7 @@ enum DatasetMetadataUpload {
     AttemptCount,
     LastError,
     Etag,
+    NextAttemptAt,
     CreatedAt,
     UpdatedAt,
     UploadedAt,
