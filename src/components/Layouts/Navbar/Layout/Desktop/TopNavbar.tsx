@@ -133,6 +133,9 @@ export const DesktopTopNavbar = () => {
                         <span className="inline-block bg-gradient-to-r from-red-400 via-orange-400 to-yellow-400 bg-clip-text pb-1 text-3xl leading-tight text-transparent">
                             Vulcan Studio
                         </span>
+                        <span className="-rotate-6 rounded-full border border-amber-200/80 bg-gradient-to-br from-amber-200 to-orange-400 px-2 py-0.5 text-[10px] font-extrabold tracking-[0.12em] text-slate-900 uppercase shadow-sm shadow-orange-500/30">
+                            Beta
+                        </span>
                     </Link>
 
                     <div className="grow" />
