@@ -2,3 +2,7 @@
 	path = modules/lerobot-vulcan
 	url = https://github.com/vulcan-forge/lerobot-vulcan.git
 	branch = main
+[submodule "modules/lerobot-dataset-sync"]
+	path = modules/lerobot-dataset-sync
+	url = https://github.com/vulcan-forge/lerobot-dataset-sync.git
+	branch = main

@@ -77,6 +77,11 @@ use modules::control::services::kiosk_control::discovery_responder_service::Kios
 use modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
 };
+use modules::dataset_sync::controllers::upload_controller::{
+    discover_upload_datasets, get_dataset_sync_identity, get_upload_jobs, queue_dataset_metadata,
+    transmit_queued_metadata,
+};
+use modules::dataset_sync::services::upload_service::UploadService;
 use modules::settings::controllers::access_point::access_point_controller::{
     get_access_point_credentials, is_access_point_active, save_access_point_credentials,
     set_access_point,
@@ -515,8 +520,27 @@ fn main() {
                 match DatabaseManager::new(&app_handle).await {
                     Ok(db_manager) => {
                         println!("Database initialized successfully");
+                        let dataset_sync_connection = db_manager.get_connection().clone();
                         app_handle.manage(db_manager);
                         println!("Database manager added to app state");
+                        if !kiosk {
+                            tauri::async_runtime::spawn(async move {
+                                match UploadService::retry_metadata_on_startup(
+                                    &dataset_sync_connection,
+                                )
+                                .await
+                                {
+                                    Ok(report) if report.attempted > 0 => println!(
+                                        "Dataset metadata startup retry: attempted={}, completed={}, failed={}",
+                                        report.attempted, report.completed, report.failed
+                                    ),
+                                    Ok(_) => {}
+                                    Err(error) => {
+                                        eprintln!("Dataset metadata startup retry deferred: {error}")
+                                    }
+                                }
+                            });
+                        }
                     }
                     Err(e) => eprintln!("Failed to initialize database: {}", e),
                 }
@@ -707,6 +731,13 @@ fn main() {
             sync_ai_models_from_cache,
             download_ai_model_from_huggingface,
             get_ai_model_cache_path,
+
+            // LeRobot Dataset Sync API
+            discover_upload_datasets,
+            get_upload_jobs,
+            get_dataset_sync_identity,
+            queue_dataset_metadata,
+            transmit_queued_metadata,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

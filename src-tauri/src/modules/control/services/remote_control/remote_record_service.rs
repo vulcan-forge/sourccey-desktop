@@ -4,6 +4,7 @@ use crate::modules::control::services::remote_control::remote_command_utils::{
     resolve_uv_runtime, write_process_log, ManagedRemoteProcesses,
 };
 use crate::modules::control::services::remote_control::remote_teleop_service::RemoteTeleopService;
+use crate::modules::dataset_sync::services::upload_service::UploadService;
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
@@ -100,6 +101,9 @@ impl RemoteRecordService {
 
         let pid = child.pid();
         let nickname_for_logs = config.nickname.clone();
+        let robot_id_for_sync = config.robot_id.clone();
+        let repo_id_for_sync = config.repo_id.clone();
+        let db_connection_for_sync = db_connection.clone();
         let app_handle_for_logs = app_handle.clone();
         let shutdown_for_logs = shutdown_flag.clone();
         let record_log_path = process_log_path("record")
@@ -163,6 +167,7 @@ impl RemoteRecordService {
                         }
                     }
                     CommandEvent::Terminated(payload) => {
+                        let completed_successfully = capture_started && payload.code == Some(0);
                         let message = format!(
                             "Record process terminated (code={:?}, signal={:?})",
                             payload.code, payload.signal
@@ -173,6 +178,50 @@ impl RemoteRecordService {
                         );
                         if let Some(path) = &record_log_path {
                             LogService::write_log_line(path, Some("record"), &message);
+                        }
+                        if completed_successfully {
+                            let app_handle_for_sync = app_handle_for_logs.clone();
+                            let nickname_for_sync = nickname_for_logs.clone();
+                            let robot_id_for_sync = robot_id_for_sync.clone();
+                            let repo_id_for_sync = repo_id_for_sync.clone();
+                            let connection_for_sync = db_connection_for_sync.clone();
+                            tauri::async_runtime::spawn(async move {
+                                match UploadService::queue_completed_dataset_metadata(
+                                    &connection_for_sync,
+                                    &robot_id_for_sync,
+                                    &repo_id_for_sync,
+                                )
+                                .await
+                                {
+                                    Ok(queued) => {
+                                        Self::emit_record_info(
+                                            &app_handle_for_sync,
+                                            &nickname_for_sync,
+                                            &format!(
+                                                "Completed dataset metadata queued for sync: {}",
+                                                queued.object_key
+                                            ),
+                                        );
+                                        if let Err(error) = UploadService::transmit_queued_metadata(
+                                            &connection_for_sync,
+                                            20,
+                                        )
+                                        .await
+                                        {
+                                            Self::emit_record_info(
+                                                &app_handle_for_sync,
+                                                &nickname_for_sync,
+                                                &format!("Dataset metadata remains queued: {error}"),
+                                            );
+                                        }
+                                    }
+                                    Err(error) => Self::emit_record_info(
+                                        &app_handle_for_sync,
+                                        &nickname_for_sync,
+                                        &format!("Completed dataset was not queued: {error}"),
+                                    ),
+                                }
+                            });
                         }
                         break;
                     }
@@ -281,6 +330,9 @@ impl RemoteRecordService {
     }
 
     fn validate_config(config: &RemoteRecordConfig) -> Result<(), String> {
+        if config.robot_id.trim().is_empty() {
+            return Err("Recording requires a stable robot ID.".to_string());
+        }
         if config.nickname.trim().is_empty() {
             return Err("Recording requires a robot nickname.".to_string());
         }

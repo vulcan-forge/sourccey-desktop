@@ -1,0 +1,199 @@
+use sea_orm_migration::prelude::*;
+
+#[derive(DeriveMigrationName)]
+pub struct Migration;
+
+#[async_trait::async_trait]
+impl MigrationTrait for Migration {
+    async fn up(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .create_table(
+                Table::create()
+                    .table(InstallationIdentity::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(InstallationIdentity::SingletonKey)
+                            .integer()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(InstallationIdentity::InstallationId)
+                            .string()
+                            .not_null()
+                            .unique_key(),
+                    )
+                    .col(ColumnDef::new(InstallationIdentity::CustomerId).string())
+                    .col(
+                        ColumnDef::new(InstallationIdentity::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(InstallationIdentity::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_table(
+                Table::create()
+                    .table(DatasetMetadataUpload::Table)
+                    .if_not_exists()
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::Id)
+                            .string()
+                            .not_null()
+                            .primary_key(),
+                    )
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::InstallationId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(ColumnDef::new(DatasetMetadataUpload::CustomerId).string())
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::RobotId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::DatasetId)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::ObjectKey)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::PayloadSha256)
+                            .string()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::PayloadJson)
+                            .text()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::State)
+                            .string()
+                            .not_null()
+                            .default("queued"),
+                    )
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::AttemptCount)
+                            .integer()
+                            .not_null()
+                            .default(0),
+                    )
+                    .col(ColumnDef::new(DatasetMetadataUpload::LastError).text())
+                    .col(ColumnDef::new(DatasetMetadataUpload::Etag).string())
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::NextAttemptAt)
+                            .timestamp_with_time_zone(),
+                    )
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::CreatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::UpdatedAt)
+                            .timestamp_with_time_zone()
+                            .not_null(),
+                    )
+                    .col(
+                        ColumnDef::new(DatasetMetadataUpload::UploadedAt)
+                            .timestamp_with_time_zone(),
+                    )
+                    .foreign_key(
+                        ForeignKey::create()
+                            .name("fk_dataset_metadata_upload_installation")
+                            .from(
+                                DatasetMetadataUpload::Table,
+                                DatasetMetadataUpload::InstallationId,
+                            )
+                            .to(
+                                InstallationIdentity::Table,
+                                InstallationIdentity::InstallationId,
+                            )
+                            .on_delete(ForeignKeyAction::Restrict),
+                    )
+                    .to_owned(),
+            )
+            .await?;
+
+        manager
+            .create_index(
+                Index::create()
+                    .name("uq_dataset_metadata_upload_payload")
+                    .table(DatasetMetadataUpload::Table)
+                    .col(DatasetMetadataUpload::InstallationId)
+                    .col(DatasetMetadataUpload::RobotId)
+                    .col(DatasetMetadataUpload::DatasetId)
+                    .col(DatasetMetadataUpload::PayloadSha256)
+                    .unique()
+                    .to_owned(),
+            )
+            .await?;
+        manager
+            .create_index(
+                Index::create()
+                    .name("ix_dataset_metadata_upload_state")
+                    .table(DatasetMetadataUpload::Table)
+                    .col(DatasetMetadataUpload::State)
+                    .col(DatasetMetadataUpload::UpdatedAt)
+                    .to_owned(),
+            )
+            .await?;
+
+        Ok(())
+    }
+
+    async fn down(&self, manager: &SchemaManager) -> Result<(), DbErr> {
+        manager
+            .drop_table(Table::drop().table(DatasetMetadataUpload::Table).to_owned())
+            .await?;
+        manager
+            .drop_table(Table::drop().table(InstallationIdentity::Table).to_owned())
+            .await?;
+        Ok(())
+    }
+}
+
+#[derive(DeriveIden)]
+enum InstallationIdentity {
+    Table,
+    SingletonKey,
+    InstallationId,
+    CustomerId,
+    CreatedAt,
+    UpdatedAt,
+}
+
+#[derive(DeriveIden)]
+enum DatasetMetadataUpload {
+    Table,
+    Id,
+    InstallationId,
+    CustomerId,
+    RobotId,
+    DatasetId,
+    ObjectKey,
+    PayloadSha256,
+    PayloadJson,
+    State,
+    AttemptCount,
+    LastError,
+    Etag,
+    NextAttemptAt,
+    CreatedAt,
+    UpdatedAt,
+    UploadedAt,
+}

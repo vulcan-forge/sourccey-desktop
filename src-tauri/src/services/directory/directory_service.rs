@@ -105,6 +105,12 @@ impl DirectoryService {
         Ok(lerobot_vulcan_dir)
     }
 
+    pub fn get_dataset_sync_dir() -> Result<PathBuf, String> {
+        Ok(Self::get_current_dir()?
+            .join("modules")
+            .join("lerobot-dataset-sync"))
+    }
+
     pub fn get_lerobot_cache_dir() -> Result<PathBuf, String> {
         let home_dir = dirs::home_dir().ok_or("Could not determine home directory")?;
         Ok(home_dir.join(".cache").join("huggingface").join("lerobot"))

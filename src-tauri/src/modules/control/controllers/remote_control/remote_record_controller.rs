@@ -7,6 +7,7 @@ use tauri::{AppHandle, Manager, State};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RemoteRecordConfig {
+    pub robot_id: String,
     pub nickname: String,
     pub remote_ip: String,
     pub left_arm_port: String,
