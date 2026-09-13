@@ -13,6 +13,7 @@ import {
     getRemoteTeleopBlockingMessage,
     getRemoteTeleopReadiness,
 } from '@/utils/teleop/remote-teleop-readiness';
+import { buildDefaultRecordPath, isGeneratedRecordPath } from '@/utils/teleop/remote-record-path';
 
 export enum RobotControlStatus {
     STARTED = 'Robot is being controlled',
@@ -75,14 +76,7 @@ export const RemoteTeleopAction = ({
     );
 
     const defaultRepoId = useMemo(() => {
-        const baseName = ownedRobot?.robot?.name || ownedRobot?.nickname || 'sourccey';
-        const slug = String(baseName)
-            .trim()
-            .toLowerCase()
-            .replace(/[^a-z0-9]+/g, '-')
-            .replace(/^-+|-+$/g, '');
-
-        return `local/${slug || 'sourccey'}`;
+        return buildDefaultRecordPath(ownedRobot?.robot?.name, ownedRobot?.nickname);
     }, [ownedRobot]);
 
     const [recordSettings, setRecordSettings] = useState<RemoteRecordDraft>({
@@ -97,7 +91,7 @@ export const RemoteTeleopAction = ({
             }
 
             const currentValue = current.repoId.trim();
-            if (!currentValue || currentValue.startsWith('local/')) {
+            if (!currentValue || isGeneratedRecordPath(currentValue)) {
                 return { ...current, repoId: defaultRepoId };
             }
 
