@@ -11,22 +11,89 @@ pub struct WiFiNetwork {
     pub security: String,
 }
 
+fn normalize_security(security: &str) -> String {
+    let security = security.trim();
+    if security.is_empty() || security == "--" || security.eq_ignore_ascii_case("none") {
+        "Open".to_string()
+    } else {
+        security.to_string()
+    }
+}
+
+fn normalize_networks(networks: Vec<WiFiNetwork>) -> Vec<WiFiNetwork> {
+    let mut unique: Vec<WiFiNetwork> = Vec::new();
+
+    for mut network in networks {
+        network.ssid = network.ssid.trim().to_string();
+        if network.ssid.is_empty() {
+            continue;
+        }
+        network.signal_strength = network.signal_strength.clamp(0, 100);
+        network.security = normalize_security(&network.security);
+
+        if let Some(existing) = unique.iter_mut().find(|item| item.ssid == network.ssid) {
+            if network.signal_strength > existing.signal_strength {
+                *existing = network;
+            }
+        } else {
+            unique.push(network);
+        }
+    }
+
+    unique.sort_by(|a, b| {
+        b.signal_strength
+            .cmp(&a.signal_strength)
+            .then_with(|| a.ssid.to_lowercase().cmp(&b.ssid.to_lowercase()))
+    });
+    unique
+}
+
+#[cfg(any(target_os = "linux", test))]
+fn split_nmcli_line(line: &str) -> Vec<String> {
+    let mut fields = vec![String::new()];
+    let mut escaped = false;
+
+    for character in line.chars() {
+        if escaped {
+            fields
+                .last_mut()
+                .expect("nmcli field exists")
+                .push(character);
+            escaped = false;
+        } else if character == '\\' {
+            escaped = true;
+        } else if character == ':' {
+            fields.push(String::new());
+        } else {
+            fields
+                .last_mut()
+                .expect("nmcli field exists")
+                .push(character);
+        }
+    }
+
+    if escaped {
+        fields.last_mut().expect("nmcli field exists").push('\\');
+    }
+    fields
+}
+
 /// Scan for available WiFi networks
 #[tauri::command]
 pub async fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>, String> {
     #[cfg(target_os = "linux")]
     {
-        scan_wifi_linux()
+        scan_wifi_linux().map(normalize_networks)
     }
 
     #[cfg(target_os = "windows")]
     {
-        scan_wifi_windows()
+        scan_wifi_windows().map(normalize_networks)
     }
 
     #[cfg(target_os = "macos")]
     {
-        scan_wifi_macos()
+        scan_wifi_macos().map(normalize_networks)
     }
 }
 
@@ -95,7 +162,18 @@ pub async fn disconnect_from_wifi() -> Result<String, String> {
 fn scan_wifi_linux() -> Result<Vec<WiFiNetwork>, String> {
     // Use nmcli (NetworkManager CLI) to scan for networks
     let output = Command::new("nmcli")
-        .args(&["-t", "-f", "SSID,SIGNAL,SECURITY", "dev", "wifi"])
+        .args([
+            "-t",
+            "-e",
+            "yes",
+            "-f",
+            "SSID,SIGNAL,SECURITY",
+            "dev",
+            "wifi",
+            "list",
+            "--rescan",
+            "yes",
+        ])
         .output()
         .map_err(|e| format!("Failed to scan WiFi: {}", e))?;
 
@@ -110,11 +188,11 @@ fn scan_wifi_linux() -> Result<Vec<WiFiNetwork>, String> {
     let mut networks = Vec::new();
 
     for line in stdout.lines() {
-        let parts: Vec<&str> = line.split(':').collect();
+        let parts = split_nmcli_line(line);
         if parts.len() >= 3 {
-            let ssid = parts[0].to_string();
+            let ssid = parts[0].clone();
             let signal = parts[1].parse::<i32>().unwrap_or(0);
-            let security = parts[2].to_string();
+            let security = parts[2..].join(":");
 
             // Skip empty SSIDs
             if !ssid.is_empty() {
@@ -126,9 +204,6 @@ fn scan_wifi_linux() -> Result<Vec<WiFiNetwork>, String> {
             }
         }
     }
-
-    // Sort by signal strength (highest first)
-    networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
 
     Ok(networks)
 }
@@ -156,71 +231,24 @@ fn connect_wifi_linux(
     password: String,
     security: Option<String>,
 ) -> Result<String, String> {
-    // Determine key-mgmt type from security string
-    let security_str = security.as_deref().unwrap_or("");
+    let security = normalize_security(security.as_deref().unwrap_or(""));
 
-    // Check if it's an open network
-    if security_str == "Open" || security_str.is_empty() {
+    if security == "Open" {
         if !password.is_empty() {
             return Err("Open network does not require a password".to_string());
         }
         return connect_open_network(&ssid);
     }
 
-    // Always set key-mgmt explicitly from the start
-    // Determine key-mgmt type based on security string
-    let key_mgmt = if security_str.contains("WPA3") {
-        "wpa-psk" // WPA3-SAE, but nmcli may handle it automatically
-    } else if security_str.contains("WPA2") || security_str.contains("WPA") {
-        "wpa-psk"
-    } else if security_str.contains("WEP") {
-        "none" // WEP uses wep-key-type instead
-    } else {
-        // Unknown security type - try wpa-psk as default
-        "wpa-psk"
-    };
-
-    // Delete any existing connection with this name first (ignore errors if it doesn't exist)
-    let _ = Command::new("nmcli")
-        .args(&["connection", "delete", &ssid])
-        .output();
-
-    // Create connection with explicit key-mgmt - single approach, no fallbacks
-    let add_output = Command::new("nmcli")
-        .args(&[
-            "connection",
-            "add",
-            "type",
-            "wifi",
-            "con-name",
-            &ssid,
-            "ssid",
-            &ssid,
-            "wifi-sec.key-mgmt",
-            key_mgmt,
-            "wifi-sec.psk",
-            &password,
-        ])
+    let output = Command::new("nmcli")
+        .args(["device", "wifi", "connect", &ssid, "password", &password])
         .output()
-        .map_err(|e| format!("Failed to create WiFi connection: {}", e))?;
+        .map_err(|e| format!("Failed to connect to WiFi: {}", e))?;
 
-    if !add_output.status.success() {
-        return Err(format!(
-            "Failed to create connection: {}",
-            String::from_utf8_lossy(&add_output.stderr)
-        ));
-    }
-
-    // Activate the connection
-    let up_output = Command::new("nmcli")
-        .args(&["connection", "up", &ssid])
-        .output()
-        .map_err(|e| format!("Failed to activate WiFi connection: {}", e))?;
-
-    if !up_output.status.success() {
+    if !output.status.success() {
         return Err(format!(
             "Connection failed: {}",
-            String::from_utf8_lossy(&up_output.stderr)
+            String::from_utf8_lossy(&output.stderr)
         ));
     }
 
@@ -242,12 +270,12 @@ fn get_current_wifi_linux() -> Result<Option<WiFiNetwork>, String> {
     let stdout = String::from_utf8_lossy(&output.stdout);
 
     for line in stdout.lines() {
-        let parts: Vec<&str> = line.split(':').collect();
+        let parts = split_nmcli_line(line);
         if parts.len() >= 4 && parts[0] == "yes" {
             // We have an active connection
-            let ssid = parts[1].to_string();
+            let ssid = parts[1].clone();
             let signal = parts[2].parse::<i32>().unwrap_or(0);
-            let security = parts[3].to_string();
+            let security = normalize_security(&parts[3..].join(":"));
 
             return Ok(Some(WiFiNetwork {
                 ssid,
@@ -350,7 +378,7 @@ fn scan_wifi_windows() -> Result<Vec<WiFiNetwork>, String> {
                     current_signal = signal_str[..percent_pos].parse::<i32>().unwrap_or(0);
                 }
             }
-        } else if line.starts_with("Security") {
+        } else if line.starts_with("Authentication") || line.starts_with("Security") {
             if let Some(colon_pos) = line.find(':') {
                 current_security = line[colon_pos + 1..].trim().to_string();
             }
@@ -370,6 +398,39 @@ fn scan_wifi_windows() -> Result<Vec<WiFiNetwork>, String> {
     networks.sort_by(|a, b| b.signal_strength.cmp(&a.signal_strength));
 
     Ok(networks)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_escaped_nmcli_fields() {
+        assert_eq!(
+            split_nmcli_line(r"Shop\:Floor:82:WPA2"),
+            vec!["Shop:Floor", "82", "WPA2"]
+        );
+    }
+
+    #[test]
+    fn normalizes_and_deduplicates_scan_results() {
+        let networks = normalize_networks(vec![
+            WiFiNetwork {
+                ssid: " Robot Lab ".to_string(),
+                signal_strength: 34,
+                security: "--".to_string(),
+            },
+            WiFiNetwork {
+                ssid: "Robot Lab".to_string(),
+                signal_strength: 81,
+                security: "WPA2".to_string(),
+            },
+        ]);
+
+        assert_eq!(networks.len(), 1);
+        assert_eq!(networks[0].signal_strength, 81);
+        assert_eq!(networks[0].security, "WPA2");
+    }
 }
 
 #[cfg(target_os = "windows")]

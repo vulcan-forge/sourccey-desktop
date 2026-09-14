@@ -13,6 +13,7 @@ import {
 } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
+import { BatteryModal } from '@/components/Elements/Modals/KioskRobotModals/BatteryModal';
 import {
     calculateBatteryPercent,
     getBatteryLevelStep,
@@ -29,8 +30,9 @@ import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hoo
 export const KioskTopNavbar = () => {
     const [shouldCheckUpdates, setShouldCheckUpdates] = useState(false);
     const [isWiFiModalOpen, setIsWiFiModalOpen] = useState(false);
+    const [isBatteryModalOpen, setIsBatteryModalOpen] = useState(false);
 
-    const { data: systemInfo }: any = useGetSystemInfo();
+    const { data: systemInfo } = useGetSystemInfo();
     const { data: kioskUpdateStatus } = useKioskUpdateStatus({ enabled: shouldCheckUpdates });
     const { data: desktopAppUpdateStatus } = useDesktopAppUpdateStatus({ enabled: shouldCheckUpdates });
     const hasConfirmedUpdate = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable || desktopAppUpdateStatus?.updateAvailable);
@@ -82,11 +84,11 @@ export const KioskTopNavbar = () => {
 
     const getBatteryStyles = (percent: number) => {
         if (percent > 75) {
-            return 'bg-slate-600/60 text-green-400';
+            return 'border border-emerald-400/20 bg-emerald-500/10 text-emerald-300';
         } else if (percent >= 10) {
-            return 'bg-slate-600/60 text-white';
+            return 'border border-slate-500/50 bg-slate-700/60 text-white';
         } else {
-            return 'bg-slate-600/60 text-red-400';
+            return 'border border-red-400/25 bg-red-500/10 text-red-300';
         }
     };
 
@@ -142,20 +144,19 @@ export const KioskTopNavbar = () => {
                         ) : null}
 
                         {/* At-a-glance battery status */}
-                        <div
-                            className={`flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold ${
+                        <button
+                            onClick={() => setIsBatteryModalOpen(true)}
+                            className={`flex cursor-pointer items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-semibold transition-all duration-300 hover:border-slate-400/60 hover:bg-slate-600/80 hover:text-white ${
                                 isSystemInfoLoading ? 'bg-slate-600/60 text-white' : getBatteryStyles(batteryPercent)
                             }`}
-                            title="Battery status"
+                            title="Battery information"
                         >
                             {isSystemInfoLoading ? (
                                 <FaBatteryFull className="h-5 w-5 text-white" />
                             ) : (
                                 <span className="relative inline-flex">
                                     {getBatteryIcon(batteryPercent)}
-                                    {batteryIsCharging ? (
-                                        <FaBolt className="absolute -top-1 -right-1 h-2.5 w-2.5 text-amber-300" />
-                                    ) : null}
+                                    {batteryIsCharging ? <FaBolt className="absolute -top-1 -right-1 h-2.5 w-2.5 text-amber-300" /> : null}
                                 </span>
                             )}
                             {isSystemInfoLoading ? (
@@ -163,27 +164,32 @@ export const KioskTopNavbar = () => {
                             ) : (
                                 <span className="font-semibold">{batteryPercentString}</span>
                             )}
-                        </div>
+                        </button>
 
                         {/* WiFi button - show in kiosk mode */}
                         <button
                             onClick={() => setIsWiFiModalOpen(true)}
-                            className="flex cursor-pointer items-center justify-center gap-2 rounded-lg bg-slate-600/60 px-4 py-2 text-sm font-semibold text-slate-300 transition-all duration-300 hover:bg-slate-600/80 hover:text-white"
+                            className="flex cursor-pointer items-center justify-center gap-2.5 rounded-xl border border-slate-500/50 bg-slate-700/60 px-3 py-1.5 text-left text-sm font-semibold text-slate-200 transition-all duration-300 hover:border-blue-400/40 hover:bg-slate-600/80 hover:text-white"
                             title="WiFi Settings"
                         >
-                            <FaWifi className="h-5 w-5" />
-                            <span className="hidden sm:inline">WiFi</span>
-                            {isSystemInfoLoading ? (
-                                <span className="skeleton-shimmer h-3 w-20 rounded-full bg-slate-500/50" />
-                            ) : (
-                                <span className="text-xs text-slate-400">{networkLabel}</span>
-                            )}
+                            <span className="rounded-lg bg-blue-500/15 p-1.5 text-blue-300">
+                                <FaWifi className="h-4 w-4" />
+                            </span>
+                            <span className="hidden min-w-0 sm:flex sm:flex-col">
+                                <span className="leading-4">Wi-Fi</span>
+                                {isSystemInfoLoading ? (
+                                    <span className="skeleton-shimmer mt-1 h-2.5 w-20 rounded-full bg-slate-500/50" />
+                                ) : (
+                                    <span className="max-w-32 truncate text-xs font-normal text-slate-400">{networkLabel}</span>
+                                )}
+                            </span>
                         </button>
                     </div>
                 </div>
             </div>
 
             <WiFiModal isOpen={isWiFiModalOpen} onClose={() => setIsWiFiModalOpen(false)} systemInfo={systemInfo} />
+            <BatteryModal isOpen={isBatteryModalOpen} onClose={() => setIsBatteryModalOpen(false)} batteryData={systemInfo.batteryData} />
         </nav>
     );
 };

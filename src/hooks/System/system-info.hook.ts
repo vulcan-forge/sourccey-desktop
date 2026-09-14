@@ -77,7 +77,12 @@ export const getBatteryLevelStep = (percent: number): BatteryLevelStep => {
 };
 
 export const getBatteryChargeState = (batteryData: BatteryData): BatteryChargeState => {
-    if (!Number.isFinite(batteryData.current_a)) {
+    const hasBatteryMeasurement =
+        (Number.isFinite(batteryData.voltage) && batteryData.voltage >= 0) ||
+        (Number.isFinite(batteryData.state_of_charge) && batteryData.state_of_charge >= 0) ||
+        (Number.isFinite(batteryData.remaining_capacity_ah) && batteryData.remaining_capacity_ah >= 0);
+
+    if (!hasBatteryMeasurement || !Number.isFinite(batteryData.current_a)) {
         return 'unknown';
     }
 
@@ -92,8 +97,32 @@ export const getBatteryChargeState = (batteryData: BatteryData): BatteryChargeSt
     return 'idle';
 };
 
-export const isBatteryCharging = (batteryData: BatteryData): boolean =>
-    getBatteryChargeState(batteryData) === 'charging';
+export const isBatteryCharging = (batteryData: BatteryData): boolean => getBatteryChargeState(batteryData) === 'charging';
+
+export const getBatteryTimeEstimate = (batteryData: BatteryData): number | null => {
+    const chargeState = getBatteryChargeState(batteryData);
+    const current = Math.abs(batteryData.current_a);
+
+    if (!Number.isFinite(current) || current < BATTERY_CHARGE_CURRENT_THRESHOLD_A) {
+        return null;
+    }
+
+    if (chargeState === 'discharging' && Number.isFinite(batteryData.remaining_capacity_ah) && batteryData.remaining_capacity_ah >= 0) {
+        return batteryData.remaining_capacity_ah / current;
+    }
+
+    if (
+        chargeState === 'charging' &&
+        Number.isFinite(batteryData.remaining_capacity_ah) &&
+        batteryData.remaining_capacity_ah >= 0 &&
+        Number.isFinite(batteryData.max_capacity_ah) &&
+        batteryData.max_capacity_ah >= batteryData.remaining_capacity_ah
+    ) {
+        return (batteryData.max_capacity_ah - batteryData.remaining_capacity_ah) / current;
+    }
+
+    return null;
+};
 
 export const hasLoadedSystemInfo = (systemInfo?: Partial<SystemInfo> | null): boolean => {
     if (!systemInfo) {
@@ -116,11 +145,11 @@ export const hasLoadedSystemInfo = (systemInfo?: Partial<SystemInfo> | null): bo
 //---------------------------------------------------------------------------------------------------//
 // System Info Functions
 //---------------------------------------------------------------------------------------------------//
-export const getSystemInfo = () => queryClient.getQueryData(SYSTEM_INFO_KEY) ?? DEFAULT_SYSTEM_INFO;
+export const getSystemInfo = (): SystemInfo => queryClient.getQueryData<SystemInfo>(SYSTEM_INFO_KEY) ?? DEFAULT_SYSTEM_INFO;
 export const setSystemInfo = (content: SystemInfo) => queryClient.setQueryData(SYSTEM_INFO_KEY, content);
 export const useGetSystemInfo = () =>
-    useQuery({ 
-        queryKey: SYSTEM_INFO_KEY, 
+    useQuery<SystemInfo>({
+        queryKey: SYSTEM_INFO_KEY,
         queryFn: () => getSystemInfo() ?? DEFAULT_SYSTEM_INFO,
         initialData: DEFAULT_SYSTEM_INFO,
         staleTime: 10000,

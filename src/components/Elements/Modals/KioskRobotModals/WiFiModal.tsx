@@ -1,17 +1,17 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { invoke } from '@tauri-apps/api/core';
 import { FaWifi, FaTimes, FaLock, FaLockOpen, FaSpinner, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 import type { SystemInfo } from '@/hooks/System/system-info.hook';
-import { addSavedWiFiSSID, removeSavedWiFiSSID } from '@/hooks/WIFI/wifi.hook';
-
-interface WiFiNetwork {
-    ssid: string;
-    signal_strength: number;
-    security: string;
-}
+import {
+    addSavedWiFiSSID,
+    connectToWiFi,
+    disconnectFromWiFi,
+    getCurrentWiFiConnection,
+    scanWiFiNetworks,
+    type WiFiNetwork,
+} from '@/hooks/WIFI/wifi.hook';
 
 interface WiFiModalProps {
     isOpen: boolean;
@@ -19,7 +19,7 @@ interface WiFiModalProps {
     systemInfo: SystemInfo;
 }
 
-const NETWORKS_PAGE_SIZE = 20;
+const NETWORKS_PAGE_SIZE = 12;
 const NETWORKS_SCROLL_THRESHOLD_PX = 120;
 
 export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInfo }) => {
@@ -34,19 +34,21 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
     const [isDisconnecting, setIsDisconnecting] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [success, setSuccess] = useState<string | null>(null);
+    const scanRequestId = useRef(0);
+    const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
         setMounted(true);
     }, []);
 
-    const scanNetworks = async () => {
+    const scanNetworks = useCallback(async () => {
+        const requestId = ++scanRequestId.current;
         setIsScanning(true);
         setError(null);
         try {
-            const [networksResult, currentResult] = await Promise.all([
-                invoke<WiFiNetwork[]>('scan_wifi_networks'),
-                invoke<WiFiNetwork | null>('get_current_wifi_connection'),
-            ]);
+            const [networksResult, currentResult] = await Promise.all([scanWiFiNetworks(), getCurrentWiFiConnection()]);
+
+            if (requestId !== scanRequestId.current) return;
 
             const uniqueNetworks = networksResult.reduce((acc, network) => {
                 const existing = acc.find((n) => n.ssid === network.ssid);
@@ -63,25 +65,40 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
             setVisibleCount(NETWORKS_PAGE_SIZE);
             setCurrentConnection(currentResult);
         } catch (err) {
+            if (requestId !== scanRequestId.current) return;
             const errorMsg = String(err);
             if (errorMsg.includes('Access is denied') || errorMsg.includes('os error 5')) {
-                setError(
-                    'Access denied. On Windows, this app needs to run as Administrator to scan WiFi networks. Please restart the app as Administrator.'
-                );
+                setError('Wi-Fi access was denied by the operating system. Check location and network permissions, then try again.');
             } else {
                 setError(`Failed to scan networks: ${err}`);
             }
             console.error('WiFi scan error:', err);
         } finally {
-            setIsScanning(false);
+            if (requestId === scanRequestId.current) setIsScanning(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         if (isOpen) {
-            scanNetworks();
+            setSelectedNetwork(null);
+            setPassword('');
+            setSuccess(null);
+            void scanNetworks();
+            return () => {
+                scanRequestId.current += 1;
+                if (refreshTimer.current) clearTimeout(refreshTimer.current);
+            };
         }
-    }, [isOpen]);
+    }, [isOpen, scanNetworks]);
+
+    useEffect(() => {
+        if (!isOpen) return;
+        const handleKeyDown = (event: KeyboardEvent) => {
+            if (event.key === 'Escape') onClose();
+        };
+        window.addEventListener('keydown', handleKeyDown);
+        return () => window.removeEventListener('keydown', handleKeyDown);
+    }, [isOpen, onClose]);
 
     const handleConnect = async () => {
         if (!selectedNetwork) return;
@@ -91,26 +108,20 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
         setSuccess(null);
 
         try {
-            const result = await invoke<string>('connect_to_wifi', {
-                ssid: selectedNetwork.ssid,
-                password,
-                security: selectedNetwork.security,
-            });
+            const result = await connectToWiFi(selectedNetwork, password);
             setSuccess(result);
             addSavedWiFiSSID(selectedNetwork.ssid);
 
             setPassword('');
             setSelectedNetwork(null);
-            setTimeout(() => {
-                scanNetworks();
+            refreshTimer.current = setTimeout(() => {
+                void scanNetworks();
                 setSuccess(null);
             }, 3000);
         } catch (err) {
             const errorMsg = String(err);
             if (errorMsg.includes('Access is denied') || errorMsg.includes('os error 5')) {
-                setError(
-                    'Access denied. On Windows, this app needs to run as Administrator to connect to WiFi. Please restart the app as Administrator.'
-                );
+                setError('Wi-Fi access was denied by the operating system. Check location and network permissions, then try again.');
             } else {
                 setError(`Connection failed: ${err}`);
             }
@@ -126,21 +137,18 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
         setSuccess(null);
 
         try {
-            const result = await invoke<string>('disconnect_from_wifi');
+            const result = await disconnectFromWiFi();
             setSuccess(result);
-            removeSavedWiFiSSID(currentConnection?.ssid ?? '');
 
             setCurrentConnection(null);
-            setTimeout(() => {
-                scanNetworks();
+            refreshTimer.current = setTimeout(() => {
+                void scanNetworks();
                 setSuccess(null);
             }, 3000);
         } catch (err) {
             const errorMsg = String(err);
             if (errorMsg.includes('Access is denied') || errorMsg.includes('os error 5')) {
-                setError(
-                    'Access denied. On Windows, this app needs to run as Administrator to disconnect from WiFi. Please restart the app as Administrator.'
-                );
+                setError('Wi-Fi access was denied by the operating system. Check location and network permissions, then try again.');
             } else {
                 setError(`Disconnect failed: ${err}`);
             }
@@ -191,13 +199,17 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
         );
     };
 
-    const isSecure = (security: string) => security !== 'Open' && security !== '';
-    const sortedNetworks = [...networks].sort((a, b) => {
-        if (a.signal_strength !== b.signal_strength) {
-            return b.signal_strength - a.signal_strength;
-        }
-        return a.ssid.localeCompare(b.ssid);
-    });
+    const isSecure = (security: string) => !['', '--', 'none', 'open'].includes(security.trim().toLowerCase());
+    const sortedNetworks = useMemo(
+        () =>
+            [...networks].sort((a, b) => {
+                if (a.signal_strength !== b.signal_strength) {
+                    return b.signal_strength - a.signal_strength;
+                }
+                return a.ssid.localeCompare(b.ssid);
+            }),
+        [networks]
+    );
     const visibleNetworks = sortedNetworks.slice(0, visibleCount);
     const hasMoreNetworks = visibleCount < sortedNetworks.length;
 
@@ -205,9 +217,12 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
     if (!mounted || typeof window === 'undefined') return null;
 
     return createPortal(
-        <div className="fixed inset-0 z-[2000] flex items-start justify-center bg-black/55 p-4 pt-8 backdrop-blur-sm" onClick={onClose}>
-            <div
-                className="mt-4 flex max-h-[82vh] w-full max-w-3xl cursor-default flex-col overflow-hidden rounded-2xl border border-slate-600/70 bg-slate-850 shadow-[0_20px_55px_rgba(2,6,23,0.65)]"
+        <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={onClose}>
+            <section
+                aria-labelledby="wifi-modal-title"
+                aria-modal="true"
+                role="dialog"
+                className="bg-slate-850 flex h-[min(46rem,calc(100dvh-2rem))] w-full max-w-3xl cursor-default flex-col overflow-hidden rounded-2xl border border-slate-600/70 shadow-[0_24px_70px_rgba(2,6,23,0.7)]"
                 onClick={(e) => e.stopPropagation()}
             >
                 <div className="flex items-center justify-between border-b border-slate-700/80 px-5 py-4">
@@ -216,11 +231,14 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                             <FaWifi className="h-4 w-4" />
                         </div>
                         <div>
-                            <h2 className="text-lg font-semibold tracking-tight text-white">WiFi Networks</h2>
-                            <span className="text-xs text-slate-400">{systemInfo.ipAddress ?? 'Disconnected'}</span>
+                            <h2 id="wifi-modal-title" className="text-lg font-semibold tracking-tight text-white">
+                                Wi-Fi
+                            </h2>
+                            <span className="text-xs text-slate-400">{systemInfo.ipAddress || 'Disconnected'}</span>
                         </div>
                     </div>
                     <button
+                        aria-label="Close Wi-Fi settings"
                         onClick={onClose}
                         className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-700/70 hover:text-white"
                     >
@@ -228,7 +246,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                     </button>
                 </div>
 
-                <div className="flex flex-1 flex-col gap-4 p-5">
+                <div className="flex min-h-0 flex-1 flex-col gap-4 p-5">
                     {error && (
                         <div className="mb-1 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">
                             <FaExclamationTriangle className="h-5 w-5" />
@@ -284,7 +302,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                             {networks.length} network{networks.length !== 1 ? 's' : ''} found
                         </p>
                         <button
-                            onClick={scanNetworks}
+                            onClick={() => void scanNetworks()}
                             disabled={isScanning}
                             className="flex cursor-pointer items-center gap-2 rounded-lg bg-blue-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-600 disabled:cursor-not-allowed disabled:opacity-50"
                         >
@@ -296,13 +314,13 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                             ) : (
                                 <>
                                     <FaWifi className="h-4 w-4" />
-                                    Scan
+                                    Refresh
                                 </>
                             )}
                         </button>
                     </div>
 
-                    {selectedNetwork && !currentConnection && (
+                    {selectedNetwork && selectedNetwork.ssid !== currentConnection?.ssid && (
                         <div className="rounded-lg border border-slate-700/80 bg-slate-900/70 p-4">
                             <h3 className="mb-3 text-sm font-semibold text-white">{`Connect to "${selectedNetwork.ssid}"`}</h3>
 
@@ -362,9 +380,18 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                         </div>
                     )}
 
-                    <div onScroll={handleNetworksScroll} className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-slate-700/90">
+                    <div
+                        onScroll={handleNetworksScroll}
+                        className="wifi-network-list min-h-32 flex-1 overflow-y-scroll rounded-xl border border-slate-700/90 bg-slate-900/25 [scrollbar-gutter:stable]"
+                    >
+                        {isScanning && sortedNetworks.length === 0 ? (
+                            <div className="flex h-full min-h-40 items-center justify-center gap-3 text-sm text-slate-400">
+                                <FaSpinner className="animate-spin" />
+                                Looking for nearby networks…
+                            </div>
+                        ) : null}
                         {sortedNetworks.length === 0 && !isScanning ? (
-                            <div className="p-8 text-center text-slate-400">No networks found. Click "Scan" to search for WiFi networks.</div>
+                            <div className="p-8 text-center text-slate-400">No networks found. Refresh to scan again.</div>
                         ) : (
                             visibleNetworks.map((network) => {
                                 const isConnected = currentConnection?.ssid === network.ssid;
@@ -374,6 +401,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                                     <button
                                         key={network.ssid}
                                         onClick={() => {
+                                            if (isConnected) return;
                                             setSelectedNetwork(network);
                                             setPassword('');
                                             setError(null);
@@ -425,7 +453,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                         )}
                     </div>
                 </div>
-            </div>
+            </section>
         </div>,
         document.body
     );
