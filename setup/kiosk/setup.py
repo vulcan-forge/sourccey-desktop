@@ -25,6 +25,7 @@ import shutil
 import argparse
 from pathlib import Path
 from typing import Optional
+from components.setup_battery import BatterySetupManager
 from components.setup_swap import setup_swap_for_build
 
 project_root = Path(__file__).parent.parent.parent
@@ -93,6 +94,13 @@ class KioskSetupScript:
             self.print_success,
             self.print_warning,
             self.print_error
+        )
+        self.battery_manager = BatterySetupManager(
+            self.project_root,
+            self.print_status,
+            self.print_success,
+            self.print_warning,
+            self.print_error,
         )
 
     #################################################################
@@ -325,8 +333,10 @@ class KioskSetupScript:
         return self.git_manager.setup_git_submodules(use_https=use_https)
 
     def setup_python_environment(self) -> bool:
-        """Setup Python environment for lerobot-vulcan"""
-        return self.python_manager.setup_python_environment()
+        """Set up the robot Python environment and provision its battery gauge."""
+        if not self.python_manager.setup_python_environment():
+            return False
+        return self.battery_manager.ensure_golden_image()
 
     def setup_bun_packages(self) -> bool:
         """Install Bun packages"""

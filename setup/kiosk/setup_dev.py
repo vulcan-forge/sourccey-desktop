@@ -33,6 +33,7 @@ from setup_git import GitSetupManager  # type: ignore
 from setup_javascript import JavaScriptSetupManager, get_bun_path  # type: ignore
 from setup_python import PythonSetupManager  # type: ignore
 from setup_rust import RustSetupManager  # type: ignore
+from components.setup_battery import BatterySetupManager  # type: ignore
 from components.setup_swap import setup_swap_for_build  # type: ignore
 
 class Colors:
@@ -81,6 +82,13 @@ class DevKioskSetupScript:
             self.print_error,
         )
         self.git_manager = GitSetupManager(
+            self.project_root,
+            self.print_status,
+            self.print_success,
+            self.print_warning,
+            self.print_error,
+        )
+        self.battery_manager = BatterySetupManager(
             self.project_root,
             self.print_status,
             self.print_success,
@@ -144,7 +152,9 @@ class DevKioskSetupScript:
         return self.git_manager.setup_git_submodules(use_https=use_https)
 
     def setup_python_environment(self) -> bool:
-        return self.python_manager.setup_python_environment()
+        if not self.python_manager.setup_python_environment():
+            return False
+        return self.battery_manager.ensure_golden_image()
 
     def setup_bun_packages(self) -> bool:
         return self.javascript_manager.install_packages()
