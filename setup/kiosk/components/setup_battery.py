@@ -74,8 +74,8 @@ class BatterySetupManager:
             return None
         return payload
 
-    def ensure_golden_image(self) -> bool:
-        """Flash only an identified gauge whose learned status is not 0x06."""
+    def ensure_golden_image(self, force: bool = False) -> bool:
+        """Ensure an identified gauge contains the learned golden image."""
         if not self.I2C_DEVICE.exists():
             self.print_warning(
                 "Skipping BQ34Z100 provisioning because /dev/i2c-1 is unavailable"
@@ -114,15 +114,20 @@ class BatterySetupManager:
             self.print_error(f"Could not read BQ34Z100 UpdateStatus: {exc}")
             return False
 
-        if update_status == self.GOLDEN_UPDATE_STATUS:
+        if update_status == self.GOLDEN_UPDATE_STATUS and not force:
             self.print_success(
                 "BQ34Z100 already contains the learned golden image (UpdateStatus=0x06)"
             )
             return True
 
-        self.print_warning(
-            f"BQ34Z100 UpdateStatus is 0x{update_status:02X}, not 0x06; flashing the learned golden image"
-        )
+        if force:
+            self.print_warning(
+                f"Forcing BQ34Z100 golden-image flash (current UpdateStatus=0x{update_status:02X})"
+            )
+        else:
+            self.print_warning(
+                f"BQ34Z100 UpdateStatus is 0x{update_status:02X}, not 0x06; flashing the learned golden image"
+            )
         try:
             flash_result = self._run(
                 self.FLASH_MODULE, ["--profile", "bq"], capture_output=False

@@ -80,6 +80,34 @@ def test_battery_provisioning_flashes_and_verifies_unlearned_gauge(
     assert commands[-1][2] is True
 
 
+def test_battery_provisioning_force_reflashes_learned_gauge(monkeypatch, tmp_path):
+    manager = _manager_with_i2c(tmp_path)
+    commands = []
+    responses = iter(
+        [
+            SimpleNamespace(
+                returncode=0, stdout=json.dumps({"device_type": "0x0100"}), stderr=""
+            ),
+            SimpleNamespace(
+                returncode=0, stdout=json.dumps({"value": "0x06"}), stderr=""
+            ),
+            SimpleNamespace(returncode=0, stdout=None, stderr=None),
+            SimpleNamespace(
+                returncode=0, stdout=json.dumps({"value": "0x06"}), stderr=""
+            ),
+        ]
+    )
+
+    def fake_run(module, args, *, capture_output):
+        commands.append((module, args, capture_output))
+        return next(responses)
+
+    monkeypatch.setattr(manager, "_run", fake_run)
+
+    assert manager.ensure_golden_image(force=True) is True
+    assert [module for module, _, _ in commands].count(manager.FLASH_MODULE) == 1
+
+
 def test_battery_provisioning_refuses_unexpected_gauge(monkeypatch, tmp_path):
     manager = _manager_with_i2c(tmp_path)
     commands = []
