@@ -70,13 +70,13 @@ export const BatteryModal = ({ batteryData, isOpen, onClose }: BatteryModalProps
                 aria-labelledby="battery-modal-title"
                 aria-modal="true"
                 role="dialog"
-                className="bg-slate-850 w-full max-w-xl overflow-hidden rounded-2xl border border-slate-600/70 shadow-[0_24px_70px_rgba(2,6,23,0.7)]"
+                className="bg-slate-850 max-h-[calc(100dvh-2rem)] w-full max-w-lg overflow-y-auto rounded-2xl border border-slate-600/70 shadow-[0_24px_70px_rgba(2,6,23,0.7)]"
                 onClick={(event) => event.stopPropagation()}
             >
-                <header className="flex items-center justify-between border-b border-slate-700/80 px-6 py-5">
+                <header className="flex items-center justify-between border-b border-slate-700/80 px-5 py-4">
                     <div className="flex items-center gap-3">
-                        <span className="rounded-xl bg-emerald-500/15 p-2.5 text-emerald-300">
-                            <FaBatteryFull className="h-5 w-5" />
+                        <span className="rounded-lg bg-emerald-500/15 p-2 text-emerald-300">
+                            <FaBatteryFull className="h-4 w-4" />
                         </span>
                         <div>
                             <h2 id="battery-modal-title" className="text-lg font-semibold text-white">
@@ -94,7 +94,7 @@ export const BatteryModal = ({ batteryData, isOpen, onClose }: BatteryModalProps
                     </button>
                 </header>
 
-                <div className="space-y-5 p-6">
+                <div className="space-y-3 p-5">
                     {batteryData.error ? (
                         <div className="flex gap-3 rounded-xl border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-200">
                             <FaExclamationTriangle className="mt-0.5 shrink-0" />
@@ -102,11 +102,11 @@ export const BatteryModal = ({ batteryData, isOpen, onClose }: BatteryModalProps
                         </div>
                     ) : null}
 
-                    <div className="rounded-2xl border border-slate-700/80 bg-slate-900/55 p-5">
+                    <div className="rounded-xl border border-slate-700/80 bg-slate-900/55 p-4">
                         <div className="flex items-end justify-between gap-4">
                             <div>
                                 <p className="text-sm font-medium text-slate-400">Charge level</p>
-                                <p className="mt-1 text-4xl font-semibold tracking-tight text-white">{percent >= 0 ? `${percent}%` : '—'}</p>
+                                <p className="text-3xl font-semibold tracking-tight text-white">{percent >= 0 ? `${percent}%` : '--'}</p>
                             </div>
                             <span
                                 className={`rounded-full px-3 py-1 text-sm font-medium ${
@@ -120,7 +120,7 @@ export const BatteryModal = ({ batteryData, isOpen, onClose }: BatteryModalProps
                                 {statusLabel}
                             </span>
                         </div>
-                        <div className="mt-4 h-3 overflow-hidden rounded-full bg-slate-700/80">
+                        <div className="mt-3 h-2.5 overflow-hidden rounded-full bg-slate-700/80">
                             <div
                                 className={`h-full rounded-full transition-[width] duration-500 ${percent < 10 ? 'bg-red-400' : 'bg-emerald-400'}`}
                                 style={{ width: `${Math.max(0, percent)}%` }}
@@ -130,17 +130,17 @@ export const BatteryModal = ({ batteryData, isOpen, onClose }: BatteryModalProps
 
                     <div className="grid grid-cols-2 gap-3">
                         {metrics.map(({ label, value, icon: Icon }) => (
-                            <div key={label} className="rounded-xl border border-slate-700/70 bg-slate-800/70 p-4">
+                            <div key={label} className="rounded-xl border border-slate-700/70 bg-slate-800/70 p-3">
                                 <div className="flex items-center gap-2 text-xs font-medium tracking-wide text-slate-400 uppercase">
                                     <Icon className="h-3.5 w-3.5" />
                                     {label}
                                 </div>
-                                <p className="mt-2 text-lg font-semibold text-white">{value}</p>
+                                <p className="mt-1 text-base font-semibold text-white">{value}</p>
                             </div>
                         ))}
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4 border-t border-slate-700/70 pt-4 text-sm">
+                    <div className="grid grid-cols-2 gap-3 border-t border-slate-700/70 pt-3 text-sm">
                         <div>
                             <p className="text-slate-400">Remaining capacity</p>
                             <p className="mt-1 font-medium text-slate-100">{formatMeasurement(batteryData.remaining_capacity_ah, 'Ah')}</p>
@@ -157,7 +157,7 @@ export const BatteryModal = ({ batteryData, isOpen, onClose }: BatteryModalProps
                             <p className="text-slate-400">Gauge uncertainty</p>
                             <p className="mt-1 font-medium text-slate-100">
                                 {Number.isFinite(batteryData.max_error) && batteryData.max_error >= 0
-                                    ? `±${batteryData.max_error.toFixed(0)}%`
+                                    ? `+/-${batteryData.max_error.toFixed(0)}%`
                                     : 'Unavailable'}
                             </p>
                         </div>

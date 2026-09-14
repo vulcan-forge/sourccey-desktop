@@ -10,7 +10,12 @@ import {
     FaNetworkWired,
     FaThermometerHalf,
 } from 'react-icons/fa';
-import { calculateBatteryPercent, getBatteryLevelStep, isBatteryCharging } from '@/hooks/System/system-info.hook';
+import {
+    calculateBatteryPercent,
+    getBatteryLevelStep,
+    getBatteryStatusSurfaceClasses,
+    isBatteryCharging,
+} from '@/hooks/System/system-info.hook';
 import type { WelcomeSystemInfo } from './welcome.types';
 
 interface WelcomeSystemStatusProps {
@@ -20,16 +25,9 @@ interface WelcomeSystemStatusProps {
     isLoadingSystemInfo?: boolean;
 }
 
-const LoadingLine = ({ className = '' }: { className?: string }) => (
-    <div className={`skeleton-shimmer rounded-full ${className}`} />
-);
+const LoadingLine = ({ className = '' }: { className?: string }) => <div className={`skeleton-shimmer rounded-full ${className}`} />;
 
-export const WelcomeSystemStatus = ({
-    nickname,
-    robotType,
-    systemInfo,
-    isLoadingSystemInfo = false,
-}: WelcomeSystemStatusProps) => {
+export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoadingSystemInfo = false }: WelcomeSystemStatusProps) => {
     const getBatteryIcon = (percent: number) => {
         const level = getBatteryLevelStep(percent);
         if (level === 100) return FaBatteryFull;
@@ -49,6 +47,7 @@ export const WelcomeSystemStatus = ({
     const batteryIsCharging = isBatteryCharging(systemInfo.batteryData);
     const BatteryIcon = isLoadingSystemInfo ? FaBatteryFull : getBatteryIcon(batteryPercent);
     const batteryColor = isLoadingSystemInfo ? 'text-white' : getBatteryColor(batteryPercent);
+    const batterySurface = isLoadingSystemInfo ? 'border-slate-700 bg-slate-800/50 text-white' : getBatteryStatusSurfaceClasses(batteryPercent);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
 
     return (
@@ -65,7 +64,7 @@ export const WelcomeSystemStatus = ({
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+                <div className={`rounded-lg border p-4 ${batterySurface}`}>
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2 text-sm text-slate-400">

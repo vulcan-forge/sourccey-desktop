@@ -76,6 +76,16 @@ export const getBatteryLevelStep = (percent: number): BatteryLevelStep => {
     return 100;
 };
 
+export const getBatteryStatusSurfaceClasses = (percent: number): string => {
+    if (percent > 75) {
+        return 'border-emerald-400/20 bg-emerald-500/10 text-emerald-300';
+    }
+    if (percent >= 10) {
+        return 'border-slate-500/50 bg-slate-700/60 text-white';
+    }
+    return 'border-red-400/25 bg-red-500/10 text-red-300';
+};
+
 export const getBatteryChargeState = (batteryData: BatteryData): BatteryChargeState => {
     const hasBatteryMeasurement =
         (Number.isFinite(batteryData.voltage) && batteryData.voltage >= 0) ||
