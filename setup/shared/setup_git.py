@@ -9,6 +9,7 @@ Used by both desktop and kiosk setup scripts.
 import os
 import sys
 import subprocess
+import json
 import re
 import time
 import shutil
@@ -910,93 +911,31 @@ class GitSetupManager:
             self.print_error(f"Failed to update git submodules: {e.stderr or e}")
             return False
 
-    def checkout_submodule_branch(
-        self,
-        submodule_relative_path: str = "modules/lerobot-vulcan",
-        branch: str = "main",
-    ) -> bool:
-        """Checkout a specific branch inside a submodule."""
-        submodule_path = self.project_root / submodule_relative_path
-        if not submodule_path.exists():
-            self.print_error(f"Submodule path does not exist: {submodule_relative_path}")
-            return False
+    def get_configured_submodule_tag(self, submodule_relative_path: str) -> Optional[str]:
+        """Read a submodule's release tag from the application update manifest."""
+        manifest_path = self.project_root / "public" / "latest.json"
+        module_name = Path(submodule_relative_path).name
 
-        # Ensure it's a git repo
-        repo_check = self._run_git_command(
-            ["git", "rev-parse", "--git-dir"],
-            submodule_path,
-            capture_output=True,
-            text=True,
-        )
-        if repo_check.returncode != 0:
-            self.print_error(f"Not a git repository: {submodule_relative_path}")
-            return False
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as e:
+            self.print_error(f"Could not read {manifest_path}: {e}")
+            return None
 
-        # Avoid discarding local changes
-        status = self._run_git_command(
-            ["git", "status", "--porcelain"],
-            submodule_path,
-            capture_output=True,
-            text=True,
-        )
-        if status.stdout.strip():
-            branch_result = self._run_git_command(
-                ["git", "rev-parse", "--abbrev-ref", "HEAD"],
-                submodule_path,
-                capture_output=True,
-                text=True,
-            )
-            current_branch = (
-                branch_result.stdout.strip() if branch_result.returncode == 0 else ""
-            )
-
-            if current_branch == branch:
-                self.print_warning(
-                    f"Submodule {submodule_relative_path} has local changes and is already on "
-                    f"{branch}. Skipping checkout to avoid data loss."
-                )
-                return True
-
-            self.print_warning(
-                f"Submodule {submodule_relative_path} has local changes. "
-                f"Cannot switch to {branch} without risking data loss."
-            )
+        tag = manifest.get("modules", {}).get(module_name, {}).get("tag")
+        if not isinstance(tag, str) or not re.fullmatch(
+            r"vulcan/\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?", tag
+        ):
             self.print_error(
-                f"Current branch is '{current_branch or 'unknown'}'. "
-                f"Commit/stash/discard changes in {submodule_relative_path}, then rerun setup."
+                f"Missing or invalid modules.{module_name}.tag in {manifest_path}"
             )
-            return False
-
-        self.print_status(f"Checking out {branch} in {submodule_relative_path}...")
-
-        fetch = self._run_git_command(
-            ["git", "fetch", "origin", branch],
-            submodule_path,
-            capture_output=True,
-            text=True,
-        )
-        if fetch.returncode != 0:
-            self.print_error(f"Failed to fetch origin/{branch}: {fetch.stderr.strip()}")
-            return False
-
-        checkout = self._run_git_command(
-            ["git", "checkout", "-B", branch, f"origin/{branch}"],
-            submodule_path,
-            capture_output=True,
-            text=True,
-        )
-        if checkout.returncode != 0:
-            self.print_error(f"Failed to checkout {branch}: {checkout.stderr.strip()}")
-            return False
-
-        self.print_success(f"Submodule {submodule_relative_path} checked out {branch}.")
-        return True
+            return None
+        return tag
 
     def checkout_submodule_tag(
         self,
-        submodule_relative_path: str = "modules/lerobot-vulcan",
-        tag: str = "vulcan/0.1.0",
-        force: bool = False,
+        submodule_relative_path: str,
+        tag: str,
     ) -> bool:
         """Checkout a specific tag inside a submodule."""
         submodule_path = self.project_root / submodule_relative_path
@@ -1056,62 +995,14 @@ class GitSetupManager:
                 )
                 return True
 
-            if not force:
-                self.print_warning(
-                    f"Submodule {submodule_relative_path} has local changes. "
-                    f"Cannot switch to tag {tag} without risking data loss."
-                )
-                self.print_error(
-                    f"Commit/stash/discard changes in {submodule_relative_path}, then rerun setup."
-                )
-                return False
-
             self.print_warning(
                 f"Submodule {submodule_relative_path} has local changes. "
-                f"Forcing checkout to tag {tag} by discarding submodule changes."
+                f"Cannot switch to tag {tag} without risking data loss."
             )
-            hard_reset = self._run_git_command(
-                ["git", "reset", "--hard", "HEAD"],
-                submodule_path,
-                capture_output=True,
-                text=True,
+            self.print_error(
+                f"Commit/stash/discard changes in {submodule_relative_path}, then rerun setup."
             )
-            if hard_reset.returncode != 0:
-                self.print_error(
-                    f"Failed to hard reset {submodule_relative_path}: {hard_reset.stderr.strip()}"
-                )
-                return False
-
-            clean = self._run_git_command(
-                ["git", "clean", "-fd"],
-                submodule_path,
-                capture_output=True,
-                text=True,
-            )
-            if clean.returncode != 0:
-                self.print_error(
-                    f"Failed to clean {submodule_relative_path}: {clean.stderr.strip()}"
-                )
-                return False
-
-            status_after_force = self._run_git_command(
-                ["git", "status", "--porcelain"],
-                submodule_path,
-                capture_output=True,
-                text=True,
-            )
-            if status_after_force.returncode != 0:
-                self.print_error(
-                    f"Failed to verify submodule status after force clean: "
-                    f"{status_after_force.stderr.strip()}"
-                )
-                return False
-
-            if status_after_force.stdout.strip():
-                self.print_error(
-                    f"Submodule {submodule_relative_path} is still dirty after force clean."
-                )
-                return False
+            return False
 
         checkout = self._run_git_command(
             ["git", "checkout", "--detach", f"refs/tags/{tag}"],
@@ -1121,6 +1012,28 @@ class GitSetupManager:
         )
         if checkout.returncode != 0:
             self.print_error(f"Failed to checkout tag {tag}: {checkout.stderr.strip()}")
+            return False
+
+        current_head = self._run_git_command(
+            ["git", "rev-parse", "HEAD"],
+            submodule_path,
+            capture_output=True,
+            text=True,
+        )
+        tag_head = self._run_git_command(
+            ["git", "rev-parse", f"refs/tags/{tag}^{{commit}}"],
+            submodule_path,
+            capture_output=True,
+            text=True,
+        )
+        if (
+            current_head.returncode != 0
+            or tag_head.returncode != 0
+            or current_head.stdout.strip() != tag_head.stdout.strip()
+        ):
+            self.print_error(
+                f"Submodule {submodule_relative_path} did not resolve to tag {tag}."
+            )
             return False
 
         self.print_success(f"Submodule {submodule_relative_path} checked out tag {tag}.")
@@ -1324,6 +1237,19 @@ class GitSetupManager:
                     self.debug_submodule_config()
                 self.restore_stashed_changes()
                 return False
+
+            lerobot_submodule = "modules/lerobot-vulcan"
+            manages_lerobot = (
+                self.submodule_paths is None
+                or lerobot_submodule in self.submodule_paths
+            )
+            if manages_lerobot:
+                configured_tag = self.get_configured_submodule_tag(lerobot_submodule)
+                if not configured_tag or not self.checkout_submodule_tag(
+                    lerobot_submodule, configured_tag
+                ):
+                    self.restore_stashed_changes()
+                    return False
 
             # Notify about stashed changes
             self.notify_stashed_changes()

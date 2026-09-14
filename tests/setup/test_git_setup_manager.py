@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import stat
 import sys
+import json
 from pathlib import Path
 
 
@@ -105,4 +106,60 @@ def test_default_selection_includes_all_submodules(tmp_path):
     manager = _create_manager(tmp_path)
     assert manager._submodule_command("update", "--init", "--recursive") == [
         "git", "submodule", "update", "--init", "--recursive",
+    ]
+
+
+def test_reads_lerobot_release_tag_from_manifest(tmp_path):
+    manager = _create_manager(tmp_path)
+    manifest_path = tmp_path / "public" / "latest.json"
+    manifest_path.parent.mkdir()
+    manifest_path.write_text(json.dumps({
+        "modules": {"lerobot-vulcan": {"tag": "vulcan/0.1.14"}},
+    }))
+
+    assert manager.get_configured_submodule_tag(
+        "modules/lerobot-vulcan"
+    ) == "vulcan/0.1.14"
+
+
+def test_rejects_invalid_lerobot_release_tag(tmp_path):
+    manager = _create_manager(tmp_path)
+    manifest_path = tmp_path / "public" / "latest.json"
+    manifest_path.parent.mkdir()
+    manifest_path.write_text(json.dumps({
+        "modules": {"lerobot-vulcan": {"tag": "main"}},
+    }))
+
+    assert manager.get_configured_submodule_tag("modules/lerobot-vulcan") is None
+
+
+def test_setup_checks_out_manifest_release(monkeypatch, tmp_path):
+    manager = _create_manager(tmp_path)
+    calls = []
+    for method_name in (
+        "check_git_installed",
+        "ensure_git_lfs",
+        "sync_git_submodules",
+        "initialize_git_submodules",
+        "handle_submodule_changes",
+        "update_git_submodules",
+    ):
+        monkeypatch.setattr(manager, method_name, lambda: True)
+    monkeypatch.setattr(
+        manager,
+        "get_configured_submodule_tag",
+        lambda path: calls.append(("manifest", path)) or "vulcan/0.1.14",
+    )
+    monkeypatch.setattr(
+        manager,
+        "checkout_submodule_tag",
+        lambda path, tag: calls.append(("checkout", path, tag)) or True,
+    )
+    monkeypatch.setattr(manager, "notify_stashed_changes", lambda: None)
+    monkeypatch.setattr(manager, "restore_stashed_changes", lambda: None)
+
+    assert manager.setup_git_submodules() is True
+    assert calls == [
+        ("manifest", "modules/lerobot-vulcan"),
+        ("checkout", "modules/lerobot-vulcan", "vulcan/0.1.14"),
     ]
