@@ -37,7 +37,9 @@ static BATTERY_CACHE: OnceLock<Mutex<Option<CachedBatteryData>>> = OnceLock::new
 
 impl BatteryService {
     const BATTERY_CACHE_TTL: Duration = Duration::from_secs(5);
-    const BATTERY_SCRIPT_TIMEOUT: Duration = Duration::from_secs(3);
+    // Python startup and the I2C transaction can exceed three seconds on a
+    // Raspberry Pi during cold starts or while the system is under load.
+    const BATTERY_SCRIPT_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn get_battery_data() -> Result<BatteryData, String> {
         if let Some(cached) = Self::get_recent_cached_battery_data() {

@@ -81,14 +81,17 @@ pub fn is_kiosk_host_active(state: State<KioskHostProcess>, nickname: String) ->
 pub fn get_system_info() -> SystemInfo {
     let ip_address = get_ip_address();
     let temperature = get_temperature();
-    let battery_data = BatteryService::get_battery_data().unwrap_or_else(|_| BatteryData {
-        voltage: -1.0,
-        current_a: -1.0,
-        remaining_capacity_ah: -1.0,
-        max_capacity_ah: -1.0,
-        state_of_charge: -1,
-        max_error: -1,
-        error: Some("Failed to read battery data".to_string()),
+    let battery_data = BatteryService::get_battery_data().unwrap_or_else(|error| {
+        eprintln!("Failed to read battery data: {error}");
+        BatteryData {
+            voltage: -1.0,
+            current_a: -1.0,
+            remaining_capacity_ah: -1.0,
+            max_capacity_ah: -1.0,
+            state_of_charge: -1,
+            max_error: -1,
+            error: Some(error),
+        }
     });
     SystemInfo {
         ip_address,
