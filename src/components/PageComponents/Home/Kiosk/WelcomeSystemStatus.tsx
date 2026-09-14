@@ -10,12 +10,7 @@ import {
     FaNetworkWired,
     FaThermometerHalf,
 } from 'react-icons/fa';
-import {
-    calculateBatteryPercent,
-    getBatteryLevelStep,
-    getBatteryStatusSurfaceClasses,
-    isBatteryCharging,
-} from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, getBatteryLevelStep, isBatteryCharging } from '@/hooks/System/system-info.hook';
 import type { WelcomeSystemInfo } from './welcome.types';
 
 interface WelcomeSystemStatusProps {
@@ -38,16 +33,15 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
     };
 
     const getBatteryColor = (percent: number) => {
-        if (percent > 75) return 'text-green-400';
+        if (percent > 75) return 'text-emerald-300';
         if (percent >= 10) return 'text-white';
-        return 'text-red-400';
+        return 'text-red-300';
     };
 
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
     const batteryIsCharging = isBatteryCharging(systemInfo.batteryData);
     const BatteryIcon = isLoadingSystemInfo ? FaBatteryFull : getBatteryIcon(batteryPercent);
     const batteryColor = isLoadingSystemInfo ? 'text-white' : getBatteryColor(batteryPercent);
-    const batterySurface = isLoadingSystemInfo ? 'border-slate-700 bg-slate-800/50 text-white' : getBatteryStatusSurfaceClasses(batteryPercent);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
 
     return (
@@ -64,7 +58,7 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className={`rounded-lg border p-4 ${batterySurface}`}>
+                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2 text-sm text-slate-400">
