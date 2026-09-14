@@ -93,7 +93,8 @@ class KioskSetupScript:
             self.print_status,
             self.print_success,
             self.print_warning,
-            self.print_error
+            self.print_error,
+            submodule_paths=["modules/lerobot-vulcan"],
         )
         self.battery_manager = BatterySetupManager(
             self.project_root,
@@ -591,7 +592,7 @@ class KioskSetupScript:
                 self.print_error("")
             else:
                 self.print_error("Git submodule setup failed even with HTTPS.")
-                self.print_error("Please check your internet connection and try again.")
+                self.print_error("See the Git output above for the specific repository, authentication, or filesystem error.")
             return False
 
         if not self.setup_python_environment():
