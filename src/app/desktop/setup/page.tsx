@@ -10,7 +10,7 @@ import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
 import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
 import { installAvailableDesktopUpdate } from '@/utils/updater/updater';
 import { formatLerobotRuntimeVersionLabel, getLerobotRuntimeStatusMessage } from '@/utils/updater/lerobot-runtime';
-import { FaCheckCircle, FaCloudDownloadAlt, FaExclamationTriangle, FaTools } from 'react-icons/fa';
+import { FaArrowRight, FaCheckCircle, FaCloudDownloadAlt, FaExclamationTriangle, FaTools } from 'react-icons/fa';
 
 const steps = [
     { id: 'reset', label: 'Reset modules' },
@@ -208,6 +208,9 @@ export default function SetupPage() {
             ? `Version ${appAvailable} is ready to install.`
             : 'Your desktop app is up to date.';
     const runtimeAction = !isInstalled ? 'repair' : runtimeOutdated ? 'update' : 'repair';
+    const runtimeNeedsAction = !isInstalled || runtimeOutdated;
+    const setupIsCurrent =
+        !isLoadingDesktopAppStatus && !isLoadingLerobotStatus && !appError && !appOutdated && isInstalled && !runtimeError && !runtimeOutdated;
     const runtimeButtonLabel = isRunning
         ? !isInstalled
             ? 'Installing runtime...'
@@ -249,6 +252,28 @@ export default function SetupPage() {
                             Back to home
                         </LinkButton>
                     </header>
+
+                    {setupIsCurrent && (
+                        <section className="mt-7 overflow-hidden rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-5 shadow-[0_18px_45px_rgba(16,185,129,0.12)] sm:p-6">
+                            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <div className="flex items-center gap-2 text-sm font-bold text-emerald-200">
+                                        <FaCheckCircle className="h-5 w-5" />
+                                        Setup complete
+                                    </div>
+                                    <h2 className="mt-2 text-2xl font-semibold text-white">Your desktop is ready</h2>
+                                    <p className="mt-1 text-sm text-slate-300">Vulcan Studio and the robot runtime are both up to date.</p>
+                                </div>
+                                <LinkButton
+                                    href="/desktop/"
+                                    className="inline-flex min-h-14 w-full cursor-pointer items-center justify-center gap-3 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 px-7 py-4 text-base font-bold text-white shadow-lg shadow-emerald-950/30 transition hover:from-emerald-400 hover:to-teal-400 focus-visible:ring-2 focus-visible:ring-emerald-300 focus-visible:outline-none sm:w-auto"
+                                >
+                                    Enter Studio
+                                    <FaArrowRight className="h-4 w-4" />
+                                </LinkButton>
+                            </div>
+                        </section>
+                    )}
 
                     <div className="mt-7 grid gap-4">
                         <section className="rounded-2xl border border-slate-700 bg-slate-950/45 p-5 sm:p-6">
@@ -320,15 +345,26 @@ export default function SetupPage() {
                                 installedLabel={isInstalled ? 'Installed' : 'Downloaded'}
                             />
 
-                            <button
-                                type="button"
-                                onClick={() => void runSetup(runtimeAction)}
-                                disabled={isRunning}
-                                className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-orange-500 px-5 py-3 text-sm font-bold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
-                            >
-                                {isRunning ? <Spinner color="white" width="w-4" height="h-4" /> : <FaTools />}
-                                {runtimeButtonLabel}
-                            </button>
+                            <div className={`mt-5 ${runtimeNeedsAction ? '' : 'flex flex-wrap items-center justify-between gap-3'}`}>
+                                {!runtimeNeedsAction && (
+                                    <p className="text-xs text-slate-400">
+                                        Only repair the runtime if robot features are not working correctly.
+                                    </p>
+                                )}
+                                <button
+                                    type="button"
+                                    onClick={() => void runSetup(runtimeAction)}
+                                    disabled={isRunning}
+                                    className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold transition disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400 ${
+                                        runtimeNeedsAction
+                                            ? 'w-full bg-orange-500 px-5 py-3 font-bold text-white hover:bg-orange-400'
+                                            : 'border border-slate-600 bg-transparent px-4 py-2 text-slate-300 hover:border-slate-400 hover:bg-slate-800/70 hover:text-white'
+                                    }`}
+                                >
+                                    {isRunning ? <Spinner color="white" width="w-4" height="h-4" /> : <FaTools />}
+                                    {runtimeButtonLabel}
+                                </button>
+                            </div>
 
                             {showRuntimeSteps && (
                                 <div className="mt-5 border-t border-slate-700 pt-5">
