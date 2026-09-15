@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { describe, expect, test } from 'bun:test';
-import { getBatteryChargeState, getBatteryTimeEstimate, type BatteryData } from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, getBatteryChargeState, getBatteryTimeEstimate, type BatteryData } from '@/hooks/System/system-info.hook';
 
 const battery = (overrides: Partial<BatteryData> = {}): BatteryData => ({
     voltage: 12.6,
@@ -34,5 +34,19 @@ describe('battery time estimate', () => {
         expect(
             getBatteryChargeState(battery({ voltage: -1, current_a: -1, remaining_capacity_ah: -1, max_capacity_ah: -1, state_of_charge: -1 }))
         ).toBe('unknown');
+    });
+});
+
+describe('battery percentage reliability', () => {
+    test('uses voltage when the gauge briefly reports zero for a charged pack', () => {
+        expect(calculateBatteryPercent(battery({ voltage: 12.55, state_of_charge: 0, max_error: 0 }))).toBe(50);
+    });
+
+    test('allows zero when pack voltage is at the configured empty voltage', () => {
+        expect(calculateBatteryPercent(battery({ voltage: 11.5, state_of_charge: 0, max_error: 0 }))).toBe(0);
+    });
+
+    test('prefers a valid nonzero gauge reading over voltage', () => {
+        expect(calculateBatteryPercent(battery({ voltage: 12.55, state_of_charge: 64, max_error: 0 }))).toBe(64);
     });
 });

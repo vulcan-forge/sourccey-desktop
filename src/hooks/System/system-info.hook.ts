@@ -41,6 +41,13 @@ export const calculateBatteryPercent = (batteryData: BatteryData): number => {
     const hasSoc = Number.isFinite(batteryData.state_of_charge) && batteryData.state_of_charge >= 0;
     const hasMaxError = Number.isFinite(batteryData.max_error) && batteryData.max_error >= 0;
 
+    // The BQ34Z100 can briefly report 0% while its Impedance Track estimate
+    // initializes. A pack above the configured empty voltage is not truly 0%,
+    // so use the voltage estimate until the gauge settles.
+    if (hasSoc && batteryData.state_of_charge === 0 && hasVoltage && batteryData.voltage > BATTERY_VOLTAGE_MIN) {
+        return calculateVoltageScaledPercent(batteryData.voltage);
+    }
+
     if (hasMaxError && batteryData.max_error > MAX_ERROR_VOLTAGE_FALLBACK_THRESHOLD && hasVoltage) {
         return calculateVoltageScaledPercent(batteryData.voltage);
     }
