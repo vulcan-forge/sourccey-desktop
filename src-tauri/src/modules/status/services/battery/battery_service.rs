@@ -9,7 +9,7 @@ use std::time::Instant;
 use crate::services::directory::directory_service::DirectoryService;
 use crate::utils::windows_process::configure_std_command;
 
-#[derive(Debug, Serialize, Deserialize, Default, Clone)]
+#[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq)]
 pub struct BatteryData {
     pub voltage: f64,
     #[serde(default)]

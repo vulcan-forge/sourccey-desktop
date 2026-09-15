@@ -1,3 +1,4 @@
+use crate::modules::status::services::battery::battery_service::BatteryData;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::io::ErrorKind;
@@ -14,7 +15,7 @@ const DISCOVERY_READ_TIMEOUT_MS: u64 = 250;
 const DISCOVERY_SEND_INTERVAL_MS: u64 = 200;
 const DISCOVERY_MAX_SEND_ATTEMPTS: usize = 3;
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct DiscoveredLanRobotHost {
     pub ip_address: String,
@@ -28,9 +29,10 @@ pub struct DiscoveredLanRobotHost {
     pub robot_type: Option<String>,
     pub hostname: Option<String>,
     pub capabilities: Option<Vec<String>>,
+    pub battery_data: Option<BatteryData>,
 }
 
-#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct LanRobotDiscoveryResult {
     pub local_ip: String,
@@ -46,6 +48,7 @@ struct SourcceyDiscoveredRobot {
     host_running: Option<bool>,
     command_port: Option<u16>,
     observation_port: Option<u16>,
+    battery_data: Option<BatteryData>,
 }
 
 pub struct LanRobotDiscoveryService;
@@ -156,6 +159,7 @@ fn parse_discovery_response(payload: &str, source_ip: IpAddr) -> Option<Discover
         robot_type: Some("sourccey".to_string()),
         hostname: None,
         capabilities: None,
+        battery_data: parsed.battery_data,
     })
 }
 
@@ -294,6 +298,7 @@ mod tests {
         assert_eq!(parsed.robot_type.as_deref(), Some("sourccey"));
         assert_eq!(parsed.hostname, None);
         assert_eq!(parsed.capabilities, None);
+        assert_eq!(parsed.battery_data, None);
     }
 
     #[test]
@@ -317,6 +322,7 @@ mod tests {
         assert_eq!(parsed.robot_name, None);
         assert_eq!(parsed.nickname, None);
         assert_eq!(parsed.robot_type.as_deref(), Some("sourccey"));
+        assert_eq!(parsed.battery_data, None);
     }
 
     #[test]
@@ -329,6 +335,17 @@ mod tests {
         assert!(!parsed.host_running);
         assert_eq!(parsed.command_port, 5555);
         assert_eq!(parsed.observation_port, 5556);
+    }
+
+    #[test]
+    fn accepts_battery_telemetry_in_discovery_payload() {
+        let payload = r#"{"discovery_magic":"SOURCCEY_DISCOVER_V1","robot_type":"sourccey","battery_data":{"voltage":12.6,"current_a":-1.2,"remaining_capacity_ah":4.0,"max_capacity_ah":8.0,"state_of_charge":50,"max_error":2,"error":null}}"#;
+        let parsed = parse_discovery_response(payload, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 42)))
+            .expect("expected discovery response");
+
+        let battery = parsed.battery_data.expect("expected battery telemetry");
+        assert_eq!(battery.state_of_charge, 50);
+        assert_eq!(battery.voltage, 12.6);
     }
 
     #[test]

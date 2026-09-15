@@ -3,9 +3,18 @@ import { FaGamepad, FaSlidersH } from 'react-icons/fa';
 import { setContent, useGetContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
 import { FaArrowLeft, FaDatabase, FaPlayCircle, FaRobot } from 'react-icons/fa';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
+import { RobotBatteryStatus } from '@/components/Elements/Robots/RobotBatteryStatus';
+import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
+import { useLanRobotDiscovery } from '@/hooks/Robot/lan-discovery.hook';
 
-export const RobotNavbar = () => {
+export const RobotNavbar = ({ ownedRobot }: { ownedRobot: any }) => {
     const { data: content } = useGetContent();
+    const nickname = ownedRobot?.owned_robot?.nickname || ownedRobot?.nickname || '';
+    const robotName = nickname || ownedRobot?.robot?.name || 'Robot';
+    const { data: remoteConfig } = useGetRemoteConfig(nickname);
+    const { data: discoveryResult } = useLanRobotDiscovery(Boolean(nickname));
+    const configuredHost = remoteConfig?.remote_ip?.trim() ?? '';
+    const discoveredRobot = discoveryResult?.hosts.find((robot) => robot.ipAddress.trim() === configuredHost);
 
     const teleoperate = 'teleoperate';
     const recording = 'recording';
@@ -46,6 +55,7 @@ export const RobotNavbar = () => {
                         Rollout
                     </NavButton>
                     <div className="grow"></div>
+                    <RobotBatteryStatus batteryData={discoveredRobot?.batteryData} robotName={robotName} variant="navbar" />
                     <NavButton content={config} icon={FaSlidersH} isActive={isConfigActive}>
                         Setup
                     </NavButton>

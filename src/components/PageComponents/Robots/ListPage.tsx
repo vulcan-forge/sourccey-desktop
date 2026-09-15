@@ -20,6 +20,7 @@ import { toast } from 'react-toastify';
 import { AddLanRobotModal } from '@/components/PageComponents/Robots/AddLanRobotModal';
 import { DiscoverLanRobotsModal } from '@/components/PageComponents/Robots/DiscoverLanRobotsModal';
 import { RobotSetupHelpModal } from '@/components/PageComponents/Robots/RobotSetupHelpModal';
+import { RobotBatteryStatus } from '@/components/Elements/Robots/RobotBatteryStatus';
 
 export const RobotListPage = () => {
     const { data: ownedRobots, isLoading: isLoadingOwnedRobots }: any = useGetOwnedRobots(true);
@@ -45,9 +46,7 @@ export const RobotListPage = () => {
     const handleUseDiscoveredRobot = async (robot: DiscoveredLanRobot) => {
         try {
             const baseNickname = getLanRobotNicknameSuggestion(robot.ipAddress);
-            const existingRobot = robotsToRender.find(
-                (entry: any) => entry.nickname.trim().toLowerCase() === baseNickname.toLowerCase()
-            );
+            const existingRobot = robotsToRender.find((entry: any) => entry.nickname.trim().toLowerCase() === baseNickname.toLowerCase());
 
             if (existingRobot) {
                 const existingConfig = await invoke<RemoteConfig>('read_remote_config', {
@@ -123,8 +122,8 @@ export const RobotListPage = () => {
                         <div className="min-w-0 flex-1">
                             <h2 className="text-base font-semibold text-white">LAN Teleop Connection</h2>
                             <p className="mt-1 text-sm text-slate-300">
-                                Discover a robot on your network or add it directly with its LAN address, then open Manage Robot to
-                                calibrate and teleoperate it. Kiosk keeps the cloud pairing flow, but desktop stays LAN-first.
+                                Discover a robot on your network or add it directly with its LAN address, then open Manage Robot to calibrate
+                                and teleoperate it. Kiosk keeps the cloud pairing flow, but desktop stays LAN-first.
                             </p>
                             <div className="mt-4 flex flex-wrap items-end justify-between gap-3">
                                 <button
@@ -190,12 +189,7 @@ export const RobotListPage = () => {
                 ) : (
                     <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 xl:grid-cols-3">
                         {robotsToRender.map((robot: any) => (
-                            <RobotCard
-                                key={robot.id}
-                                robot={robot}
-                                onUnpair={handleUnpairRobot}
-                                isUnpairing={unpairingId === robot.id}
-                            />
+                            <RobotCard key={robot.id} robot={robot} onUnpair={handleUnpairRobot} isUnpairing={unpairingId === robot.id} />
                         ))}
                     </div>
                 )}
@@ -236,9 +230,7 @@ const RobotCard = ({ robot, onUnpair, isUnpairing }: RobotCardProps) => {
     const nickname = robot.nickname || '';
     const displayTitle = nickname || robot.name || 'Robot';
     const formattedRobotType =
-        robot.robotType && robot.robotType !== 'Unknown'
-            ? `${robot.robotType.charAt(0).toUpperCase()}${robot.robotType.slice(1)}`
-            : 'Sourccey';
+        robot.robotType && robot.robotType !== 'Unknown' ? `${robot.robotType.charAt(0).toUpperCase()}${robot.robotType.slice(1)}` : 'Sourccey';
     const displayRobotType = formattedRobotType;
     const { data: remoteConfig, isLoading: isRemoteConfigLoading } = useGetRemoteConfig(nickname);
     const { data: discoveryResult } = useLanRobotDiscovery(!!nickname);
@@ -294,9 +286,7 @@ const RobotCard = ({ robot, onUnpair, isUnpairing }: RobotCardProps) => {
                                     onUnpair(robot);
                                 }}
                                 className={`flex w-full cursor-pointer items-center rounded-lg px-3 py-2 text-sm transition-colors ${
-                                    isUnpairing
-                                        ? 'cursor-not-allowed text-slate-500'
-                                        : 'text-red-300 hover:bg-slate-700/70 hover:text-red-200'
+                                    isUnpairing ? 'cursor-not-allowed text-slate-500' : 'text-red-300 hover:bg-slate-700/70 hover:text-red-200'
                                 }`}
                             >
                                 {isUnpairing ? 'Removing...' : 'Remove'}
@@ -307,9 +297,7 @@ const RobotCard = ({ robot, onUnpair, isUnpairing }: RobotCardProps) => {
             </div>
 
             <div className="flex flex-col gap-1">
-                <div className="text-sm font-medium text-slate-200">
-                    {host || 'IP not configured'}
-                </div>
+                <div className="text-sm font-medium text-slate-200">{host || 'IP not configured'}</div>
                 <div className="flex flex-wrap items-center gap-2">
                     <div
                         className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
@@ -320,6 +308,7 @@ const RobotCard = ({ robot, onUnpair, isUnpairing }: RobotCardProps) => {
                     >
                         {statusLabel}
                     </div>
+                    <RobotBatteryStatus batteryData={discoveredHost?.batteryData} robotName={displayTitle} />
                 </div>
             </div>
 

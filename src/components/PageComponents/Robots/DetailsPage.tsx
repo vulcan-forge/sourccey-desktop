@@ -29,7 +29,7 @@ export const RobotDetailsPage = () => {
     }
 
     return (
-        <RobotLayout>
+        <RobotLayout ownedRobot={ownedRobot}>
             {showOperationsWorkspace && <RobotOperationsWorkspace ownedRobot={ownedRobot} activeContent={workspaceContent} />}
             {showConfigContent && (
                 <div className="flex h-full w-full flex-col space-y-4 overflow-y-auto p-4">

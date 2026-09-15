@@ -9,6 +9,8 @@ interface BatteryModalProps {
     batteryData: BatteryData;
     isOpen: boolean;
     onClose: () => void;
+    title?: string;
+    subtitle?: string;
 }
 
 const formatMeasurement = (value: number, unit: string, digits = 2) =>
@@ -24,7 +26,13 @@ const formatDuration = (hours: number | null) => {
     return wholeHours > 0 ? `${wholeHours}h ${minutes}m` : `${minutes}m`;
 };
 
-export const BatteryModal = ({ batteryData, isOpen, onClose }: BatteryModalProps) => {
+export const BatteryModal = ({
+    batteryData,
+    isOpen,
+    onClose,
+    title = 'Battery',
+    subtitle = 'Live power and capacity information',
+}: BatteryModalProps) => {
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => setMounted(true), []);
@@ -80,9 +88,9 @@ export const BatteryModal = ({ batteryData, isOpen, onClose }: BatteryModalProps
                         </span>
                         <div>
                             <h2 id="battery-modal-title" className="text-lg font-semibold text-white">
-                                Battery
+                                {title}
                             </h2>
-                            <p className="text-xs text-slate-400">Live power and capacity information</p>
+                            <p className="text-xs text-slate-400">{subtitle}</p>
                         </div>
                     </div>
                     <button
