@@ -10,11 +10,92 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from setup.desktop.setup_dev import DesktopDevSetupScript
+from setup.desktop.setup_dev import (
+    DesktopDevSetupScript,
+    rerun_as_invoking_user_if_needed,
+    setup,
+)
 
 
 def _create_script() -> DesktopDevSetupScript:
     return DesktopDevSetupScript()
+
+
+def test_sudo_setup_restores_modules_and_restarts_as_user(monkeypatch, tmp_path):
+    modules_dir = tmp_path / "modules"
+    nested_file = modules_dir / "existing" / "file.txt"
+    nested_file.parent.mkdir(parents=True)
+    nested_file.write_text("content")
+    chown_calls = []
+    run_calls = []
+
+    monkeypatch.setattr("setup.desktop.setup_dev.project_root", tmp_path)
+    monkeypatch.setattr("setup.desktop.setup_dev.os.geteuid", lambda: 0)
+    monkeypatch.setenv("SUDO_USER", "developer")
+    monkeypatch.setenv("SUDO_UID", "1001")
+    monkeypatch.setenv("SUDO_GID", "1002")
+    monkeypatch.setattr(
+        "setup.desktop.setup_dev.os.chown",
+        lambda path, uid, gid, **kwargs: chown_calls.append(
+            (Path(path), uid, gid, kwargs)
+        ),
+    )
+
+    def fake_run(command, **kwargs):
+        run_calls.append((command, kwargs))
+        return SimpleNamespace(returncode=7)
+
+    monkeypatch.setattr("setup.desktop.setup_dev.subprocess.run", fake_run)
+
+    assert rerun_as_invoking_user_if_needed() == 7
+    assert {call[0] for call in chown_calls} == {
+        modules_dir,
+        modules_dir / "existing",
+        nested_file,
+    }
+    assert all(call[1:3] == (1001, 1002) for call in chown_calls)
+    assert run_calls[0][0][:6] == [
+        "sudo",
+        "-u",
+        "developer",
+        "-H",
+        "--",
+        sys.executable,
+    ]
+    assert run_calls[0][1]["cwd"] == tmp_path
+
+
+def test_non_root_setup_does_not_restart(monkeypatch):
+    monkeypatch.setattr("setup.desktop.setup_dev.os.geteuid", lambda: 1001)
+    monkeypatch.setattr(
+        "setup.desktop.setup_dev.subprocess.run",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("must not run")),
+    )
+
+    assert rerun_as_invoking_user_if_needed() is None
+
+
+def test_desktop_setup_only_selects_required_submodule_by_default():
+    script = _create_script()
+
+    assert script.git_manager.submodule_paths == ["modules/lerobot-vulcan"]
+
+
+def test_setup_can_enable_optional_dataset_sync(monkeypatch):
+    captured = {}
+
+    def fake_run(self, **kwargs):
+        captured["submodule_paths"] = self.git_manager.submodule_paths
+        captured["kwargs"] = kwargs
+        return True
+
+    monkeypatch.setattr(DesktopDevSetupScript, "run", fake_run)
+
+    assert setup(with_dataset_sync=True) is True
+    assert captured == {
+        "submodule_paths": None,
+        "kwargs": {"use_https": False, "launch": False},
+    }
 
 
 def test_build_tauri_dev_command_uses_bun_run_wrapper(monkeypatch):

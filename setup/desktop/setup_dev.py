@@ -35,6 +35,63 @@ from setup.shared.setup_rust import RustSetupManager  # type: ignore
 from setup.shared.setup_helper import wrap_command  # type: ignore
 from setup.shared.setup_javascript import get_bun_path  # type: ignore
 
+
+def _restore_modules_ownership(uid: int, gid: int) -> None:
+    """Return setup-managed module paths to the user who invoked sudo."""
+    modules_dir = project_root / "modules"
+    if not modules_dir.exists() or modules_dir.is_symlink():
+        return
+
+    os.chown(modules_dir, uid, gid, follow_symlinks=False)
+    for root, directories, files in os.walk(modules_dir, followlinks=False):
+        for name in [*directories, *files]:
+            os.chown(Path(root) / name, uid, gid, follow_symlinks=False)
+
+
+def rerun_as_invoking_user_if_needed() -> Optional[int]:
+    """Run project setup as the sudo caller, using sudo only for system changes.
+
+    Running the complete setup as root creates project directories that later Git
+    commands (which deliberately run as the original user) cannot write to.
+    """
+    if os.name == "nt" or not hasattr(os, "geteuid") or os.geteuid() != 0:
+        return None
+
+    sudo_user = os.environ.get("SUDO_USER")
+    sudo_uid = os.environ.get("SUDO_UID")
+    sudo_gid = os.environ.get("SUDO_GID")
+    if not sudo_user or sudo_user == "root" or not sudo_uid or not sudo_gid:
+        return None
+
+    try:
+        uid = int(sudo_uid)
+        gid = int(sudo_gid)
+        _restore_modules_ownership(uid, gid)
+    except (OSError, ValueError) as exc:
+        print(f"[ERROR] Could not restore modules ownership for {sudo_user}: {exc}")
+        return 1
+
+    print(
+        f"[INFO] Setup was started with sudo; continuing as {sudo_user}. "
+        "The script will request sudo only for system-level changes."
+    )
+    command = [
+        "sudo",
+        "-u",
+        sudo_user,
+        "-H",
+        "--",
+        sys.executable,
+        str(Path(__file__).resolve()),
+        *sys.argv[1:],
+    ]
+    try:
+        return subprocess.run(command, cwd=project_root, check=False).returncode
+    except OSError as exc:
+        print(f"[ERROR] Could not restart setup as {sudo_user}: {exc}")
+        return 1
+
+
 class Colors:
     """ANSI color codes for terminal output."""
 
@@ -74,7 +131,11 @@ class DesktopDevSetupScript:
         self.python_manager = PythonSetupManager(self.project_root, *callbacks)
         self.javascript_manager = JavaScriptSetupManager(self.project_root, *callbacks)
         self.rust_manager = RustSetupManager(self.project_root, *callbacks)
-        self.git_manager = GitSetupManager(self.project_root, *callbacks)
+        self.git_manager = GitSetupManager(
+            self.project_root,
+            *callbacks,
+            submodule_paths=["modules/lerobot-vulcan"],
+        )
 
     def print_status(self, message: str, color: str = Colors.BLUE):
         print(f"{color}[INFO]{Colors.NC} {message}")
@@ -122,6 +183,11 @@ class DesktopDevSetupScript:
         return self.rust_manager.ensure_rust()
 
     def setup_git_submodules(self, use_https: bool = False) -> bool:
+        if self.git_manager.submodule_paths is not None:
+            self.print_status(
+                "Skipping optional lerobot-dataset-sync submodule. "
+                "Use --with-dataset-sync to install it."
+            )
         return self.git_manager.setup_git_submodules(use_https=use_https)
 
     def setup_python_environment(self) -> bool:
@@ -574,12 +640,23 @@ class DesktopDevSetupScript:
         return self.run_desktop_dev()
 
 
-def setup(use_https: bool = False, launch: bool = False) -> bool:
+def setup(
+    use_https: bool = False,
+    launch: bool = False,
+    with_dataset_sync: bool = False,
+) -> bool:
     """Convenience entrypoint for tests and other scripts."""
-    return DesktopDevSetupScript().run(use_https=use_https, launch=launch)
+    script = DesktopDevSetupScript()
+    if with_dataset_sync:
+        script.git_manager.submodule_paths = None
+    return script.run(use_https=use_https, launch=launch)
 
 
 def main() -> None:
+    rerun_exit_code = rerun_as_invoking_user_if_needed()
+    if rerun_exit_code is not None:
+        raise SystemExit(rerun_exit_code)
+
     parser = argparse.ArgumentParser(description="Sourccey Desktop Dev Setup")
     parser.add_argument(
         "--use-https",
@@ -593,9 +670,19 @@ def main() -> None:
         default=False,
         help="Launch Tauri dev mode after setup completes",
     )
+    parser.add_argument(
+        "--with-dataset-sync",
+        action="store_true",
+        default=False,
+        help="Also install the optional private lerobot-dataset-sync submodule",
+    )
     args = parser.parse_args()
 
-    success = DesktopDevSetupScript().run(
+    script = DesktopDevSetupScript()
+    if args.with_dataset_sync:
+        script.git_manager.submodule_paths = None
+
+    success = script.run(
         use_https=args.use_https,
         launch=args.launch,
     )
