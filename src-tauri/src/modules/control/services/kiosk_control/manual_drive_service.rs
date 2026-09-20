@@ -1,3 +1,4 @@
+use crate::modules::control::services::remote_control::remote_command_utils::resolve_uv_runtime;
 use crate::services::directory::directory_service::DirectoryService;
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
@@ -55,30 +56,17 @@ impl KioskManualDriveService {
             }
         }
 
-        let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
-
-        if !lerobot_dir.exists() {
-            return Err(format!(
-                "lerobot-vulcan runtime directory not found at: {:?}",
-                lerobot_dir
-            ));
-        }
-        if !python_path.exists() {
-            return Err(format!("Python executable not found at: {:?}", python_path));
-        }
-
+        let runtime = resolve_uv_runtime(&app_handle)?;
         let udp_port = Self::find_available_udp_port()?;
         let command_parts = Self::build_command_args(&normalized_nickname, udp_port);
-        let envs = Self::build_envs()?;
-        let lerobot_dir_str = lerobot_dir.to_string_lossy().to_string();
-        let python_path_str = python_path.to_string_lossy().to_string();
+        let mut envs = runtime.envs;
+        envs.insert("PYTHONUNBUFFERED".to_string(), "1".to_string());
 
         let cmd = app_handle
             .shell()
-            .command(python_path_str)
-            .args(command_parts[1..].iter())
-            .current_dir(lerobot_dir_str)
+            .command(runtime.executable)
+            .args(command_parts.iter())
+            .current_dir(runtime.working_dir)
             .envs(envs);
 
         let (mut rx, child) = cmd
@@ -284,12 +272,12 @@ impl KioskManualDriveService {
 
     fn build_command_args(nickname: &str, udp_port: u16) -> Vec<String> {
         vec![
-            "python".to_string(),
-            "-u".to_string(),
-            "src/lerobot/control/sourccey/sourccey/manual_drive_bridge.py".to_string(),
+            "run".to_string(),
+            "--no-sync".to_string(),
+            "sourccey-manual-drive".to_string(),
             format!("--id={}", nickname),
-            "--remote_ip=127.0.0.1".to_string(),
-            format!("--udp_port={}", udp_port),
+            "--remote-ip=127.0.0.1".to_string(),
+            format!("--udp-port={}", udp_port),
             "--fps=30".to_string(),
         ]
     }
@@ -310,28 +298,6 @@ impl KioskManualDriveService {
             .local_addr()
             .map(|addr| addr.port())
             .map_err(|e| format!("Failed to read reserved UDP port for manual drive: {}", e))
-    }
-
-    fn build_envs() -> Result<HashMap<String, String>, String> {
-        let mut envs: HashMap<String, String> = std::env::vars().collect();
-        let venv_path = DirectoryService::get_virtual_env_path()?;
-        envs.insert(
-            "VIRTUAL_ENV".to_string(),
-            venv_path.to_string_lossy().to_string(),
-        );
-
-        let venv_bin_path = DirectoryService::get_virtual_env_bin_path()?
-            .display()
-            .to_string();
-        let separator = if cfg!(windows) { ";" } else { ":" };
-        let base_path = std::env::var("PATH").unwrap_or_default();
-        envs.insert(
-            "PATH".to_string(),
-            format!("{}{}{}", venv_bin_path, separator, base_path),
-        );
-        envs.insert("PYTHONUNBUFFERED".to_string(), "1".to_string());
-        envs.insert("DISPLAY".to_string(), ":0".to_string());
-        Ok(envs)
     }
 
     fn manual_drive_log_path() -> Result<std::path::PathBuf, String> {

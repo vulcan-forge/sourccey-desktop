@@ -58,14 +58,10 @@ fn normalize_nickname_rejects_invalid_values() {
 #[test]
 fn build_command_args_contains_expected_defaults() {
     let args = Service::build_command_args("sourccey", super::MANUAL_DRIVE_UDP_PORT);
-    assert_eq!(args[1], "-u".to_string());
-    assert_eq!(
-        args[2],
-        "src/lerobot/control/sourccey/sourccey/manual_drive_bridge.py".to_string()
-    );
+    assert_eq!(&args[..3], ["run", "--no-sync", "sourccey-manual-drive"]);
     assert!(args.iter().any(|arg| arg == "--id=sourccey"));
-    assert!(args.iter().any(|arg| arg == "--remote_ip=127.0.0.1"));
-    assert!(args.iter().any(|arg| arg.starts_with("--udp_port=")));
+    assert!(args.iter().any(|arg| arg == "--remote-ip=127.0.0.1"));
+    assert!(args.iter().any(|arg| arg.starts_with("--udp-port=")));
     assert!(args.iter().any(|arg| arg == "--fps=30"));
 }
 

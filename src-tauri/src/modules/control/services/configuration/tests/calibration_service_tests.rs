@@ -51,7 +51,7 @@ fn validate_calibration_output_reports_script_failure_details() {
     let result = CalibrationService::validate_calibration_command_output(&output);
     assert!(result.is_err());
     let error = result.err().unwrap_or_default();
-    assert!(error.contains("Python script failed: port is busy"));
+    assert!(error.contains("Calibration command failed: port is busy"));
 }
 
 #[test]
@@ -89,19 +89,39 @@ fn format_process_output_log_lines_splits_multiline_tracebacks() {
 #[test]
 fn remote_auto_calibrate_uses_packaged_command() {
     assert_eq!(
-        CalibrationService::remote_calibration_command_args(false),
-        vec!["run".to_string(), "sourccey-calibrate".to_string()]
+        CalibrationService::remote_calibration_command_args("@robot-1", false),
+        vec![
+            "run".to_string(),
+            "--no-sync".to_string(),
+            "sourccey-calibrate".to_string(),
+            "--id=robot-1".to_string(),
+        ]
     );
 }
 
 #[test]
 fn remote_full_calibrate_adds_full_reset_flag() {
     assert_eq!(
-        CalibrationService::remote_calibration_command_args(true),
+        CalibrationService::remote_calibration_command_args("sourccey", true),
         vec![
             "run".to_string(),
+            "--no-sync".to_string(),
             "sourccey-calibrate".to_string(),
+            "--id=sourccey".to_string(),
             "--full-reset".to_string(),
+            "--yes".to_string(),
         ]
     );
+}
+
+#[test]
+fn desktop_teleop_calibration_uses_packaged_auto_calibration_bridge() {
+    let args = CalibrationService::desktop_teleop_calibration_command_args(
+        "operator-1",
+        "COM3",
+        "COM8",
+    );
+    assert_eq!(&args[..5], ["run", "--no-sync", "python", "-u", "-c"]);
+    assert!(args[5].contains("teleoperator.auto_calibrate()"));
+    assert_eq!(&args[6..], ["operator-1", "COM3", "COM8"]);
 }

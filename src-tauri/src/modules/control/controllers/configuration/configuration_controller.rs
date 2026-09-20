@@ -1,12 +1,5 @@
 use crate::modules::control::services::configuration::configuration_service::ConfigurationService;
-use crate::modules::control::types::configuration::calibration_types::{
-    Calibration, MotorCalibration,
-};
-use crate::modules::control::types::configuration::configuration_types::{
-    Config, ConfigConfig, RemoteConfig,
-};
-use serde_json::Value;
-use tauri::{AppHandle, Manager};
+use crate::modules::control::types::configuration::configuration_types::{Config, RemoteConfig};
 
 //----------------------------------------------------------//
 // Configuration Functions
@@ -19,13 +12,6 @@ pub fn read_config(nickname: String) -> Result<Config, String> {
 #[tauri::command]
 pub fn write_config(nickname: String, config: Config) -> Result<(), String> {
     ConfigurationService::write_config(&nickname, config)
-}
-
-#[tauri::command]
-pub async fn detect_config(app_handle: AppHandle, config: ConfigConfig) -> Result<Value, String> {
-    let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
-    let db_connection = db_manager.get_connection().clone();
-    ConfigurationService::detect_config(&app_handle, db_connection, config).await
 }
 
 //----------------------------------------------------------//

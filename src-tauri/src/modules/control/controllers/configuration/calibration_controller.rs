@@ -8,15 +8,6 @@ use tauri::{AppHandle, Manager};
 // Calibration Functions
 //----------------------------------------------------------//
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CalibrationConfig {
-    pub nickname: String,
-    pub robot_type: String,
-    pub teleop_type: String,
-    pub robot_port: String,
-    pub teleop_port: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RemoteCalibrationConfig {
     pub nickname: String,
     pub robot_type: String,
@@ -29,7 +20,6 @@ pub struct DesktopTeleopCalibrationConfig {
     pub teleop_type: String,
     pub left_arm_port: String,
     pub right_arm_port: String,
-    pub full_reset: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -73,16 +63,6 @@ pub fn get_calibration_modified_at(
     nickname: String,
 ) -> Result<Option<u64>, String> {
     CalibrationService::get_calibration_modified_at(&robot_type, &nickname)
-}
-
-#[tauri::command]
-pub async fn auto_calibrate(
-    app_handle: AppHandle,
-    config: CalibrationConfig,
-) -> Result<(), String> {
-    let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
-    let db_connection = db_manager.get_connection().clone();
-    CalibrationService::auto_calibrate(app_handle, db_connection, config).await
 }
 
 #[tauri::command]

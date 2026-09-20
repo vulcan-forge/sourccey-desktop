@@ -6,12 +6,6 @@ fn default_true() -> bool {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ConfigConfig {
-    pub nickname: String,
-    pub robot_type: String,
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Arm {
     pub port: String,
 }

@@ -21,7 +21,11 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
     const normalizedNickname = useMemo(() => nickname.trim().replace(/^@+/, ''), [nickname]);
     const teleopType = DEFAULT_DESKTOP_TELEOP_TYPE;
     const { data: remoteConfig } = useGetRemoteConfig(nickname);
-    const { data: calibrationStatus, isLoading, refetch } = useDesktopTeleopCalibrationStatus(normalizedNickname, teleopType, !!normalizedNickname);
+    const {
+        data: calibrationStatus,
+        isLoading,
+        refetch,
+    } = useDesktopTeleopCalibrationStatus(normalizedNickname, teleopType, !!normalizedNickname);
     const { mutateAsync: autoCalibrate, isPending } = useDesktopTeleopAutoCalibrate();
     const [isLogsVisible, setIsLogsVisible] = useState(false);
     const [logSessionKey, setLogSessionKey] = useState(0);
@@ -61,7 +65,6 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
                 teleopType,
                 leftArmPort,
                 rightArmPort,
-                fullReset: false,
             });
             await refetch();
 
@@ -79,9 +82,7 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
         }
     };
 
-    const formattedModifiedAt = calibrationStatus?.modifiedAt
-        ? new Date(calibrationStatus.modifiedAt).toLocaleString()
-        : null;
+    const formattedModifiedAt = calibrationStatus?.modifiedAt ? new Date(calibrationStatus.modifiedAt).toLocaleString() : null;
 
     return (
         <div className="flex flex-col gap-5 rounded-2xl border border-slate-700/80 bg-gradient-to-br from-slate-900/90 to-slate-800/70 p-6 shadow-[0_16px_36px_rgba(15,23,42,0.35)]">
@@ -91,9 +92,7 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
                         <FaTools className="h-5 w-5 text-cyan-300" />
                         Teleoperator Calibration
                     </h2>
-                    <p className="mt-2 text-sm text-slate-300">
-                        Run calibration before teleoperation to keep movement accurate and stable.
-                    </p>
+                    <p className="mt-2 text-sm text-slate-300">Run calibration before teleoperation to keep movement accurate and stable.</p>
                 </div>
                 {!embedded && (
                     <button
@@ -124,9 +123,7 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
                             >
                                 {isCalibrated ? 'Calibrated' : 'Calibration Required'}
                             </span>
-                            <span className="text-xs text-slate-400">
-                                Last Calibrated: {formattedModifiedAt ?? 'Unknown'}
-                            </span>
+                            <span className="text-xs text-slate-400">Last Calibrated: {formattedModifiedAt ?? 'Unknown'}</span>
                         </div>
                     )}
                 </div>

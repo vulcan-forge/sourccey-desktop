@@ -1,23 +1,6 @@
-use crate::modules::control::controllers::configuration::calibration_controller::{
-    CalibrationConfig, RemoteCalibrationConfig,
-};
-use crate::modules::control::types::configuration::calibration_types::{
-    Calibration, MotorCalibration,
-};
-use crate::modules::control::types::configuration::configuration_types::{
-    Config, ConfigConfig, RemoteConfig,
-};
-use crate::modules::log::services::command_log_service::CommandLogService;
+use crate::modules::control::types::configuration::configuration_types::{Config, RemoteConfig};
 use crate::services::directory::directory_service::DirectoryService;
-use crate::services::process::process_service::ProcessService;
-use crate::utils::windows_process::configure_tokio_command;
-use sea_orm::DatabaseConnection;
-use std::collections::HashMap;
-use std::env;
 use std::fs;
-use std::path::PathBuf;
-use std::process::Stdio;
-use tokio::process::Command;
 
 pub struct ConfigurationService;
 
@@ -101,87 +84,6 @@ impl ConfigurationService {
             follower_arms,
             cameras,
         }
-    }
-
-    /// Detect the configuration
-    pub async fn detect_config(
-        app_handle: &tauri::AppHandle,
-        db_connection: DatabaseConnection,
-        config: ConfigConfig,
-    ) -> Result<serde_json::Value, String> {
-        let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
-
-        let mut command_parts = vec!["python".to_string()];
-        command_parts.push("src/lerobot/scripts/sourccey/configuration/auto_config.py".to_string());
-
-        let mut cmd = Command::new(python_path);
-        for arg in &command_parts[1..] {
-            cmd.arg(arg);
-        }
-        configure_tokio_command(&mut cmd);
-
-        let child = cmd
-            .current_dir(&lerobot_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Failed to detect config: {}", e))?;
-        let pid = child.id();
-
-        // Create command log service with the provided connection
-        let command_string = command_parts.join(" ");
-        let command_log_service = CommandLogService::new(db_connection.clone());
-        let command_log = match command_log_service
-            .add_robot_command_log(
-                &command_string,
-                Some(config.robot_type.clone()),
-                Some(config.nickname.clone()),
-            )
-            .await
-        {
-            Ok(log) => log,
-            Err(e) => {
-                eprintln!("Failed to add command log: {}", e);
-                return Err(format!("Failed to add command log: {}", e));
-            }
-        };
-        let command_log_id = command_log.id.clone();
-
-        // Wait for the process to complete and capture output
-        let output = child
-            .wait_with_output()
-            .await
-            .map_err(|e| format!("Failed to get output: {}", e))?;
-
-        // Check if the process was successful
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(
-                    app_handle,
-                    pid_value,
-                    db_connection,
-                    command_log_id,
-                );
-            }
-            return Err(format!("Python script failed: {}", stderr));
-        }
-
-        // Parse the JSON output from stdout
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let com_ports: serde_json::Value = serde_json::from_str(&stdout)
-            .map_err(|e| format!("Failed to parse JSON output: {}", e))?;
-
-        if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(
-                app_handle,
-                pid_value,
-                db_connection,
-                command_log_id,
-            );
-        }
-        Ok(com_ports)
     }
 
     //----------------------------------------------------------//

@@ -42,11 +42,11 @@ use modules::ai_model::controllers::ai_model_controller::{
     get_ai_model_cache_path, get_ai_models_paginated, sync_ai_models_from_cache, update_ai_model,
 };
 use modules::control::controllers::configuration::calibration_controller::{
-    auto_calibrate, desktop_auto_calibrate_teleoperator, desktop_get_teleop_calibration_status,
+    desktop_auto_calibrate_teleoperator, desktop_get_teleop_calibration_status,
     get_calibration_modified_at, read_calibration, remote_auto_calibrate, write_calibration,
 };
 use modules::control::controllers::configuration::configuration_controller::{
-    detect_config, read_config, read_remote_config, write_config, write_remote_config,
+    read_config, read_remote_config, write_config, write_remote_config,
 };
 use modules::control::controllers::kiosk_control::kiosk_host_controller::{
     get_pi_username, get_ssh_password_changed_status, get_system_info, init_kiosk_host,
@@ -656,7 +656,6 @@ fn main() {
             // Configuration
             read_config,
             write_config,
-            detect_config,
 
             // Remote Configuration
             read_remote_config,
@@ -666,7 +665,6 @@ fn main() {
             read_calibration,
             write_calibration,
             get_calibration_modified_at,
-            auto_calibrate,
             remote_auto_calibrate,
             desktop_get_teleop_calibration_status,
             desktop_auto_calibrate_teleoperator,

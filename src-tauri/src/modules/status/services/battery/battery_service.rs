@@ -49,9 +49,13 @@ impl BatteryService {
         }
 
         let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
-        let mut cmd = Command::new(python_path);
-        cmd.arg("-m").arg("lerobot_robot_sourccey.battery.battery");
+        let battery_executable =
+            DirectoryService::get_virtual_env_bin_path()?.join(if cfg!(windows) {
+                "sourccey-battery.exe"
+            } else {
+                "sourccey-battery"
+            });
+        let mut cmd = Command::new(battery_executable);
         configure_std_command(&mut cmd);
 
         let mut child = cmd
@@ -59,7 +63,7 @@ impl BatteryService {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Failed to execute battery script: {}", e))?;
+            .map_err(|e| format!("Failed to execute sourccey-battery: {}", e))?;
 
         let start = Instant::now();
         let output = loop {
@@ -80,7 +84,7 @@ impl BatteryService {
                     return Ok(cached);
                 }
                 return Err(format!(
-                    "Battery script timed out after {:?}",
+                    "sourccey-battery timed out after {:?}",
                     Self::BATTERY_SCRIPT_TIMEOUT
                 ));
             }
@@ -91,7 +95,7 @@ impl BatteryService {
         // Check if command succeeded
         if !output.0 {
             let stderr = String::from_utf8_lossy(&output.1.stderr);
-            return Err(format!("Battery script failed: {}", stderr));
+            return Err(format!("sourccey-battery failed: {}", stderr));
         }
 
         // Parse the JSON output

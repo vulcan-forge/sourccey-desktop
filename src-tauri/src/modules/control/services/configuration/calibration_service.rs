@@ -1,5 +1,5 @@
 use crate::modules::control::controllers::configuration::calibration_controller::{
-    CalibrationConfig, DesktopTeleopCalibrationConfig, DesktopTeleopCalibrationStatus,
+    DesktopTeleopCalibrationConfig, DesktopTeleopCalibrationStatus,
 };
 use crate::modules::control::services::remote_control::remote_command_utils::{
     format_command_for_display, resolve_uv_runtime,
@@ -21,6 +21,29 @@ use tauri::AppHandle;
 use tokio::process::Command;
 
 pub struct CalibrationService;
+
+const DESKTOP_TELEOP_AUTO_CALIBRATE_SCRIPT: &str = r#"
+import sys
+
+from lerobot_robot_sourccey.teleoperators.bi_sourccey_leader.bi_sourccey_leader import BiSourcceyLeader
+from lerobot_robot_sourccey.teleoperators.bi_sourccey_leader.config_bi_sourccey_leader import BiSourcceyLeaderConfig
+
+teleoperator = BiSourcceyLeader(
+    BiSourcceyLeaderConfig(
+        id=sys.argv[1],
+        left_arm_port=sys.argv[2],
+        right_arm_port=sys.argv[3],
+    )
+)
+connected = False
+try:
+    teleoperator.connect(calibrate=False)
+    connected = True
+    teleoperator.auto_calibrate()
+finally:
+    if connected:
+        teleoperator.disconnect()
+"#;
 
 impl CalibrationService {
     //----------------------------------------------------------//
@@ -219,7 +242,7 @@ impl CalibrationService {
         let combined = format!("{stdout}\n{stderr}").to_lowercase();
         if combined.contains("does not support auto-calibration") {
             return Some(
-                "Calibration script reported that this device does not support auto-calibration."
+                "Calibration command reported that this device does not support auto-calibration."
                     .to_string(),
             );
         }
@@ -258,11 +281,11 @@ impl CalibrationService {
 
         match detail {
             Some(line) => Some(format!(
-                "Calibration script reported a Python exception: {}",
+                "Calibration command reported a Python exception: {}",
                 line
             )),
             None => Some(
-                "Calibration script reported a Python exception. Check logs for details."
+                "Calibration command reported a Python exception. Check logs for details."
                     .to_string(),
             ),
         }
@@ -278,7 +301,7 @@ impl CalibrationService {
             } else {
                 format!("exit status {}", output.status)
             };
-            return Err(format!("Python script failed: {}", details));
+            return Err(format!("Calibration command failed: {}", details));
         }
 
         if let Some(no_op_reason) = Self::no_op_auto_calibration_reason(&stdout, &stderr) {
@@ -343,65 +366,6 @@ impl CalibrationService {
             .collect()
     }
 
-    pub async fn auto_calibrate(
-        app_handle: AppHandle,
-        db_connection: DatabaseConnection,
-        config: CalibrationConfig,
-    ) -> Result<(), String> {
-        let start_message = format!(
-            "Auto calibrate started: nickname={}, robot_type={}, teleop_type={}, robot_port={}, teleop_port={}",
-            config.nickname, config.robot_type, config.teleop_type, config.robot_port, config.teleop_port
-        );
-        let _ = LogService::write_app_log_line(
-            &app_handle,
-            "robot-actions.log",
-            Some("calibration"),
-            &start_message,
-        );
-
-        Self::auto_calibrate_robot(
-            &app_handle,
-            db_connection.clone(),
-            &config.robot_type,
-            &config.nickname,
-            &config.robot_port,
-        )
-        .await
-        .map_err(|e| {
-            let _ = LogService::write_app_log_line(
-                &app_handle,
-                "robot-actions.log",
-                Some("calibration"),
-                &format!("Auto calibrate robot failed: {}", e),
-            );
-            e
-        })?;
-        Self::auto_calibrate_teleoperator(
-            &app_handle,
-            db_connection.clone(),
-            &config.teleop_type,
-            &config.nickname,
-            &config.teleop_port,
-        )
-        .await
-        .map_err(|e| {
-            let _ = LogService::write_app_log_line(
-                &app_handle,
-                "robot-actions.log",
-                Some("calibration"),
-                &format!("Auto calibrate teleoperator failed: {}", e),
-            );
-            e
-        })?;
-        let _ = LogService::write_app_log_line(
-            &app_handle,
-            "robot-actions.log",
-            Some("calibration"),
-            "Auto calibrate completed successfully",
-        );
-        Ok(())
-    }
-
     pub async fn desktop_auto_calibrate_teleoperator(
         app_handle: AppHandle,
         db_connection: DatabaseConnection,
@@ -415,6 +379,12 @@ impl CalibrationService {
         if teleop_type.is_empty() {
             return Err("teleop_type cannot be empty".to_string());
         }
+        if teleop_type != "bi_sourccey_leader" {
+            return Err(format!(
+                "Unsupported desktop teleoperator type: {}",
+                teleop_type
+            ));
+        }
         if left_arm_port.is_empty() {
             return Err("left_arm_port cannot be empty".to_string());
         }
@@ -426,8 +396,8 @@ impl CalibrationService {
         }
 
         let start_message = format!(
-            "Desktop teleoperator auto calibrate started: nickname={}, teleop_type={}, left_arm_port={}, right_arm_port={}, full_reset={}",
-            normalized_nickname, teleop_type, left_arm_port, right_arm_port, config.full_reset
+            "Desktop teleoperator calibration started: nickname={}, teleop_type={}, left_arm_port={}, right_arm_port={}",
+            normalized_nickname, teleop_type, left_arm_port, right_arm_port
         );
         let _ = LogService::write_app_log_line(
             &app_handle,
@@ -436,35 +406,29 @@ impl CalibrationService {
             &start_message,
         );
 
-        let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
+        let runtime = resolve_uv_runtime(&app_handle)?;
+        let command_parts = Self::desktop_teleop_calibration_command_args(
+            &normalized_nickname,
+            &left_arm_port,
+            &right_arm_port,
+        );
+        let command_string = format!(
+            "uv run --no-sync python -c <desktop-teleop-auto-calibrate> {} {} {}",
+            normalized_nickname, left_arm_port, right_arm_port
+        );
 
-        let mut command_parts = vec!["python".to_string()];
-        command_parts
-            .push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
-        command_parts.push(format!("--teleop.type={}", teleop_type));
-        command_parts.push(format!("--teleop.id={}", normalized_nickname));
-        command_parts.push(format!("--teleop.left_arm_port={}", left_arm_port));
-        command_parts.push(format!("--teleop.right_arm_port={}", right_arm_port));
-        if config.full_reset {
-            command_parts.push("--full_reset=True".to_string());
-        }
-
-        let mut cmd = Command::new(python_path);
-        for arg in &command_parts[1..] {
-            cmd.arg(arg);
-        }
+        let mut cmd = Command::new(&runtime.executable);
+        cmd.args(&command_parts).envs(&runtime.envs);
         Self::configure_calibration_command(&mut cmd);
 
         let child = cmd
-            .current_dir(&lerobot_dir)
+            .current_dir(&runtime.working_dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Failed to auto calibrate teleoperator: {}", e))?;
+            .map_err(|e| format!("Failed to launch desktop teleoperator calibration: {}", e))?;
         let pid = child.id();
 
-        let command_string = command_parts.join(" ");
         let command_log_service = CommandLogService::new(db_connection.clone());
         let command_log = match command_log_service
             .add_robot_command_log(
@@ -531,175 +495,22 @@ impl CalibrationService {
         Ok(())
     }
 
-    async fn auto_calibrate_robot(
-        app_handle: &AppHandle,
-        db_connection: DatabaseConnection,
-        robot_type: &str,
+    fn desktop_teleop_calibration_command_args(
         nickname: &str,
-        port: &str,
-    ) -> Result<(), String> {
-        let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
-
-        let mut command_parts = vec!["python".to_string()];
-        command_parts
-            .push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
-        command_parts.push(format!("--robot.type={}", robot_type));
-        command_parts.push(format!("--robot.id={}", nickname));
-        command_parts.push(format!("--robot.port={}", port));
-
-        let mut cmd = Command::new(python_path);
-        for arg in &command_parts[1..] {
-            cmd.arg(arg);
-        }
-        Self::configure_calibration_command(&mut cmd);
-
-        let child = cmd
-            .current_dir(&lerobot_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Failed to auto calibrate: {}", e))?;
-        let pid = child.id();
-
-        // Create command log service with the provided connection
-        let command_string = command_parts.join(" ");
-        let command_log_service = CommandLogService::new(db_connection.clone());
-        let command_log = match command_log_service
-            .add_robot_command_log(
-                &command_string,
-                Some(robot_type.to_string()),
-                Some(nickname.to_string().clone()),
-            )
-            .await
-        {
-            Ok(log) => log,
-            Err(e) => {
-                eprintln!("Failed to add command log: {}", e);
-                return Err(format!("Failed to add command log: {}", e));
-            }
-        };
-        let command_log_id = command_log.id.clone();
-
-        let output = child
-            .wait_with_output()
-            .await
-            .map_err(|e| format!("Failed to get output: {}", e))?;
-        Self::write_process_output_logs(app_handle, "Auto calibrate robot", &output);
-
-        if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
-            if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(
-                    app_handle,
-                    pid_value,
-                    db_connection,
-                    command_log_id,
-                );
-            }
-            let _ = LogService::write_app_log_line(
-                app_handle,
-                "robot-actions.log",
-                Some("calibration"),
-                &format!("Auto calibrate robot failed: {}", validation_error),
-            );
-            return Err(validation_error);
-        }
-
-        if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(
-                app_handle,
-                pid_value,
-                db_connection,
-                command_log_id,
-            );
-        }
-        Ok(())
-    }
-
-    async fn auto_calibrate_teleoperator(
-        app_handle: &AppHandle,
-        db_connection: DatabaseConnection,
-        teleop_type: &str,
-        nickname: &str,
-        port: &str,
-    ) -> Result<(), String> {
-        let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
-
-        let mut command_parts = vec!["python".to_string()];
-        command_parts
-            .push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
-        command_parts.push(format!("--teleop.type={}", teleop_type));
-        command_parts.push(format!("--teleop.id={}", nickname));
-        command_parts.push(format!("--teleop.port={}", port));
-
-        let mut cmd = Command::new(python_path);
-        for arg in &command_parts[1..] {
-            cmd.arg(arg);
-        }
-        Self::configure_calibration_command(&mut cmd);
-
-        let child = cmd
-            .current_dir(&lerobot_dir)
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Failed to auto calibrate: {}", e))?;
-        let pid = child.id();
-
-        // Create command log service with the provided connection
-        let command_string = command_parts.join(" ");
-        let command_log_service = CommandLogService::new(db_connection.clone());
-        let command_log = match command_log_service
-            .add_robot_command_log(
-                &command_string,
-                Some(teleop_type.to_string()),
-                Some(nickname.to_string()),
-            )
-            .await
-        {
-            Ok(log) => log,
-            Err(e) => {
-                eprintln!("Failed to add command log: {}", e);
-                return Err(format!("Failed to add command log: {}", e));
-            }
-        };
-        let command_log_id = command_log.id.clone();
-
-        // Wait for the process to complete and capture output
-        let output = child
-            .wait_with_output()
-            .await
-            .map_err(|e| format!("Failed to get output: {}", e))?;
-        Self::write_process_output_logs(app_handle, "Auto calibrate teleoperator", &output);
-
-        if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
-            if let Some(pid_value) = pid {
-                ProcessService::on_process_shutdown(
-                    app_handle,
-                    pid_value,
-                    db_connection,
-                    command_log_id,
-                );
-            }
-            let _ = LogService::write_app_log_line(
-                app_handle,
-                "robot-actions.log",
-                Some("calibration"),
-                &format!("Auto calibrate teleoperator failed: {}", validation_error),
-            );
-            return Err(validation_error);
-        }
-
-        if let Some(pid_value) = pid {
-            ProcessService::on_process_shutdown(
-                app_handle,
-                pid_value,
-                db_connection,
-                command_log_id,
-            );
-        }
-        Ok(())
+        left_arm_port: &str,
+        right_arm_port: &str,
+    ) -> Vec<String> {
+        vec![
+            "run".to_string(),
+            "--no-sync".to_string(),
+            "python".to_string(),
+            "-u".to_string(),
+            "-c".to_string(),
+            DESKTOP_TELEOP_AUTO_CALIBRATE_SCRIPT.to_string(),
+            nickname.to_string(),
+            left_arm_port.to_string(),
+            right_arm_port.to_string(),
+        ]
     }
 
     pub async fn remote_auto_calibrate(
@@ -721,7 +532,7 @@ impl CalibrationService {
         );
 
         let runtime = resolve_uv_runtime(&app_handle)?;
-        let command_parts = Self::remote_calibration_command_args(full_reset);
+        let command_parts = Self::remote_calibration_command_args(nickname, full_reset);
         let command_string = format_command_for_display(&command_parts);
 
         let mut cmd = Command::new(&runtime.executable);
@@ -795,10 +606,16 @@ impl CalibrationService {
         Ok(())
     }
 
-    fn remote_calibration_command_args(full_reset: bool) -> Vec<String> {
-        let mut args = vec!["run".to_string(), "sourccey-calibrate".to_string()];
+    fn remote_calibration_command_args(nickname: &str, full_reset: bool) -> Vec<String> {
+        let mut args = vec![
+            "run".to_string(),
+            "--no-sync".to_string(),
+            "sourccey-calibrate".to_string(),
+            format!("--id={}", Self::normalize_nickname(nickname)),
+        ];
         if full_reset {
             args.push("--full-reset".to_string());
+            args.push("--yes".to_string());
         }
         args
     }
@@ -806,102 +623,10 @@ impl CalibrationService {
     //------------------------------------------------------------//
     // Default Calibration Functions
     //------------------------------------------------------------//
-    pub fn create_default_calibration(robot_type: &str, nickname: &str) -> Calibration {
-        if robot_type == "so100_follower" {
-            return Self::create_default_so100_calibration();
-        } else if robot_type == "sourccey_follower" {
-            let arm_side = match nickname {
-                "sourccey_left" => "left",
-                "sourccey_right" => "right",
-                _ => {
-                    return Calibration {
-                        motors: HashMap::new(),
-                    }
-                }
-            };
-            return Self::create_default_sourccey_calibration(&arm_side);
-        }
-        return Calibration {
+    pub fn create_default_calibration(_robot_type: &str, _nickname: &str) -> Calibration {
+        Calibration {
             motors: HashMap::new(),
-        };
-    }
-
-    pub fn create_default_so100_calibration() -> Calibration {
-        // First try to load the default calibration from the lerobot-vulcan repo
-        if let Ok(lerobot_dir) = DirectoryService::get_lerobot_vulcan_dir() {
-            let default_path = lerobot_dir
-                .join("src")
-                .join("lerobot")
-                .join("robots")
-                .join("so100_follower")
-                .join("default_calibration.json");
-
-            if let Ok(default_str) = fs::read_to_string(&default_path) {
-                match serde_json::from_str::<Calibration>(&default_str) {
-                    Ok(calibration) => {
-                        return calibration;
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "Failed to parse default calibration file at {:?}: {}. Falling back to built-in defaults.",
-                            default_path, e
-                        );
-                    }
-                }
-            } else {
-                eprintln!(
-                    "Default calibration file not found or unreadable at {:?}. Falling back to built-in defaults.",
-                    default_path
-                );
-            }
-        } else {
-            eprintln!(
-                "Could not resolve lerobot-vulcan directory. Falling back to built-in defaults."
-            );
         }
-
-        let motors = HashMap::new();
-        Calibration { motors }
-    }
-
-    pub fn create_default_sourccey_calibration(arm_side: &str) -> Calibration {
-        // First try to load the default calibration from the lerobot-vulcan repo
-        if let Ok(lerobot_dir) = DirectoryService::get_lerobot_vulcan_dir() {
-            let default_path = lerobot_dir
-                .join("src")
-                .join("lerobot")
-                .join("robots")
-                .join("sourccey")
-                .join("sourccey")
-                .join("sourccey")
-                .join(format!("{}_arm_default_calibration.json", arm_side));
-
-            if let Ok(default_str) = fs::read_to_string(&default_path) {
-                match serde_json::from_str::<Calibration>(&default_str) {
-                    Ok(calibration) => {
-                        return calibration;
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "Failed to parse default calibration file at {:?}: {}. Falling back to built-in defaults.",
-                            default_path, e
-                        );
-                    }
-                }
-            } else {
-                eprintln!(
-                    "Default calibration file not found or unreadable at {:?}. Falling back to built-in defaults.",
-                    default_path
-                );
-            }
-        } else {
-            eprintln!(
-                "Could not resolve lerobot-vulcan directory. Falling back to built-in defaults."
-            );
-        }
-
-        let motors = HashMap::new();
-        Calibration { motors }
     }
 }
 

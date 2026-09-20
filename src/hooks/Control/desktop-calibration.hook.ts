@@ -23,14 +23,11 @@ export type DesktopTeleopAutoCalibrateConfig = {
     teleopType: string;
     leftArmPort: string;
     rightArmPort: string;
-    fullReset: boolean;
 };
 
 const normalizeNickname = (nickname: string) => nickname.trim().replace(/^@+/, '');
 
-export const getDesktopTeleopCalibrationStatus = async (
-    config: DesktopTeleopCalibrationConfig
-): Promise<DesktopTeleopCalibrationStatus> => {
+export const getDesktopTeleopCalibrationStatus = async (config: DesktopTeleopCalibrationConfig): Promise<DesktopTeleopCalibrationStatus> => {
     if (!isTauri()) {
         return {
             isCalibrated: true,
@@ -49,9 +46,7 @@ export const getDesktopTeleopCalibrationStatus = async (
     });
 };
 
-export const runDesktopTeleopAutoCalibrate = async (
-    config: DesktopTeleopAutoCalibrateConfig
-): Promise<void> => {
+export const runDesktopTeleopAutoCalibrate = async (config: DesktopTeleopAutoCalibrateConfig): Promise<void> => {
     if (!isTauri()) return;
 
     await invoke('desktop_auto_calibrate_teleoperator', {
@@ -60,16 +55,11 @@ export const runDesktopTeleopAutoCalibrate = async (
             teleop_type: config.teleopType,
             left_arm_port: config.leftArmPort,
             right_arm_port: config.rightArmPort,
-            full_reset: config.fullReset,
         },
     });
 };
 
-export const useDesktopTeleopCalibrationStatus = (
-    nickname: string,
-    teleopType = DEFAULT_DESKTOP_TELEOP_TYPE,
-    enabled = true
-) =>
+export const useDesktopTeleopCalibrationStatus = (nickname: string, teleopType = DEFAULT_DESKTOP_TELEOP_TYPE, enabled = true) =>
     useQuery({
         queryKey: DESKTOP_TELEOP_CALIBRATION_KEY(nickname, teleopType),
         queryFn: () => getDesktopTeleopCalibrationStatus({ nickname, teleopType }),
