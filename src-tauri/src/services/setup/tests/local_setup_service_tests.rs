@@ -1,5 +1,27 @@
 use super::*;
 
+#[cfg(target_os = "linux")]
+#[test]
+fn setup_commands_remove_appimage_python_environment() {
+    let mut command = Command::new("uv");
+    LocalSetupService::configure_setup_command_env(&mut command);
+
+    let environment: std::collections::HashMap<OsString, Option<OsString>> = command
+        .get_envs()
+        .map(|(key, value)| (key.to_owned(), value.map(OsString::from)))
+        .collect();
+    assert_eq!(environment.get(&OsString::from("PYTHONHOME")), Some(&None));
+    assert_eq!(environment.get(&OsString::from("PYTHONPATH")), Some(&None));
+    assert_eq!(
+        environment.get(&OsString::from("PYTHONIOENCODING")),
+        Some(&Some(OsString::from("utf-8")))
+    );
+    assert_eq!(
+        environment.get(&OsString::from("PYTHONUTF8")),
+        Some(&Some(OsString::from("1")))
+    );
+}
+
 #[test]
 fn parses_vulcan_semver_tags() {
     assert_eq!(

@@ -1754,6 +1754,15 @@ impl LocalSetupService {
         cmd.env("PYTHONIOENCODING", "utf-8");
         cmd.env("PYTHONUTF8", "1");
 
+        // AppImage launchers point these variables at the temporary mounted
+        // image. External Python and uv subprocesses must use their own
+        // interpreter layout instead of the AppImage's incomplete Python tree.
+        #[cfg(target_os = "linux")]
+        {
+            cmd.env_remove("PYTHONHOME");
+            cmd.env_remove("PYTHONPATH");
+        }
+
         #[cfg(windows)]
         if let Some(path) = Self::sanitized_windows_setup_path() {
             cmd.env("PATH", path);
