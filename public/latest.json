@@ -1,6 +1,6 @@
 {
     "version": "0.1.2",
-    "date": "2026-09-19T03:36:51Z",
+    "date": "2026-09-20T05:28:36Z",
     "force": true,
     "platforms": {
         "windows-x86_64": {
@@ -12,7 +12,7 @@
             "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.1.2_amd64.AppImage"
         },
         "darwin-aarch64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzBlMWdqS2FYVDU1ZDNpY0RQSWZ0QzdtMVhWUEhSMjc4dWdsSDlEWC9tVDByajNjWHZwc00zUTdOai9rLzNHeGd2V0E0VlBiUVNDZkRHc1g2c1p4V1FnPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg0ODU2NDMyCWZpbGU6VnVsY2FuIFN0dWRpby5hcHAudGFyLmd6Ck54bjZQQnVxVWlEcHAvMzZaemJQRkUySjNsZEJkWURFdnFyYjI1L0VLSHFnVktSa3d2d3VCOGdQR09Ibk5FMHhXd0dzQTQzY210Y09CaFYzTy9vYUFnPT0K",
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzNVZ1FBZWdJZnJTMDk1OGxyTEF0Zy81a3NYU3k3NU04UU83d2hYOVBHZWdhUXYxR1B2bGVudzZXb1Q0QWxMWGViczlmUEFKemtKaTVodWtmS21UZUF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5ODgyMTExCWZpbGU6VnVsY2FuIFN0dWRpby5hcHAudGFyLmd6ClVoRGV6U0llUHhhTkdSTjdvZUdZd3VVK2lOSE5uNUZIamE2Y3BBRlUxaTBFOEo1WHF4VWY4ZHNOaHFBSXBzcnYzRVFNOXlxWUg4NHFTK0tpaEFidEJBPT0K",
             "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.1.2_aarch64.app.tar.gz",
             "installer_url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.1.2_aarch64.dmg"
         }
