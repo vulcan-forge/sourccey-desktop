@@ -3,6 +3,7 @@ from __future__ import annotations
 import stat
 import sys
 import json
+import subprocess
 from pathlib import Path
 
 
@@ -143,6 +144,7 @@ def test_setup_checks_out_manifest_release(monkeypatch, tmp_path):
         "initialize_git_submodules",
         "handle_submodule_changes",
         "update_git_submodules",
+        "pull_git_lfs_from_submodules",
     ):
         monkeypatch.setattr(manager, method_name, lambda: True)
     monkeypatch.setattr(
@@ -157,9 +159,85 @@ def test_setup_checks_out_manifest_release(monkeypatch, tmp_path):
     )
     monkeypatch.setattr(manager, "notify_stashed_changes", lambda: None)
     monkeypatch.setattr(manager, "restore_stashed_changes", lambda: None)
+    monkeypatch.setattr(manager, "pull_git_lfs_from_submodules", lambda: calls.append(("lfs",)) or True)
 
     assert manager.setup_git_submodules() is True
     assert calls == [
         ("manifest", "modules/lerobot-vulcan"),
         ("checkout", "modules/lerobot-vulcan", "vulcan/0.1.14"),
+        ("lfs",),
     ]
+
+
+def test_existing_tag_checks_out_without_network(monkeypatch, tmp_path):
+    manager = _create_manager(tmp_path)
+    (tmp_path / "modules" / "lerobot-vulcan").mkdir(parents=True)
+    commands = []
+
+    def run(command, *args, **kwargs):
+        commands.append(command)
+        assert "fetch" not in command
+        output = "" if "status" in command else "abc123\n"
+        return subprocess.CompletedProcess(command, 0, output, "")
+
+    monkeypatch.setattr(manager, "_run_git_command", run)
+    assert manager.checkout_submodule_tag("modules/lerobot-vulcan", "vulcan/0.1.15")
+    assert any("checkout" in cmd for cmd in commands)
+
+
+def test_tag_fetch_retries_dns_failure(monkeypatch, tmp_path):
+    manager = _create_manager(tmp_path)
+    results = iter([
+        subprocess.CompletedProcess([], 128, "", "Could not resolve host: github.com"),
+        subprocess.CompletedProcess([], 0, "", ""),
+    ])
+    sleeps = []
+    monkeypatch.setattr(manager, "_run_git_command", lambda *a, **kw: next(results))
+    monkeypatch.setattr("setup.shared.setup_git.time.sleep", sleeps.append)
+    assert manager._fetch_tag_with_retry(tmp_path, "vulcan/0.1.15")
+    assert sleeps == [2]
+
+
+def test_tag_fetch_stops_after_three_network_failures(monkeypatch, tmp_path):
+    manager = _create_manager(tmp_path)
+    calls = []
+
+    def fail(*args, **kwargs):
+        calls.append(args)
+        return subprocess.CompletedProcess([], 128, "", "Could not resolve host: github.com")
+
+    monkeypatch.setattr(manager, "_run_git_command", fail)
+    monkeypatch.setattr("setup.shared.setup_git.time.sleep", lambda _: None)
+    assert not manager._fetch_tag_with_retry(tmp_path, "vulcan/0.1.15")
+    assert len(calls) == 3
+
+
+def test_tag_fetch_does_not_retry_missing_tag(monkeypatch, tmp_path):
+    manager = _create_manager(tmp_path)
+    monkeypatch.setattr(manager, "_run_git_command", lambda *a, **kw:
+        subprocess.CompletedProcess([], 128, "", "fatal: couldn't find remote ref refs/tags/missing"))
+    monkeypatch.setattr("setup.shared.setup_git.time.sleep", lambda _: (_ for _ in ()).throw(AssertionError("must not retry")))
+    assert not manager._fetch_tag_with_retry(tmp_path, "missing")
+
+
+def test_uninitialized_directory_never_stashes_parent(monkeypatch, tmp_path):
+    manager = _create_manager(tmp_path)
+    (tmp_path / "modules" / "lerobot-vulcan").mkdir(parents=True)
+    monkeypatch.setattr(manager, "_run_git_command", lambda *a, **kw:
+        (_ for _ in ()).throw(AssertionError("must not inspect parent repo")))
+    assert manager.handle_submodule_changes()
+
+
+def test_submodule_update_retries_network_failure(monkeypatch, tmp_path):
+    manager = _create_manager(tmp_path)
+    attempts = []
+
+    def update(*args, **kwargs):
+        attempts.append(args)
+        manager.last_git_output = "fatal: Could not resolve host: github.com"
+        return len(attempts) == 2
+
+    monkeypatch.setattr(manager, "run_git_command_with_progress", update)
+    monkeypatch.setattr("setup.shared.setup_git.time.sleep", lambda _: None)
+    assert manager.update_git_submodules()
+    assert len(attempts) == 2

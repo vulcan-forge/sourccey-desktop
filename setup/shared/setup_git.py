@@ -159,6 +159,7 @@ class GitSetupManager:
         self.print_warning = print_warning
         self.print_error = print_error
         self.submodule_changes_stashed = False
+        self.last_git_output = ""
 
     #################################################################
     # Git Command Execution
@@ -183,6 +184,37 @@ class GitSetupManager:
         wrapped_cmd, actual_cwd = wrap_command(command, cwd)
         return subprocess.run(wrapped_cmd, cwd=actual_cwd, env=self._get_git_env(), **kwargs)
 
+    @staticmethod
+    def _is_transient_network_error(output: str) -> bool:
+        return any(message in output.lower() for message in (
+            "could not resolve host", "could not resolve proxy",
+            "temporary failure in name resolution", "connection timed out",
+            "connection reset", "failed to connect", "network is unreachable",
+            "remote end hung up unexpectedly", "early eof",
+        ))
+
+    def _fetch_tag_with_retry(self, cwd: Path, tag: str) -> bool:
+        for attempt in range(3):
+            try:
+                result = self._run_git_command(
+                    ["git", "fetch", "origin", "tag", tag], cwd,
+                    capture_output=True, text=True, timeout=120,
+                )
+                if result.returncode == 0:
+                    return True
+                detail = (result.stderr or result.stdout).strip()
+                retryable = self._is_transient_network_error(detail)
+            except subprocess.TimeoutExpired:
+                detail = "Tag fetch timed out after 120 seconds"
+                retryable = True
+            if not retryable or attempt == 2:
+                self.print_error(f"Failed to fetch tag {tag}: {detail}")
+                return False
+            delay = 2 ** (attempt + 1)
+            self.print_warning(f"Temporary Git network failure: {detail}. Retrying in {delay}s.")
+            time.sleep(delay)
+        return False
+
     def run_git_command_with_progress(
         self,
         command: list,
@@ -199,6 +231,7 @@ class GitSetupManager:
             timeout: Optional timeout in seconds
         """
         tracker = GitProgressTracker(operation_name, self.print_status, self.print_status)
+        self.last_git_output = ""
 
         try:
             # Add --progress flag to git commands to force progress output
@@ -253,6 +286,7 @@ class GitSetupManager:
                 if not line:
                     break
 
+                self.last_git_output = (self.last_git_output + line)[-16000:]
                 tracker.update_progress(line)
 
             # Wait for process to complete
@@ -580,11 +614,6 @@ class GitSetupManager:
         if not self.pull_git_lfs_files():
             return False
 
-        # Pull LFS files from submodules
-        if not self.pull_git_lfs_from_submodules():
-            # Don't fail completely if submodule LFS fails
-            self.print_warning("Some submodule LFS files may not be available")
-
         return True
 
     def check_git_installed(self) -> bool:
@@ -854,7 +883,7 @@ class GitSetupManager:
         """Handle any uncommitted changes in submodules"""
         submodule_path = self.project_root / "modules" / "lerobot-vulcan"
 
-        if not submodule_path.exists():
+        if not (submodule_path / ".git").exists():
             return True
 
         try:
@@ -895,13 +924,19 @@ class GitSetupManager:
         """Update all submodules to the versions pinned in the repo."""
         self.print_status("Cloning and updating git submodules...")
         try:
-            if self.run_git_command_with_progress(
-                self._submodule_command("update", "--init", "--recursive"),
-                self.project_root,
-                "Cloning submodules",
-            ):
-                self.print_success("Git submodules updated to recorded commits")
-                return True
+            for attempt in range(3):
+                if self.run_git_command_with_progress(
+                    self._submodule_command("update", "--init", "--recursive"),
+                    self.project_root,
+                    "Cloning submodules",
+                ):
+                    self.print_success("Git submodules updated to recorded commits")
+                    return True
+                if attempt == 2 or not self._is_transient_network_error(self.last_git_output):
+                    break
+                delay = 2 ** (attempt + 1)
+                self.print_warning(f"Temporary network failure; retrying submodule update in {delay}s.")
+                time.sleep(delay)
 
             # A healthy lerobot-vulcan checkout does not imply that other
             # submodules succeeded. Preserve failed checkouts for diagnosis.
@@ -955,14 +990,13 @@ class GitSetupManager:
 
         self.print_status(f"Checking out tag {tag} in {submodule_relative_path}...")
 
-        fetch_tag = self._run_git_command(
-            ["git", "fetch", "origin", "tag", tag],
+        local_tag = self._run_git_command(
+            ["git", "rev-parse", "--verify", f"refs/tags/{tag}^{{commit}}"],
             submodule_path,
             capture_output=True,
             text=True,
         )
-        if fetch_tag.returncode != 0:
-            self.print_error(f"Failed to fetch tag {tag}: {fetch_tag.stderr.strip()}")
+        if local_tag.returncode != 0 and not self._fetch_tag_with_retry(submodule_path, tag):
             return False
 
         status = self._run_git_command(
@@ -971,6 +1005,9 @@ class GitSetupManager:
             capture_output=True,
             text=True,
         )
+        if status.returncode != 0:
+            self.print_error(f"Failed to inspect submodule changes: {status.stderr.strip()}")
+            return False
         if status.stdout.strip():
             current_head = self._run_git_command(
                 ["git", "rev-parse", "HEAD"],
@@ -1250,6 +1287,10 @@ class GitSetupManager:
                 ):
                     self.restore_stashed_changes()
                     return False
+
+            # Download submodule LFS content only after checkout exists at the release.
+            if not self.pull_git_lfs_from_submodules():
+                self.print_warning("Some submodule LFS files may not be available")
 
             # Notify about stashed changes
             self.notify_stashed_changes()
