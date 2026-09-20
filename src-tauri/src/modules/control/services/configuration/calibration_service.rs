@@ -1,6 +1,9 @@
 use crate::modules::control::controllers::configuration::calibration_controller::{
     CalibrationConfig, DesktopTeleopCalibrationConfig, DesktopTeleopCalibrationStatus,
 };
+use crate::modules::control::services::remote_control::remote_command_utils::{
+    format_command_for_display, resolve_uv_runtime,
+};
 use crate::modules::control::types::configuration::calibration_types::{
     Calibration, MotorCalibration,
 };
@@ -717,34 +720,23 @@ impl CalibrationService {
             &start_message,
         );
 
-        let lerobot_dir = DirectoryService::get_lerobot_vulcan_dir()?;
-        let python_path = DirectoryService::get_python_path()?;
+        let runtime = resolve_uv_runtime(&app_handle)?;
+        let command_parts = Self::remote_calibration_command_args(full_reset);
+        let command_string = format_command_for_display(&command_parts);
 
-        let mut command_parts = vec!["python".to_string()];
-        command_parts
-            .push("src/lerobot/scripts/sourccey/calibration/auto_calibrate.py".to_string());
-        command_parts.push(format!("--robot.type={}", robot_type));
-        command_parts.push(format!("--robot.id={}", nickname));
-        if full_reset {
-            command_parts.push(format!("--full_reset=True"));
-        }
-
-        let mut cmd = Command::new(python_path);
-        for arg in &command_parts[1..] {
-            cmd.arg(arg);
-        }
+        let mut cmd = Command::new(&runtime.executable);
+        cmd.args(&command_parts).envs(&runtime.envs);
         Self::configure_calibration_command(&mut cmd);
 
         let child = cmd
-            .current_dir(&lerobot_dir)
+            .current_dir(&runtime.working_dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Failed to auto calibrate: {}", e))?;
+            .map_err(|e| format!("Failed to launch sourccey-calibrate: {}", e))?;
         let pid = child.id();
 
         // Create command log service with the provided connection
-        let command_string = command_parts.join(" ");
         let command_log_service = CommandLogService::new(db_connection.clone());
         let command_log = match command_log_service
             .add_robot_command_log(
@@ -801,6 +793,14 @@ impl CalibrationService {
             "Remote auto calibrate completed successfully",
         );
         Ok(())
+    }
+
+    fn remote_calibration_command_args(full_reset: bool) -> Vec<String> {
+        let mut args = vec!["run".to_string(), "sourccey-calibrate".to_string()];
+        if full_reset {
+            args.push("--full-reset".to_string());
+        }
+        args
     }
 
     //------------------------------------------------------------//

@@ -85,3 +85,23 @@ fn format_process_output_log_lines_splits_multiline_tracebacks() {
         ]
     );
 }
+
+#[test]
+fn remote_auto_calibrate_uses_packaged_command() {
+    assert_eq!(
+        CalibrationService::remote_calibration_command_args(false),
+        vec!["run".to_string(), "sourccey-calibrate".to_string()]
+    );
+}
+
+#[test]
+fn remote_full_calibrate_adds_full_reset_flag() {
+    assert_eq!(
+        CalibrationService::remote_calibration_command_args(true),
+        vec![
+            "run".to_string(),
+            "sourccey-calibrate".to_string(),
+            "--full-reset".to_string(),
+        ]
+    );
+}
