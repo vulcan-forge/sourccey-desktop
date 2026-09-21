@@ -1,5 +1,5 @@
 use crate::modules::control::controllers::configuration::calibration_controller::{
-    DesktopTeleopCalibrationConfig, DesktopTeleopCalibrationStatus,
+    DesktopSerialPortInfo, DesktopTeleopCalibrationConfig, DesktopTeleopCalibrationStatus,
 };
 use crate::modules::control::services::remote_control::remote_command_utils::{
     format_command_for_display, resolve_uv_runtime,
@@ -22,7 +22,62 @@ use tokio::process::Command;
 
 pub struct CalibrationService;
 
-const DESKTOP_TELEOP_CALIBRATION_ID: &str = "sourccey_leader";
+const DESKTOP_TELEOP_ARM_TYPE: &str = "sourccey_leader";
+const DESKTOP_TELEOP_LEFT_ID: &str = "sourccey_left";
+const DESKTOP_TELEOP_RIGHT_ID: &str = "sourccey_right";
+const DESKTOP_LIST_SERIAL_PORTS_SCRIPT: &str = r#"
+import json
+from pathlib import Path
+from serial.tools import list_ports
+from lerobot.motors.feetech import FeetechMotorsBus
+
+ports = {port.device for port in list_ports.comports()}
+for stable_port in ("/dev/robotLeftArm", "/dev/robotRightArm"):
+    if Path(stable_port).exists():
+        ports.add(stable_port)
+
+expected_left = set(range(1, 7))
+expected_right = set(range(7, 13))
+results = []
+for port in sorted(ports):
+    motor_ids = []
+    probe_error = None
+    bus = None
+    try:
+        bus = FeetechMotorsBus(port=port, motors={})
+        bus.connect(handshake=False)
+        bus.set_baudrate(1_000_000)
+        motor_ids = sorted(int(motor_id) for motor_id in (bus.broadcast_ping(num_retry=1) or {}))
+    except Exception as error:
+        probe_error = str(error).strip() or error.__class__.__name__
+    finally:
+        if bus is not None and bus.is_connected:
+            try:
+                bus.disconnect(disable_torque=False)
+            except Exception:
+                pass
+
+    found = set(motor_ids)
+    if found and found.issubset(expected_left):
+        suggested_arm = "left"
+        is_complete = found == expected_left
+    elif found and found.issubset(expected_right):
+        suggested_arm = "right"
+        is_complete = found == expected_right
+    else:
+        suggested_arm = None
+        is_complete = False
+
+    results.append({
+        "port": port,
+        "motorIds": motor_ids,
+        "suggestedArm": suggested_arm,
+        "isComplete": is_complete,
+        "probeError": probe_error,
+    })
+
+print(json.dumps(results))
+"#;
 
 impl CalibrationService {
     //----------------------------------------------------------//
@@ -182,33 +237,49 @@ impl CalibrationService {
             .join(format!("{}.json", safe_nickname)))
     }
 
+    fn desktop_teleop_calibration_paths() -> Result<(PathBuf, PathBuf), String> {
+        Ok((
+            Self::get_teleop_calibration_path(DESKTOP_TELEOP_ARM_TYPE, DESKTOP_TELEOP_LEFT_ID)?,
+            Self::get_teleop_calibration_path(DESKTOP_TELEOP_ARM_TYPE, DESKTOP_TELEOP_RIGHT_ID)?,
+        ))
+    }
+
     pub fn desktop_get_teleop_calibration_status(
-        teleop_type: &str,
+        _teleop_type: &str,
         _nickname: &str,
     ) -> Result<DesktopTeleopCalibrationStatus, String> {
-        // Desktop teleoperate and record both use `--teleop.id=sourccey_leader`.
-        // The packaged calibration command writes that same shared id.
-        let calibration_path =
-            Self::get_teleop_calibration_path(teleop_type, DESKTOP_TELEOP_CALIBRATION_ID)?;
+        // BiSourcceyLeader delegates to two SourcceyLeader instances. The packaged
+        // calibrator therefore writes one file per arm rather than a combined file
+        // under the bimanual teleoperator type.
+        let (left_calibration_path, right_calibration_path) =
+            Self::desktop_teleop_calibration_paths()?;
+        let left_calibrated = left_calibration_path.exists();
+        let right_calibrated = right_calibration_path.exists();
 
-        let exists = calibration_path.exists();
-        let modified_at = if exists {
-            let metadata = fs::metadata(&calibration_path).map_err(|e| e.to_string())?;
-            let modified = metadata.modified().map_err(|e| e.to_string())?;
-            let since_epoch = modified
-                .duration_since(std::time::UNIX_EPOCH)
-                .map_err(|e| e.to_string())?;
-            Some(since_epoch.as_millis() as u64)
-        } else {
-            None
-        };
+        let modified_at = [&left_calibration_path, &right_calibration_path]
+            .into_iter()
+            .filter(|path| path.exists())
+            .map(|path| {
+                let metadata = fs::metadata(path).map_err(|e| e.to_string())?;
+                let modified = metadata.modified().map_err(|e| e.to_string())?;
+                let since_epoch = modified
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map_err(|e| e.to_string())?;
+                Ok(since_epoch.as_millis() as u64)
+            })
+            .collect::<Result<Vec<_>, String>>()?
+            .into_iter()
+            .max();
+        let calibration_dir = left_calibration_path
+            .parent()
+            .map(|path| path.to_string_lossy().to_string());
 
         Ok(DesktopTeleopCalibrationStatus {
-            is_calibrated: exists,
-            left_calibrated: exists,
-            right_calibrated: exists,
+            is_calibrated: left_calibrated && right_calibrated,
+            left_calibrated,
+            right_calibrated,
             modified_at,
-            calibration_path: Some(calibration_path.to_string_lossy().to_string()),
+            calibration_path: calibration_dir,
         })
     }
 
@@ -297,6 +368,43 @@ impl CalibrationService {
 
     fn configure_calibration_command(command: &mut Command) {
         configure_tokio_command(command);
+    }
+
+    pub async fn desktop_list_serial_ports(
+        app_handle: AppHandle,
+    ) -> Result<Vec<DesktopSerialPortInfo>, String> {
+        let runtime = resolve_uv_runtime(&app_handle)?;
+        let command_parts = Self::desktop_list_serial_ports_command_args();
+        let mut cmd = Command::new(&runtime.executable);
+        cmd.args(&command_parts).envs(&runtime.envs);
+        Self::configure_calibration_command(&mut cmd);
+
+        let output = cmd
+            .current_dir(&runtime.working_dir)
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .output()
+            .await
+            .map_err(|e| format!("Failed to list serial ports: {}", e))?;
+        let (stdout, stderr) = Self::decode_output_text(&output);
+
+        if !output.status.success() {
+            let details = if stderr.is_empty() { stdout } else { stderr };
+            return Err(format!("Failed to list serial ports: {}", details));
+        }
+
+        serde_json::from_str::<Vec<DesktopSerialPortInfo>>(&stdout)
+            .map_err(|e| format!("Failed to read serial port list: {}", e))
+    }
+
+    fn desktop_list_serial_ports_command_args() -> Vec<String> {
+        vec![
+            "run".to_string(),
+            "--no-sync".to_string(),
+            "python".to_string(),
+            "-c".to_string(),
+            DESKTOP_LIST_SERIAL_PORTS_SCRIPT.to_string(),
+        ]
     }
 
     fn write_process_output_logs(

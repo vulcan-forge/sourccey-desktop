@@ -298,7 +298,7 @@ const RobotCard = ({ robot, onUnpair, isUnpairing }: RobotCardProps) => {
 
             <div className="flex flex-col gap-1">
                 <div className="text-sm font-medium text-slate-200">{host || 'IP not configured'}</div>
-                <div className="flex flex-wrap items-center gap-2">
+                <div className="flex w-full items-center justify-between gap-2">
                     <div
                         className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold ${
                             isOnline
@@ -308,7 +308,7 @@ const RobotCard = ({ robot, onUnpair, isUnpairing }: RobotCardProps) => {
                     >
                         {statusLabel}
                     </div>
-                    <RobotBatteryStatus batteryData={discoveredHost?.batteryData} robotName={displayTitle} />
+                    {discoveredHost ? <RobotBatteryStatus batteryData={discoveredHost.batteryData} robotName={displayTitle} /> : null}
                 </div>
             </div>
 

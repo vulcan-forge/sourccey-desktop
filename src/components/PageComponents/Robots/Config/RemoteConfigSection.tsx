@@ -20,9 +20,10 @@ type RemoteConfigSectionProps = {
     embedded?: boolean;
     showHeader?: boolean;
     isOpen?: boolean;
+    focusSection?: 'calibration';
 };
 
-export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader = false, isOpen }: RemoteConfigSectionProps) => {
+export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader = false, isOpen, focusSection }: RemoteConfigSectionProps) => {
     const nickname = ownedRobot?.nickname ?? '';
     const ownedRobotId = ownedRobot?.id ?? ownedRobot?.owned_robot?.id ?? '';
     const { data: remoteConfig, isLoading: isLoadingConfig }: any = useGetRemoteConfig(nickname);
@@ -37,7 +38,7 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
     const [isConnectionOpen, setIsConnectionOpen] = useState(false);
     const [isControlSettingsOpen, setIsControlSettingsOpen] = useState(false);
     const [isAdvancedOpen, setIsAdvancedOpen] = useState(false);
-    const [isCalibrationOpen, setIsCalibrationOpen] = useState(false);
+    const [isCalibrationOpen, setIsCalibrationOpen] = useState(focusSection === 'calibration');
     const [isLogsOpen, setIsLogsOpen] = useState(false);
     const currentHost = draftConfig?.remote_ip?.trim() ?? remoteConfig?.remote_ip?.trim() ?? '';
     const { data: discoveryResult, isLoading: isDiscoveryLoading } = useLanRobotDiscovery(!!currentHost);
@@ -53,6 +54,13 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
     useEffect(() => {
         setNicknameDraft(nickname);
     }, [nickname]);
+
+    useEffect(() => {
+        if (focusSection !== 'calibration') return;
+        window.requestAnimationFrame(() => {
+            document.getElementById('teleoperator-calibration-section')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    }, [focusSection]);
 
     const updateDraft = (key: keyof RemoteConfig, value: string | number | boolean) => {
         if (!draftConfig) return;
@@ -359,15 +367,17 @@ export const RemoteConfigSection = ({ ownedRobot, embedded = false, showHeader =
             )}
 
             {isConfigsVisible && (
-                <ConfigSection
-                    title="Calibration"
-                    icon={<FaTools className="h-4 w-4 text-yellow-300" />}
-                    description="Open this only when you are ready to calibrate hardware."
-                    isOpen={isCalibrationOpen}
-                    onToggle={() => setIsCalibrationOpen((current) => !current)}
-                >
-                    <DesktopTeleopCalibration ownedRobot={ownedRobot} embedded={true} />
-                </ConfigSection>
+                <div id="teleoperator-calibration-section" className="scroll-mt-4">
+                    <ConfigSection
+                        title="Calibration"
+                        icon={<FaTools className="h-4 w-4 text-yellow-300" />}
+                        description="Set up leader arm ports and calibrate the teleoperator."
+                        isOpen={isCalibrationOpen}
+                        onToggle={() => setIsCalibrationOpen((current) => !current)}
+                    >
+                        <DesktopTeleopCalibration ownedRobot={ownedRobot} embedded={true} />
+                    </ConfigSection>
+                </div>
             )}
 
             {isConfigsVisible && (

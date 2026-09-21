@@ -43,7 +43,8 @@ use modules::ai_model::controllers::ai_model_controller::{
 };
 use modules::control::controllers::configuration::calibration_controller::{
     desktop_auto_calibrate_teleoperator, desktop_get_teleop_calibration_status,
-    get_calibration_modified_at, read_calibration, remote_auto_calibrate, write_calibration,
+    desktop_list_serial_ports, get_calibration_modified_at, read_calibration,
+    remote_auto_calibrate, write_calibration,
 };
 use modules::control::controllers::configuration::configuration_controller::{
     read_config, read_remote_config, write_config, write_remote_config,
@@ -667,6 +668,7 @@ fn main() {
             get_calibration_modified_at,
             remote_auto_calibrate,
             desktop_get_teleop_calibration_status,
+            desktop_list_serial_ports,
             desktop_auto_calibrate_teleoperator,
 
             // Remote Control Functions

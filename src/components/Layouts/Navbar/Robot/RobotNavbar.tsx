@@ -55,7 +55,9 @@ export const RobotNavbar = ({ ownedRobot }: { ownedRobot: any }) => {
                         Rollout
                     </NavButton>
                     <div className="grow"></div>
-                    <RobotBatteryStatus batteryData={discoveredRobot?.batteryData} robotName={robotName} variant="navbar" />
+                    {discoveredRobot ? (
+                        <RobotBatteryStatus batteryData={discoveredRobot.batteryData} robotName={robotName} variant="navbar" />
+                    ) : null}
                     <NavButton content={config} icon={FaSlidersH} isActive={isConfigActive}>
                         Setup
                     </NavButton>

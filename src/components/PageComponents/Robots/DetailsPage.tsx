@@ -33,7 +33,13 @@ export const RobotDetailsPage = () => {
             {showOperationsWorkspace && <RobotOperationsWorkspace ownedRobot={ownedRobot} activeContent={workspaceContent} />}
             {showConfigContent && (
                 <div className="flex h-full w-full flex-col space-y-4 overflow-y-auto p-4">
-                    <RemoteConfigSection ownedRobot={ownedRobot} embedded={true} showHeader={false} isOpen={true} />
+                    <RemoteConfigSection
+                        ownedRobot={ownedRobot}
+                        embedded={true}
+                        showHeader={false}
+                        isOpen={true}
+                        focusSection={activeContent === 'calibration' ? 'calibration' : undefined}
+                    />
                 </div>
             )}
         </RobotLayout>

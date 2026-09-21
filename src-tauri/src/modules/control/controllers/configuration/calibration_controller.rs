@@ -38,6 +38,16 @@ pub struct DesktopTeleopCalibrationStatus {
     pub calibration_path: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopSerialPortInfo {
+    pub port: String,
+    pub motor_ids: Vec<u8>,
+    pub suggested_arm: Option<String>,
+    pub is_complete: bool,
+    pub probe_error: Option<String>,
+}
+
 #[tauri::command]
 pub fn read_calibration(
     robot_type: String,
@@ -87,6 +97,13 @@ pub fn desktop_get_teleop_calibration_status(
     config: DesktopTeleopCalibrationStatusConfig,
 ) -> Result<DesktopTeleopCalibrationStatus, String> {
     CalibrationService::desktop_get_teleop_calibration_status(&config.teleop_type, &config.nickname)
+}
+
+#[tauri::command]
+pub async fn desktop_list_serial_ports(
+    app_handle: AppHandle,
+) -> Result<Vec<DesktopSerialPortInfo>, String> {
+    CalibrationService::desktop_list_serial_ports(app_handle).await
 }
 
 #[tauri::command]

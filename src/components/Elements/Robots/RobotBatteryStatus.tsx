@@ -57,7 +57,7 @@ export const RobotBatteryStatus = ({ batteryData, robotName = 'Robot', variant =
                         : 'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition-colors'
                 } ${
                     hasTelemetry
-                        ? `${getBatteryStatusSurfaceClasses(percent)} cursor-pointer hover:border-slate-400/70`
+                        ? `${getBatteryStatusSurfaceClasses(percent)} cursor-pointer hover:bg-slate-600/80 hover:text-white`
                         : 'cursor-default border-slate-600/60 bg-slate-800/50 text-slate-400'
                 }`}
                 aria-label={hasTelemetry ? `View ${robotName} battery information` : `${robotName} battery information unavailable`}

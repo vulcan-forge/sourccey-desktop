@@ -1,4 +1,5 @@
-use super::CalibrationService;
+use super::{CalibrationService, DesktopSerialPortInfo};
+use std::path::Path;
 use std::process::Output;
 
 #[cfg(unix)]
@@ -127,4 +128,50 @@ fn desktop_teleop_calibration_uses_packaged_command() {
             "--right-arm-port=COM8".to_string(),
         ]
     );
+}
+
+#[test]
+fn desktop_serial_port_discovery_uses_the_lerobot_runtime() {
+    let args = CalibrationService::desktop_list_serial_ports_command_args();
+    assert_eq!(&args[..4], ["run", "--no-sync", "python", "-c"]);
+    assert!(args[4].contains("list_ports.comports()"));
+    assert!(args[4].contains("FeetechMotorsBus"));
+    assert!(args[4].contains("broadcast_ping"));
+    assert!(args[4].contains("set(range(1, 7))"));
+    assert!(args[4].contains("set(range(7, 13))"));
+    assert!(args[4].contains("/dev/robotLeftArm"));
+    assert!(args[4].contains("/dev/robotRightArm"));
+}
+
+#[test]
+fn desktop_serial_port_discovery_parses_motor_id_metadata() {
+    let ports: Vec<DesktopSerialPortInfo> = serde_json::from_str(
+        r#"[{"port":"COM9","motorIds":[1,2,3,4,5,6],"suggestedArm":"left","isComplete":true,"probeError":null}]"#,
+    )
+    .expect("serial port metadata should deserialize");
+
+    assert_eq!(ports[0].port, "COM9");
+    assert_eq!(ports[0].motor_ids, vec![1, 2, 3, 4, 5, 6]);
+    assert_eq!(ports[0].suggested_arm.as_deref(), Some("left"));
+    assert!(ports[0].is_complete);
+    assert!(ports[0].probe_error.is_none());
+}
+
+#[test]
+fn desktop_teleop_status_uses_per_arm_calibration_files() {
+    let (left, right) = CalibrationService::desktop_teleop_calibration_paths()
+        .expect("desktop teleop calibration paths should resolve");
+
+    assert!(left.ends_with(
+        Path::new("calibration")
+            .join("teleoperators")
+            .join("sourccey_leader")
+            .join("sourccey_left.json")
+    ));
+    assert!(right.ends_with(
+        Path::new("calibration")
+            .join("teleoperators")
+            .join("sourccey_leader")
+            .join("sourccey_right.json")
+    ));
 }
