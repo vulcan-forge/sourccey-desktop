@@ -115,13 +115,16 @@ fn remote_full_calibrate_adds_full_reset_flag() {
 }
 
 #[test]
-fn desktop_teleop_calibration_uses_packaged_auto_calibration_bridge() {
-    let args = CalibrationService::desktop_teleop_calibration_command_args(
-        "operator-1",
-        "COM3",
-        "COM8",
+fn desktop_teleop_calibration_uses_packaged_command() {
+    let args = CalibrationService::desktop_teleop_calibration_command_args("COM3", "COM8");
+    assert_eq!(
+        args,
+        vec![
+            "run".to_string(),
+            "--no-sync".to_string(),
+            "sourccey-teleop-calibrate".to_string(),
+            "--left-arm-port=COM3".to_string(),
+            "--right-arm-port=COM8".to_string(),
+        ]
     );
-    assert_eq!(&args[..5], ["run", "--no-sync", "python", "-u", "-c"]);
-    assert!(args[5].contains("teleoperator.auto_calibrate()"));
-    assert_eq!(&args[6..], ["operator-1", "COM3", "COM8"]);
 }

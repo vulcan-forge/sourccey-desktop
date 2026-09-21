@@ -22,28 +22,7 @@ use tokio::process::Command;
 
 pub struct CalibrationService;
 
-const DESKTOP_TELEOP_AUTO_CALIBRATE_SCRIPT: &str = r#"
-import sys
-
-from lerobot_robot_sourccey.teleoperators.bi_sourccey_leader.bi_sourccey_leader import BiSourcceyLeader
-from lerobot_robot_sourccey.teleoperators.bi_sourccey_leader.config_bi_sourccey_leader import BiSourcceyLeaderConfig
-
-teleoperator = BiSourcceyLeader(
-    BiSourcceyLeaderConfig(
-        id=sys.argv[1],
-        left_arm_port=sys.argv[2],
-        right_arm_port=sys.argv[3],
-    )
-)
-connected = False
-try:
-    teleoperator.connect(calibrate=False)
-    connected = True
-    teleoperator.auto_calibrate()
-finally:
-    if connected:
-        teleoperator.disconnect()
-"#;
+const DESKTOP_TELEOP_CALIBRATION_ID: &str = "sourccey_leader";
 
 impl CalibrationService {
     //----------------------------------------------------------//
@@ -205,11 +184,12 @@ impl CalibrationService {
 
     pub fn desktop_get_teleop_calibration_status(
         teleop_type: &str,
-        nickname: &str,
+        _nickname: &str,
     ) -> Result<DesktopTeleopCalibrationStatus, String> {
-        let normalized_nickname = Self::normalize_nickname(nickname);
+        // Desktop teleoperate and record both use `--teleop.id=sourccey_leader`.
+        // The packaged calibration command writes that same shared id.
         let calibration_path =
-            Self::get_teleop_calibration_path(teleop_type, &normalized_nickname)?;
+            Self::get_teleop_calibration_path(teleop_type, DESKTOP_TELEOP_CALIBRATION_ID)?;
 
         let exists = calibration_path.exists();
         let modified_at = if exists {
@@ -407,15 +387,9 @@ impl CalibrationService {
         );
 
         let runtime = resolve_uv_runtime(&app_handle)?;
-        let command_parts = Self::desktop_teleop_calibration_command_args(
-            &normalized_nickname,
-            &left_arm_port,
-            &right_arm_port,
-        );
-        let command_string = format!(
-            "uv run --no-sync python -c <desktop-teleop-auto-calibrate> {} {} {}",
-            normalized_nickname, left_arm_port, right_arm_port
-        );
+        let command_parts =
+            Self::desktop_teleop_calibration_command_args(&left_arm_port, &right_arm_port);
+        let command_string = format_command_for_display(&command_parts);
 
         let mut cmd = Command::new(&runtime.executable);
         cmd.args(&command_parts).envs(&runtime.envs);
@@ -450,11 +424,7 @@ impl CalibrationService {
             .wait_with_output()
             .await
             .map_err(|e| format!("Failed to get output: {}", e))?;
-        Self::write_process_output_logs(
-            &app_handle,
-            "Desktop teleoperator auto calibrate",
-            &output,
-        );
+        Self::write_process_output_logs(&app_handle, "Desktop teleoperator calibrate", &output);
 
         if let Err(validation_error) = Self::validate_calibration_command_output(&output) {
             if let Some(pid_value) = pid {
@@ -470,7 +440,7 @@ impl CalibrationService {
                 "robot-actions.log",
                 Some("calibration"),
                 &format!(
-                    "Desktop teleoperator auto calibrate failed: {}",
+                    "Desktop teleoperator calibrate failed: {}",
                     validation_error
                 ),
             );
@@ -490,26 +460,21 @@ impl CalibrationService {
             &app_handle,
             "robot-actions.log",
             Some("calibration"),
-            "Desktop teleoperator auto calibrate completed successfully",
+            "Desktop teleoperator calibrate completed successfully",
         );
         Ok(())
     }
 
     fn desktop_teleop_calibration_command_args(
-        nickname: &str,
         left_arm_port: &str,
         right_arm_port: &str,
     ) -> Vec<String> {
         vec![
             "run".to_string(),
             "--no-sync".to_string(),
-            "python".to_string(),
-            "-u".to_string(),
-            "-c".to_string(),
-            DESKTOP_TELEOP_AUTO_CALIBRATE_SCRIPT.to_string(),
-            nickname.to_string(),
-            left_arm_port.to_string(),
-            right_arm_port.to_string(),
+            "sourccey-teleop-calibrate".to_string(),
+            format!("--left-arm-port={}", left_arm_port),
+            format!("--right-arm-port={}", right_arm_port),
         ]
     }
 

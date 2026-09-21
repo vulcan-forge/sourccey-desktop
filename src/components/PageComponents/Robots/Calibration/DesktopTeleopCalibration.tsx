@@ -92,7 +92,9 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
                         <FaTools className="h-5 w-5 text-cyan-300" />
                         Teleoperator Calibration
                     </h2>
-                    <p className="mt-2 text-sm text-slate-300">Run calibration before teleoperation to keep movement accurate and stable.</p>
+                    <p className="mt-2 text-sm text-slate-300">
+                        Calibrate both leader arms with the ports configured above before starting teleoperation.
+                    </p>
                 </div>
                 {!embedded && (
                     <button
@@ -172,7 +174,7 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
                 ) : (
                     <>
                         <FaCheckCircle className="h-4 w-4" />
-                        Auto Calibrate
+                        Calibrate Teleoperator
                     </>
                 )}
             </button>
