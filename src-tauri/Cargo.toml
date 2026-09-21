@@ -1,6 +1,6 @@
 [package]
 name = "VulcanStudio"
-version = "0.1.2"
+version = "0.1.3"
 description = "Vulcan Studio Desktop Application"
 authors = ["you"]
 edition = "2021"
