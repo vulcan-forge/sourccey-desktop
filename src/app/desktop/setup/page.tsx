@@ -2,48 +2,20 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import Image from 'next/image';
 import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
-import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
+import { useDesktopAppInstallProgress, useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
+import { useDesktopSetupProgress } from '@/hooks/System/desktop-setup-progress.hook';
 import { installAvailableDesktopUpdate } from '@/utils/updater/updater';
 import { formatLerobotRuntimeVersionLabel, getLerobotRuntimeStatusMessage } from '@/utils/updater/lerobot-runtime';
 import { FaArrowRight, FaCheckCircle, FaCloudDownloadAlt, FaExclamationTriangle, FaTools } from 'react-icons/fa';
-
-const steps = [
-    { id: 'reset', label: 'Reset modules' },
-    { id: 'download', label: 'Download lerobot-vulcan' },
-    { id: 'extract', label: 'Extract modules' },
-    { id: 'uv', label: 'Install uv runtime' },
-    { id: 'venv', label: 'Create environment' },
-    { id: 'deps', label: 'Install dependencies' },
-    { id: 'protobuf', label: 'Compile protobuf' },
-    { id: 'complete', label: 'Finalize setup' },
-];
-
-type StepStatus = 'pending' | 'started' | 'success' | 'error';
-
-type SetupProgress = {
-    step: string;
-    status: string;
-    message?: string | null;
-};
 
 type SetupStatus = {
     installed: boolean;
     missing: string[];
 };
-
-const statusColors: Record<StepStatus, string> = {
-    pending: 'text-slate-500',
-    started: 'text-amber-300',
-    success: 'text-emerald-300',
-    error: 'text-red-300',
-};
-
-const initialStepState = () => Object.fromEntries(steps.map((step) => [step.id, 'pending'])) as Record<string, StepStatus>;
 
 export default function SetupPage() {
     const { data: lerobotStatus, refetch: refetchLerobotStatus, isLoading: isLoadingLerobotStatus } = useLerobotUpdateStatus();
@@ -52,24 +24,20 @@ export default function SetupPage() {
         refetch: refetchDesktopAppUpdateStatus,
         isLoading: isLoadingDesktopAppStatus,
     } = useDesktopAppUpdateStatus();
+    const { data: runtimeProgress, refetch: refetchRuntimeProgress } = useDesktopSetupProgress();
+    const appInstallProgress = useDesktopAppInstallProgress();
 
     const [isReady, setIsReady] = useState(false);
     const [isRunning, setIsRunning] = useState(false);
     const [isInstalled, setIsInstalled] = useState(false);
-    const [isInstallingAppUpdate, setIsInstallingAppUpdate] = useState(false);
     const [showRuntimeSteps, setShowRuntimeSteps] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [log, setLog] = useState<string[]>([]);
-    const [appUpdateLog, setAppUpdateLog] = useState<string[]>([]);
     const hasMarkedInstalledRef = useRef(false);
-    const [stepState, setStepState] = useState<Record<string, StepStatus>>(initialStepState);
+    const wasRuntimeRunningRef = useRef(false);
 
     const formatLogLine = useCallback((message: string) => `[${new Date().toLocaleTimeString()}] ${message}`, []);
     const appendLog = useCallback((message: string) => setLog((previous) => [...previous, formatLogLine(message)]), [formatLogLine]);
-    const appendAppUpdateLog = useCallback(
-        (message: string) => setAppUpdateLog((previous) => [...previous, formatLogLine(message)]),
-        [formatLogLine]
-    );
 
     const getErrorMessage = useCallback((value: unknown) => {
         if (typeof value === 'string') return value;
@@ -84,39 +52,21 @@ export default function SetupPage() {
         if (hasMarkedInstalledRef.current) return;
         hasMarkedInstalledRef.current = true;
         setIsInstalled(true);
-        setStepState(Object.fromEntries(steps.map((step) => [step.id, 'success'])) as Record<string, StepStatus>);
         setLog((previous) => (previous.length > 0 ? previous : [message]));
     }, []);
 
     useEffect(() => {
-        let unlisten: UnlistenFn | undefined;
-        let cancelled = false;
-
-        void listen<SetupProgress>('setup:progress', (event) => {
-            const { step, status, message } = event.payload;
-            if (status === 'log') {
-                if (message) appendLog(message);
-                return;
-            }
-
-            const mapped: StepStatus =
-                status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
-            setStepState((previous) => ({ ...previous, [step]: mapped }));
-            if (message) appendLog(message);
-            if (status === 'error') {
-                setError(message || 'Runtime setup failed.');
-                setIsRunning(false);
-            }
-        }).then((stopListening) => {
-            if (cancelled) stopListening();
-            else unlisten = stopListening;
-        });
-
-        return () => {
-            cancelled = true;
-            unlisten?.();
-        };
-    }, [appendLog]);
+        if (!runtimeProgress?.action) return;
+        setIsRunning(runtimeProgress.running);
+        setShowRuntimeSteps(true);
+        setLog(runtimeProgress.log);
+        setError(runtimeProgress.error ?? null);
+        if (wasRuntimeRunningRef.current && !runtimeProgress.running) {
+            void Promise.all([refetchLerobotStatus(), refetchDesktopAppUpdateStatus()]);
+            if (!runtimeProgress.error) setIsInstalled(true);
+        }
+        wasRuntimeRunningRef.current = runtimeProgress.running;
+    }, [refetchDesktopAppUpdateStatus, refetchLerobotStatus, runtimeProgress]);
 
     useEffect(() => {
         const checkSetup = async () => {
@@ -145,27 +95,10 @@ export default function SetupPage() {
         setIsRunning(true);
         setError(null);
         setLog([]);
-        setStepState(() => {
-            const reset = initialStepState();
-            if (action === 'repair' && isInstalled) reset.reset = 'success';
-            return reset;
-        });
-        appendLog(
-            action === 'update'
-                ? 'Starting the runtime update.'
-                : isInstalled
-                  ? 'Starting the runtime repair.'
-                  : 'Starting the runtime installation.'
-        );
 
         try {
-            if (action === 'update') await invoke('setup_reset');
-            else await invoke('setup_run', { force: isInstalled });
-
-            appendLog(action === 'update' ? 'Runtime update completed successfully.' : 'Runtime setup completed successfully.');
-            await Promise.all([refetchLerobotStatus(), refetchDesktopAppUpdateStatus()]);
-            setIsRunning(false);
-            markInstalled('Setup complete. Ready to continue.');
+            await invoke('desktop_setup_start', { action, force: isInstalled });
+            await refetchRuntimeProgress();
         } catch (setupError) {
             const message = getErrorMessage(setupError);
             setError(message);
@@ -176,15 +109,11 @@ export default function SetupPage() {
 
     const installAppUpdate = async () => {
         const targetVersion = desktopAppUpdateStatus?.targetVersion ?? null;
-        if (!targetVersion || isInstallingAppUpdate) return;
+        if (!targetVersion || appInstallProgress.running || isRunning) return;
 
-        setIsInstallingAppUpdate(true);
-        setAppUpdateLog([]);
-        appendAppUpdateLog(`Preparing to install desktop app ${targetVersion}.`);
         try {
-            await installAvailableDesktopUpdate({ expectedVersion: targetVersion, onLog: appendAppUpdateLog });
+            await installAvailableDesktopUpdate({ expectedVersion: targetVersion });
         } finally {
-            setIsInstallingAppUpdate(false);
             await refetchDesktopAppUpdateStatus();
         }
     };
@@ -209,14 +138,30 @@ export default function SetupPage() {
             : 'Your desktop app is up to date.';
     const runtimeAction = !isInstalled ? 'repair' : runtimeOutdated ? 'update' : 'repair';
     const runtimeNeedsAction = !isInstalled || runtimeOutdated;
+    const runtimePercent = (() => {
+        if (!runtimeProgress?.running) return 0;
+        if (runtimeProgress.step === 'deps' && runtimeProgress.stepStartedAt) {
+            const elapsed = Math.max(0, Date.now() - runtimeProgress.stepStartedAt);
+            return Math.min(89, Math.max(runtimeProgress.percent, 52 + Math.floor((elapsed / (40 * 60 * 1000)) * 37)));
+        }
+        return runtimeProgress.percent;
+    })();
     const setupIsCurrent =
-        !isLoadingDesktopAppStatus && !isLoadingLerobotStatus && !appError && !appOutdated && isInstalled && !runtimeError && !runtimeOutdated;
+        !isRunning &&
+        !appInstallProgress.running &&
+        !isLoadingDesktopAppStatus &&
+        !isLoadingLerobotStatus &&
+        !appError &&
+        !appOutdated &&
+        isInstalled &&
+        !runtimeError &&
+        !runtimeOutdated;
     const runtimeButtonLabel = isRunning
         ? !isInstalled
-            ? 'Installing runtime...'
+            ? `Installing runtime… ~${runtimePercent}%`
             : runtimeOutdated
-              ? 'Updating runtime...'
-              : 'Repairing runtime...'
+              ? `Updating runtime… ~${runtimePercent}%`
+              : `Repairing runtime… ~${runtimePercent}%`
         : !isInstalled
           ? 'Install runtime'
           : runtimeOutdated
@@ -294,25 +239,25 @@ export default function SetupPage() {
                             <button
                                 type="button"
                                 onClick={() => void installAppUpdate()}
-                                disabled={!appOutdated || isInstallingAppUpdate}
-                                className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-amber-400 px-5 py-3 text-sm font-bold text-slate-950 transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
+                                disabled={!appOutdated || appInstallProgress.running || isRunning}
+                                className="mt-5 inline-flex w-full cursor-pointer items-center justify-center gap-2 rounded-xl bg-yellow-500 px-5 py-3 text-sm font-bold text-white shadow-lg shadow-yellow-500/20 transition hover:bg-yellow-400 disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400"
                             >
-                                {isInstallingAppUpdate ? (
-                                    <Spinner color="black" width="w-4" height="h-4" />
+                                {appInstallProgress.running ? (
+                                    <Spinner color="white" width="w-4" height="h-4" />
                                 ) : appOutdated ? (
                                     <FaCloudDownloadAlt />
                                 ) : (
                                     <FaCheckCircle />
                                 )}
-                                {isInstallingAppUpdate
-                                    ? 'Installing update...'
+                                {appInstallProgress.running
+                                    ? `Installing app update… ${appInstallProgress.percent}%`
                                     : appOutdated
                                       ? `Update app to ${appAvailable}`
                                       : 'App is up to date'}
                             </button>
 
-                            {(isInstallingAppUpdate || appUpdateLog.length > 0) && (
-                                <ProgressLog title="App update steps" running={isInstallingAppUpdate} lines={appUpdateLog} />
+                            {(appInstallProgress.running || appInstallProgress.logs.length > 0) && (
+                                <ProgressLog title="Live app update output" running={appInstallProgress.running} lines={appInstallProgress.logs} />
                             )}
                         </section>
 
@@ -345,6 +290,11 @@ export default function SetupPage() {
                                 installedLabel={isInstalled ? 'Installed' : 'Downloaded'}
                             />
 
+                            <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                                <FaExclamationTriangle className="mr-2 inline text-amber-300" />
+                                Runtime installation or updates can take 40 minutes or longer. Keep Vulcan Studio open and the computer powered on.
+                            </div>
+
                             <div className={`mt-5 ${runtimeNeedsAction ? '' : 'flex flex-wrap items-center justify-between gap-3'}`}>
                                 {!runtimeNeedsAction && (
                                     <p className="text-xs text-slate-400">
@@ -354,7 +304,7 @@ export default function SetupPage() {
                                 <button
                                     type="button"
                                     onClick={() => void runSetup(runtimeAction)}
-                                    disabled={isRunning}
+                                    disabled={isRunning || appInstallProgress.running}
                                     className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold transition disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400 ${
                                         runtimeNeedsAction
                                             ? 'w-full bg-orange-500 px-5 py-3 font-bold text-white hover:bg-orange-400'
@@ -368,26 +318,8 @@ export default function SetupPage() {
 
                             {showRuntimeSteps && (
                                 <div className="mt-5 border-t border-slate-700 pt-5">
-                                    <h3 className="text-sm font-semibold text-slate-100">Runtime setup steps</h3>
-                                    <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                                        {steps.map((step, index) => {
-                                            const status = stepState[step.id] ?? 'pending';
-                                            return (
-                                                <div
-                                                    key={step.id}
-                                                    className="flex items-center justify-between rounded-lg bg-slate-900/80 px-3 py-2.5"
-                                                >
-                                                    <span className="text-xs text-slate-200">
-                                                        {index + 1}. {step.label}
-                                                    </span>
-                                                    <span className={`text-[10px] font-semibold uppercase ${statusColors[status]}`}>
-                                                        {status}
-                                                    </span>
-                                                </div>
-                                            );
-                                        })}
-                                    </div>
-                                    <ProgressLog title="Details" running={isRunning} lines={log} />
+                                    <h3 className="text-sm font-semibold text-slate-100">Live runtime output</h3>
+                                    <ProgressLog title="Command logs" running={isRunning} lines={log} />
                                 </div>
                             )}
                         </section>
@@ -437,19 +369,26 @@ function StatusBadge({
 }
 
 function ProgressLog({ title, running, lines }: { title: string; running: boolean; lines: string[] }) {
+    const logEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (running) logEndRef.current?.scrollIntoView({ block: 'nearest' });
+    }, [lines.length, running]);
+
     return (
-        <div className="mt-4 rounded-xl bg-black/20 p-3">
+        <div className="mt-4 rounded-xl border border-slate-700 bg-black/30 p-3">
             <div className="flex items-center justify-between text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
                 <span>{title}</span>
-                {running && <span className="animate-pulse text-amber-300">Running</span>}
+                {running && <span className="animate-pulse text-amber-300">Streaming</span>}
             </div>
-            <div className="mt-2 max-h-48 space-y-1 overflow-y-auto font-mono text-[11px] text-slate-300">
-                {lines.length === 0 && <div className="text-slate-500">Preparing...</div>}
+            <div className="mt-2 max-h-96 min-h-48 space-y-1 overflow-y-auto font-mono text-[11px] text-slate-200">
+                {lines.length === 0 && <div className="text-slate-500">Waiting for command output...</div>}
                 {lines.map((line, index) => (
                     <div key={`${line}-${index}`} className="break-words whitespace-pre-wrap">
                         {line}
                     </div>
                 ))}
+                <div ref={logEndRef} />
             </div>
         </div>
     );

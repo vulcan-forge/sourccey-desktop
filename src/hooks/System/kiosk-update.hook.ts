@@ -11,8 +11,12 @@ export type KioskUpdateStatus = {
     lerobotUpdateAvailable: boolean;
     appCurrent?: string | null;
     appRemote?: string | null;
+    appCurrentCommit?: string | null;
+    appRemoteCommit?: string | null;
     lerobotCurrent?: string | null;
     lerobotRemote?: string | null;
+    lerobotCurrentCommit?: string | null;
+    lerobotRemoteCommit?: string | null;
     error?: string | null;
 };
 

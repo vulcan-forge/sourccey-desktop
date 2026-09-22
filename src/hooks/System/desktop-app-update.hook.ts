@@ -2,6 +2,12 @@ import { invoke, isTauri } from '@tauri-apps/api/core';
 import { getVersion } from '@tauri-apps/api/app';
 import { useQuery } from '@tanstack/react-query';
 import type { UseQueryOptions } from '@tanstack/react-query';
+import { useSyncExternalStore } from 'react';
+import {
+    getDesktopAppInstallProgress,
+    subscribeToDesktopAppInstallProgress,
+    type DesktopAppInstallProgress,
+} from '@/utils/updater/updater';
 
 export const DESKTOP_APP_UPDATE_KEY = ['desktop', 'app-update-status'];
 
@@ -66,3 +72,8 @@ export const useDesktopAppUpdateStatus = (options?: DesktopAppUpdateQueryOptions
         refetchOnWindowFocus: false,
         retry: 1,
     });
+
+const EMPTY_INSTALL_PROGRESS: DesktopAppInstallProgress = { running: false, percent: 0, logs: [], error: null };
+
+export const useDesktopAppInstallProgress = () =>
+    useSyncExternalStore(subscribeToDesktopAppInstallProgress, getDesktopAppInstallProgress, () => EMPTY_INSTALL_PROGRESS);

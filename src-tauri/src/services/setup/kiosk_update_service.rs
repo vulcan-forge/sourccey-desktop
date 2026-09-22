@@ -62,8 +62,12 @@ pub struct KioskUpdateStatus {
     pub lerobot_update_available: bool,
     pub app_current: Option<String>,
     pub app_remote: Option<String>,
+    pub app_current_commit: Option<String>,
+    pub app_remote_commit: Option<String>,
     pub lerobot_current: Option<String>,
     pub lerobot_remote: Option<String>,
+    pub lerobot_current_commit: Option<String>,
+    pub lerobot_remote_commit: Option<String>,
     pub error: Option<String>,
 }
 
@@ -193,6 +197,7 @@ impl KioskUpdateService {
 
         let mut error: Option<String> = None;
         let app_current = Self::resolve_current_repo_tag(&repo_root, &app_tag_prefix);
+        let app_current_commit = Self::resolve_ref_commit(&repo_root, "HEAD");
         let app_remote_info = match Self::resolve_latest_tag_cached(
             &KIOSK_APP_TAG_CACHE,
             "SOURCCEY_KIOSK_APP_TAGS_URL",
@@ -206,15 +211,34 @@ impl KioskUpdateService {
             }
         };
         let app_remote = app_remote_info.as_ref().map(|tag| tag.name.clone());
-        let app_update_available = !Self::is_repo_up_to_date(
-            &repo_root,
-            app_current.as_deref(),
-            app_remote_info.as_ref(),
-            &app_tag_prefix,
-        );
+        let update_ref = std::env::var("SOURCCEY_KIOSK_UPDATE_REF")
+            .unwrap_or_else(|_| "origin/main".to_string());
+        let update_ref = if update_ref.trim().is_empty() {
+            "origin/main"
+        } else {
+            update_ref.trim()
+        };
+        let app_remote_commit = app_remote_info
+            .as_ref()
+            .and_then(|tag| tag.commit_sha.clone())
+            .or_else(|| Self::resolve_ref_commit(&repo_root, update_ref));
+        let app_update_available = if app_remote_info.is_some() {
+            !Self::is_repo_up_to_date(
+                &repo_root,
+                app_current.as_deref(),
+                app_remote_info.as_ref(),
+                &app_tag_prefix,
+            )
+        } else {
+            match (app_current_commit.as_deref(), app_remote_commit.as_deref()) {
+                (Some(current), Some(remote)) => current != remote,
+                _ => false,
+            }
+        };
 
         let lerobot_dir = repo_root.join("modules").join("lerobot-vulcan");
         let lerobot_current = Self::resolve_current_repo_tag(&lerobot_dir, &lerobot_tag_prefix);
+        let lerobot_current_commit = Self::resolve_ref_commit(&lerobot_dir, "HEAD");
         let lerobot_remote_info = match Self::resolve_latest_tag_cached(
             &KIOSK_LEROBOT_TAG_CACHE,
             "SOURCCEY_KIOSK_LEROBOT_TAGS_URL",
@@ -228,6 +252,9 @@ impl KioskUpdateService {
             }
         };
         let lerobot_remote = lerobot_remote_info.as_ref().map(|tag| tag.name.clone());
+        let lerobot_remote_commit = lerobot_remote_info
+            .as_ref()
+            .and_then(|tag| tag.commit_sha.clone());
         let lerobot_update_available = !Self::is_repo_up_to_date(
             &lerobot_dir,
             lerobot_current.as_deref(),
@@ -243,8 +270,12 @@ impl KioskUpdateService {
             lerobot_update_available,
             app_current,
             app_remote,
+            app_current_commit,
+            app_remote_commit,
             lerobot_current,
             lerobot_remote,
+            lerobot_current_commit,
+            lerobot_remote_commit,
             error,
         })
     }
@@ -650,6 +681,22 @@ impl KioskUpdateService {
             })
             .collect::<Vec<_>>();
         Self::select_latest_prefixed_tag(tags, prefix).map(|tag| tag.name)
+    }
+
+    fn resolve_ref_commit(repo_dir: &Path, reference: &str) -> Option<String> {
+        if !repo_dir.exists() || reference.trim().is_empty() {
+            return None;
+        }
+        let output = Command::new("git")
+            .args(["rev-parse", "--verify", reference])
+            .current_dir(repo_dir)
+            .output()
+            .ok()?;
+        if !output.status.success() {
+            return None;
+        }
+        let commit = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        (!commit.is_empty()).then_some(commit)
     }
 
     fn resolve_latest_tag_cached(

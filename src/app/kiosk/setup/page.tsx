@@ -17,9 +17,12 @@ type SetupProgress = {
     message?: string | null;
 };
 
-const normalizeVersionLabel = (value?: string | null) => {
+const normalizeVersionLabel = (value?: string | null, commit?: string | null) => {
     const trimmed = value?.trim();
-    if (!trimmed) return 'unknown';
+    if (!trimmed) {
+        const normalizedCommit = commit?.trim();
+        return normalizedCommit ? `commit ${normalizedCommit.slice(0, 6)}` : 'unknown';
+    }
     return trimmed.replace(/^vulcan\//, '').replace(/^kiosk\//, '');
 };
 
@@ -116,11 +119,11 @@ export default function KioskSetupPage() {
         }
     };
 
-    const appCurrent = normalizeVersionLabel(kioskUpdateStatus?.appCurrent);
-    const appLatest = normalizeVersionLabel(kioskUpdateStatus?.appRemote);
+    const appCurrent = normalizeVersionLabel(kioskUpdateStatus?.appCurrent, kioskUpdateStatus?.appCurrentCommit);
+    const appLatest = normalizeVersionLabel(kioskUpdateStatus?.appRemote, kioskUpdateStatus?.appRemoteCommit);
     const appOutdated = Boolean(kioskUpdateStatus?.appUpdateAvailable);
-    const runtimeCurrent = normalizeVersionLabel(kioskUpdateStatus?.lerobotCurrent);
-    const runtimeLatest = normalizeVersionLabel(kioskUpdateStatus?.lerobotRemote);
+    const runtimeCurrent = normalizeVersionLabel(kioskUpdateStatus?.lerobotCurrent, kioskUpdateStatus?.lerobotCurrentCommit);
+    const runtimeLatest = normalizeVersionLabel(kioskUpdateStatus?.lerobotRemote, kioskUpdateStatus?.lerobotRemoteCommit);
     const runtimeOutdated = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable);
     const updateError = kioskUpdateStatus?.error?.trim() || null;
     const approximatePercent = (() => {

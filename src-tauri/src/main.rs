@@ -10,7 +10,7 @@ use services::setup::kiosk_update_service::{
     KioskUpdateProgress, KioskUpdateService, KioskUpdateStatus,
 };
 use services::setup::local_setup_service::{
-    DesktopExtrasStatus, LerobotUpdateStatus, LocalSetupService, SetupStatus,
+    DesktopExtrasStatus, DesktopSetupProgress, LerobotUpdateStatus, LocalSetupService, SetupStatus,
 };
 use tauri::Manager;
 
@@ -492,6 +492,33 @@ fn kiosk_setup_repair(app: tauri::AppHandle) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn desktop_setup_start(
+    app: tauri::AppHandle,
+    action: String,
+    force: Option<bool>,
+) -> Result<(), String> {
+    if action != "repair" && action != "update" {
+        return Err(format!("Unsupported desktop runtime action: {}", action));
+    }
+    LocalSetupService::begin_desktop_setup(&action)?;
+    let app_handle = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = if action == "update" {
+            LocalSetupService::reset_modules(&app_handle)
+        } else {
+            LocalSetupService::run_setup(&app_handle, force.unwrap_or(false))
+        };
+        LocalSetupService::finish_desktop_setup(&result);
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn desktop_setup_progress() -> DesktopSetupProgress {
+    LocalSetupService::desktop_setup_progress()
+}
+
+#[tauri::command]
 fn kiosk_setup_update(app: tauri::AppHandle) -> Result<(), String> {
     KioskUpdateService::begin("app")?;
     let app_handle = app.clone();
@@ -709,6 +736,8 @@ fn main() {
             setup_check,
             setup_run,
             setup_reset,
+            desktop_setup_start,
+            desktop_setup_progress,
             setup_desktop_extras_check,
             setup_desktop_extras_run,
             check_lerobot_update,

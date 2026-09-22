@@ -4,8 +4,9 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
 import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
-import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
+import { useDesktopAppInstallProgress, useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
 import { useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
+import { useDesktopSetupProgress } from '@/hooks/System/desktop-setup-progress.hook';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useAuthSession } from '@/hooks/Auth/auth-session.hook';
 import { usePathname } from 'next/navigation';
@@ -21,11 +22,12 @@ export const DesktopTopNavbar = () => {
     const { data: lerobotStatus } = useLerobotUpdateStatus();
     const { data: desktopAppUpdateStatus, refetch: refetchDesktopAppUpdateStatus } = useDesktopAppUpdateStatus();
     const { data: desktopEnvironmentSettings } = useDesktopEnvironmentSettings();
+    const appInstallProgress = useDesktopAppInstallProgress();
+    const { data: runtimeProgress } = useDesktopSetupProgress();
     const { data: authSession } = useAuthSession();
     const pathname = usePathname();
     const [isUpdateDismissed, setIsUpdateDismissed] = useState(false);
     const [shouldHighlightUpdate, setShouldHighlightUpdate] = useState(false);
-    const [isInstallingUpdate, setIsInstallingUpdate] = useState(false);
 
     const needsRuntimeUpdate = isLerobotRuntimeUpdateAvailable(lerobotStatus);
     const targetVersion = desktopAppUpdateStatus?.targetVersion ?? null;
@@ -101,14 +103,12 @@ export const DesktopTopNavbar = () => {
     };
 
     const installUpdate = async () => {
-        if (!targetVersion || isInstallingUpdate) {
+        if (!targetVersion || appInstallProgress.running || runtimeProgress?.running) {
             return;
         }
-        setIsInstallingUpdate(true);
         try {
             await installAvailableDesktopUpdate({ expectedVersion: targetVersion });
         } finally {
-            setIsInstallingUpdate(false);
             void refetchDesktopAppUpdateStatus();
         }
     };
@@ -116,7 +116,7 @@ export const DesktopTopNavbar = () => {
     const isAuthenticated = Boolean(authSession?.isAuthenticated && authSession?.accountId);
     const isAccountPage = pathname?.startsWith('/desktop/account');
     const environmentBadgeLabel = desktopEnvironmentSettings?.badgeLabel ?? null;
-    const showRuntimeUpdateButton = needsRuntimeUpdate;
+    const showRuntimeUpdateButton = needsRuntimeUpdate || Boolean(runtimeProgress?.running);
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -163,10 +163,12 @@ export const DesktopTopNavbar = () => {
                                 <button
                                     type="button"
                                     onClick={() => void installUpdate()}
-                                    disabled={isInstallingUpdate}
+                                    disabled={appInstallProgress.running || runtimeProgress?.running}
                                     className="cursor-pointer px-4 py-2 text-sm font-semibold disabled:cursor-wait disabled:opacity-70"
                                 >
-                                    {isInstallingUpdate ? 'Installing...' : `App Update${targetVersion ? ` ${targetVersion}` : ''}`}
+                                    {appInstallProgress.running
+                                        ? `Installing… ${appInstallProgress.percent}%`
+                                        : `App Update${targetVersion ? ` ${targetVersion}` : ''}`}
                                 </button>
                                 {!isForceUpdate && (
                                     <button
@@ -188,7 +190,7 @@ export const DesktopTopNavbar = () => {
                                 tooltip="A newer lerobot-vulcan runtime release tag is available. Open Desktop Updates to repair or refresh modules."
                                 className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-400/70 bg-amber-500/10 px-4 py-2 text-sm font-semibold text-amber-200 transition hover:border-amber-300 hover:text-amber-100"
                             >
-                                Update Available
+                                {runtimeProgress?.running ? `Runtime ~${runtimeProgress.percent}%` : 'Update Available'}
                             </LinkButton>
                         )}
 

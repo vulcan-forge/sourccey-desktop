@@ -4,11 +4,11 @@ use sha2::{Digest, Sha256};
 use std::cmp::Ordering;
 use std::ffi::OsString;
 use std::fs;
-use std::io::{self, Read};
+use std::io::{self, BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::sync::Mutex;
-use std::time::{Duration, Instant};
+use std::process::{Command, Stdio};
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, Manager};
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
@@ -24,6 +24,21 @@ pub struct SetupProgress {
     pub step: String,
     pub status: String,
     pub message: Option<String>,
+}
+
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct DesktopSetupProgress {
+    pub running: bool,
+    pub action: Option<String>,
+    pub step: Option<String>,
+    pub status: Option<String>,
+    pub percent: u8,
+    pub message: Option<String>,
+    pub error: Option<String>,
+    pub started_at: Option<u64>,
+    pub step_started_at: Option<u64>,
+    pub log: Vec<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -126,6 +141,8 @@ struct SimpleSemver {
 
 lazy_static! {
     static ref LEROBOT_TAG_CACHE: Mutex<Option<LerobotTagCacheEntry>> = Mutex::new(None);
+    static ref DESKTOP_SETUP_PROGRESS: Mutex<DesktopSetupProgress> =
+        Mutex::new(DesktopSetupProgress::default());
 }
 
 impl LocalSetupService {
@@ -133,6 +150,115 @@ impl LocalSetupService {
     // Desktop AI content combines the Sourccey controller profile with XVLA.
     const SOURCCEY_DESKTOP_EXTRA: &str = "sourccey-desktop,xvla";
     const XVLA_TRANSFORMERS_REQUIREMENT: &str = "transformers>=5.4.0,<5.6.0";
+
+    pub fn desktop_setup_progress() -> DesktopSetupProgress {
+        DESKTOP_SETUP_PROGRESS
+            .lock()
+            .map(|progress| progress.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn begin_desktop_setup(action: &str) -> Result<(), String> {
+        let mut progress = DESKTOP_SETUP_PROGRESS
+            .lock()
+            .map_err(|_| "Desktop runtime progress state is unavailable".to_string())?;
+        if progress.running {
+            return Err("A desktop runtime operation is already running.".to_string());
+        }
+        let now = Self::unix_timestamp_ms();
+        *progress = DesktopSetupProgress {
+            running: true,
+            action: Some(action.to_string()),
+            started_at: Some(now),
+            step_started_at: Some(now),
+            ..DesktopSetupProgress::default()
+        };
+        Ok(())
+    }
+
+    pub fn finish_desktop_setup(result: &Result<(), String>) {
+        if let Ok(mut progress) = DESKTOP_SETUP_PROGRESS.lock() {
+            progress.running = false;
+            match result {
+                Ok(()) => {
+                    progress.percent = 100;
+                    progress.step = Some("complete".to_string());
+                    progress.status = Some("success".to_string());
+                    progress.error = None;
+                }
+                Err(error) => {
+                    progress.status = Some("error".to_string());
+                    progress.error = Some(error.clone());
+                    progress.message = Some(error.clone());
+                }
+            }
+        }
+    }
+
+    fn unix_timestamp_ms() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64
+    }
+
+    fn desktop_step_percent(step: &str, status: &str) -> u8 {
+        match (step, status) {
+            ("reset", "started") => 1,
+            ("reset", "success") => 5,
+            ("download", "started") => 7,
+            ("download", "success") => 20,
+            ("extract", "started") => 22,
+            ("extract", "success") => 30,
+            ("uv", "started") => 32,
+            ("uv", "success") => 38,
+            ("venv", "started") => 40,
+            ("venv", "success") => 50,
+            ("deps", "started") => 52,
+            ("deps", "success") => 90,
+            ("post-install", "started") => 91,
+            ("post-install", "success") => 94,
+            ("protobuf", "success") => 97,
+            ("complete", "success") => 100,
+            _ => 0,
+        }
+    }
+
+    fn record_desktop_progress(update: &SetupProgress) {
+        let Ok(mut progress) = DESKTOP_SETUP_PROGRESS.lock() else {
+            return;
+        };
+        if !progress.running {
+            return;
+        }
+        if update.status == "log" {
+            if let Some(message) = update.message.as_ref() {
+                progress.log.push(message.clone());
+                if progress.log.len() > 2_000 {
+                    progress.log.remove(0);
+                }
+            }
+            return;
+        }
+        if progress.step.as_deref() != Some(update.step.as_str()) && update.status == "started" {
+            progress.step_started_at = Some(Self::unix_timestamp_ms());
+        }
+        progress.step = Some(update.step.clone());
+        progress.status = Some(update.status.clone());
+        progress.message = update.message.clone();
+        let percent = Self::desktop_step_percent(&update.step, &update.status);
+        if percent > 0 {
+            progress.percent = percent;
+        }
+    }
+
+    fn record_desktop_log(message: String) {
+        Self::record_desktop_progress(&SetupProgress {
+            step: "log".to_string(),
+            status: "log".to_string(),
+            message: Some(message),
+        });
+    }
 
     pub fn resolve_uv_binary(app_handle: &AppHandle) -> Result<PathBuf, String> {
         let app_data_dir = app_handle
@@ -245,6 +371,7 @@ impl LocalSetupService {
 
     pub fn run_setup(app_handle: &AppHandle, force: bool) -> Result<(), String> {
         let emit = |progress: SetupProgress| {
+            Self::record_desktop_progress(&progress);
             let _ = app_handle.emit("setup:progress", progress);
         };
         if let Ok(status) = Self::check_status(app_handle) {
@@ -314,6 +441,7 @@ impl LocalSetupService {
 
     pub fn reset_modules(app_handle: &AppHandle) -> Result<(), String> {
         let emit = |progress: SetupProgress| {
+            Self::record_desktop_progress(&progress);
             let _ = app_handle.emit("setup:progress", progress);
         };
 
@@ -1451,27 +1579,7 @@ impl LocalSetupService {
         command.args(args).current_dir(working_dir);
         Self::configure_setup_command_env(&mut command);
         configure_std_command(&mut command);
-        let output = command
-            .output()
-            .map_err(|e| format!("Failed to run {}: {}", label, e))?;
-
-        if !output.status.success() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-            let mut details = String::new();
-            if !stdout.trim().is_empty() {
-                details.push_str(&format!("\nstdout: {}", stdout.trim()));
-            }
-            if !stderr.trim().is_empty() {
-                details.push_str(&format!("\nstderr: {}", stderr.trim()));
-            }
-            return Err(format!(
-                "{} failed with status: {}{}",
-                label, output.status, details
-            ));
-        }
-
-        Ok(())
+        Self::run_streaming_setup_command(&mut command, label)
     }
 
     fn run_git_command(args: &[&str], working_dir: &Path, label: &str) -> Result<(), String> {
@@ -1481,22 +1589,71 @@ impl LocalSetupService {
         // `#!/bin/sh` shebang, and filtering that directory makes Git unable to
         // spawn otherwise-valid post-checkout/post-merge hooks.
         configure_std_command(&mut command);
-        let output = command
-            .output()
-            .map_err(|e| format!("Failed to run {}: {}", label, e))?;
-        if output.status.success() {
-            return Ok(());
+        Self::run_streaming_setup_command(&mut command, label)
+    }
+
+    fn run_streaming_setup_command(command: &mut Command, label: &str) -> Result<(), String> {
+        Self::record_desktop_log(format!("$ {}", label));
+        let mut child = command
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()
+            .map_err(|error| format!("Failed to run {}: {}", label, error))?;
+
+        let recent_output = Arc::new(Mutex::new(Vec::<String>::new()));
+        let mut readers = Vec::new();
+        if let Some(stdout) = child.stdout.take() {
+            readers.push(Self::stream_setup_pipe(stdout, Arc::clone(&recent_output)));
+        }
+        if let Some(stderr) = child.stderr.take() {
+            readers.push(Self::stream_setup_pipe(stderr, Arc::clone(&recent_output)));
         }
 
-        let stdout = String::from_utf8_lossy(&output.stdout);
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        Err(format!(
-            "{} failed with status: {}\nstdout: {}\nstderr: {}",
-            label,
-            output.status,
-            stdout.trim(),
-            stderr.trim()
-        ))
+        let status = child
+            .wait()
+            .map_err(|error| format!("Failed while waiting for {}: {}", label, error))?;
+        for reader in readers {
+            let _ = reader.join();
+        }
+        if !status.success() {
+            let details = recent_output
+                .lock()
+                .ok()
+                .map(|lines| lines.join("\n"))
+                .unwrap_or_default();
+            return Err(if details.is_empty() {
+                format!("{} failed with status: {}", label, status)
+            } else {
+                format!("{} failed: {}", label, details)
+            });
+        }
+        Self::record_desktop_log(format!("{} completed", label));
+        Ok(())
+    }
+
+    fn stream_setup_pipe<R>(
+        pipe: R,
+        recent_output: Arc<Mutex<Vec<String>>>,
+    ) -> std::thread::JoinHandle<()>
+    where
+        R: Read + Send + 'static,
+    {
+        std::thread::spawn(move || {
+            for line in BufReader::new(pipe).lines().map_while(Result::ok) {
+                let trimmed = line.trim_end().to_string();
+                if trimmed.is_empty() {
+                    continue;
+                }
+                Self::record_desktop_log(trimmed.clone());
+                if let Ok(mut lines) = recent_output.lock() {
+                    lines.push(trimmed);
+                    if lines.len() > 20 {
+                        lines.remove(0);
+                    }
+                }
+            }
+        })
     }
 
     fn run_sourccey_post_install(

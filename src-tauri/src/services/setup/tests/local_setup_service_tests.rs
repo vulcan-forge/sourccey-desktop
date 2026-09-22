@@ -1,5 +1,33 @@
 use super::*;
 
+#[test]
+fn persists_desktop_runtime_progress_and_rejects_concurrent_runs() {
+    *DESKTOP_SETUP_PROGRESS.lock().expect("progress lock") = DesktopSetupProgress::default();
+
+    LocalSetupService::begin_desktop_setup("update").expect("runtime update should start");
+    assert!(LocalSetupService::begin_desktop_setup("repair").is_err());
+
+    LocalSetupService::record_desktop_progress(&SetupProgress {
+        step: "deps".to_string(),
+        status: "started".to_string(),
+        message: Some("Installing dependencies".to_string()),
+    });
+    LocalSetupService::record_desktop_log("Resolved 150 packages".to_string());
+
+    let running = LocalSetupService::desktop_setup_progress();
+    assert!(running.running);
+    assert_eq!(running.action.as_deref(), Some("update"));
+    assert_eq!(running.step.as_deref(), Some("deps"));
+    assert_eq!(running.percent, 52);
+    assert_eq!(running.log, vec!["Resolved 150 packages"]);
+
+    LocalSetupService::finish_desktop_setup(&Ok(()));
+    let complete = LocalSetupService::desktop_setup_progress();
+    assert!(!complete.running);
+    assert_eq!(complete.percent, 100);
+    assert_eq!(complete.status.as_deref(), Some("success"));
+}
+
 #[cfg(target_os = "linux")]
 #[test]
 fn setup_commands_remove_appimage_python_environment() {
