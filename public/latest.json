@@ -4,7 +4,7 @@
     "force": true,
     "platforms": {
         "windows-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQ3pUaUFURFhkZmJCN3dxSURLOUpOSk9saURodDBLM0NkU3d2VXRTOFovNW1hMm9ZSjBMS1BRaXcxWlVIMmdIc0FGeG16aUJxMVdIWi9GWnV6azRwS1FNPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5ODg2NTkzCWZpbGU6VnVsY2FuIFN0dWRpb18wLjEuMl94NjQtc2V0dXAuZXhlCjF5M0V2L2NqOGJ4OEkxVmh1alFRK08zSGlyRTcxdEVKRTdKUFhMUlMrNUc0VGg5OWN5UFBockE4SUs1QVJWWW5zbFQ1ekN2VitPVjRSbFM5YXNJekN3PT0K",
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzRtdDdldkVPMG9wb1JtM0dnZmZCQ29TZEFObEcrWFB6MVBLOE5XZEJtdTg1U2pIL2lLcXhpS3R3aTBCZGJIallTK2VHYUVpb0xYcDdnaHFkZXVKdkFRPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTEwNTQ5CWZpbGU6VnVsY2FuIFN0dWRpb18wLjEuNF94NjQtc2V0dXAuZXhlCmdLUXZCNWg5WmFFSFpPZXBCOUZFejh2RXdhMkhZZ3VrRlJVazY4dnJaa2VhRlMyYUZqa2oxTUVEdmUxd0YzTVpxeDl3UkRTOStpV1VFQzVUK25PMEJRPT0K",
             "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.1.4_x64-setup.exe"
         },
         "linux-x86_64": {
