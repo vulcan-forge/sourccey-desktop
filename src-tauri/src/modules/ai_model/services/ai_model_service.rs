@@ -259,7 +259,10 @@ impl AiModelService {
     // Sync AI Models from Cache Directory
     //-------------------------------------------------------------------------//
     pub async fn sync_ai_models_from_cache(&self) -> Result<AiModelSyncResult, DbErr> {
-        let cache_dir = get_ai_model_cache_dir();
+        // Use the same resolver as downloads and the "Open cache" action. Keeping
+        // a second, platform-specific reconstruction here caused installed builds
+        // to scan a different location as path handling evolved.
+        let cache_dir = DirectoryService::get_lerobot_ai_models_path().map_err(DbErr::Custom)?;
         let model_dirs = list_model_dirs(&cache_dir);
 
         let mut existing = AiModelEntity::find().all(&self.connection).await?;
@@ -747,31 +750,6 @@ finally:
     }
 }
 
-fn get_ai_model_cache_dir() -> PathBuf {
-    #[cfg(target_os = "macos")]
-    {
-        // Keep refresh in sync with the downloader and the "Open cache" action.
-        // LeRobot uses ~/.cache/huggingface on macOS as well as Linux.
-        return DirectoryService::get_lerobot_ai_models_path().unwrap_or_else(|_| {
-            dirs::home_dir()
-                .unwrap_or_else(|| PathBuf::from("."))
-                .join(".cache")
-                .join("huggingface")
-                .join("lerobot")
-                .join("ai_models")
-        });
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        home.join(".cache")
-            .join("huggingface")
-            .join("lerobot")
-            .join("ai_models")
-    }
-}
-
 fn list_model_dirs(root: &Path) -> Vec<(String, String)> {
     let mut results = Vec::new();
     if !root.exists() {
@@ -817,17 +795,10 @@ fn is_discoverable_model_dir(path: &Path) -> bool {
         return true;
     }
 
-    // Hugging Face policy repositories downloaded on macOS may expose the
-    // runnable model directly instead of wrapping it in checkpoints/<step>.
-    #[cfg(target_os = "macos")]
-    {
-        return path.join("pretrained_model").join("config.json").is_file();
-    }
-
-    #[cfg(not(target_os = "macos"))]
-    {
-        false
-    }
+    // A Hugging Face policy snapshot is commonly runnable directly at its root
+    // or from a pretrained_model directory, regardless of the host OS.
+    path.join("config.json").is_file()
+        || path.join("pretrained_model").join("config.json").is_file()
 }
 
 fn get_model_relative_path(root: &Path, full_path: &Path) -> Option<String> {
@@ -935,18 +906,23 @@ mod tests {
         reset_download_job();
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
-    fn macos_sync_uses_the_same_cache_path_as_downloads() {
+    fn download_destination_is_inside_the_sync_cache_path() {
+        let cache_path =
+            DirectoryService::get_lerobot_ai_models_path().expect("model sync cache path");
+        let download_path =
+            DirectoryService::get_lerobot_ai_model_repository_path("vulcan/example-model")
+                .expect("model download path");
+
         assert_eq!(
-            get_ai_model_cache_dir(),
-            DirectoryService::get_lerobot_ai_models_path().expect("LeRobot cache path")
+            download_path,
+            cache_path.join("example-model"),
+            "downloads must be written beneath the directory scanned by refresh"
         );
     }
 
-    #[cfg(target_os = "macos")]
     #[test]
-    fn macos_discovers_root_pretrained_model_layout() {
+    fn discovers_pretrained_model_layout_on_every_platform() {
         let root = std::env::temp_dir().join(format!(
             "vulcan-studio-ai-model-discovery-{}",
             uuid::Uuid::now_v7()
@@ -955,6 +931,29 @@ mod tests {
         let pretrained_dir = model_dir.join("pretrained_model");
         std::fs::create_dir_all(&pretrained_dir).expect("create test model directory");
         std::fs::write(pretrained_dir.join("config.json"), b"{}").expect("write model config");
+
+        let models = list_model_dirs(&root);
+        assert_eq!(
+            models,
+            vec![(
+                "example-model".to_string(),
+                model_dir.to_string_lossy().to_string()
+            )]
+        );
+
+        std::fs::remove_dir_all(&root).expect("remove test model directory");
+    }
+
+    #[test]
+    fn discovers_hugging_face_snapshot_layout_on_every_platform() {
+        let root = std::env::temp_dir().join(format!(
+            "vulcan-studio-ai-model-discovery-{}",
+            uuid::Uuid::now_v7()
+        ));
+        let model_dir = root.join("example-model");
+        std::fs::create_dir_all(&model_dir).expect("create test model directory");
+        std::fs::write(model_dir.join("config.json"), b"{\"type\":\"act\"}")
+            .expect("write model config");
 
         let models = list_model_dirs(&root);
         assert_eq!(
