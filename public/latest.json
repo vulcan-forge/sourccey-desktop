@@ -8,7 +8,7 @@
             "url": "https://sourccey-staging.nyc3.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.1.4_x64-setup.exe"
         },
         "linux-x86_64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzc0Nzh5WHVsK09mM1lmZVhpVkN6bnM2RzhtV3pILzFpdVdIeXVYb0RkU3BYZVZmbG9ZVEJxbno4K1krS2NsbXZ5Y1ZMZjRUWmxkUlBtM3B2NFNvM3drPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5ODgyMjE0CWZpbGU6VnVsY2FuIFN0dWRpb18wLjEuMl9hbWQ2NC5BcHBJbWFnZQprRTFHV2I0UllmRmtXQ0s5bFhsRkRpdXlRMThnL0FHbC8vSWV3TmpQbC9Qam82cTg0eFk0cjNFUldTZ1FHT05pOElZd0Q1NU4rajA0aExrS3hlVTZBdz09Cg==",
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzFNbHR6Sko2cllLSnpsSXk1dCtIdHcveHUxSnZzUkw0TnBmV29tb0NYV05qb0tidXZYVWUxaDJDaDdNM3R6aGtmd3BnNm5GbmxxOG1lSzd1WjZVZ0EwPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTA5ODI3CWZpbGU6VnVsY2FuIFN0dWRpb18wLjEuNF9hbWQ2NC5BcHBJbWFnZQpTTVR1c2g2R3NEeGd1UllHRnRNZEdDb1B1QlQyNndjdWw2cmFFaFVTSGcycVVGUEFtZ0FpYWV6emZwN1I0ZkdBc1NaMHJLSVVFNm5CL1o1QnRXbnJCZz09Cg==",
             "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.1.4_amd64.AppImage"
         },
         "darwin-aarch64": {
