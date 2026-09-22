@@ -12,7 +12,7 @@
             "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.1.4_amd64.AppImage"
         },
         "darwin-aarch64": {
-            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzNVZ1FBZWdJZnJTMDk1OGxyTEF0Zy81a3NYU3k3NU04UU83d2hYOVBHZWdhUXYxR1B2bGVudzZXb1Q0QWxMWGViczlmUEFKemtKaTVodWtmS21UZUF3PQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzg5ODgyMTExCWZpbGU6VnVsY2FuIFN0dWRpby5hcHAudGFyLmd6ClVoRGV6U0llUHhhTkdSTjdvZUdZd3VVK2lOSE5uNUZIamE2Y3BBRlUxaTBFOEo1WHF4VWY4ZHNOaHFBSXBzcnYzRVFNOXlxWUg4NHFTK0tpaEFidEJBPT0K",
+            "signature": "dW50cnVzdGVkIGNvbW1lbnQ6IHNpZ25hdHVyZSBmcm9tIHRhdXJpIHNlY3JldCBrZXkKUlVSUkZ3UTM4Ni9sQzh1TWxsa1FmcTN4eUZ4b2NYa3dCR0pSQ1RGMUpGZmJNVGt6UlEzcjhIcWV4VVpCMytIK1FFSzRyR21iUTcvQlY0ZlZBd0haN2RqWHcreXZlY0FpdVFZPQp0cnVzdGVkIGNvbW1lbnQ6IHRpbWVzdGFtcDoxNzkwMTA5NzI3CWZpbGU6VnVsY2FuIFN0dWRpby5hcHAudGFyLmd6Ck95RHF6aFptcjg2ZFNSaCs4YzQ5aHlTM3MvZ2NFYVhoY0g5Y3lVZ3VuS0RLRHZMeU9iTGFCeDhYenlCcG1Ed08zV3hncy9iKzMrS0ZzL0V4K01zL0R3PT0K",
             "url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.1.4_aarch64.app.tar.gz",
             "installer_url": "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/vulcan-studio/VulcanStudio_0.1.4_aarch64.dmg"
         }
