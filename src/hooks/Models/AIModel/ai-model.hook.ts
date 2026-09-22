@@ -15,6 +15,26 @@ export type AiModel = {
 };
 
 export const AI_MODEL_KEY = ['ai-models'];
+export const AI_MODEL_DOWNLOAD_STATUS_KEY = ['ai-models', 'download-status'];
+
+export type AiModelDownloadStatus = {
+    running: boolean;
+    repoId: string | null;
+    modelName: string | null;
+    status: 'idle' | 'starting' | 'downloading' | 'stalled' | 'cancelling' | 'cancelled' | 'completed' | 'error';
+    progress: number | null;
+    downloadedBytes: number | null;
+    totalBytes: number | null;
+    speedBps: number | null;
+    stallSeconds: number;
+    currentFile: string | null;
+    currentFileBytes: number | null;
+    currentFileTotalBytes: number | null;
+    message: string | null;
+    error: string | null;
+    cancelRequested: boolean;
+    updatedAtEpochMs: number;
+};
 
 export const getAiModel = async (id: string): Promise<AiModel | null> => {
     return await invoke<AiModel | null>('get_ai_model', { id });
@@ -136,6 +156,29 @@ export const useDownloadAiModelFromHuggingface = () =>
             return await downloadAiModelFromHuggingface(repoId, modelName);
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: AI_MODEL_KEY });
+            queryClient.invalidateQueries({ queryKey: AI_MODEL_DOWNLOAD_STATUS_KEY });
+        },
+    });
+
+export const getAiModelDownloadStatus = async (): Promise<AiModelDownloadStatus> => {
+    return await invoke<AiModelDownloadStatus>('get_ai_model_download_status');
+};
+
+export const useAiModelDownloadStatus = () =>
+    useQuery({
+        queryKey: AI_MODEL_DOWNLOAD_STATUS_KEY,
+        queryFn: getAiModelDownloadStatus,
+        refetchInterval: (query) => (query.state.data?.running ? 750 : 3000),
+    });
+
+export const cancelAiModelDownload = async (): Promise<void> => {
+    await invoke('cancel_ai_model_download');
+};
+
+export const useCancelAiModelDownload = () =>
+    useMutation({
+        mutationFn: cancelAiModelDownload,
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: AI_MODEL_DOWNLOAD_STATUS_KEY });
         },
     });

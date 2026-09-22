@@ -1,6 +1,6 @@
 use crate::modules::ai_model::models::ai_model::AiModel;
 use crate::modules::ai_model::services::ai_model_service::{
-    AiModelFilters, AiModelService, AiModelSyncResult,
+    AiModelDownloadStatus, AiModelFilters, AiModelService, AiModelSyncResult,
 };
 use crate::services::directory::directory_service::DirectoryService;
 use crate::utils::pagination::{PaginatedResponse, PaginationParameters};
@@ -128,23 +128,45 @@ pub async fn download_ai_model_from_huggingface(
         return Err("repo_id is required".to_string());
     }
 
-    let app_handle_for_download = app_handle.clone();
-    let download_result = tauri::async_runtime::spawn_blocking(move || {
-        AiModelService::download_ai_model_from_huggingface(
-            app_handle_for_download,
-            &repo_id,
-            model_name.as_deref(),
-        )
-    })
-    .await
-    .map_err(|e| format!("Download task failed: {}", e))??;
+    AiModelService::begin_model_download(&repo_id, model_name.as_deref())?;
 
-    let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
-    let ai_model_service = AiModelService::new(db_manager.get_connection().clone());
-    ai_model_service
-        .sync_ai_models_from_cache()
+    tauri::async_runtime::spawn(async move {
+        let worker_app_handle = app_handle.clone();
+        let worker_repo_id = repo_id.clone();
+        let worker_model_name = model_name.clone();
+        let mut result = tauri::async_runtime::spawn_blocking(move || {
+            AiModelService::download_ai_model_from_huggingface(
+                worker_app_handle,
+                &worker_repo_id,
+                worker_model_name.as_deref(),
+            )
+        })
         .await
-        .map_err(|e| e.to_string())?;
+        .map_err(|error| format!("Download task failed: {error}"))
+        .and_then(|result| result);
 
-    Ok(download_result)
+        if result.is_ok() {
+            let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
+            let ai_model_service = AiModelService::new(db_manager.get_connection().clone());
+            result = ai_model_service
+                .sync_ai_models_from_cache()
+                .await
+                .map(|_| ())
+                .map_err(|error| error.to_string());
+        }
+
+        AiModelService::finish_model_download(&app_handle, &result);
+    });
+
+    Ok("Model download started".to_string())
+}
+
+#[tauri::command]
+pub fn get_ai_model_download_status() -> AiModelDownloadStatus {
+    AiModelService::model_download_status()
+}
+
+#[tauri::command]
+pub fn cancel_ai_model_download() -> Result<(), String> {
+    AiModelService::cancel_model_download()
 }

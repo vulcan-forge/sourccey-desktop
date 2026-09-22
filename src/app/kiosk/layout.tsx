@@ -38,7 +38,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         return (
             <div className={`bg-slate-850 flex h-screen flex-col overflow-hidden ${isKioskMode ? 'kiosk-mode' : ''}`}>
                 <KioskTopNavbar />
-                <div className="min-h-0 w-full flex-1 overflow-auto">{children}</div>
+                <div className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</div>
             </div>
         );
     }
@@ -48,7 +48,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             <KioskTopNavbar />
             <div className="flex min-h-0 flex-1 overflow-hidden">
                 <KioskSideNavbar />
-                <div className="min-h-0 w-full flex-1 overflow-auto">{children}</div>
+                <div className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto">{children}</div>
             </div>
         </div>
     );

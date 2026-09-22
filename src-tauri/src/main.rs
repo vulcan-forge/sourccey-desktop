@@ -40,8 +40,9 @@ use modules::robot::controllers::robot_controller::{
 
 // Import Robotics Control Modules
 use modules::ai_model::controllers::ai_model_controller::{
-    add_ai_model, delete_ai_model, download_ai_model_from_huggingface, get_ai_model,
-    get_ai_model_cache_path, get_ai_models_paginated, sync_ai_models_from_cache, update_ai_model,
+    add_ai_model, cancel_ai_model_download, delete_ai_model, download_ai_model_from_huggingface,
+    get_ai_model, get_ai_model_cache_path, get_ai_model_download_status, get_ai_models_paginated,
+    sync_ai_models_from_cache, update_ai_model,
 };
 use modules::control::controllers::configuration::calibration_controller::{
     desktop_auto_calibrate_teleoperator, desktop_get_teleop_calibration_status,
@@ -797,6 +798,8 @@ fn main() {
             get_ai_models_paginated,
             sync_ai_models_from_cache,
             download_ai_model_from_huggingface,
+            get_ai_model_download_status,
+            cancel_ai_model_download,
             get_ai_model_cache_path,
 
             // LeRobot Dataset Sync API

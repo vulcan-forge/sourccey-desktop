@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLerobotUpdateStatus } from '@/hooks/System/lerobot-update.hook';
 import { useDesktopAppInstallProgress, useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
 import { useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
@@ -11,9 +11,12 @@ import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useAuthSession } from '@/hooks/Auth/auth-session.hook';
 import { usePathname } from 'next/navigation';
 import { toast } from 'react-toastify';
-import { toastInfoDefaults } from '@/utils/toast/toast-utils';
+import { toastErrorDefaults, toastInfoDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { installAvailableDesktopUpdate } from '@/utils/updater/updater';
 import { isLerobotRuntimeUpdateAvailable } from '@/utils/updater/lerobot-runtime';
+import { AI_MODEL_KEY, useAiModelDownloadStatus, useCancelAiModelDownload } from '@/hooks/Models/AIModel/ai-model.hook';
+import { queryClient } from '@/hooks/default';
+import { FaDownload, FaStop } from 'react-icons/fa';
 
 const DISMISSED_VERSION_KEY = 'desktop_app_update_dismissed_version';
 const SEEN_VERSION_KEY = 'desktop_app_update_seen_version';
@@ -25,9 +28,40 @@ export const DesktopTopNavbar = () => {
     const appInstallProgress = useDesktopAppInstallProgress();
     const { data: runtimeProgress } = useDesktopSetupProgress();
     const { data: authSession } = useAuthSession();
+    const { data: modelDownload } = useAiModelDownloadStatus();
+    const { mutateAsync: cancelModelDownload, isPending: isCancellingModelDownload } = useCancelAiModelDownload();
     const pathname = usePathname();
     const [isUpdateDismissed, setIsUpdateDismissed] = useState(false);
     const [shouldHighlightUpdate, setShouldHighlightUpdate] = useState(false);
+    const observedModelDownloadUpdateRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        if (!modelDownload) return;
+        if (observedModelDownloadUpdateRef.current === null) {
+            observedModelDownloadUpdateRef.current = modelDownload.updatedAtEpochMs;
+            return;
+        }
+        if (observedModelDownloadUpdateRef.current === modelDownload.updatedAtEpochMs) return;
+        observedModelDownloadUpdateRef.current = modelDownload.updatedAtEpochMs;
+
+        if (modelDownload.status === 'completed') {
+            void queryClient.invalidateQueries({ queryKey: AI_MODEL_KEY });
+            toast.success(`Finished downloading ${modelDownload.repoId ?? 'model'}.`, { ...toastSuccessDefaults });
+        } else if (modelDownload.status === 'error' && modelDownload.error) {
+            toast.error(modelDownload.error, { ...toastErrorDefaults });
+        } else if (modelDownload.status === 'cancelled') {
+            toast.info('Model download cancelled. Partial files were kept for a future resume.', { ...toastInfoDefaults });
+        }
+    }, [modelDownload]);
+
+    const cancelActiveModelDownload = async () => {
+        try {
+            await cancelModelDownload();
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error || 'Could not cancel model download.');
+            toast.error(message, { ...toastErrorDefaults });
+        }
+    };
 
     const needsRuntimeUpdate = isLerobotRuntimeUpdateAvailable(lerobotStatus);
     const targetVersion = desktopAppUpdateStatus?.targetVersion ?? null;
@@ -141,6 +175,35 @@ export const DesktopTopNavbar = () => {
                     <div className="grow" />
 
                     <div className="ml-3 flex items-center gap-2">
+                        {modelDownload?.running && (
+                            <div className="relative inline-flex max-w-56 items-stretch overflow-hidden rounded-lg border border-emerald-400/60 bg-emerald-500/10 text-emerald-100">
+                                <Link
+                                    href="/desktop/models"
+                                    className="flex min-w-0 items-center gap-2 px-3 py-2 text-xs font-semibold"
+                                    title={`Downloading ${modelDownload.repoId ?? 'model'}`}
+                                >
+                                    <FaDownload className="shrink-0" />
+                                    <span className="truncate">
+                                        {modelDownload.status === 'cancelling' ? 'Cancelling model…' : `Model ${modelDownload.progress ?? 0}%`}
+                                    </span>
+                                </Link>
+                                <button
+                                    type="button"
+                                    onClick={() => void cancelActiveModelDownload()}
+                                    disabled={modelDownload.cancelRequested || isCancellingModelDownload}
+                                    className="cursor-pointer border-l border-emerald-300/30 px-2 text-red-200 transition hover:bg-red-500/15 hover:text-red-100 disabled:cursor-wait disabled:opacity-50"
+                                    aria-label="Cancel model download"
+                                    title="Cancel model download"
+                                >
+                                    <FaStop className="h-3 w-3" />
+                                </button>
+                                <span
+                                    className="absolute bottom-0 left-0 h-0.5 bg-emerald-300 transition-all"
+                                    style={{ width: `${modelDownload.progress ?? 0}%` }}
+                                />
+                            </div>
+                        )}
+
                         {environmentBadgeLabel && (
                             <LinkButton
                                 href="/desktop/settings/developer"

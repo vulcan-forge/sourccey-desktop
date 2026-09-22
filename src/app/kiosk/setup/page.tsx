@@ -158,9 +158,9 @@ export default function KioskSetupPage() {
               : 'Your robot runtime is up to date.';
 
     return (
-        <div className="min-h-full w-full overflow-y-auto bg-linear-to-br from-slate-800 via-slate-700 to-slate-800">
-            <main className="mx-auto w-full max-w-3xl px-6 py-10">
-                <div className="rounded-3xl border border-slate-600/70 bg-slate-900/80 p-6 shadow-2xl backdrop-blur sm:p-8">
+        <div className="min-h-full w-full max-w-full min-w-0 overflow-x-hidden overflow-y-auto bg-linear-to-br from-slate-800 via-slate-700 to-slate-800">
+            <main className="mx-auto w-full max-w-3xl min-w-0 px-6 py-10">
+                <div className="max-w-full min-w-0 rounded-3xl border border-slate-600/70 bg-slate-900/80 p-6 shadow-2xl backdrop-blur sm:p-8">
                     <header className="flex flex-wrap items-center justify-between gap-4">
                         <div className="flex items-center gap-4">
                             <Image
@@ -183,7 +183,7 @@ export default function KioskSetupPage() {
                         </LinkButton>
                     </header>
 
-                    <div className="mt-7 grid gap-4">
+                    <div className="mt-7 grid min-w-0 gap-4">
                         <UpdateSection
                             section="Section 1"
                             title="Vulcan Studio kiosk"
@@ -304,7 +304,7 @@ function UpdateSection({
     const messageColor = warning ? 'text-red-200' : updateAvailable ? 'text-amber-200' : 'text-emerald-200';
 
     return (
-        <section className="rounded-2xl border border-slate-700 bg-slate-950/45 p-5 sm:p-6">
+        <section className="max-w-full min-w-0 overflow-hidden rounded-2xl border border-slate-700 bg-slate-950/45 p-5 sm:p-6">
             <div className="flex items-start justify-between gap-4">
                 <div>
                     <p className="text-xs font-semibold tracking-wider text-slate-400 uppercase">{section}</p>
@@ -362,14 +362,14 @@ function StatusBadge({ loading, warning, updateAvailable }: { loading: boolean; 
 
 function VersionSummary({ current, latest, currentLabel }: { current: string; latest: string; currentLabel: string }) {
     return (
-        <div className="mt-4 grid grid-cols-2 divide-x divide-slate-700 rounded-xl border border-slate-700 bg-slate-900/70">
-            <div className="px-4 py-3">
+        <div className="mt-4 grid min-w-0 grid-cols-2 divide-x divide-slate-700 rounded-xl border border-slate-700 bg-slate-900/70">
+            <div className="min-w-0 px-4 py-3">
                 <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">{currentLabel}</p>
-                <p className="mt-1 font-mono text-sm font-semibold text-slate-100">{current}</p>
+                <p className="mt-1 font-mono text-sm font-semibold break-all text-slate-100">{current}</p>
             </div>
-            <div className="px-4 py-3">
+            <div className="min-w-0 px-4 py-3">
                 <p className="text-[10px] font-semibold tracking-wider text-slate-500 uppercase">Latest</p>
-                <p className="mt-1 font-mono text-sm font-semibold text-slate-100">{latest}</p>
+                <p className="mt-1 font-mono text-sm font-semibold break-all text-slate-100">{latest}</p>
             </div>
         </div>
     );
@@ -391,7 +391,7 @@ function StepDetails({
     }, [log.length, running]);
 
     return (
-        <div className="mt-5 border-t border-slate-700 pt-5">
+        <div className="mt-5 max-w-full min-w-0 border-t border-slate-700 pt-5">
             <h3 className="text-sm font-semibold text-slate-100">Live update output</h3>
             {running && durationNotice && (
                 <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2.5 text-xs text-amber-100">
@@ -399,15 +399,15 @@ function StepDetails({
                     Update in progress — this can take 40 minutes or longer. Keep the kiosk powered on and leave this app open.
                 </div>
             )}
-            <div className="mt-4 rounded-xl border border-slate-700 bg-black/30 p-3">
+            <div className="mt-4 max-w-full min-w-0 overflow-hidden rounded-xl border border-slate-700 bg-black/30 p-3">
                 <div className="flex items-center justify-between text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
                     <span>Command logs</span>
                     {running && <span className="animate-pulse text-amber-300">Streaming</span>}
                 </div>
-                <div className="mt-2 max-h-96 min-h-48 space-y-1 overflow-y-auto font-mono text-[11px] text-slate-200">
+                <div className="mt-2 max-h-96 min-h-48 max-w-full min-w-0 space-y-1 overflow-x-hidden overflow-y-auto font-mono text-[11px] text-slate-200">
                     {log.length === 0 && <div className="text-slate-500">Waiting for command output...</div>}
                     {log.map((line, index) => (
-                        <div key={`${line}-${index}`} className="break-words whitespace-pre-wrap">
+                        <div key={`${line}-${index}`} className="max-w-full min-w-0 break-all whitespace-pre-wrap">
                             {line}
                         </div>
                     ))}

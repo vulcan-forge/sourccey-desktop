@@ -5,14 +5,16 @@ use crate::services::directory::directory_service::DirectoryService;
 use crate::utils::pagination::{PaginatedResponse, PaginationParameters};
 use crate::utils::windows_process::configure_std_command;
 use chrono::Utc;
+use lazy_static::lazy_static;
 use sea_orm::*;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::collections::{HashMap, HashSet};
 use std::io::{BufRead, BufReader, Read};
 use std::path::{Path, PathBuf};
-use std::process::Command;
-use std::process::Stdio;
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,9 +32,187 @@ pub struct AiModelSyncResult {
     pub removed: usize,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiModelDownloadStatus {
+    pub running: bool,
+    pub repo_id: Option<String>,
+    pub model_name: Option<String>,
+    pub status: String,
+    pub progress: Option<u8>,
+    pub downloaded_bytes: Option<u64>,
+    pub total_bytes: Option<u64>,
+    pub speed_bps: Option<u64>,
+    pub stall_seconds: u64,
+    pub current_file: Option<String>,
+    pub current_file_bytes: Option<u64>,
+    pub current_file_total_bytes: Option<u64>,
+    pub message: Option<String>,
+    pub error: Option<String>,
+    pub cancel_requested: bool,
+    pub updated_at_epoch_ms: i64,
+}
+
+impl Default for AiModelDownloadStatus {
+    fn default() -> Self {
+        Self {
+            running: false,
+            repo_id: None,
+            model_name: None,
+            status: "idle".to_string(),
+            progress: None,
+            downloaded_bytes: None,
+            total_bytes: None,
+            speed_bps: None,
+            stall_seconds: 0,
+            current_file: None,
+            current_file_bytes: None,
+            current_file_total_bytes: None,
+            message: None,
+            error: None,
+            cancel_requested: false,
+            updated_at_epoch_ms: Utc::now().timestamp_millis(),
+        }
+    }
+}
+
+struct AiModelDownloadControl {
+    cancel_requested: AtomicBool,
+    child: Mutex<Option<Child>>,
+}
+
+lazy_static! {
+    static ref AI_MODEL_DOWNLOAD_STATUS: Mutex<AiModelDownloadStatus> =
+        Mutex::new(AiModelDownloadStatus::default());
+    static ref AI_MODEL_DOWNLOAD_CONTROL: Mutex<Option<Arc<AiModelDownloadControl>>> =
+        Mutex::new(None);
+}
+
 impl AiModelService {
     pub fn new(connection: DatabaseConnection) -> Self {
         Self { connection }
+    }
+
+    pub fn model_download_status() -> AiModelDownloadStatus {
+        AI_MODEL_DOWNLOAD_STATUS
+            .lock()
+            .map(|status| status.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn begin_model_download(repo_id: &str, model_name: Option<&str>) -> Result<(), String> {
+        if !is_safe_repo_id(repo_id) {
+            return Err("Invalid repo_id".to_string());
+        }
+        if let Some(name) = model_name {
+            if !name.trim().is_empty() && !is_safe_model_name(name.trim()) {
+                return Err("Invalid model_name".to_string());
+            }
+        }
+
+        let mut status = AI_MODEL_DOWNLOAD_STATUS
+            .lock()
+            .map_err(|_| "Model download status is unavailable".to_string())?;
+        if status.running {
+            let active = status.repo_id.as_deref().unwrap_or("another model");
+            return Err(format!("A model download is already running for {active}."));
+        }
+
+        *status = AiModelDownloadStatus {
+            running: true,
+            repo_id: Some(repo_id.to_string()),
+            model_name: model_name
+                .map(str::trim)
+                .filter(|name| !name.is_empty())
+                .map(str::to_string),
+            status: "starting".to_string(),
+            progress: Some(0),
+            message: Some("Preparing Hugging Face download".to_string()),
+            updated_at_epoch_ms: Utc::now().timestamp_millis(),
+            ..AiModelDownloadStatus::default()
+        };
+
+        let control = Arc::new(AiModelDownloadControl {
+            cancel_requested: AtomicBool::new(false),
+            child: Mutex::new(None),
+        });
+        *AI_MODEL_DOWNLOAD_CONTROL
+            .lock()
+            .map_err(|_| "Model download control is unavailable".to_string())? = Some(control);
+        Ok(())
+    }
+
+    pub fn cancel_model_download() -> Result<(), String> {
+        {
+            let mut status = AI_MODEL_DOWNLOAD_STATUS
+                .lock()
+                .map_err(|_| "Model download status is unavailable".to_string())?;
+            if !status.running {
+                return Err("There is no active model download to cancel.".to_string());
+            }
+            status.cancel_requested = true;
+            status.status = "cancelling".to_string();
+            status.message = Some("Cancelling model download".to_string());
+            status.updated_at_epoch_ms = Utc::now().timestamp_millis();
+        }
+
+        let control = AI_MODEL_DOWNLOAD_CONTROL
+            .lock()
+            .map_err(|_| "Model download control is unavailable".to_string())?
+            .clone()
+            .ok_or_else(|| "Model download control is unavailable".to_string())?;
+        control.cancel_requested.store(true, Ordering::SeqCst);
+        if let Ok(mut child) = control.child.lock() {
+            if let Some(process) = child.as_mut() {
+                if let Err(error) = process.kill() {
+                    let already_exited = process.try_wait().ok().flatten().is_some();
+                    if !already_exited {
+                        return Err(format!("Failed to cancel model download: {error}"));
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+
+    pub fn finish_model_download(app_handle: &AppHandle, result: &Result<(), String>) {
+        let cancelled = AI_MODEL_DOWNLOAD_CONTROL
+            .lock()
+            .ok()
+            .and_then(|control| control.clone())
+            .map(|control| control.cancel_requested.load(Ordering::SeqCst))
+            .unwrap_or(false);
+
+        if let Ok(mut status) = AI_MODEL_DOWNLOAD_STATUS.lock() {
+            status.running = false;
+            status.speed_bps = Some(0);
+            status.updated_at_epoch_ms = Utc::now().timestamp_millis();
+            match result {
+                Ok(()) => {
+                    status.status = "completed".to_string();
+                    status.progress = Some(100);
+                    status.message = Some("Model download complete".to_string());
+                    status.error = None;
+                }
+                Err(_) if cancelled => {
+                    status.status = "cancelled".to_string();
+                    status.message = Some(
+                        "Model download cancelled. Partial files were kept so it can resume later."
+                            .to_string(),
+                    );
+                    status.error = None;
+                }
+                Err(error) => {
+                    status.status = "error".to_string();
+                    status.message = Some(error.clone());
+                    status.error = Some(error.clone());
+                }
+            }
+            let _ = app_handle.emit("ai-model-download-progress", status.clone());
+        }
+        if let Ok(mut control) = AI_MODEL_DOWNLOAD_CONTROL.lock() {
+            *control = None;
+        }
     }
 
     //-------------------------------------------------------------------------//
@@ -206,7 +386,7 @@ impl AiModelService {
         app_handle: AppHandle,
         repo_id: &str,
         model_name: Option<&str>,
-    ) -> Result<String, String> {
+    ) -> Result<(), String> {
         if !is_safe_repo_id(repo_id) {
             return Err("Invalid repo_id".to_string());
         }
@@ -405,14 +585,15 @@ finally:
     monitor_thread.join(timeout=5)
 "#;
 
-        let _ = app_handle.emit(
-            "ai-model-download-progress",
-            json!({
-                "repoId": repo_id,
-                "status": "starting",
-                "progress": 0
-            }),
-        );
+        let control = AI_MODEL_DOWNLOAD_CONTROL
+            .lock()
+            .map_err(|_| "Model download control is unavailable".to_string())?
+            .clone()
+            .ok_or_else(|| "Model download was not initialized".to_string())?;
+        if control.cancel_requested.load(Ordering::SeqCst) {
+            return Err("Model download cancelled".to_string());
+        }
+        let _ = app_handle.emit("ai-model-download-progress", Self::model_download_status());
 
         let mut command = Command::new(python_path);
         command
@@ -437,6 +618,19 @@ finally:
             .stderr
             .take()
             .ok_or("Failed to capture download stderr")?;
+
+        {
+            let mut active_child = control
+                .child
+                .lock()
+                .map_err(|_| "Model download process control is unavailable".to_string())?;
+            *active_child = Some(child);
+            if control.cancel_requested.load(Ordering::SeqCst) {
+                if let Some(process) = active_child.as_mut() {
+                    let _ = process.kill();
+                }
+            }
+        }
 
         let stderr_handle = std::thread::spawn(move || {
             let mut buffer = String::new();
@@ -464,6 +658,28 @@ finally:
                         .get("active_file_total_bytes")
                         .and_then(|v| v.as_i64());
 
+                    if let Ok(mut download) = AI_MODEL_DOWNLOAD_STATUS.lock() {
+                        if !download.cancel_requested {
+                            download.status = status.to_string();
+                        }
+                        download.progress =
+                            progress.and_then(|value| u8::try_from(value.clamp(0, 100)).ok());
+                        download.downloaded_bytes =
+                            downloaded_bytes.and_then(|value| u64::try_from(value).ok());
+                        download.total_bytes =
+                            total_bytes.and_then(|value| u64::try_from(value).ok());
+                        download.speed_bps = speed_bps.and_then(|value| u64::try_from(value).ok());
+                        download.stall_seconds = stall_seconds
+                            .and_then(|value| u64::try_from(value).ok())
+                            .unwrap_or(0);
+                        download.current_file = active_file.map(str::to_string);
+                        download.current_file_bytes =
+                            active_file_bytes.and_then(|value| u64::try_from(value).ok());
+                        download.current_file_total_bytes =
+                            active_file_total_bytes.and_then(|value| u64::try_from(value).ok());
+                        download.updated_at_epoch_ms = Utc::now().timestamp_millis();
+                    }
+
                     let _ = app_handle.emit(
                         "ai-model-download-progress",
                         json!({
@@ -485,6 +701,10 @@ finally:
                         .get("message")
                         .and_then(|v| v.as_str())
                         .unwrap_or("Failed to read repository metadata for byte progress");
+                    if let Ok(mut download) = AI_MODEL_DOWNLOAD_STATUS.lock() {
+                        download.message = Some(message.to_string());
+                        download.updated_at_epoch_ms = Utc::now().timestamp_millis();
+                    }
                     let _ = app_handle.emit(
                         "ai-model-download-progress",
                         json!({
@@ -497,10 +717,22 @@ finally:
             }
         }
 
-        let status = child
-            .wait()
-            .map_err(|e| format!("Failed to wait for download: {}", e))?;
+        let status = {
+            let mut active_child = control
+                .child
+                .lock()
+                .map_err(|_| "Model download process control is unavailable".to_string())?;
+            active_child
+                .as_mut()
+                .ok_or_else(|| "Model download process is unavailable".to_string())?
+                .wait()
+                .map_err(|e| format!("Failed to wait for download: {}", e))?
+        };
         let stderr_output = stderr_handle.join().unwrap_or_default().trim().to_string();
+
+        if control.cancel_requested.load(Ordering::SeqCst) {
+            return Err("Model download cancelled".to_string());
+        }
 
         if !status.success() {
             let message = if !stderr_output.is_empty() {
@@ -508,27 +740,10 @@ finally:
             } else {
                 "Unknown model download error".to_string()
             };
-            let _ = app_handle.emit(
-                "ai-model-download-progress",
-                json!({
-                    "repoId": repo_id,
-                    "status": "error",
-                    "message": message
-                }),
-            );
             return Err(message);
         }
 
-        let _ = app_handle.emit(
-            "ai-model-download-progress",
-            json!({
-                "repoId": repo_id,
-                "status": "completed",
-                "progress": 100
-            }),
-        );
-
-        Ok("Model download completed".to_string())
+        Ok(())
     }
 }
 
@@ -656,4 +871,41 @@ fn is_safe_model_name(value: &str) -> bool {
     value
         .chars()
         .all(|ch| ch.is_ascii_alphanumeric() || ch == '_' || ch == '-' || ch == '.' || ch == ' ')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn reset_download_job() {
+        *AI_MODEL_DOWNLOAD_STATUS
+            .lock()
+            .expect("download status lock") = AiModelDownloadStatus::default();
+        *AI_MODEL_DOWNLOAD_CONTROL
+            .lock()
+            .expect("download control lock") = None;
+    }
+
+    #[test]
+    fn download_job_persists_and_rejects_concurrent_downloads() {
+        reset_download_job();
+
+        AiModelService::begin_model_download("vulcan/example-model", None)
+            .expect("first download should start");
+        let running = AiModelService::model_download_status();
+        assert!(running.running);
+        assert_eq!(running.repo_id.as_deref(), Some("vulcan/example-model"));
+        assert_eq!(running.status, "starting");
+
+        let duplicate = AiModelService::begin_model_download("vulcan/other-model", None);
+        assert!(duplicate.is_err());
+
+        AiModelService::cancel_model_download().expect("download should be cancellable");
+        let cancelling = AiModelService::model_download_status();
+        assert!(cancelling.running);
+        assert!(cancelling.cancel_requested);
+        assert_eq!(cancelling.status, "cancelling");
+
+        reset_download_job();
+    }
 }
