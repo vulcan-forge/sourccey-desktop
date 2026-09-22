@@ -242,6 +242,7 @@ export default function KioskSetupPage() {
                             running={isRunning && runningAction === 'app'}
                             log={log}
                             accent="amber"
+                            durationNotice="This update can take 40 minutes or longer. Keep the kiosk powered on and do not close the app."
                         />
 
                         <UpdateSection
@@ -306,6 +307,7 @@ type UpdateSectionProps = {
     running: boolean;
     log: string[];
     accent: 'amber' | 'orange';
+    durationNotice?: string;
 };
 
 function UpdateSection({
@@ -328,6 +330,7 @@ function UpdateSection({
     running,
     log,
     accent,
+    durationNotice,
 }: UpdateSectionProps) {
     const buttonColors = accent === 'amber' ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-orange-500 text-white hover:bg-orange-400';
     const messageColor = warning ? 'text-red-200' : updateAvailable ? 'text-amber-200' : 'text-emerald-200';
@@ -345,6 +348,13 @@ function UpdateSection({
             <p className={`mt-4 text-sm ${messageColor}`}>{statusMessage}</p>
             <VersionSummary current={current} latest={latest} currentLabel={currentLabel} />
 
+            {durationNotice && (
+                <div className="mt-4 rounded-xl border border-amber-400/30 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+                    <FaExclamationTriangle className="mr-2 inline text-amber-300" />
+                    {durationNotice}
+                </div>
+            )}
+
             <button
                 type="button"
                 onClick={onClick}
@@ -355,7 +365,15 @@ function UpdateSection({
                 {buttonLabel}
             </button>
 
-            {expanded && <StepDetails steps={steps} stepState={stepState} running={running} log={log} />}
+            {expanded && (
+                <StepDetails
+                    steps={steps}
+                    stepState={stepState}
+                    running={running}
+                    log={log}
+                    durationNotice={durationNotice}
+                />
+            )}
         </section>
     );
 }
@@ -396,15 +414,23 @@ function StepDetails({
     stepState,
     running,
     log,
+    durationNotice,
 }: {
     steps: ReadonlyArray<{ id: string; label: string }>;
     stepState: Record<string, StepStatus>;
     running: boolean;
     log: string[];
+    durationNotice?: string;
 }) {
     return (
         <div className="mt-5 border-t border-slate-700 pt-5">
             <h3 className="text-sm font-semibold text-slate-100">Update steps</h3>
+            {running && durationNotice && (
+                <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2.5 text-xs text-amber-100">
+                    <FaExclamationTriangle className="mr-2 inline text-amber-300" />
+                    Update in progress — this can take 40 minutes or longer. Keep the kiosk powered on and leave this app open.
+                </div>
+            )}
             <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {steps.map((step, index) => {
                     const status = stepState[step.id] ?? 'pending';
