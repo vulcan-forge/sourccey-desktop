@@ -748,20 +748,28 @@ finally:
 }
 
 fn get_ai_model_cache_dir() -> PathBuf {
-    if cfg!(target_os = "macos") {
+    #[cfg(target_os = "macos")]
+    {
+        // Keep refresh in sync with the downloader and the "Open cache" action.
+        // LeRobot uses ~/.cache/huggingface on macOS as well as Linux.
+        return DirectoryService::get_lerobot_ai_models_path().unwrap_or_else(|_| {
+            dirs::home_dir()
+                .unwrap_or_else(|| PathBuf::from("."))
+                .join(".cache")
+                .join("huggingface")
+                .join("lerobot")
+                .join("ai_models")
+        });
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
         let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-        return home
-            .join("Library")
-            .join("Caches")
+        home.join(".cache")
             .join("huggingface")
             .join("lerobot")
-            .join("ai_models");
+            .join("ai_models")
     }
-    let home = dirs::home_dir().unwrap_or_else(|| PathBuf::from("."));
-    home.join(".cache")
-        .join("huggingface")
-        .join("lerobot")
-        .join("ai_models")
 }
 
 fn list_model_dirs(root: &Path) -> Vec<(String, String)> {
@@ -791,7 +799,7 @@ fn list_model_dirs(root: &Path) -> Vec<(String, String)> {
                 continue;
             }
 
-            if get_latest_checkpoint(&path).is_some() {
+            if is_discoverable_model_dir(&path) {
                 results.push((name.to_string(), path.to_string_lossy().to_string()));
                 continue;
             }
@@ -802,6 +810,24 @@ fn list_model_dirs(root: &Path) -> Vec<(String, String)> {
 
     results.sort_by(|left, right| left.1.cmp(&right.1));
     results
+}
+
+fn is_discoverable_model_dir(path: &Path) -> bool {
+    if get_latest_checkpoint(path).is_some() {
+        return true;
+    }
+
+    // Hugging Face policy repositories downloaded on macOS may expose the
+    // runnable model directly instead of wrapping it in checkpoints/<step>.
+    #[cfg(target_os = "macos")]
+    {
+        return path.join("pretrained_model").join("config.json").is_file();
+    }
+
+    #[cfg(not(target_os = "macos"))]
+    {
+        false
+    }
 }
 
 fn get_model_relative_path(root: &Path, full_path: &Path) -> Option<String> {
@@ -907,5 +933,38 @@ mod tests {
         assert_eq!(cancelling.status, "cancelling");
 
         reset_download_job();
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_sync_uses_the_same_cache_path_as_downloads() {
+        assert_eq!(
+            get_ai_model_cache_dir(),
+            DirectoryService::get_lerobot_ai_models_path().expect("LeRobot cache path")
+        );
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn macos_discovers_root_pretrained_model_layout() {
+        let root = std::env::temp_dir().join(format!(
+            "vulcan-studio-ai-model-discovery-{}",
+            uuid::Uuid::now_v7()
+        ));
+        let model_dir = root.join("example-model");
+        let pretrained_dir = model_dir.join("pretrained_model");
+        std::fs::create_dir_all(&pretrained_dir).expect("create test model directory");
+        std::fs::write(pretrained_dir.join("config.json"), b"{}").expect("write model config");
+
+        let models = list_model_dirs(&root);
+        assert_eq!(
+            models,
+            vec![(
+                "example-model".to_string(),
+                model_dir.to_string_lossy().to_string()
+            )]
+        );
+
+        std::fs::remove_dir_all(&root).expect("remove test model directory");
     }
 }
