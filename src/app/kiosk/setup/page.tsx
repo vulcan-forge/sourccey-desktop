@@ -6,10 +6,9 @@ import { listen, type UnlistenFn } from '@tauri-apps/api/event';
 import Image from 'next/image';
 import { Spinner } from '@/components/Elements/Spinner';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
-import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
-import { FaCheckCircle, FaCloudDownloadAlt, FaExclamationTriangle, FaTools } from 'react-icons/fa';
+import { useKioskUpdateProgress, useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
+import { FaCloudDownloadAlt, FaExclamationTriangle, FaTools } from 'react-icons/fa';
 
-type StepStatus = 'pending' | 'started' | 'success' | 'error';
 type ActionKey = 'modules' | 'app';
 
 type SetupProgress = {
@@ -17,37 +16,6 @@ type SetupProgress = {
     status: string;
     message?: string | null;
 };
-
-const statusColors: Record<StepStatus, string> = {
-    pending: 'text-slate-500',
-    started: 'text-amber-300',
-    success: 'text-emerald-300',
-    error: 'text-red-300',
-};
-
-const stepsByAction = {
-    app: [
-        { id: 'fetch', label: 'Fetch latest code' },
-        { id: 'reset', label: 'Update application files' },
-        { id: 'submodules', label: 'Update submodules' },
-        { id: 'tag', label: 'Select runtime version' },
-        { id: 'setup', label: 'Apply kiosk setup' },
-        { id: 'complete', label: 'Finalize update' },
-    ],
-    modules: [
-        { id: 'submodules', label: 'Initialize robot runtime' },
-        { id: 'tag', label: 'Select latest version' },
-        { id: 'deps', label: 'Refresh dependencies' },
-        { id: 'complete', label: 'Finalize update' },
-    ],
-} as const;
-
-type StepStateByAction = Record<ActionKey, Record<string, StepStatus>>;
-
-const buildInitialStepState = (): StepStateByAction => ({
-    app: Object.fromEntries(stepsByAction.app.map((step) => [step.id, 'pending'])) as Record<string, StepStatus>,
-    modules: Object.fromEntries(stepsByAction.modules.map((step) => [step.id, 'pending'])) as Record<string, StepStatus>,
-});
 
 const normalizeVersionLabel = (value?: string | null) => {
     const trimmed = value?.trim();
@@ -57,6 +25,7 @@ const normalizeVersionLabel = (value?: string | null) => {
 
 export default function KioskSetupPage() {
     const { data: kioskUpdateStatus, isLoading: isLoadingKioskUpdate, refetch: refetchKioskUpdateStatus } = useKioskUpdateStatus();
+    const { data: persistedProgress, refetch: refetchProgress } = useKioskUpdateProgress();
 
     const [isRunning, setIsRunning] = useState(false);
     const [runningAction, setRunningAction] = useState<ActionKey | null>(null);
@@ -64,21 +33,25 @@ export default function KioskSetupPage() {
     const [error, setError] = useState<string | null>(null);
     const [log, setLog] = useState<string[]>([]);
     const runningActionRef = useRef<ActionKey | null>(null);
-    const hasMarkedCompleteRef = useRef(false);
-    const [stepStateByAction, setStepStateByAction] = useState<StepStateByAction>(buildInitialStepState);
+    const wasRunningRef = useRef(false);
+
+    useEffect(() => {
+        const action = persistedProgress?.action;
+        if (!action) return;
+
+        runningActionRef.current = persistedProgress.running ? action : null;
+        setRunningAction(persistedProgress.running ? action : null);
+        setExpandedAction(action);
+        setIsRunning(persistedProgress.running);
+        setLog(persistedProgress.log);
+        setError(persistedProgress.error ?? null);
+        if (wasRunningRef.current && !persistedProgress.running) {
+            void refetchKioskUpdateStatus();
+        }
+        wasRunningRef.current = persistedProgress.running;
+    }, [persistedProgress, refetchKioskUpdateStatus]);
 
     const appendLog = useCallback((message: string) => setLog((previous) => [...previous, message]), []);
-
-    const updateStep = useCallback(
-        (action: ActionKey, step: string, status: StepStatus, message?: string | null) => {
-            setStepStateByAction((previous) => ({
-                ...previous,
-                [action]: { ...previous[action], [step]: status },
-            }));
-            if (message) appendLog(message);
-        },
-        [appendLog]
-    );
 
     useEffect(() => {
         let unlisten: UnlistenFn | undefined;
@@ -88,16 +61,13 @@ export default function KioskSetupPage() {
             const action = runningActionRef.current;
             if (!action) return;
 
-            const { step, status, message } = event.payload;
+            const { status, message } = event.payload;
             if (status === 'log') {
                 if (message) appendLog(message);
                 return;
             }
 
-            const mapped: StepStatus =
-                status === 'started' ? 'started' : status === 'success' ? 'success' : status === 'error' ? 'error' : 'pending';
-            updateStep(action, step, mapped, message);
-            if (step === 'complete' && status === 'success') hasMarkedCompleteRef.current = true;
+            void refetchProgress();
             if (status === 'error') {
                 setError(message || 'Kiosk update failed.');
                 setIsRunning(false);
@@ -113,7 +83,7 @@ export default function KioskSetupPage() {
             cancelled = true;
             unlisten?.();
         };
-    }, [appendLog, updateStep]);
+    }, [appendLog, refetchProgress]);
 
     const resetState = (action: ActionKey) => {
         runningActionRef.current = action;
@@ -122,40 +92,27 @@ export default function KioskSetupPage() {
         setIsRunning(true);
         setError(null);
         setLog([]);
-        hasMarkedCompleteRef.current = false;
-        setStepStateByAction((previous) => ({
-            ...previous,
-            [action]: Object.fromEntries(stepsByAction[action].map((step) => [step.id, 'pending'])) as Record<string, StepStatus>,
-        }));
     };
 
     const runSetup = async (action: ActionKey) => {
         resetState(action);
         try {
             await invoke(action === 'modules' ? 'kiosk_setup_repair' : 'kiosk_setup_update');
-            if (!hasMarkedCompleteRef.current) {
-                updateStep(
-                    action,
-                    'complete',
-                    'success',
-                    action === 'modules' ? 'Robot runtime update complete.' : 'Kiosk app update complete.'
-                );
-            }
+            await refetchProgress();
         } catch (setupError) {
             const message =
                 setupError instanceof Error
                     ? setupError.message
+                    : typeof setupError === 'string'
+                      ? setupError
                     : action === 'modules'
                       ? 'Robot runtime update failed.'
                       : 'Kiosk app update failed.';
             setError(message);
             appendLog(message);
-            updateStep(action, 'complete', 'error');
-        } finally {
             setIsRunning(false);
             setRunningAction(null);
             runningActionRef.current = null;
-            void refetchKioskUpdateStatus();
         }
     };
 
@@ -166,6 +123,19 @@ export default function KioskSetupPage() {
     const runtimeLatest = normalizeVersionLabel(kioskUpdateStatus?.lerobotRemote);
     const runtimeOutdated = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable);
     const updateError = kioskUpdateStatus?.error?.trim() || null;
+    const approximatePercent = (() => {
+        if (!persistedProgress?.running) return 0;
+        if (
+            persistedProgress.running &&
+            persistedProgress.action === 'app' &&
+            persistedProgress.step === 'setup' &&
+            persistedProgress.stepStartedAt
+        ) {
+            const elapsed = Math.max(0, Date.now() - persistedProgress.stepStartedAt);
+            return Math.min(94, Math.max(persistedProgress.percent, 35 + Math.floor((elapsed / (40 * 60 * 1000)) * 60)));
+        }
+        return persistedProgress.percent;
+    })();
 
     const appStatusMessage = isLoadingKioskUpdate
         ? 'Checking for a kiosk app update...'
@@ -222,14 +192,14 @@ export default function KioskSetupPage() {
                             updateAvailable={appOutdated}
                             buttonLabel={
                                 isRunning && runningAction === 'app'
-                                    ? 'Updating kiosk...'
+                                    ? `Updating kiosk app… ~${approximatePercent}%`
                                     : appOutdated
-                                      ? `Update kiosk${appLatest === 'unknown' ? '' : ` to ${appLatest}`}`
+                                      ? `Update kiosk app${appLatest === 'unknown' ? '' : ` to ${appLatest}`}`
                                       : 'Reinstall kiosk app'
                             }
                             buttonIcon={
                                 isRunning && runningAction === 'app' ? (
-                                    <Spinner color="black" width="w-4" height="h-4" />
+                                    <Spinner color="white" width="w-4" height="h-4" />
                                 ) : (
                                     <FaCloudDownloadAlt />
                                 )
@@ -237,8 +207,6 @@ export default function KioskSetupPage() {
                             disabled={isRunning}
                             onClick={() => void runSetup('app')}
                             expanded={expandedAction === 'app'}
-                            steps={stepsByAction.app}
-                            stepState={stepStateByAction.app}
                             running={isRunning && runningAction === 'app'}
                             log={log}
                             accent="amber"
@@ -269,8 +237,6 @@ export default function KioskSetupPage() {
                             disabled={isRunning}
                             onClick={() => void runSetup('modules')}
                             expanded={expandedAction === 'modules'}
-                            steps={stepsByAction.modules}
-                            stepState={stepStateByAction.modules}
                             running={isRunning && runningAction === 'modules'}
                             log={log}
                             accent="orange"
@@ -302,8 +268,6 @@ type UpdateSectionProps = {
     disabled: boolean;
     onClick: () => void;
     expanded: boolean;
-    steps: ReadonlyArray<{ id: string; label: string }>;
-    stepState: Record<string, StepStatus>;
     running: boolean;
     log: string[];
     accent: 'amber' | 'orange';
@@ -325,14 +289,15 @@ function UpdateSection({
     disabled,
     onClick,
     expanded,
-    steps,
-    stepState,
     running,
     log,
     accent,
     durationNotice,
 }: UpdateSectionProps) {
-    const buttonColors = accent === 'amber' ? 'bg-amber-400 text-slate-950 hover:bg-amber-300' : 'bg-orange-500 text-white hover:bg-orange-400';
+    const buttonColors =
+        accent === 'amber'
+            ? 'bg-yellow-500 text-white shadow-lg shadow-yellow-500/20 hover:bg-yellow-400'
+            : 'bg-orange-500 text-white hover:bg-orange-400';
     const messageColor = warning ? 'text-red-200' : updateAvailable ? 'text-amber-200' : 'text-emerald-200';
 
     return (
@@ -367,8 +332,6 @@ function UpdateSection({
 
             {expanded && (
                 <StepDetails
-                    steps={steps}
-                    stepState={stepState}
                     running={running}
                     log={log}
                     durationNotice={durationNotice}
@@ -410,52 +373,42 @@ function VersionSummary({ current, latest, currentLabel }: { current: string; la
 }
 
 function StepDetails({
-    steps,
-    stepState,
     running,
     log,
     durationNotice,
 }: {
-    steps: ReadonlyArray<{ id: string; label: string }>;
-    stepState: Record<string, StepStatus>;
     running: boolean;
     log: string[];
     durationNotice?: string;
 }) {
+    const logEndRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (running) logEndRef.current?.scrollIntoView({ block: 'nearest' });
+    }, [log.length, running]);
+
     return (
         <div className="mt-5 border-t border-slate-700 pt-5">
-            <h3 className="text-sm font-semibold text-slate-100">Update steps</h3>
+            <h3 className="text-sm font-semibold text-slate-100">Live update output</h3>
             {running && durationNotice && (
                 <div className="mt-3 rounded-lg border border-amber-400/30 bg-amber-400/10 px-3 py-2.5 text-xs text-amber-100">
                     <FaExclamationTriangle className="mr-2 inline text-amber-300" />
                     Update in progress — this can take 40 minutes or longer. Keep the kiosk powered on and leave this app open.
                 </div>
             )}
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {steps.map((step, index) => {
-                    const status = stepState[step.id] ?? 'pending';
-                    return (
-                        <div key={step.id} className="flex items-center justify-between rounded-lg bg-slate-900/80 px-3 py-2.5">
-                            <span className="text-xs text-slate-200">
-                                {index + 1}. {step.label}
-                            </span>
-                            <span className={`text-[10px] font-semibold uppercase ${statusColors[status]}`}>{status}</span>
-                        </div>
-                    );
-                })}
-            </div>
-            <div className="mt-4 rounded-xl bg-black/20 p-3">
+            <div className="mt-4 rounded-xl border border-slate-700 bg-black/30 p-3">
                 <div className="flex items-center justify-between text-[10px] font-semibold tracking-wider text-slate-400 uppercase">
-                    <span>Details</span>
-                    {running && <span className="animate-pulse text-amber-300">Running</span>}
+                    <span>Command logs</span>
+                    {running && <span className="animate-pulse text-amber-300">Streaming</span>}
                 </div>
-                <div className="mt-2 max-h-48 space-y-1 overflow-y-auto font-mono text-[11px] text-slate-300">
-                    {log.length === 0 && <div className="text-slate-500">Preparing...</div>}
+                <div className="mt-2 max-h-96 min-h-48 space-y-1 overflow-y-auto font-mono text-[11px] text-slate-200">
+                    {log.length === 0 && <div className="text-slate-500">Waiting for command output...</div>}
                     {log.map((line, index) => (
                         <div key={`${line}-${index}`} className="break-words whitespace-pre-wrap">
                             {line}
                         </div>
                     ))}
+                    <div ref={logEndRef} />
                 </div>
             </div>
         </div>

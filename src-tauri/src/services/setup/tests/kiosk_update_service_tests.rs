@@ -1,6 +1,38 @@
 use super::*;
 
 #[test]
+fn persists_update_progress_and_rejects_concurrent_runs() {
+    *KIOSK_UPDATE_PROGRESS.lock().expect("progress lock") = KioskUpdateProgress::default();
+
+    KioskUpdateService::begin("app").expect("update should start");
+    assert!(KioskUpdateService::begin("modules").is_err());
+
+    KioskUpdateService::record_progress(&SetupProgress {
+        step: "fetch".to_string(),
+        status: "started".to_string(),
+        message: Some("Fetching latest kiosk code".to_string()),
+    });
+    KioskUpdateService::record_progress(&SetupProgress {
+        step: "log".to_string(),
+        status: "log".to_string(),
+        message: Some("remote: Enumerating objects".to_string()),
+    });
+
+    let running = KioskUpdateService::progress();
+    assert!(running.running);
+    assert_eq!(running.action.as_deref(), Some("app"));
+    assert_eq!(running.step.as_deref(), Some("fetch"));
+    assert_eq!(running.percent, 1);
+    assert_eq!(running.log, vec!["remote: Enumerating objects"]);
+
+    KioskUpdateService::finish(&Ok(()));
+    let complete = KioskUpdateService::progress();
+    assert!(!complete.running);
+    assert_eq!(complete.percent, 100);
+    assert_eq!(complete.status.as_deref(), Some("success"));
+}
+
+#[test]
 fn parses_prefixed_semver_tags() {
     assert_eq!(
         KioskUpdateService::parse_prefixed_semver("kiosk/1.2.3", "kiosk/"),

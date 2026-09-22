@@ -2,7 +2,7 @@ use std::io::{BufRead, BufReader, Read};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, Instant};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use lazy_static::lazy_static;
 use serde::Serialize;
@@ -35,6 +35,23 @@ struct SimpleSemver {
 lazy_static! {
     static ref KIOSK_APP_TAG_CACHE: Mutex<Option<KioskTagCacheEntry>> = Mutex::new(None);
     static ref KIOSK_LEROBOT_TAG_CACHE: Mutex<Option<KioskTagCacheEntry>> = Mutex::new(None);
+    static ref KIOSK_UPDATE_PROGRESS: Mutex<KioskUpdateProgress> =
+        Mutex::new(KioskUpdateProgress::default());
+}
+
+#[derive(Clone, Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct KioskUpdateProgress {
+    pub running: bool,
+    pub action: Option<String>,
+    pub step: Option<String>,
+    pub status: Option<String>,
+    pub percent: u8,
+    pub message: Option<String>,
+    pub error: Option<String>,
+    pub started_at: Option<u64>,
+    pub step_started_at: Option<u64>,
+    pub log: Vec<String>,
 }
 
 #[derive(Clone, Serialize)]
@@ -58,6 +75,110 @@ impl KioskUpdateService {
     const DEFAULT_KIOSK_APP_TAG_PREFIX: &str = "kiosk/";
     const DEFAULT_KIOSK_LEROBOT_TAG_PREFIX: &str = "vulcan/";
     const TAG_CACHE_TTL: Duration = Duration::from_secs(300);
+
+    pub fn progress() -> KioskUpdateProgress {
+        KIOSK_UPDATE_PROGRESS
+            .lock()
+            .map(|progress| progress.clone())
+            .unwrap_or_default()
+    }
+
+    pub fn begin(action: &str) -> Result<(), String> {
+        let mut progress = KIOSK_UPDATE_PROGRESS
+            .lock()
+            .map_err(|_| "Kiosk update progress state is unavailable".to_string())?;
+        if progress.running {
+            return Err("A kiosk update is already running.".to_string());
+        }
+
+        let now = Self::unix_timestamp_ms();
+        *progress = KioskUpdateProgress {
+            running: true,
+            action: Some(action.to_string()),
+            started_at: Some(now),
+            step_started_at: Some(now),
+            ..KioskUpdateProgress::default()
+        };
+        Ok(())
+    }
+
+    pub fn finish(result: &Result<(), String>) {
+        if let Ok(mut progress) = KIOSK_UPDATE_PROGRESS.lock() {
+            progress.running = false;
+            match result {
+                Ok(()) => {
+                    progress.percent = 100;
+                    progress.step = Some("complete".to_string());
+                    progress.status = Some("success".to_string());
+                    progress.error = None;
+                }
+                Err(error) => {
+                    progress.status = Some("error".to_string());
+                    progress.error = Some(error.clone());
+                    progress.message = Some(error.clone());
+                }
+            }
+        }
+    }
+
+    fn unix_timestamp_ms() -> u64 {
+        SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_millis() as u64
+    }
+
+    fn step_percent(action: &str, step: &str, status: &str) -> u8 {
+        match (action, step, status) {
+            ("app", "fetch", "started") => 1,
+            ("app", "fetch", "success") => 5,
+            ("app", "reset", "started") => 7,
+            ("app", "reset", "success") => 10,
+            ("app", "submodules", "started") => 12,
+            ("app", "submodules", "success") => 20,
+            ("app", "tag", "started") => 22,
+            ("app", "tag", "success") => 30,
+            ("app", "setup", "started") => 35,
+            ("app", "setup", "success") => 95,
+            ("app", "complete", "success") => 100,
+            ("modules", "submodules", "started") => 5,
+            ("modules", "submodules", "success") => 25,
+            ("modules", "tag", "started") => 30,
+            ("modules", "tag", "success") => 45,
+            ("modules", "deps", "started") => 50,
+            ("modules", "deps", "success") => 95,
+            ("modules", "complete", "success") => 100,
+            _ => 0,
+        }
+    }
+
+    fn record_progress(update: &SetupProgress) {
+        let Ok(mut progress) = KIOSK_UPDATE_PROGRESS.lock() else {
+            return;
+        };
+
+        if update.status == "log" {
+            if let Some(message) = update.message.as_ref() {
+                progress.log.push(message.clone());
+                if progress.log.len() > 2_000 {
+                    progress.log.remove(0);
+                }
+            }
+            return;
+        }
+
+        let action = progress.action.clone().unwrap_or_default();
+        if progress.step.as_deref() != Some(update.step.as_str()) && update.status == "started" {
+            progress.step_started_at = Some(Self::unix_timestamp_ms());
+        }
+        progress.step = Some(update.step.clone());
+        progress.status = Some(update.status.clone());
+        progress.message = update.message.clone();
+        let percent = Self::step_percent(&action, &update.step, &update.status);
+        if percent > 0 {
+            progress.percent = percent;
+        }
+    }
 
     pub fn check_updates(_app_handle: &AppHandle) -> Result<KioskUpdateStatus, String> {
         let repo_root = DirectoryService::get_current_dir()?;
@@ -130,6 +251,7 @@ impl KioskUpdateService {
 
     pub fn repair_lerobot(app_handle: &AppHandle) -> Result<(), String> {
         let emit = |progress: SetupProgress| {
+            Self::record_progress(&progress);
             let _ = app_handle.emit("kiosk:setup-progress", progress);
         };
 
@@ -196,6 +318,7 @@ impl KioskUpdateService {
 
     pub fn update_kiosk(app_handle: &AppHandle) -> Result<(), String> {
         let emit = |progress: SetupProgress| {
+            Self::record_progress(&progress);
             let _ = app_handle.emit("kiosk:setup-progress", progress);
         };
 
@@ -470,14 +593,13 @@ impl KioskUpdateService {
     }
 
     fn emit_log(app_handle: &AppHandle, message: String) {
-        let _ = app_handle.emit(
-            "kiosk:setup-progress",
-            SetupProgress {
-                step: "log".to_string(),
-                status: "log".to_string(),
-                message: Some(message),
-            },
-        );
+        let progress = SetupProgress {
+            step: "log".to_string(),
+            status: "log".to_string(),
+            message: Some(message),
+        };
+        Self::record_progress(&progress);
+        let _ = app_handle.emit("kiosk:setup-progress", progress);
     }
 
     fn resolve_prefix_env(name: &str, fallback: &str) -> String {

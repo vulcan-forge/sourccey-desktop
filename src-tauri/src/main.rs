@@ -6,7 +6,9 @@
 mod database;
 use database::connection::DatabaseManager;
 use serde::Serialize;
-use services::setup::kiosk_update_service::{KioskUpdateService, KioskUpdateStatus};
+use services::setup::kiosk_update_service::{
+    KioskUpdateProgress, KioskUpdateService, KioskUpdateStatus,
+};
 use services::setup::local_setup_service::{
     DesktopExtrasStatus, LerobotUpdateStatus, LocalSetupService, SetupStatus,
 };
@@ -479,19 +481,30 @@ async fn check_lerobot_update(app: tauri::AppHandle) -> Result<LerobotUpdateStat
 }
 
 #[tauri::command]
-async fn kiosk_setup_repair(app: tauri::AppHandle) -> Result<(), String> {
+fn kiosk_setup_repair(app: tauri::AppHandle) -> Result<(), String> {
+    KioskUpdateService::begin("modules")?;
     let app_handle = app.clone();
-    tauri::async_runtime::spawn_blocking(move || KioskUpdateService::repair_lerobot(&app_handle))
-        .await
-        .map_err(|e| format!("Kiosk repair task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = KioskUpdateService::repair_lerobot(&app_handle);
+        KioskUpdateService::finish(&result);
+    });
+    Ok(())
 }
 
 #[tauri::command]
-async fn kiosk_setup_update(app: tauri::AppHandle) -> Result<(), String> {
+fn kiosk_setup_update(app: tauri::AppHandle) -> Result<(), String> {
+    KioskUpdateService::begin("app")?;
     let app_handle = app.clone();
-    tauri::async_runtime::spawn_blocking(move || KioskUpdateService::update_kiosk(&app_handle))
-        .await
-        .map_err(|e| format!("Kiosk update task failed: {}", e))?
+    tauri::async_runtime::spawn_blocking(move || {
+        let result = KioskUpdateService::update_kiosk(&app_handle);
+        KioskUpdateService::finish(&result);
+    });
+    Ok(())
+}
+
+#[tauri::command]
+fn kiosk_update_progress() -> KioskUpdateProgress {
+    KioskUpdateService::progress()
 }
 
 #[tauri::command]
@@ -703,6 +716,7 @@ fn main() {
             kiosk_setup_repair,
             kiosk_setup_update,
             kiosk_update_check,
+            kiosk_update_progress,
 
             // Kiosk Host Functions
             start_kiosk_host,
