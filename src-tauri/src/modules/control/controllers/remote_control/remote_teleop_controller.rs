@@ -1,6 +1,7 @@
 use crate::modules::control::services::remote_control::remote_teleop_service::{
     RemoteTeleopProcess, RemoteTeleopService,
 };
+use crate::services::telemetry;
 use serde::{Deserialize, Serialize};
 use tauri::command;
 use tauri::{AppHandle, Manager, State};
@@ -35,7 +36,14 @@ pub async fn start_remote_teleop(
 ) -> Result<String, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    RemoteTeleopService::start_teleop(app_handle, db_connection, &state, config).await
+    let session_key = config.nickname.clone();
+    let result = RemoteTeleopService::start_teleop(app_handle, db_connection, &state, config).await;
+    if result.is_ok() {
+        telemetry::control_started("teleop", &session_key);
+    } else {
+        telemetry::control_start_failed("teleop");
+    }
+    result
 }
 
 #[command]
@@ -46,5 +54,10 @@ pub fn stop_remote_teleop(
 ) -> Result<String, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    RemoteTeleopService::stop_teleop(&app_handle, db_connection, &state, nickname)
+    let session_key = nickname.clone();
+    let result = RemoteTeleopService::stop_teleop(&app_handle, db_connection, &state, nickname);
+    if result.is_ok() {
+        telemetry::control_finished("teleop", &session_key, "user_stopped");
+    }
+    result
 }

@@ -8,6 +8,7 @@ use crate::modules::control::services::remote_control::remote_teleop_service::Re
 use crate::modules::dataset_sync::services::upload_service::UploadService;
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
+use crate::services::telemetry;
 use sea_orm::DatabaseConnection;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -123,6 +124,7 @@ impl RemoteRecordService {
                         if !line.is_empty() {
                             if !capture_started && line.contains("Recording episode") {
                                 capture_started = true;
+                                telemetry::control_ready("recording");
                                 Self::emit_record_info(
                                     &app_handle_for_logs,
                                     &nickname_for_logs,
@@ -142,6 +144,7 @@ impl RemoteRecordService {
                         if !line.is_empty() {
                             if !capture_started && line.contains("Recording episode") {
                                 capture_started = true;
+                                telemetry::control_ready("recording");
                                 Self::emit_record_info(
                                     &app_handle_for_logs,
                                     &nickname_for_logs,

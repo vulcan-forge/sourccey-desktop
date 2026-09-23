@@ -1,6 +1,7 @@
 use crate::modules::control::services::remote_control::remote_record_service::{
     RemoteRecordProcess, RemoteRecordService,
 };
+use crate::services::telemetry;
 use serde::{Deserialize, Serialize};
 use tauri::command;
 use tauri::{AppHandle, Manager, State};
@@ -34,7 +35,14 @@ pub async fn start_remote_record(
 ) -> Result<String, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    RemoteRecordService::start_record(app_handle, db_connection, &state, config).await
+    let session_key = config.nickname.clone();
+    let result = RemoteRecordService::start_record(app_handle, db_connection, &state, config).await;
+    if result.is_ok() {
+        telemetry::control_started("recording", &session_key);
+    } else {
+        telemetry::control_start_failed("recording");
+    }
+    result
 }
 
 #[command]
@@ -45,5 +53,10 @@ pub fn stop_remote_record(
 ) -> Result<String, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    RemoteRecordService::stop_record(&app_handle, db_connection, &state, nickname)
+    let session_key = nickname.clone();
+    let result = RemoteRecordService::stop_record(&app_handle, db_connection, &state, nickname);
+    if result.is_ok() {
+        telemetry::control_finished("recording", &session_key, "user_stopped");
+    }
+    result
 }

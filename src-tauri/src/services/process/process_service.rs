@@ -1,4 +1,5 @@
 use crate::modules::log::services::command_log_service::CommandLogService;
+use crate::services::telemetry;
 use crate::utils::windows_process::configure_std_command;
 use sea_orm::DatabaseConnection;
 use serde_json::Value;
@@ -247,6 +248,14 @@ impl ProcessService {
         db_connection: Option<DatabaseConnection>,
     ) {
         let app_handle_for_shutdown = app_handle.clone();
+        let telemetry_mode = emit_key.strip_suffix("-process-shutdown").map(|mode| {
+            if mode == "record" {
+                "recording".to_string()
+            } else {
+                mode.to_string()
+            }
+        });
+        let telemetry_process_key = process_key.clone();
         Self::start_process_monitor(
             pid,
             app_handle,
@@ -256,6 +265,9 @@ impl ProcessService {
             15,   // 15 second initial delay
             5000, // 5 second check interval
             Some(Box::new(move || {
+                if let Some(mode) = telemetry_mode.as_deref() {
+                    telemetry::control_finished(mode, &telemetry_process_key, "process_exited");
+                }
                 let _ = state.lock().unwrap().remove(&process_key);
 
                 if let (Some(db_conn), Some(log_id)) =

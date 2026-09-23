@@ -8,6 +8,7 @@ use crate::modules::control::services::remote_control::remote_command_utils::{
 use crate::services::directory::directory_service::DirectoryService;
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
+use crate::services::telemetry;
 use sea_orm::DatabaseConnection;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -177,6 +178,7 @@ impl RemoteReplayService {
                         }
                         if !replay_started && line.contains("Replaying episode") {
                             replay_started = true;
+                            telemetry::control_ready("replay");
                             Self::emit_replay_info(
                                 &app_handle_for_logs,
                                 &nickname_for_logs,
@@ -207,6 +209,15 @@ impl RemoteReplayService {
                             LogService::write_log_line(path, Some("replay"), &message);
                         }
                         if !user_requested_stop {
+                            telemetry::control_finished(
+                                "replay",
+                                &nickname_for_logs,
+                                if payload.code == Some(0) {
+                                    "completed"
+                                } else {
+                                    "process_exited"
+                                },
+                            );
                             shutdown_for_logs.store(true, Ordering::Relaxed);
                             let _ = state_for_logs.lock().unwrap().remove(&nickname_for_logs);
                             ProcessService::on_process_shutdown(

@@ -6,6 +6,8 @@ use std::net::{IpAddr, Ipv4Addr, UdpSocket};
 use std::process::Command;
 use std::time::{Duration, Instant};
 
+use crate::services::telemetry;
+
 const DISCOVERY_MAGIC: &str = "SOURCCEY_DISCOVER_V1";
 const DISCOVERY_PORT: u16 = 42111;
 const SOURCCEY_COMMAND_PORT: u16 = 5555;
@@ -55,6 +57,7 @@ pub struct LanRobotDiscoveryService;
 
 impl LanRobotDiscoveryService {
     pub async fn discover_lan_robots() -> Result<LanRobotDiscoveryResult, String> {
+        let started_at = Instant::now();
         let local_ip = resolve_private_ipv4().ok_or_else(|| {
             "Unable to detect a private LAN address on this desktop. Connect to the same network as the robot and try again.".to_string()
         })?;
@@ -70,6 +73,12 @@ impl LanRobotDiscoveryService {
         } else {
             None
         };
+
+        telemetry::metric(
+            "robot.discovery.duration_ms",
+            started_at.elapsed().as_secs_f64() * 1000.0,
+        );
+        telemetry::metric("robot.discovery.host_count", hosts.len() as f64);
 
         Ok(LanRobotDiscoveryResult {
             local_ip: local_ip.to_string(),

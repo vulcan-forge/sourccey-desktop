@@ -5,6 +5,7 @@ use crate::modules::dataset_sync::types::{
 };
 use crate::modules::settings::services::desktop_environment::desktop_environment_service::DesktopEnvironmentService;
 use crate::services::directory::directory_service::DirectoryService;
+use crate::services::telemetry;
 use crate::utils::windows_process::configure_std_command;
 use chrono::{DateTime, Utc};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement, TryGetable};
@@ -15,7 +16,7 @@ use std::ffi::OsString;
 use std::fs;
 use std::path::Path;
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use uuid::Uuid;
 
 const PROTOCOL_VERSION: u32 = 1;
@@ -155,7 +156,13 @@ impl UploadService {
             let attempt_count: i32 = row
                 .try_get("", "attempt_count")
                 .map_err(|error| error.to_string())?;
-            match Self::transmit_metadata_row(&client, &api_base, &token, &row).await {
+            let request_started_at = Instant::now();
+            let transmission = Self::transmit_metadata_row(&client, &api_base, &token, &row).await;
+            telemetry::metric(
+                "external.request.duration_ms",
+                request_started_at.elapsed().as_secs_f64() * 1000.0,
+            );
+            match transmission {
                 Ok((object_key, etag)) => {
                     connection
                         .execute(Statement::from_sql_and_values(
@@ -175,10 +182,18 @@ impl UploadService {
                         .await
                         .map_err(|error| format!("Failed to complete metadata upload: {error}"))?;
                     report.completed += 1;
+                    telemetry::event(
+                        "dataset_sync.metadata_upload",
+                        json!({ "outcome": "completed", "attempt": attempt_count + 1 }),
+                    );
                 }
                 Err(error) => {
                     Self::mark_metadata_failed(connection, &id, attempt_count, &error).await?;
                     report.failed += 1;
+                    telemetry::event(
+                        "dataset_sync.metadata_upload",
+                        json!({ "outcome": "failed", "attempt": attempt_count + 1 }),
+                    );
                 }
             }
         }

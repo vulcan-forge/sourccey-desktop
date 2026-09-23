@@ -12,6 +12,7 @@ const { spawn, spawnSync } = require('child_process');
 const { finalizeArtifactNames } = require('./artifact-names');
 
 const REQUIRED_KEYS = ['TAURI_SIGNING_PUBLIC_KEY', 'TAURI_SIGNING_PRIVATE_KEY', 'TAURI_SIGNING_PRIVATE_KEY_PASSWORD'];
+const OPTIONAL_RUNTIME_KEYS = ['PLEXUS_API_KEY', 'PLEXUS_GATEWAY_URL'];
 const LINUX_INOTIFY_LIMITS = {
     max_user_watches: 524288,
     max_user_instances: 1024,
@@ -99,6 +100,9 @@ for (const key of REQUIRED_KEYS) {
     } else if (requiresSigningKeys) {
         console.warn(`[tauri-env] Warning: ${key} is not set.`);
     }
+}
+for (const key of OPTIONAL_RUNTIME_KEYS) {
+    if (!process.env[key] && envFromFile[key]) process.env[key] = envFromFile[key];
 }
 
 function stageUvResource() {

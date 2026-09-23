@@ -1,6 +1,7 @@
 use crate::modules::control::services::remote_control::remote_replay_service::{
     RemoteReplayProcess, RemoteReplayService,
 };
+use crate::services::telemetry;
 use serde::{Deserialize, Serialize};
 use tauri::{command, AppHandle, Manager, State};
 
@@ -49,7 +50,14 @@ pub async fn start_remote_replay(
 ) -> Result<String, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    RemoteReplayService::start_replay(app_handle, db_connection, &state, config).await
+    let session_key = config.nickname.clone();
+    let result = RemoteReplayService::start_replay(app_handle, db_connection, &state, config).await;
+    if result.is_ok() {
+        telemetry::control_started("replay", &session_key);
+    } else {
+        telemetry::control_start_failed("replay");
+    }
+    result
 }
 
 #[command]
@@ -60,5 +68,10 @@ pub fn stop_remote_replay(
 ) -> Result<String, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    RemoteReplayService::stop_replay(&app_handle, db_connection, &state, nickname)
+    let session_key = nickname.clone();
+    let result = RemoteReplayService::stop_replay(&app_handle, db_connection, &state, nickname);
+    if result.is_ok() {
+        telemetry::control_finished("replay", &session_key, "user_stopped");
+    }
+    result
 }

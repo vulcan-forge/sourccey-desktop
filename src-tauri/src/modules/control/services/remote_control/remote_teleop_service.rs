@@ -5,6 +5,7 @@ use crate::modules::control::services::remote_control::remote_command_utils::{
 };
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
+use crate::services::telemetry;
 use sea_orm::DatabaseConnection;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -152,6 +153,7 @@ impl RemoteTeleopService {
                             if line.contains("Teleop loop time:") {
                                 if !loop_started {
                                     loop_started = true;
+                                    telemetry::control_ready("teleop");
                                     Self::emit_teleop_info(
                                         &app_handle_for_logs,
                                         &nickname_for_logs,

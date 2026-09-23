@@ -1,6 +1,7 @@
 use crate::modules::control::services::remote_control::remote_rollout_service::{
     RemoteRolloutProcess, RemoteRolloutService,
 };
+use crate::services::telemetry;
 use serde::{Deserialize, Serialize};
 use tauri::command;
 use tauri::{AppHandle, Manager, State};
@@ -34,7 +35,15 @@ pub async fn start_remote_rollout(
 ) -> Result<String, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    RemoteRolloutService::start_rollout(app_handle, db_connection, &state, config).await
+    let session_key = config.nickname.clone();
+    let result =
+        RemoteRolloutService::start_rollout(app_handle, db_connection, &state, config).await;
+    if result.is_ok() {
+        telemetry::control_started("rollout", &session_key);
+    } else {
+        telemetry::control_start_failed("rollout");
+    }
+    result
 }
 
 #[command]
@@ -45,5 +54,10 @@ pub fn stop_remote_rollout(
 ) -> Result<String, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let db_connection = db_manager.get_connection().clone();
-    RemoteRolloutService::stop_rollout(&app_handle, db_connection, &state, nickname)
+    let session_key = nickname.clone();
+    let result = RemoteRolloutService::stop_rollout(&app_handle, db_connection, &state, nickname);
+    if result.is_ok() {
+        telemetry::control_finished("rollout", &session_key, "user_stopped");
+    }
+    result
 }

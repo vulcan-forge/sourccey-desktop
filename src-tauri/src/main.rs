@@ -18,6 +18,7 @@ use tauri::Manager;
 mod services;
 use services::directory::directory_service::DirectoryService;
 use services::log::log_service::LogService;
+use services::telemetry;
 
 // Import modules from the utils folder
 mod utils;
@@ -558,6 +559,15 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
+            telemetry::init();
+            telemetry::event(
+                "app.lifecycle",
+                serde_json::json!({
+                    "state": "started",
+                    "app_mode": if kiosk { "kiosk" } else { "desktop" },
+                    "version": app.package_info().version.to_string()
+                }),
+            );
             // Prefer fixed repo path for kiosk to avoid env vars on low-resource devices.
             if kiosk {
                 DirectoryService::set_project_root_override(
@@ -647,6 +657,15 @@ fn main() {
         })
         // Only block close in kiosk mode
         .on_window_event(move |_, event| {
+            if let tauri::WindowEvent::CloseRequested { .. } = event {
+                telemetry::event(
+                    "app.lifecycle",
+                    serde_json::json!({
+                        "state": "close_requested",
+                        "app_mode": if kiosk { "kiosk" } else { "desktop" }
+                    }),
+                );
+            }
             if kiosk {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                     api.prevent_close();

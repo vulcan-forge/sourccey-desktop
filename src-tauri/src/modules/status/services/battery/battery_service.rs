@@ -7,6 +7,7 @@ use std::time::Duration;
 use std::time::Instant;
 
 use crate::services::directory::directory_service::DirectoryService;
+use crate::services::telemetry;
 use crate::utils::windows_process::configure_std_command;
 
 #[derive(Debug, Serialize, Deserialize, Default, Clone, PartialEq)]
@@ -44,6 +45,24 @@ impl BatteryService {
     const BATTERY_SCRIPT_TIMEOUT: Duration = Duration::from_secs(10);
 
     pub fn get_battery_data() -> Result<BatteryData, String> {
+        let result = Self::read_battery_data();
+        match &result {
+            Ok(data) => {
+                telemetry::metric("robot.battery.voltage_v", data.voltage);
+                telemetry::metric(
+                    "robot.battery.state_of_charge_pct",
+                    data.state_of_charge as f64,
+                );
+            }
+            Err(error) => telemetry::event(
+                "robot.battery.read_failed",
+                serde_json::json!({ "category": Self::failure_category(error) }),
+            ),
+        }
+        result
+    }
+
+    fn read_battery_data() -> Result<BatteryData, String> {
         if let Some(cached) = Self::get_recent_cached_battery_data() {
             return Ok(cached);
         }
@@ -119,6 +138,21 @@ impl BatteryService {
 
         Self::set_cached_battery_data(&battery_data);
         Ok(battery_data)
+    }
+
+    fn failure_category(error: &str) -> &'static str {
+        let error = error.to_ascii_lowercase();
+        if error.contains("timed out") {
+            "timeout"
+        } else if error.contains("execute") || error.contains("spawn") {
+            "spawn"
+        } else if error.contains("parse") || error.contains("read script output") {
+            "invalid_output"
+        } else if error.contains("failed:") {
+            "process_exit"
+        } else {
+            "unknown"
+        }
     }
 
     fn cache() -> &'static Mutex<Option<CachedBatteryData>> {

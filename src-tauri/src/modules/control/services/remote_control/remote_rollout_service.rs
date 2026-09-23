@@ -6,6 +6,7 @@ use crate::modules::control::services::remote_control::remote_command_utils::{
 };
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
+use crate::services::telemetry;
 use sea_orm::DatabaseConnection;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
@@ -120,6 +121,7 @@ impl RemoteRolloutService {
                                 && line.contains("Rollout setup complete, starting rollout")
                             {
                                 rollout_started = true;
+                                telemetry::control_ready("rollout");
                                 Self::emit_rollout_info(
                                     &app_handle_for_logs,
                                     &nickname_for_logs,
@@ -141,6 +143,7 @@ impl RemoteRolloutService {
                                 && line.contains("Rollout setup complete, starting rollout")
                             {
                                 rollout_started = true;
+                                telemetry::control_ready("rollout");
                                 Self::emit_rollout_info(
                                     &app_handle_for_logs,
                                     &nickname_for_logs,
