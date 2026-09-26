@@ -4,6 +4,7 @@ use crate::modules::dataset_sync::types::{
     PresignMetadataRequest, PresignedUpload, QueueDatasetMetadataRequest, QueuedDatasetMetadata,
 };
 use crate::modules::settings::services::desktop_environment::desktop_environment_service::DesktopEnvironmentService;
+use crate::modules::settings::services::privacy_service::PrivacyService;
 use crate::services::directory::directory_service::DirectoryService;
 use crate::utils::windows_process::configure_std_command;
 use chrono::{DateTime, Utc};
@@ -25,6 +26,13 @@ pub struct UploadService;
 
 impl UploadService {
     pub async fn register_on_startup(connection: &DatabaseConnection) -> Result<(), String> {
+        if !PrivacyService::dataset_metadata_enabled(connection)
+            .await
+            .map_err(|error| format!("Failed to read data sharing preference: {error}"))?
+        {
+            return Ok(());
+        }
+
         let identity = Self::get_identity(connection)
             .await
             .map_err(|error| format!("Failed to load installation identity: {error}"))?;
@@ -42,6 +50,13 @@ impl UploadService {
     pub async fn retry_metadata_on_startup(
         connection: &DatabaseConnection,
     ) -> Result<MetadataTransmissionReport, String> {
+        if !PrivacyService::dataset_metadata_enabled(connection)
+            .await
+            .map_err(|error| format!("Failed to read data sharing preference: {error}"))?
+        {
+            return Ok(Self::empty_transmission_report());
+        }
+
         connection
             .execute(Statement::from_sql_and_values(
                 DbBackend::Sqlite,
@@ -62,6 +77,13 @@ impl UploadService {
         robot_id: &str,
         repo_id: &str,
     ) -> Result<QueuedDatasetMetadata, String> {
+        if !PrivacyService::dataset_metadata_enabled(connection)
+            .await
+            .map_err(|error| format!("Failed to read data sharing preference: {error}"))?
+        {
+            return Err("Dataset metadata sharing is disabled.".to_string());
+        }
+
         let dataset_name = Self::dataset_name_from_repo_id(repo_id)?;
         let report = tauri::async_runtime::spawn_blocking(Self::discover_datasets)
             .await
@@ -100,6 +122,13 @@ impl UploadService {
         connection: &DatabaseConnection,
         limit: u64,
     ) -> Result<MetadataTransmissionReport, String> {
+        if !PrivacyService::dataset_metadata_enabled(connection)
+            .await
+            .map_err(|error| format!("Failed to read data sharing preference: {error}"))?
+        {
+            return Ok(Self::empty_transmission_report());
+        }
+
         let limit = limit.clamp(1, 100);
         let rows = connection
             .query_all(Statement::from_sql_and_values(
@@ -373,6 +402,13 @@ impl UploadService {
         connection: &DatabaseConnection,
         request: QueueDatasetMetadataRequest,
     ) -> Result<QueuedDatasetMetadata, String> {
+        if !PrivacyService::dataset_metadata_enabled(connection)
+            .await
+            .map_err(|error| format!("Failed to read data sharing preference: {error}"))?
+        {
+            return Err("Dataset metadata sharing is disabled.".to_string());
+        }
+
         let identity = Self::get_identity(connection)
             .await
             .map_err(|error| format!("Failed to load installation identity: {error}"))?;
@@ -481,6 +517,14 @@ impl UploadService {
             return Err(format!("{field} cannot be a relative path segment"));
         }
         Ok(encoded)
+    }
+
+    fn empty_transmission_report() -> MetadataTransmissionReport {
+        MetadataTransmissionReport {
+            attempted: 0,
+            completed: 0,
+            failed: 0,
+        }
     }
 
     fn dataset_name_from_repo_id(repo_id: &str) -> Result<String, String> {

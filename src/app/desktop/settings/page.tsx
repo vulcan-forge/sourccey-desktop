@@ -89,6 +89,25 @@ export default function DesktopSettingsPage() {
                         </div>
                     </div>
                 </div>
+
+                <div className="rounded-2xl border-2 border-slate-700 bg-slate-900 p-6 shadow-xl">
+                    <div className="flex flex-col gap-4">
+                        <div>
+                            <div className="text-xs font-semibold tracking-[0.2em] text-slate-500 uppercase">Privacy & Data</div>
+                            <p className="mt-2 text-sm text-slate-300">
+                                Choose whether Vulcan may receive diagnostics, dataset metadata, trajectories, or camera recordings.
+                            </p>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-3">
+                            <LinkButton
+                                href="/desktop/settings/privacy"
+                                className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-emerald-500/50 px-4 py-2 text-sm font-semibold text-emerald-100 transition hover:border-emerald-400/70"
+                            >
+                                Open Privacy & Data
+                            </LinkButton>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     );

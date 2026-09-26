@@ -34,7 +34,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         return <AppBootScreen message="Switching to kiosk mode..." />;
     }
 
-    if (pathname?.startsWith('/desktop/setup')) {
+    if (pathname?.startsWith('/desktop/setup') || pathname?.startsWith('/desktop/onboarding')) {
         return (
             <>
                 <div className={`bg-slate-850 flex h-screen flex-col overflow-hidden`}>{children}</div>

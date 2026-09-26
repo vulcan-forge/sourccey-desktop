@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { FaArrowLeft, FaCheckCircle, FaGlobe, FaSpinner } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
-import { DataCaptureSetting } from '@/components/Elements/Settings/DataCaptureSetting';
 import { saveDesktopEnvironmentSettings, useDesktopEnvironmentSettings } from '@/hooks/System/desktop-environment.hook';
 import type { DesktopEnvironment, DesktopEnvironmentSettings } from '@/types/desktop-environment';
 import { toastErrorDefaults, toastSuccessDefaults } from '@/utils/toast/toast-utils';
@@ -280,8 +279,6 @@ export default function DesktopDeveloperSettingsPage() {
                         </div>
                     )}
                 </div>
-
-                <DataCaptureSetting />
             </div>
         </div>
     );

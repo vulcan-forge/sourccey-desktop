@@ -102,6 +102,9 @@ use modules::settings::controllers::desktop_environment::desktop_environment_con
 use modules::settings::controllers::kiosk_environment::kiosk_environment_controller::{
     get_kiosk_environment_settings, save_kiosk_environment_settings,
 };
+use modules::settings::controllers::privacy_controller::{
+    get_privacy_preferences, save_privacy_preferences,
+};
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
     set_wifi,
@@ -781,6 +784,8 @@ fn main() {
             save_desktop_environment_settings,
             get_kiosk_environment_settings,
             save_kiosk_environment_settings,
+            get_privacy_preferences,
+            save_privacy_preferences,
 
             // Battery API
             get_battery_data,
