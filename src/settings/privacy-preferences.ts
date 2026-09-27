@@ -38,26 +38,24 @@ export const completePrivacyPreferences = (
     updatedAt: now,
 });
 
-export const isProductImprovementEnabled = (choices: SavePrivacyPreferencesRequest): boolean =>
-    choices.diagnosticsEnabled && choices.datasetMetadataEnabled;
+export const isDataSharingEnabled = (choices: SavePrivacyPreferencesRequest): boolean => choices.datasetMetadataEnabled;
 
-export const applyProductImprovementChoice = (
+export const isTelemetryEnabled = (choices: SavePrivacyPreferencesRequest): boolean => choices.diagnosticsEnabled;
+
+export const applyTelemetryChoice = (
     current: SavePrivacyPreferencesRequest,
     enabled: boolean
 ): SavePrivacyPreferencesRequest => ({
     ...current,
     diagnosticsEnabled: enabled,
-    datasetMetadataEnabled: enabled,
 });
 
-export const isAiRecordingContributionEnabled = (choices: SavePrivacyPreferencesRequest): boolean =>
-    choices.trajectoryUploadEnabled && choices.cameraUploadEnabled;
-
-export const applyAiRecordingContributionChoice = (
+export const applyDataSharingChoice = (
     current: SavePrivacyPreferencesRequest,
     enabled: boolean
 ): SavePrivacyPreferencesRequest => ({
     ...current,
+    datasetMetadataEnabled: enabled,
     trajectoryUploadEnabled: enabled,
     cameraUploadEnabled: enabled,
 });

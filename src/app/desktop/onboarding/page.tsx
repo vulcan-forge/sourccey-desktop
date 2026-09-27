@@ -5,13 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { FaArrowRight } from 'react-icons/fa';
 import { AppBootScreen } from '@/components/Elements/AppBootScreen';
+import { PrivacyChoices } from '@/components/Elements/Settings/PrivacyChoices';
 import { usePrivacyPreferences, useSavePrivacyPreferences } from '@/hooks/System/privacy-preferences.hook';
-import {
-    applyAiRecordingContributionChoice,
-    applyProductImprovementChoice,
-    isAiRecordingContributionEnabled,
-    isProductImprovementEnabled,
-} from '@/settings/privacy-preferences';
 import type { SavePrivacyPreferencesRequest } from '@/types/privacy-preferences';
 import { safeNavigate } from '@/utils/navigation';
 
@@ -28,8 +23,6 @@ export default function OnboardingPage() {
     const savePreferences = useSavePrivacyPreferences();
     const [step, setStep] = useState<1 | 2>(1);
     const [choices, setChoices] = useState<SavePrivacyPreferencesRequest>(disabledChoices);
-    const productImprovementEnabled = isProductImprovementEnabled(choices);
-    const aiRecordingContributionEnabled = isAiRecordingContributionEnabled(choices);
 
     useEffect(() => {
         if (!preferences) return;
@@ -87,84 +80,12 @@ export default function OnboardingPage() {
                                 </p>
                             </div>
 
-                            <div className="mt-5 grid gap-3">
-                                <div
-                                    className={`w-full rounded-2xl border p-5 text-left transition ${
-                                        productImprovementEnabled
-                                            ? 'border-orange-300/45 bg-linear-to-br from-amber-300/10 to-orange-400/5 shadow-lg shadow-orange-950/10'
-                                            : 'border-amber-200/15 bg-slate-950/35'
-                                    }`}
-                                >
-                                    <span className="flex items-center justify-between gap-5">
-                                        <span className="text-sm font-semibold text-white">Share improvement data</span>
-                                        <button
-                                            type="button"
-                                            role="switch"
-                                            aria-checked={productImprovementEnabled}
-                                            aria-label="Share diagnostics and dataset metadata"
-                                            onClick={() =>
-                                                setChoices((current) =>
-                                                    applyProductImprovementChoice(current, !productImprovementEnabled)
-                                                )
-                                            }
-                                            disabled={savePreferences.isPending}
-                                            className={`relative h-7 w-12 shrink-0 rounded-full border transition ${
-                                                productImprovementEnabled
-                                                    ? 'border-orange-300 bg-linear-to-r from-yellow-300 to-orange-400'
-                                                    : 'border-slate-600 bg-slate-800'
-                                            } disabled:cursor-not-allowed disabled:opacity-60`}
-                                        >
-                                            <span
-                                                aria-hidden="true"
-                                                className={`absolute top-1 h-5 w-5 rounded-full shadow transition-all ${
-                                                    productImprovementEnabled ? 'left-6 bg-slate-950' : 'left-1 bg-slate-300'
-                                                }`}
-                                            />
-                                        </button>
-                                    </span>
-                                    <span className="mt-2 block text-xs leading-5 text-slate-400">
-                                        Share diagnostics and dataset metadata. No trajectories or vision data.
-                                    </span>
-                                </div>
-
-                                <div
-                                    className={`w-full rounded-2xl border p-5 text-left transition ${
-                                        aiRecordingContributionEnabled
-                                            ? 'border-orange-300/45 bg-linear-to-br from-amber-300/10 to-orange-400/5 shadow-lg shadow-orange-950/10'
-                                            : 'border-amber-200/15 bg-slate-950/35'
-                                    }`}
-                                >
-                                    <span className="flex items-center justify-between gap-5">
-                                        <span className="text-sm font-semibold text-white">Contribute vision data</span>
-                                        <button
-                                            type="button"
-                                            role="switch"
-                                            aria-checked={aiRecordingContributionEnabled}
-                                            aria-label="Contribute trajectories and vision data"
-                                            onClick={() =>
-                                                setChoices((current) =>
-                                                    applyAiRecordingContributionChoice(current, !aiRecordingContributionEnabled)
-                                                )
-                                            }
-                                            disabled={savePreferences.isPending}
-                                            className={`relative h-7 w-12 shrink-0 rounded-full border transition ${
-                                                aiRecordingContributionEnabled
-                                                    ? 'border-orange-300 bg-linear-to-r from-yellow-300 to-orange-400'
-                                                    : 'border-slate-600 bg-slate-800'
-                                            } disabled:cursor-not-allowed disabled:opacity-60`}
-                                        >
-                                            <span
-                                                aria-hidden="true"
-                                                className={`absolute top-1 h-5 w-5 rounded-full shadow transition-all ${
-                                                    aiRecordingContributionEnabled ? 'left-6 bg-slate-950' : 'left-1 bg-slate-300'
-                                                }`}
-                                            />
-                                        </button>
-                                    </span>
-                                    <span className="mt-2 block text-xs leading-5 text-slate-400">
-                                        Share project trajectories, images, and video to improve Sourccey's AI.
-                                    </span>
-                                </div>
+                            <div className="mt-5">
+                                <PrivacyChoices
+                                    value={choices}
+                                    onChange={setChoices}
+                                    disabled={savePreferences.isPending}
+                                />
                             </div>
 
                             <div className="mt-5 flex flex-col items-center border-t border-amber-200/10 pt-5">

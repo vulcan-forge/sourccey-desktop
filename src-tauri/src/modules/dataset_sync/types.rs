@@ -67,6 +67,12 @@ pub struct DatasetSyncIdentity {
 
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
+pub struct SetDatasetSyncAccountRequest {
+    pub account_id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct QueueDatasetMetadataRequest {
     pub robot_id: String,
     pub dataset_id: String,
@@ -95,6 +101,11 @@ pub struct MetadataTransmissionReport {
 #[serde(rename_all = "snake_case")]
 pub struct InstallationRegistrationRequest {
     pub installation_id: String,
+    pub account_id: Option<String>,
+    pub diagnostics_enabled: bool,
+    pub user_data_sharing_enabled: bool,
+    pub privacy_notice_version: i32,
+    pub consent_updated_at: String,
 }
 
 #[derive(Debug, Deserialize)]

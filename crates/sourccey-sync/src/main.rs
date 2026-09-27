@@ -3,6 +3,7 @@
     windows_subsystem = "windows"
 )]
 
+mod catalog;
 mod database;
 mod paths;
 mod startup;
@@ -10,13 +11,14 @@ mod startup;
 use database::SyncDatabase;
 use fs2::FileExt;
 use paths::SyncPaths;
-use sourccey_sync_core::{read_completion_event, DatasetSharingLevel};
+use sourccey_sync_core::{read_completion_event, read_control_command, SyncRequest};
 use std::fs::{self, File, OpenOptions};
 use std::path::Path;
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
-const INBOX_SCAN_INTERVAL: Duration = Duration::from_secs(30);
+const SERVICE_TICK_INTERVAL: Duration = Duration::from_secs(5);
+const CATALOG_RECONCILE_INTERVAL: Duration = Duration::from_secs(10 * 60);
 
 fn main() {
     if let Err(error) = run_command() {
@@ -30,14 +32,24 @@ fn run_command() -> Result<(), String> {
     match arguments.next().as_deref().unwrap_or("run") {
         "run" => run_service(arguments.any(|argument| argument == "--once")),
         "status" => print_status(),
-        "set-sharing" => {
-            let level = arguments
-                .next()
-                .ok_or_else(|| {
-                    "usage: sourccey-sync set-sharing <all|metadata|nothing>".to_string()
-                })?
-                .parse::<DatasetSharingLevel>()?;
-            set_sharing_level(level)
+        "datasets" => print_datasets(),
+        "reconcile" => reconcile_once(),
+        "set-user-sharing" => {
+            let value = arguments.next().ok_or_else(|| {
+                "usage: sourccey-sync set-user-sharing <enabled|disabled>".to_string()
+            })?;
+            let enabled = match value.trim().to_ascii_lowercase().as_str() {
+                "enabled" | "true" | "on" => true,
+                "disabled" | "false" | "off" => false,
+                _ => return Err("user sharing must be enabled or disabled".to_string()),
+            };
+            set_user_sharing_enabled(enabled)
+        }
+        "set-dataset-root" => {
+            let path = arguments.next().ok_or_else(|| {
+                "usage: sourccey-sync set-dataset-root <path-to-vulcan-studio>".to_string()
+            })?;
+            set_dataset_root(Path::new(&path))
         }
         "install-startup" => {
             let executable = std::env::current_exe()
@@ -74,31 +86,78 @@ fn run_service(once: bool) -> Result<(), String> {
     let paths = SyncPaths::resolve()?;
     paths.ensure_directories()?;
     let _instance_lock = acquire_instance_lock(&paths.lock)?;
-    let mut database = SyncDatabase::open(&paths.database)?;
+    let mut database = SyncDatabase::open(&paths.database, &paths.default_dataset_root)?;
     println!(
         "Sourccey Sync started with data at {}",
         paths.root.display()
     );
 
+    let mut last_reconciliation: Option<Instant> = None;
     loop {
-        process_inbox(&paths, &mut database)?;
+        process_control(&paths, &mut database)?;
+        if database.is_active()? {
+            process_inbox(&paths, &mut database)?;
+            if last_reconciliation.is_none_or(|last| last.elapsed() >= CATALOG_RECONCILE_INTERVAL) {
+                reconcile(&mut database, once)?;
+                last_reconciliation = Some(Instant::now());
+            }
+        }
         if once {
             return Ok(());
         }
-        thread::sleep(INBOX_SCAN_INTERVAL);
+        thread::sleep(SERVICE_TICK_INTERVAL);
     }
 }
 
+fn process_control(paths: &SyncPaths, database: &mut SyncDatabase) -> Result<(), String> {
+    let mut commands = pending_json_files(&paths.control.pending_dir())?;
+    commands.sort();
+    for path in commands {
+        let result = read_control_command(&path).and_then(|command| match command.request {
+            SyncRequest::AdoptInstallationId { installation_id } => {
+                database.adopt_installation_id(&installation_id)
+            }
+            SyncRequest::SetUserSharingEnabled { enabled } => {
+                database.set_user_sharing_enabled(enabled)
+            }
+            SyncRequest::SetDatasetRoot { path } => database.set_dataset_root(&path).map(drop),
+            SyncRequest::Ping | SyncRequest::GetStatus | SyncRequest::NotifyInbox => Ok(()),
+            SyncRequest::PrepareForUpdate | SyncRequest::Shutdown => {
+                Err("this control command requires the future IPC transport".to_string())
+            }
+        });
+        match result {
+            Ok(()) => move_event(&path, &paths.control.processed_dir())?,
+            Err(error) => {
+                eprintln!("Rejected sync control {}: {error}", path.display());
+                move_event(&path, &paths.control.failed_dir())?;
+            }
+        }
+    }
+    Ok(())
+}
+
+fn reconcile(database: &mut SyncDatabase, print_report: bool) -> Result<(), String> {
+    if !database.is_active()? {
+        return Ok(());
+    }
+    let root = database.dataset_root()?;
+    let discovery = catalog::discover(&root)?;
+    if discovery.report.root_available {
+        database.reconcile_catalog(&discovery.datasets)?;
+    }
+    if print_report {
+        println!(
+            "{}",
+            serde_json::to_string_pretty(&discovery.report)
+                .map_err(|error| format!("failed to serialize catalog report: {error}"))?
+        );
+    }
+    Ok(())
+}
+
 fn process_inbox(paths: &SyncPaths, database: &mut SyncDatabase) -> Result<(), String> {
-    let mut events = fs::read_dir(paths.inbox.pending_dir())
-        .map_err(|error| format!("failed to scan sync inbox: {error}"))?
-        .filter_map(Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.extension()
-                .is_some_and(|extension| extension == "json")
-        })
-        .collect::<Vec<_>>();
+    let mut events = pending_json_files(&paths.inbox.pending_dir())?;
     events.sort();
 
     for path in events {
@@ -113,6 +172,18 @@ fn process_inbox(paths: &SyncPaths, database: &mut SyncDatabase) -> Result<(), S
         }
     }
     Ok(())
+}
+
+fn pending_json_files(directory: &Path) -> Result<Vec<std::path::PathBuf>, String> {
+    Ok(fs::read_dir(directory)
+        .map_err(|error| format!("failed to scan sync inbox: {error}"))?
+        .filter_map(Result::ok)
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.extension()
+                .is_some_and(|extension| extension == "json")
+        })
+        .collect())
 }
 
 fn move_event(source: &Path, destination_directory: &Path) -> Result<(), String> {
@@ -147,7 +218,7 @@ fn acquire_instance_lock(path: &Path) -> Result<File, String> {
 fn print_status() -> Result<(), String> {
     let paths = SyncPaths::resolve()?;
     paths.ensure_directories()?;
-    let database = SyncDatabase::open(&paths.database)?;
+    let database = SyncDatabase::open(&paths.database, &paths.default_dataset_root)?;
     let status = database.status()?;
     println!(
         "{}",
@@ -157,12 +228,45 @@ fn print_status() -> Result<(), String> {
     Ok(())
 }
 
-fn set_sharing_level(level: DatasetSharingLevel) -> Result<(), String> {
+fn print_datasets() -> Result<(), String> {
     let paths = SyncPaths::resolve()?;
     paths.ensure_directories()?;
-    let mut database = SyncDatabase::open(&paths.database)?;
-    database.set_sharing_level(level)?;
-    println!("Dataset sharing set to {level}.");
+    let database = SyncDatabase::open(&paths.database, &paths.default_dataset_root)?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&database.datasets()?)
+            .map_err(|error| format!("failed to serialize datasets: {error}"))?
+    );
+    Ok(())
+}
+
+fn reconcile_once() -> Result<(), String> {
+    let paths = SyncPaths::resolve()?;
+    paths.ensure_directories()?;
+    let mut database = SyncDatabase::open(&paths.database, &paths.default_dataset_root)?;
+    reconcile(&mut database, true)
+}
+
+fn set_user_sharing_enabled(enabled: bool) -> Result<(), String> {
+    let paths = SyncPaths::resolve()?;
+    paths.ensure_directories()?;
+    paths
+        .control
+        .submit(SyncRequest::SetUserSharingEnabled { enabled })?;
+    println!(
+        "User data sharing change to {} queued.",
+        if enabled { "enabled" } else { "disabled" }
+    );
+    Ok(())
+}
+
+fn set_dataset_root(path: &Path) -> Result<(), String> {
+    let paths = SyncPaths::resolve()?;
+    paths.ensure_directories()?;
+    paths.control.submit(SyncRequest::SetDatasetRoot {
+        path: path.to_path_buf(),
+    })?;
+    println!("Dataset root change to {} queued.", path.display());
     Ok(())
 }
 
@@ -172,7 +276,10 @@ fn print_help() {
          Commands:\n\
            run [--once]          Process completion events and remain in the background\n\
            status                Print queue status as JSON\n\
-           set-sharing LEVEL     Set all, metadata, or nothing\n\
+           datasets              Print tracked datasets and upload states as JSON\n\
+           reconcile             Scan only the configured vulcan-studio directory\n\
+           set-user-sharing VALUE Enable or disable user data sharing\n\
+           set-dataset-root PATH Persist the approved vulcan-studio directory\n\
            install-startup       Start sourccey-sync at user sign-in\n\
            uninstall-startup     Remove user sign-in registration\n\
            startup-status        Print enabled or disabled"

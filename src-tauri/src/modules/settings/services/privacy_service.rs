@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement, TryGetable};
 use serde::{Deserialize, Serialize};
+use sourccey_sync_core::{SyncControlInbox, SyncRequest};
 
 pub const CURRENT_ONBOARDING_VERSION: i32 = 1;
 pub const CURRENT_PRIVACY_NOTICE_VERSION: i32 = 1;
@@ -99,10 +100,56 @@ impl PrivacyService {
                 .await?;
         }
 
+        Self::submit_sync_user_sharing(request.dataset_metadata_enabled)?;
+
         Self::get(connection).await
     }
 
     pub async fn dataset_metadata_enabled(connection: &DatabaseConnection) -> Result<bool, DbErr> {
         Ok(Self::get(connection).await?.dataset_metadata_enabled)
+    }
+
+    pub async fn publish_current_sync_state(connection: &DatabaseConnection) -> Result<(), DbErr> {
+        let preferences = Self::get(connection).await?;
+        let identity = connection
+            .query_one(Statement::from_string(
+                DbBackend::Sqlite,
+                "SELECT installation_id FROM installation_identity WHERE singleton_key = 1"
+                    .to_string(),
+            ))
+            .await?
+            .ok_or_else(|| DbErr::Custom("installation identity is missing".to_string()))?;
+        let installation_id: String = identity.try_get("", "installation_id")?;
+        let inbox = Self::sync_control_inbox()?;
+        inbox
+            .submit(SyncRequest::AdoptInstallationId { installation_id })
+            .map_err(Self::sync_notification_error)?;
+        inbox
+            .submit(SyncRequest::SetUserSharingEnabled {
+                enabled: preferences.dataset_metadata_enabled,
+            })
+            .map(|_| ())
+            .map_err(Self::sync_notification_error)
+    }
+
+    fn submit_sync_user_sharing(enabled: bool) -> Result<(), DbErr> {
+        Self::sync_control_inbox()?
+            .submit(SyncRequest::SetUserSharingEnabled { enabled })
+            .map(|_| ())
+            .map_err(Self::sync_notification_error)
+    }
+
+    fn sync_control_inbox() -> Result<SyncControlInbox, DbErr> {
+        let sync_root = dirs::data_local_dir()
+            .ok_or_else(|| DbErr::Custom("Local data directory is unavailable".to_string()))?
+            .join("Sourccey")
+            .join("Sync");
+        Ok(SyncControlInbox::new(sync_root.join("control")))
+    }
+
+    fn sync_notification_error(error: String) -> DbErr {
+        DbErr::Custom(format!(
+            "Privacy choice was saved, but Sourccey Sync could not be notified: {error}"
+        ))
     }
 }

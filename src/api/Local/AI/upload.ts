@@ -20,6 +20,12 @@ export const getDatasetSyncIdentity = async (): Promise<DatasetSyncIdentity> => 
     return invoke<DatasetSyncIdentity>('get_dataset_sync_identity');
 };
 
+export const setDatasetSyncAccount = async (accountId: string | null): Promise<DatasetSyncIdentity> => {
+    return invoke<DatasetSyncIdentity>('set_dataset_sync_account', {
+        request: { accountId },
+    });
+};
+
 export const queueDatasetMetadata = async (
     request: QueueDatasetMetadataRequest,
 ): Promise<QueuedDatasetMetadata> => {

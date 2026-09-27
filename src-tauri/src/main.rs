@@ -87,7 +87,7 @@ use modules::control::services::kiosk_control::pairing_service::{
 #[cfg(feature = "desktop")]
 use modules::dataset_sync::controllers::upload_controller::{
     discover_upload_datasets, get_dataset_sync_identity, get_upload_jobs, queue_dataset_metadata,
-    transmit_queued_metadata,
+    set_dataset_sync_account, transmit_queued_metadata,
 };
 #[cfg(feature = "desktop")]
 use modules::dataset_sync::services::upload_service::UploadService;
@@ -110,6 +110,7 @@ use modules::settings::controllers::wifi::wifi_controller::{
     set_wifi,
 };
 use modules::settings::services::desktop_environment::desktop_environment_service::DesktopEnvironmentService;
+use modules::settings::services::privacy_service::PrivacyService;
 use modules::status::controllers::battery::battery_controller::get_battery_data;
 
 use tauri_plugin_process::init;
@@ -576,6 +577,14 @@ fn main() {
                     Ok(db_manager) => {
                         println!("Database initialized successfully");
                         #[cfg(feature = "desktop")]
+                        if let Err(error) = PrivacyService::publish_current_sync_state(
+                            db_manager.get_connection(),
+                        )
+                        .await
+                        {
+                            eprintln!("Failed to notify Sourccey Sync of privacy settings: {error}");
+                        }
+                        #[cfg(feature = "desktop")]
                         let dataset_sync_connection = db_manager.get_connection().clone();
                         app_handle.manage(db_manager);
                         println!("Database manager added to app state");
@@ -814,6 +823,8 @@ fn main() {
             get_upload_jobs,
             #[cfg(feature = "desktop")]
             get_dataset_sync_identity,
+            #[cfg(feature = "desktop")]
+            set_dataset_sync_account,
             #[cfg(feature = "desktop")]
             queue_dataset_metadata,
             #[cfg(feature = "desktop")]

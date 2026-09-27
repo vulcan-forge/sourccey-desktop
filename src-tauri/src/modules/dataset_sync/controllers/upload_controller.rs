@@ -1,7 +1,7 @@
 use crate::modules::dataset_sync::services::upload_service::UploadService;
 use crate::modules::dataset_sync::types::{
     DatasetSyncIdentity, DiscoveryReport, JobsReport, MetadataTransmissionReport,
-    QueueDatasetMetadataRequest, QueuedDatasetMetadata,
+    QueueDatasetMetadataRequest, QueuedDatasetMetadata, SetDatasetSyncAccountRequest,
 };
 use tauri::{AppHandle, Manager};
 
@@ -34,6 +34,22 @@ pub async fn get_dataset_sync_identity(
     UploadService::get_identity(db_manager.get_connection())
         .await
         .map_err(|error| format!("Failed to load dataset sync identity: {error}"))
+}
+
+#[tauri::command]
+pub async fn set_dataset_sync_account(
+    app_handle: AppHandle,
+    request: SetDatasetSyncAccountRequest,
+) -> Result<DatasetSyncIdentity, String> {
+    let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
+    let identity = UploadService::set_account(db_manager.get_connection(), request.account_id).await?;
+    let connection = db_manager.get_connection().clone();
+    tauri::async_runtime::spawn(async move {
+        if let Err(error) = UploadService::register_on_startup(&connection).await {
+            eprintln!("Dataset sync account link remains local: {error}");
+        }
+    });
+    Ok(identity)
 }
 
 #[tauri::command]

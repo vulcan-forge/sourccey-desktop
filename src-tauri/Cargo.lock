@@ -22,6 +22,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2",
+ "sourccey-sync-core",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",
@@ -5780,6 +5781,17 @@ dependencies = [
  "gobject-sys",
  "libc",
  "system-deps",
+]
+
+[[package]]
+name = "sourccey-sync-core"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "serde",
+ "serde_json",
+ "sha2",
+ "uuid",
 ]
 
 [[package]]

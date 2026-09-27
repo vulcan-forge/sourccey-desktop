@@ -13,6 +13,8 @@
         "sync:run": "cargo run --manifest-path crates/Cargo.toml -p sourccey-sync -- run",
         "lint": "next lint",
         "tauri": "bun scripts/build/tauri-env.js",
+        "tauri:dev": "bun scripts/build/tauri-env.js dev",
+        "tauri:dev:full": "bun scripts/dev/tauri-dev-full.js",
         "tauri:build": "bun scripts/build/tauri-env.js build",
         "tauri:release": "bun scripts/build/release.js",
         "tauri:release:check": "bun scripts/build/release.js --check",

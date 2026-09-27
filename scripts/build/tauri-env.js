@@ -80,6 +80,18 @@ if (existsSync(envPath)) {
 }
 
 const args = process.argv.slice(2);
+if (args[0] === 'dev:full') {
+    const fullDev = spawnSync('bun', ['scripts/dev/tauri-dev-full.js', ...args.slice(1)], {
+        cwd: process.cwd(),
+        env: process.env,
+        stdio: 'inherit',
+    });
+    if (fullDev.error) {
+        console.error(`[tauri-env] Failed to start full development stack: ${fullDev.error.message}`);
+        process.exit(1);
+    }
+    process.exit(fullDev.status ?? 1);
+}
 const requiresSigningKeys = args[0] === 'build';
 if (args[0] === 'dev' && !checkLinuxInotifyLimits()) {
     process.exit(1);

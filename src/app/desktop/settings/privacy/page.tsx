@@ -8,6 +8,10 @@ import { Spinner } from '@/components/Elements/Spinner';
 import { usePrivacyPreferences, useSavePrivacyPreferences } from '@/hooks/System/privacy-preferences.hook';
 import type { SavePrivacyPreferencesRequest } from '@/types/privacy-preferences';
 import { safeNavigate } from '@/utils/navigation';
+import { getDatasetSyncIdentity } from '@/api/Local/AI/upload';
+import { isTauri } from '@tauri-apps/api/core';
+import type { DatasetSyncIdentity } from '@/types/Module/Upload/upload';
+import { useAuthSession } from '@/hooks/Auth/auth-session.hook';
 
 const emptyChoices: SavePrivacyPreferencesRequest = {
     diagnosticsEnabled: false,
@@ -18,10 +22,12 @@ const emptyChoices: SavePrivacyPreferencesRequest = {
 
 export default function PrivacySettingsPage() {
     const router = useRouter();
+    const { data: authSession } = useAuthSession();
     const { data, isLoading, error } = usePrivacyPreferences();
     const savePreferences = useSavePrivacyPreferences();
     const [choices, setChoices] = useState<SavePrivacyPreferencesRequest>(emptyChoices);
     const [saved, setSaved] = useState(false);
+    const [identity, setIdentity] = useState<DatasetSyncIdentity | null>(null);
 
     useEffect(() => {
         if (!data) return;
@@ -32,6 +38,15 @@ export default function PrivacySettingsPage() {
             cameraUploadEnabled: data.cameraUploadEnabled,
         });
     }, [data]);
+
+    useEffect(() => {
+        if (!isTauri()) return;
+        void getDatasetSyncIdentity()
+            .then(setIdentity)
+            .catch((identityError) => {
+                console.error('Failed to load installation identity:', identityError);
+            });
+    }, []);
 
     const handleSave = async () => {
         setSaved(false);
@@ -55,8 +70,8 @@ export default function PrivacySettingsPage() {
                             <div>
                                 <h1 className="text-2xl font-semibold text-white sm:text-3xl">Privacy & Data</h1>
                                 <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
-                                    Control optional information sent to Vulcan. Local robot operation and local recordings continue to work
-                                    when every option is off.
+                                    Control whether Sourccey may send optional information to Vulcan. Local robot operation and local
+                                    recordings continue to work when sharing is off.
                                 </p>
                             </div>
                         </div>
@@ -115,9 +130,33 @@ export default function PrivacySettingsPage() {
                     )}
                 </section>
 
+                {identity && (
+                    <section className="rounded-2xl border border-slate-700 bg-slate-950/45 p-5">
+                        <h2 className="text-sm font-semibold text-white">This desktop installation</h2>
+                        <p className="mt-1 text-xs leading-5 text-slate-400">
+                            This stable identifier lets your account own multiple desktop installations while each computer keeps its
+                            own data-sharing choices.
+                        </p>
+                        <dl className="mt-4 grid gap-4 text-xs sm:grid-cols-2">
+                            <div>
+                                <dt className="font-semibold tracking-wider text-slate-500 uppercase">Installation ID</dt>
+                                <dd className="mt-1 break-all font-mono text-slate-200">{identity.installationId}</dd>
+                            </div>
+                            <div>
+                                <dt className="font-semibold tracking-wider text-slate-500 uppercase">Linked account</dt>
+                                <dd className="mt-1 break-all font-mono text-slate-200">
+                                    {authSession?.isAuthenticated
+                                        ? authSession.accountId ?? identity.customerId ?? 'Not available'
+                                        : 'Not signed in'}
+                                </dd>
+                            </div>
+                        </dl>
+                    </section>
+                )}
+
                 <section className="rounded-2xl border border-slate-700 bg-slate-950/45 p-5 text-sm text-slate-400">
-                    Turning sharing off prevents new dataset metadata transfers and cancels transfers that have not started. An in-progress
-                    request may finish before the change takes effect. Data already received by Vulcan is not automatically deleted.
+                    Turning robot-data sharing off prevents new dataset transfers and cancels pending work. An in-progress request may
+                    finish before the change takes effect. Data already received by Vulcan is not automatically deleted.
                 </section>
             </div>
         </div>

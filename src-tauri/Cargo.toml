@@ -38,6 +38,7 @@ zip = "0.6"
 async-channel = "2.1"
 lazy_static = "1.4"
 sha2 = "0.10"
+sourccey-sync-core = { path = "../crates/sourccey-sync-core" }
 
 # Add parquet dependencies
 parquet = "51"

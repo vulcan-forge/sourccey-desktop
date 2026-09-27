@@ -1,8 +1,8 @@
 // @ts-nocheck
 import { describe, expect, it } from 'bun:test';
 import {
-    applyAiRecordingContributionChoice,
-    applyProductImprovementChoice,
+    applyDataSharingChoice,
+    applyTelemetryChoice,
     completePrivacyPreferences,
     createDefaultPrivacyPreferences,
     parseStoredPrivacyPreferences,
@@ -41,8 +41,8 @@ describe('privacy preferences', () => {
         expect(completed.cameraUploadEnabled).toBe(false);
     });
 
-    it('keeps product diagnostics separate from robot recording consent', () => {
-        const diagnosticsEnabled = applyProductImprovementChoice(
+    it('keeps telemetry and robot-data sharing independent', () => {
+        const telemetryEnabled = applyTelemetryChoice(
             {
                 diagnosticsEnabled: false,
                 datasetMetadataEnabled: false,
@@ -52,14 +52,14 @@ describe('privacy preferences', () => {
             true
         );
 
-        expect(diagnosticsEnabled).toEqual({
+        expect(telemetryEnabled).toEqual({
             diagnosticsEnabled: true,
-            datasetMetadataEnabled: true,
+            datasetMetadataEnabled: false,
             trajectoryUploadEnabled: false,
             cameraUploadEnabled: false,
         });
 
-        expect(applyAiRecordingContributionChoice(diagnosticsEnabled, true)).toEqual({
+        expect(applyDataSharingChoice(telemetryEnabled, true)).toEqual({
             diagnosticsEnabled: true,
             datasetMetadataEnabled: true,
             trajectoryUploadEnabled: true,

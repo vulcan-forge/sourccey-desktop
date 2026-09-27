@@ -26,13 +26,20 @@ pub struct UploadService;
 
 impl UploadService {
     pub async fn register_on_startup(connection: &DatabaseConnection) -> Result<(), String> {
-        if !PrivacyService::dataset_metadata_enabled(connection)
+        let preferences = PrivacyService::get(connection)
             .await
-            .map_err(|error| format!("Failed to read data sharing preference: {error}"))?
-        {
+            .map_err(|error| format!("Failed to read data sharing preference: {error}"))?;
+        if !preferences.diagnostics_enabled && !preferences.dataset_metadata_enabled {
             return Ok(());
         }
 
+        Self::sync_registration(connection, &preferences).await.map(|_| ())
+    }
+
+    pub async fn sync_registration(
+        connection: &DatabaseConnection,
+        preferences: &crate::modules::settings::services::privacy_service::PrivacyPreferences,
+    ) -> Result<String, String> {
         let identity = Self::get_identity(connection)
             .await
             .map_err(|error| format!("Failed to load installation identity: {error}"))?;
@@ -43,8 +50,7 @@ impl UploadService {
             .build()
             .map_err(|error| format!("Failed to initialize dataset sync client: {error}"))?;
 
-        Self::register_installation(&client, &api_base, &identity.installation_id).await?;
-        Ok(())
+        Self::register_installation(&client, &api_base, &identity, preferences).await
     }
 
     pub async fn retry_metadata_on_startup(
@@ -156,14 +162,16 @@ impl UploadService {
         let identity = Self::get_identity(connection)
             .await
             .map_err(|error| format!("Failed to load installation identity: {error}"))?;
+        let preferences = PrivacyService::get(connection)
+            .await
+            .map_err(|error| format!("Failed to read data sharing preference: {error}"))?;
         let api_base = Self::dataset_sync_api_base_url()?;
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(60))
             .redirect(reqwest::redirect::Policy::none())
             .build()
             .map_err(|error| format!("Failed to initialize dataset sync client: {error}"))?;
-        let token =
-            Self::register_installation(&client, &api_base, &identity.installation_id).await?;
+        let token = Self::register_installation(&client, &api_base, &identity, &preferences).await?;
 
         for row in rows {
             let id: String = row.try_get("", "id").map_err(|error| error.to_string())?;
@@ -218,14 +226,23 @@ impl UploadService {
     async fn register_installation(
         client: &reqwest::Client,
         api_base: &str,
-        installation_id: &str,
+        identity: &DatasetSyncIdentity,
+        preferences: &crate::modules::settings::services::privacy_service::PrivacyPreferences,
     ) -> Result<String, String> {
         let response = client
             .post(format!(
                 "{api_base}/api/v1/dataset-sync/installations/register"
             ))
             .json(&InstallationRegistrationRequest {
-                installation_id: installation_id.to_string(),
+                installation_id: identity.installation_id.clone(),
+                account_id: identity.customer_id.clone(),
+                diagnostics_enabled: preferences.diagnostics_enabled,
+                user_data_sharing_enabled: preferences.dataset_metadata_enabled,
+                privacy_notice_version: preferences.privacy_notice_version,
+                consent_updated_at: preferences
+                    .decided_at
+                    .clone()
+                    .unwrap_or_else(|| preferences.updated_at.clone()),
             })
             .send()
             .await
@@ -396,6 +413,33 @@ impl UploadService {
             customer_id: row.try_get("", "customer_id")?,
             created_at: created_at.to_rfc3339(),
         })
+    }
+
+    pub async fn set_account(
+        connection: &DatabaseConnection,
+        account_id: Option<String>,
+    ) -> Result<DatasetSyncIdentity, String> {
+        let normalized = account_id
+            .map(|value| value.trim().to_string())
+            .filter(|value| !value.is_empty());
+        if let Some(value) = normalized.as_deref() {
+            Uuid::parse_str(value)
+                .map_err(|_| "Account ID must be a valid UUID.".to_string())?;
+        }
+
+        connection
+            .execute(Statement::from_sql_and_values(
+                DbBackend::Sqlite,
+                "UPDATE installation_identity SET customer_id = ?, updated_at = ? \
+                 WHERE singleton_key = 1",
+                [normalized.into(), Utc::now().into()],
+            ))
+            .await
+            .map_err(|error| format!("Failed to link installation account: {error}"))?;
+
+        Self::get_identity(connection)
+            .await
+            .map_err(|error| format!("Failed to reload installation identity: {error}"))
     }
 
     pub async fn queue_metadata(

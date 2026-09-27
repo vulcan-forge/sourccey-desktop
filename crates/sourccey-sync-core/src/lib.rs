@@ -8,7 +8,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
 
-pub const SYNC_PROTOCOL_VERSION: u32 = 1;
+pub const SYNC_PROTOCOL_VERSION: u32 = 3;
 pub const MAX_COMPLETION_EVENT_BYTES: usize = 1024 * 1024;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -17,6 +17,28 @@ pub enum DatasetSharingLevel {
     All,
     Metadata,
     Nothing,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AdminDatasetPolicy {
+    pub policy_id: String,
+    pub version: u64,
+    pub level: DatasetSharingLevel,
+    pub applies_to_existing: bool,
+    pub issued_at: DateTime<Utc>,
+}
+
+impl AdminDatasetPolicy {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.policy_id.trim().is_empty() || self.policy_id.len() > 128 {
+            return Err("admin policy ID must contain between 1 and 128 characters".to_string());
+        }
+        if self.version > i64::MAX as u64 {
+            return Err("admin policy version is too large".to_string());
+        }
+        Ok(())
+    }
 }
 
 impl DatasetSharingLevel {
@@ -66,12 +88,12 @@ impl std::str::FromStr for DatasetSharingLevel {
 pub struct DatasetCompletedEvent {
     pub protocol_version: u32,
     pub event_id: Uuid,
-    pub dataset_record_id: Uuid,
+    pub dataset_revision_id: Uuid,
     pub robot_id: String,
     pub repo_id: String,
-    pub local_path: PathBuf,
+    pub dataset_name: String,
     pub completed_at: DateTime<Utc>,
-    pub sharing_level_at_completion: DatasetSharingLevel,
+    pub user_sharing_enabled_at_completion: bool,
     pub privacy_notice_version: u32,
     pub metadata: Value,
     pub metadata_sha256: String,
@@ -80,22 +102,23 @@ pub struct DatasetCompletedEvent {
 impl DatasetCompletedEvent {
     pub fn new(
         robot_id: impl Into<String>,
-        repo_id: impl Into<String>,
-        local_path: PathBuf,
-        sharing_level_at_completion: DatasetSharingLevel,
+        dataset_name: impl Into<String>,
+        user_sharing_enabled_at_completion: bool,
         privacy_notice_version: u32,
         metadata: Value,
     ) -> Result<Self, String> {
+        let dataset_name = dataset_name.into();
+        validate_dataset_name(&dataset_name)?;
         let metadata_sha256 = sha256_json(&metadata)?;
         let event = Self {
             protocol_version: SYNC_PROTOCOL_VERSION,
             event_id: Uuid::now_v7(),
-            dataset_record_id: Uuid::now_v7(),
+            dataset_revision_id: Uuid::now_v7(),
             robot_id: robot_id.into(),
-            repo_id: repo_id.into(),
-            local_path,
+            repo_id: repo_id_for_dataset(&dataset_name),
+            dataset_name,
             completed_at: Utc::now(),
-            sharing_level_at_completion,
+            user_sharing_enabled_at_completion,
             privacy_notice_version,
             metadata,
             metadata_sha256,
@@ -114,11 +137,9 @@ impl DatasetCompletedEvent {
         if self.robot_id.trim().is_empty() {
             return Err("robotId cannot be empty".to_string());
         }
-        if self.repo_id.trim().is_empty() {
-            return Err("repoId cannot be empty".to_string());
-        }
-        if self.local_path.as_os_str().is_empty() {
-            return Err("localPath cannot be empty".to_string());
+        validate_dataset_name(&self.dataset_name)?;
+        if self.repo_id != repo_id_for_dataset(&self.dataset_name) {
+            return Err("repoId must identify a direct child of vulcan-studio".to_string());
         }
         let actual_hash = sha256_json(&self.metadata)?;
         if actual_hash != self.metadata_sha256 {
@@ -128,12 +149,51 @@ impl DatasetCompletedEvent {
     }
 }
 
+pub fn validate_dataset_name(value: &str) -> Result<(), String> {
+    let trimmed = value.trim();
+    if value != trimmed || value.is_empty() || value.len() > 128 {
+        return Err("dataset name must contain between 1 and 128 characters".to_string());
+    }
+    if matches!(value, "." | "..")
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_' | b'.'))
+    {
+        return Err(
+            "dataset name may only contain letters, numbers, dots, hyphens, and underscores"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
+pub fn repo_id_for_dataset(dataset_name: &str) -> String {
+    format!("vulcan-studio/{dataset_name}")
+}
+
+pub fn validate_installation_id(value: &str) -> Result<(), String> {
+    if value.is_empty()
+        || value.len() > 128
+        || !value
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'-' | b'_'))
+    {
+        return Err(
+            "installation ID must contain 1-128 letters, numbers, hyphens, or underscores"
+                .to_string(),
+        );
+    }
+    Ok(())
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", rename_all = "snake_case")]
 pub enum SyncRequest {
     Ping,
     GetStatus,
-    SetSharingLevel { level: DatasetSharingLevel },
+    AdoptInstallationId { installation_id: String },
+    SetUserSharingEnabled { enabled: bool },
+    SetDatasetRoot { path: PathBuf },
     NotifyInbox,
     PrepareForUpdate,
     Shutdown,
@@ -145,6 +205,52 @@ pub enum SyncResponse {
     Pong { protocol_version: u32 },
     Accepted,
     Error { message: String },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncControlCommand {
+    pub protocol_version: u32,
+    pub command_id: Uuid,
+    pub created_at: DateTime<Utc>,
+    pub request: SyncRequest,
+}
+
+#[derive(Debug, Clone)]
+pub struct SyncControlInbox {
+    root: PathBuf,
+}
+
+impl SyncControlInbox {
+    pub fn new(root: impl Into<PathBuf>) -> Self {
+        Self { root: root.into() }
+    }
+
+    pub fn pending_dir(&self) -> PathBuf {
+        self.root.join("pending")
+    }
+
+    pub fn processed_dir(&self) -> PathBuf {
+        self.root.join("processed")
+    }
+
+    pub fn failed_dir(&self) -> PathBuf {
+        self.root.join("failed")
+    }
+
+    pub fn ensure_directories(&self) -> std::io::Result<()> {
+        ensure_inbox_directories(self)
+    }
+
+    pub fn submit(&self, request: SyncRequest) -> Result<PathBuf, String> {
+        let command = SyncControlCommand {
+            protocol_version: SYNC_PROTOCOL_VERSION,
+            command_id: Uuid::now_v7(),
+            created_at: Utc::now(),
+            request,
+        };
+        submit_json(self, command.command_id, &command, "sync control command")
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -170,10 +276,7 @@ impl SyncInbox {
     }
 
     pub fn ensure_directories(&self) -> std::io::Result<()> {
-        fs::create_dir_all(self.pending_dir().join(".tmp"))?;
-        fs::create_dir_all(self.processed_dir())?;
-        fs::create_dir_all(self.failed_dir())?;
-        Ok(())
+        ensure_inbox_directories(self)
     }
 
     /// Writes to a temporary file, flushes it, then atomically publishes the event.
@@ -182,48 +285,115 @@ impl SyncInbox {
         self.ensure_directories()
             .map_err(|error| format!("failed to prepare sync inbox: {error}"))?;
 
-        let bytes = serde_json::to_vec(event)
-            .map_err(|error| format!("failed to serialize completion event: {error}"))?;
-        if bytes.len() > MAX_COMPLETION_EVENT_BYTES {
-            return Err(format!(
-                "completion event exceeds the {} byte limit",
-                MAX_COMPLETION_EVENT_BYTES
-            ));
-        }
-
-        let filename = format!("{}.json", event.event_id);
-        let temporary_path = self.pending_dir().join(".tmp").join(&filename);
-        let published_path = self.pending_dir().join(filename);
-        let mut file = OpenOptions::new()
-            .create_new(true)
-            .write(true)
-            .open(&temporary_path)
-            .map_err(|error| format!("failed to create completion event: {error}"))?;
-        file.write_all(&bytes)
-            .and_then(|_| file.sync_all())
-            .map_err(|error| format!("failed to persist completion event: {error}"))?;
-        drop(file);
-        fs::rename(&temporary_path, &published_path)
-            .map_err(|error| format!("failed to publish completion event: {error}"))?;
-        Ok(published_path)
+        submit_json(self, event.event_id, event, "completion event")
     }
 }
 
-pub fn read_completion_event(path: &Path) -> Result<(DatasetCompletedEvent, String), String> {
-    let metadata = fs::symlink_metadata(path)
-        .map_err(|error| format!("failed to inspect completion event: {error}"))?;
-    if metadata.file_type().is_symlink()
-        || !metadata.is_file()
-        || metadata.len() > MAX_COMPLETION_EVENT_BYTES as u64
-    {
-        return Err("completion event is not a valid regular file".to_string());
+pub fn read_control_command(path: &Path) -> Result<SyncControlCommand, String> {
+    let raw = read_regular_json_file(path, "sync control command")?;
+    let command: SyncControlCommand = serde_json::from_str(&raw)
+        .map_err(|error| format!("sync control command contains invalid JSON: {error}"))?;
+    if command.protocol_version != SYNC_PROTOCOL_VERSION {
+        return Err(format!(
+            "unsupported sync protocol version {}; expected {}",
+            command.protocol_version, SYNC_PROTOCOL_VERSION
+        ));
     }
-    let raw = fs::read_to_string(path)
-        .map_err(|error| format!("failed to read completion event: {error}"))?;
+    Ok(command)
+}
+
+pub fn read_completion_event(path: &Path) -> Result<(DatasetCompletedEvent, String), String> {
+    let raw = read_regular_json_file(path, "completion event")?;
     let event: DatasetCompletedEvent = serde_json::from_str(&raw)
         .map_err(|error| format!("completion event contains invalid JSON: {error}"))?;
     event.validate()?;
     Ok((event, raw))
+}
+
+trait InboxDirectories {
+    fn pending_dir(&self) -> PathBuf;
+    fn processed_dir(&self) -> PathBuf;
+    fn failed_dir(&self) -> PathBuf;
+}
+
+impl InboxDirectories for SyncInbox {
+    fn pending_dir(&self) -> PathBuf {
+        self.pending_dir()
+    }
+
+    fn processed_dir(&self) -> PathBuf {
+        self.processed_dir()
+    }
+
+    fn failed_dir(&self) -> PathBuf {
+        self.failed_dir()
+    }
+}
+
+impl InboxDirectories for SyncControlInbox {
+    fn pending_dir(&self) -> PathBuf {
+        self.pending_dir()
+    }
+
+    fn processed_dir(&self) -> PathBuf {
+        self.processed_dir()
+    }
+
+    fn failed_dir(&self) -> PathBuf {
+        self.failed_dir()
+    }
+}
+
+fn ensure_inbox_directories(inbox: &impl InboxDirectories) -> std::io::Result<()> {
+    fs::create_dir_all(inbox.pending_dir().join(".tmp"))?;
+    fs::create_dir_all(inbox.processed_dir())?;
+    fs::create_dir_all(inbox.failed_dir())?;
+    Ok(())
+}
+
+fn submit_json(
+    inbox: &impl InboxDirectories,
+    id: Uuid,
+    value: &impl Serialize,
+    description: &str,
+) -> Result<PathBuf, String> {
+    ensure_inbox_directories(inbox)
+        .map_err(|error| format!("failed to prepare {description} inbox: {error}"))?;
+    let bytes = serde_json::to_vec(value)
+        .map_err(|error| format!("failed to serialize {description}: {error}"))?;
+    if bytes.len() > MAX_COMPLETION_EVENT_BYTES {
+        return Err(format!(
+            "{description} exceeds the {} byte limit",
+            MAX_COMPLETION_EVENT_BYTES
+        ));
+    }
+    let filename = format!("{id}.json");
+    let temporary_path = inbox.pending_dir().join(".tmp").join(&filename);
+    let published_path = inbox.pending_dir().join(filename);
+    let mut file = OpenOptions::new()
+        .create_new(true)
+        .write(true)
+        .open(&temporary_path)
+        .map_err(|error| format!("failed to create {description}: {error}"))?;
+    file.write_all(&bytes)
+        .and_then(|_| file.sync_all())
+        .map_err(|error| format!("failed to persist {description}: {error}"))?;
+    drop(file);
+    fs::rename(&temporary_path, &published_path)
+        .map_err(|error| format!("failed to publish {description}: {error}"))?;
+    Ok(published_path)
+}
+
+fn read_regular_json_file(path: &Path, description: &str) -> Result<String, String> {
+    let metadata = fs::symlink_metadata(path)
+        .map_err(|error| format!("failed to inspect {description}: {error}"))?;
+    if metadata.file_type().is_symlink()
+        || !metadata.is_file()
+        || metadata.len() > MAX_COMPLETION_EVENT_BYTES as u64
+    {
+        return Err(format!("{description} is not a valid regular file"));
+    }
+    fs::read_to_string(path).map_err(|error| format!("failed to read {description}: {error}"))
 }
 
 pub fn sha256_json(value: &Value) -> Result<String, String> {
@@ -251,15 +421,9 @@ mod tests {
 
     #[test]
     fn validates_metadata_hash() {
-        let event = DatasetCompletedEvent::new(
-            "robot-1",
-            "local/demo",
-            PathBuf::from("dataset"),
-            DatasetSharingLevel::Metadata,
-            1,
-            json!({"totalEpisodes": 3}),
-        )
-        .unwrap();
+        let event =
+            DatasetCompletedEvent::new("robot-1", "demo", true, 1, json!({"totalEpisodes": 3}))
+                .unwrap();
         assert!(event.validate().is_ok());
     }
 }
