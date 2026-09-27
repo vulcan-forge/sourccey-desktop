@@ -1,9 +1,10 @@
 use crate::catalog::DiscoveredDataset;
 use chrono::{DateTime, Utc};
-use rusqlite::{params, Connection, Transaction};
+use rusqlite::{params, Connection, OptionalExtension, Transaction};
 use serde::Serialize;
 use sourccey_sync_core::{
     validate_installation_id, AdminDatasetPolicy, DatasetCompletedEvent, DatasetSharingLevel,
+    SyncCloudContext,
 };
 use std::path::{Path, PathBuf};
 use uuid::Uuid;
@@ -19,6 +20,8 @@ pub struct SyncDatabase {
 pub struct SyncStatus {
     pub active: bool,
     pub installation_id: String,
+    pub account_id: Option<String>,
+    pub cloud_configured: bool,
     pub user_sharing_enabled: bool,
     pub admin_sharing_level: DatasetSharingLevel,
     pub effective_sharing_level: DatasetSharingLevel,
@@ -56,6 +59,20 @@ pub struct DatasetStatus {
     pub full_dataset_uploaded: bool,
 }
 
+#[derive(Debug, Clone)]
+pub struct MetadataUploadJob {
+    pub id: String,
+    pub installation_id: String,
+    pub account_id: Option<String>,
+    pub robot_id: String,
+    pub repo_id: String,
+    pub metadata: serde_json::Value,
+    pub codebase_version: String,
+    pub total_episodes: u64,
+    pub total_frames: u64,
+    pub attempt_count: u32,
+}
+
 struct RevisionUpsert {
     id: String,
     inserted: bool,
@@ -80,6 +97,9 @@ impl SyncDatabase {
                     singleton_key INTEGER PRIMARY KEY CHECK (singleton_key = 1),
                     installation_id TEXT NOT NULL UNIQUE,
                     account_id TEXT,
+                    diagnostics_enabled INTEGER NOT NULL DEFAULT 0 CHECK (diagnostics_enabled IN (0, 1)),
+                    privacy_notice_version INTEGER NOT NULL DEFAULT 0,
+                    consent_updated_at TEXT,
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     last_policy_sync_at TEXT
@@ -156,6 +176,7 @@ impl SyncDatabase {
                  PRAGMA user_version = 3;",
             )
             .map_err(|error| format!("failed to migrate sync database: {error}"))?;
+        ensure_cloud_context_columns(&connection)?;
 
         let now = Utc::now().to_rfc3339();
         connection
@@ -183,6 +204,14 @@ impl SyncDatabase {
                 params![normalize_dataset_root(default_dataset_root)?, now],
             )
             .map_err(|error| format!("failed to initialize dataset root: {error}"))?;
+        connection
+            .execute(
+                "UPDATE upload_job SET state = 'queued', updated_at = ?,
+                 last_error = 'Upload interrupted by service shutdown'
+                 WHERE state = 'uploading'",
+                [&now],
+            )
+            .map_err(|error| format!("failed to recover interrupted uploads: {error}"))?;
         Ok(Self { connection })
     }
 
@@ -222,6 +251,102 @@ impl SyncDatabase {
             )
             .map_err(|error| format!("failed to adopt installation ID: {error}"))?;
         Ok(())
+    }
+
+    pub fn configure_cloud(&mut self, context: &SyncCloudContext) -> Result<(), String> {
+        context.validate()?;
+        self.adopt_installation_id(&context.installation_id)?;
+        let transaction = self
+            .connection
+            .transaction()
+            .map_err(|error| format!("failed to start cloud configuration update: {error}"))?;
+        let now = Utc::now().to_rfc3339();
+        transaction
+            .execute(
+                "UPDATE installation_identity SET account_id = ?, diagnostics_enabled = ?,
+                 privacy_notice_version = ?, consent_updated_at = ?, updated_at = ?
+                 WHERE singleton_key = 1",
+                params![
+                    context.account_id,
+                    context.diagnostics_enabled,
+                    context.privacy_notice_version,
+                    context.consent_updated_at.to_rfc3339(),
+                    now,
+                ],
+            )
+            .map_err(|error| format!("failed to store cloud identity context: {error}"))?;
+        transaction
+            .execute(
+                "INSERT INTO sync_config (key, value, updated_at) VALUES ('api_base_url', ?, ?)
+                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+                params![context.api_base_url.trim_end_matches('/'), now],
+            )
+            .map_err(|error| format!("failed to store sync API endpoint: {error}"))?;
+        transaction
+            .execute(
+                "UPDATE sharing_policy SET user_sharing_enabled = ?, updated_at = ?
+                 WHERE singleton_key = 1",
+                params![context.user_data_sharing_enabled, now],
+            )
+            .map_err(|error| format!("failed to store cloud sharing context: {error}"))?;
+        if !context.user_data_sharing_enabled {
+            cancel_jobs(&transaction, None, &now, "user disabled data sharing")?;
+        }
+        transaction
+            .commit()
+            .map_err(|error| format!("failed to commit cloud configuration: {error}"))
+    }
+
+    pub fn cloud_context(&self) -> Result<Option<SyncCloudContext>, String> {
+        let api_base_url = self
+            .connection
+            .query_row(
+                "SELECT value FROM sync_config WHERE key = 'api_base_url'",
+                [],
+                |row| row.get::<_, String>(0),
+            )
+            .optional()
+            .map_err(|error| format!("failed to load sync API endpoint: {error}"))?;
+        let Some(api_base_url) = api_base_url else {
+            return Ok(None);
+        };
+        let (
+            installation_id,
+            account_id,
+            diagnostics_enabled,
+            privacy_notice_version,
+            consent_updated_at,
+        ) = self
+            .connection
+            .query_row(
+                "SELECT installation_id, account_id, diagnostics_enabled,
+                            privacy_notice_version, consent_updated_at
+                     FROM installation_identity WHERE singleton_key = 1",
+                [],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, Option<String>>(1)?,
+                        row.get::<_, bool>(2)?,
+                        row.get::<_, u32>(3)?,
+                        row.get::<_, Option<String>>(4)?,
+                    ))
+                },
+            )
+            .map_err(|error| format!("failed to load cloud identity context: {error}"))?;
+        let consent_updated_at =
+            consent_updated_at.ok_or_else(|| "cloud consent timestamp is missing".to_string())?;
+        Ok(Some(SyncCloudContext {
+            installation_id,
+            account_id,
+            diagnostics_enabled,
+            user_data_sharing_enabled: self.user_sharing_enabled()?,
+            privacy_notice_version,
+            consent_updated_at: DateTime::parse_from_rfc3339(&consent_updated_at)
+                .map_err(|error| format!("cloud consent timestamp is invalid: {error}"))?
+                .with_timezone(&Utc),
+            api_base_url,
+        }))
     }
 
     pub fn user_sharing_enabled(&self) -> Result<bool, String> {
@@ -526,6 +651,152 @@ impl SyncDatabase {
             .map_err(|error| format!("failed to commit catalog reconciliation: {error}"))
     }
 
+    pub fn claim_metadata_upload(&mut self) -> Result<Option<MetadataUploadJob>, String> {
+        if !self.effective_sharing_level()?.allows_metadata() {
+            return Ok(None);
+        }
+        let context = match self.cloud_context()? {
+            Some(context) => context,
+            None => return Ok(None),
+        };
+        let transaction = self
+            .connection
+            .transaction()
+            .map_err(|error| format!("failed to start upload claim: {error}"))?;
+        let now = Utc::now().to_rfc3339();
+        let row = transaction
+            .query_row(
+                "SELECT j.id, COALESCE(r.robot_id, ''), d.repo_id, d.dataset_name,
+                        r.metadata_json, r.codebase_version, r.total_episodes,
+                        r.total_frames, j.attempt_count
+                 FROM upload_job j
+                 JOIN dataset_revision r ON r.id = j.dataset_revision_id
+                 JOIN local_dataset d ON d.id = r.dataset_id
+                 WHERE j.kind = 'metadata'
+                   AND d.local_state = 'available'
+                   AND (j.state = 'queued' OR
+                        (j.state = 'failed' AND (j.next_attempt_at IS NULL OR j.next_attempt_at <= ?)))
+                 ORDER BY j.created_at ASC LIMIT 1",
+                [&now],
+                |row| {
+                    Ok((
+                        row.get::<_, String>(0)?,
+                        row.get::<_, String>(1)?,
+                        row.get::<_, String>(2)?,
+                        row.get::<_, String>(3)?,
+                        row.get::<_, String>(4)?,
+                        row.get::<_, String>(5)?,
+                        row.get::<_, u64>(6)?,
+                        row.get::<_, u64>(7)?,
+                        row.get::<_, u32>(8)?,
+                    ))
+                },
+            )
+            .optional()
+            .map_err(|error| format!("failed to load ready metadata upload: {error}"))?;
+        let Some((
+            id,
+            stored_robot_id,
+            repo_id,
+            dataset_name,
+            metadata_json,
+            codebase_version,
+            total_episodes,
+            total_frames,
+            attempt_count,
+        )) = row
+        else {
+            return Ok(None);
+        };
+        let claimed = transaction
+            .execute(
+                "UPDATE upload_job SET state = 'uploading', updated_at = ?, last_error = NULL
+                 WHERE id = ? AND state IN ('queued', 'failed')",
+                params![now, id],
+            )
+            .map_err(|error| format!("failed to claim metadata upload: {error}"))?;
+        if claimed != 1 {
+            return Ok(None);
+        }
+        transaction
+            .commit()
+            .map_err(|error| format!("failed to commit metadata upload claim: {error}"))?;
+        let metadata = serde_json::from_str(&metadata_json)
+            .map_err(|error| format!("stored dataset metadata is invalid: {error}"))?;
+        let robot_id = if stored_robot_id.trim().is_empty() {
+            infer_robot_id(&dataset_name)
+        } else {
+            stored_robot_id
+        };
+        Ok(Some(MetadataUploadJob {
+            id,
+            installation_id: context.installation_id,
+            account_id: context.account_id,
+            robot_id,
+            repo_id,
+            metadata,
+            codebase_version,
+            total_episodes,
+            total_frames,
+            attempt_count,
+        }))
+    }
+
+    pub fn mark_metadata_uploaded(
+        &mut self,
+        job_id: &str,
+        object_key: &str,
+        etag: Option<&str>,
+        payload_sha256: &str,
+        bytes_total: u64,
+    ) -> Result<(), String> {
+        let now = Utc::now().to_rfc3339();
+        self.connection
+            .execute(
+                "UPDATE upload_job SET state = 'uploaded', attempt_count = attempt_count + 1,
+                 next_attempt_at = NULL, bytes_total = ?, bytes_uploaded = ?, object_key = ?,
+                 etag = ?, content_sha256 = ?, last_error = NULL, updated_at = ?, uploaded_at = ?
+                 WHERE id = ? AND state = 'uploading'",
+                params![
+                    bytes_total,
+                    bytes_total,
+                    object_key,
+                    etag,
+                    payload_sha256,
+                    now,
+                    now,
+                    job_id,
+                ],
+            )
+            .map_err(|error| format!("failed to complete metadata upload: {error}"))?;
+        Ok(())
+    }
+
+    pub fn mark_metadata_failed(
+        &mut self,
+        job_id: &str,
+        attempt_count: u32,
+        message: &str,
+    ) -> Result<(), String> {
+        let exponent = attempt_count.min(8);
+        let next_attempt = Utc::now() + chrono::Duration::seconds(30 * 2_i64.pow(exponent));
+        let diagnostic: String = message.chars().take(2048).collect();
+        self.connection
+            .execute(
+                "UPDATE upload_job SET state = 'failed', attempt_count = attempt_count + 1,
+                 next_attempt_at = ?, last_error = ?, updated_at = ?
+                 WHERE id = ? AND state = 'uploading'",
+                params![
+                    next_attempt.to_rfc3339(),
+                    diagnostic,
+                    Utc::now().to_rfc3339(),
+                    job_id,
+                ],
+            )
+            .map_err(|error| format!("failed to record metadata upload failure: {error}"))?;
+        Ok(())
+    }
+
     pub fn status(&self) -> Result<SyncStatus, String> {
         let user_sharing_enabled = self.user_sharing_enabled()?;
         let admin_policy = self.admin_policy()?;
@@ -534,9 +805,14 @@ impl SyncDatabase {
         } else {
             DatasetSharingLevel::Nothing
         };
+        let cloud_context = self.cloud_context()?;
         Ok(SyncStatus {
             active: effective_sharing_level != DatasetSharingLevel::Nothing,
             installation_id: self.installation_id()?,
+            account_id: cloud_context
+                .as_ref()
+                .and_then(|context| context.account_id.clone()),
+            cloud_configured: cloud_context.is_some(),
             user_sharing_enabled,
             admin_sharing_level: admin_policy.level,
             effective_sharing_level,
@@ -694,6 +970,26 @@ fn column_exists(connection: &Connection, table: &str, column: &str) -> Result<b
     Ok(false)
 }
 
+fn ensure_cloud_context_columns(connection: &Connection) -> Result<(), String> {
+    for (column, definition) in [
+        (
+            "diagnostics_enabled",
+            "INTEGER NOT NULL DEFAULT 0 CHECK (diagnostics_enabled IN (0, 1))",
+        ),
+        ("privacy_notice_version", "INTEGER NOT NULL DEFAULT 0"),
+        ("consent_updated_at", "TEXT"),
+    ] {
+        if !column_exists(connection, "installation_identity", column)? {
+            connection
+                .execute_batch(&format!(
+                    "ALTER TABLE installation_identity ADD COLUMN {column} {definition};"
+                ))
+                .map_err(|error| format!("failed to add {column} to sync identity: {error}"))?;
+        }
+    }
+    Ok(())
+}
+
 fn normalize_dataset_root(path: &Path) -> Result<String, String> {
     let absolute = if path.is_absolute() {
         path.to_path_buf()
@@ -706,6 +1002,24 @@ fn normalize_dataset_root(path: &Path) -> Result<String, String> {
         return Err("dataset root must end with the vulcan-studio directory".to_string());
     }
     Ok(absolute.to_string_lossy().to_string())
+}
+
+fn infer_robot_id(dataset_name: &str) -> String {
+    let mut parts = dataset_name.rsplitn(3, '_');
+    let time = parts.next();
+    let date = parts.next();
+    let robot = parts.next();
+    match (robot, date, time) {
+        (Some(robot), Some(date), Some(time))
+            if date.len() == 8
+                && time.len() == 6
+                && date.bytes().all(|byte| byte.is_ascii_digit())
+                && time.bytes().all(|byte| byte.is_ascii_digit()) =>
+        {
+            robot.to_string()
+        }
+        _ => "unknown-robot".to_string(),
+    }
 }
 
 fn upsert_local_dataset(
@@ -961,6 +1275,43 @@ mod tests {
             database.effective_sharing_level().unwrap(),
             DatasetSharingLevel::All
         );
+    }
+
+    #[test]
+    fn infers_robot_id_from_vulcan_dataset_name() {
+        assert_eq!(
+            infer_robot_id("sourccey-243_20260913_193352"),
+            "sourccey-243"
+        );
+        assert_eq!(infer_robot_id("custom-dataset"), "unknown-robot");
+    }
+
+    #[test]
+    fn claims_and_completes_a_cloud_configured_metadata_job() {
+        let mut database = test_database();
+        let installation_id = database.installation_id().unwrap();
+        database
+            .configure_cloud(&SyncCloudContext {
+                installation_id,
+                account_id: Some("account-1".to_string()),
+                diagnostics_enabled: true,
+                user_data_sharing_enabled: true,
+                privacy_notice_version: 1,
+                consent_updated_at: Utc::now(),
+                api_base_url: "https://api.example.com".to_string(),
+            })
+            .unwrap();
+        database
+            .ingest_completion_event(&completed_event(true, "sourccey-243_20260913_193352"))
+            .unwrap();
+
+        let job = database.claim_metadata_upload().unwrap().unwrap();
+        assert_eq!(job.robot_id, "robot-1");
+        assert_eq!(job.repo_id, "vulcan-studio/sourccey-243_20260913_193352");
+        database
+            .mark_metadata_uploaded(&job.id, "metadata/object.json", Some("etag"), "sha256", 512)
+            .unwrap();
+        assert_eq!(database.status().unwrap().metadata_uploaded, 1);
     }
 
     fn test_database() -> SyncDatabase {

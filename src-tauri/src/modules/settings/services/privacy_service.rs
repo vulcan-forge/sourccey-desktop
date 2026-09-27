@@ -1,7 +1,9 @@
 use chrono::{DateTime, Utc};
 use sea_orm::{ConnectionTrait, DatabaseConnection, DbBackend, DbErr, Statement, TryGetable};
 use serde::{Deserialize, Serialize};
-use sourccey_sync_core::{SyncControlInbox, SyncRequest};
+use sourccey_sync_core::{SyncCloudContext, SyncControlInbox, SyncRequest};
+
+use crate::modules::settings::services::desktop_environment::desktop_environment_service::DesktopEnvironmentService;
 
 pub const CURRENT_ONBOARDING_VERSION: i32 = 1;
 pub const CURRENT_PRIVACY_NOTICE_VERSION: i32 = 1;
@@ -100,7 +102,7 @@ impl PrivacyService {
                 .await?;
         }
 
-        Self::submit_sync_user_sharing(request.dataset_metadata_enabled)?;
+        Self::publish_current_sync_state(connection).await?;
 
         Self::get(connection).await
     }
@@ -114,27 +116,42 @@ impl PrivacyService {
         let identity = connection
             .query_one(Statement::from_string(
                 DbBackend::Sqlite,
-                "SELECT installation_id FROM installation_identity WHERE singleton_key = 1"
+                "SELECT installation_id, customer_id FROM installation_identity WHERE singleton_key = 1"
                     .to_string(),
             ))
             .await?
             .ok_or_else(|| DbErr::Custom("installation identity is missing".to_string()))?;
         let installation_id: String = identity.try_get("", "installation_id")?;
+        let account_id: Option<String> = identity.try_get("", "customer_id")?;
+        let graphql_url = DesktopEnvironmentService::get_settings()
+            .map_err(DbErr::Custom)?
+            .graphql_api_url;
+        let api_base_url = graphql_url
+            .trim_end_matches('/')
+            .strip_suffix("/v1/graphql")
+            .unwrap_or(&graphql_url)
+            .trim_end_matches('/')
+            .to_string();
+        let consent_updated_at = preferences
+            .decided_at
+            .as_deref()
+            .unwrap_or(&preferences.updated_at);
+        let consent_updated_at = DateTime::parse_from_rfc3339(consent_updated_at)
+            .map_err(|error| DbErr::Custom(format!("Privacy timestamp is invalid: {error}")))?
+            .with_timezone(&Utc);
         let inbox = Self::sync_control_inbox()?;
         inbox
-            .submit(SyncRequest::AdoptInstallationId { installation_id })
-            .map_err(Self::sync_notification_error)?;
-        inbox
-            .submit(SyncRequest::SetUserSharingEnabled {
-                enabled: preferences.dataset_metadata_enabled,
+            .submit(SyncRequest::ConfigureCloud {
+                context: SyncCloudContext {
+                    installation_id,
+                    account_id,
+                    diagnostics_enabled: preferences.diagnostics_enabled,
+                    user_data_sharing_enabled: preferences.dataset_metadata_enabled,
+                    privacy_notice_version: preferences.privacy_notice_version as u32,
+                    consent_updated_at,
+                    api_base_url,
+                },
             })
-            .map(|_| ())
-            .map_err(Self::sync_notification_error)
-    }
-
-    fn submit_sync_user_sharing(enabled: bool) -> Result<(), DbErr> {
-        Self::sync_control_inbox()?
-            .submit(SyncRequest::SetUserSharingEnabled { enabled })
             .map(|_| ())
             .map_err(Self::sync_notification_error)
     }

@@ -23,6 +23,8 @@ without Tauri, React, or a webview.
   `HF_LEROBOT_HOME/vulcan-studio` root.
 - Reconciliation using `meta/info.json`, including missing-dataset detection.
 - Idempotent dataset, revision, and upload-job creation.
+- Background metadata uploads through the installation registration and cloud
+  presign contract, with bounded retries and persisted upload results.
 - User opt-out cancels all pending work. Admin-policy downgrades cancel work
   that is no longer allowed.
 - A strict consent gate: inbox processing and dataset discovery do not run while
@@ -33,9 +35,9 @@ without Tauri, React, or a webview.
 - Windows and Linux per-user startup registration commands.
 - macOS startup boundary reserved for `SMAppService` in the signed app bundle.
 
-The current production metadata uploader remains unchanged. The desktop should
-only switch to this process after local IPC, credential storage, packaging, and
-cloud upload execution have been implemented.
+The existing desktop metadata uploader remains available during migration.
+`sourccey-sync` now executes its own metadata jobs; the older path should be
+removed once packaging and rollout of the background process are complete.
 
 The desktop privacy service publishes only the user's general sharing choice
 whenever preferences are saved and again at desktop startup. It cannot set the
@@ -97,6 +99,7 @@ cargo run --manifest-path crates/Cargo.toml -p sourccey-sync -- run --once
 cargo run --manifest-path crates/Cargo.toml -p sourccey-sync -- status
 cargo run --manifest-path crates/Cargo.toml -p sourccey-sync -- datasets
 cargo run --manifest-path crates/Cargo.toml -p sourccey-sync -- reconcile
+cargo run --manifest-path crates/Cargo.toml -p sourccey-sync -- upload-metadata
 cargo run --manifest-path crates/Cargo.toml -p sourccey-sync -- set-user-sharing enabled
 ```
 
@@ -105,12 +108,31 @@ and runs the sync service alongside Tauri; `bun tauri dev:full` is an equivalent
 alias. When either process exits, the full launcher stops the other process so
 a development sync service is not left behind.
 
-Set `SOURCCEY_SYNC_DATA_DIR` to isolate development data from the normal OS data
-directory.
+The service stores its database and local state in the operating system's local
+application-data directory. The dataset root defaults to
+`<LeRobot home>/vulcan-studio`, following LeRobot's standard
+`HF_LEROBOT_HOME`/`HF_HOME` cache resolution. `VULCAN_STUDIO_DATASET_ROOT` is an
+optional override; relative values are resolved from LeRobot home. The resolved
+path persists in `sync.sqlite3`; use `set-dataset-root` to change it. The selected
+path must end in `vulcan-studio`.
 
-The dataset root resolves from `SOURCCEY_DATASET_ROOT`, `HF_LEROBOT_HOME`, or
-`HF_HOME`, then persists in `sync.sqlite3`. Use `set-dataset-root` to change it;
-the selected path must end in `vulcan-studio`.
+### Testing a metadata upload
+
+Start the full development stack, sign in, enable **Share robot data**, and save
+the privacy settings. The desktop publishes the installation/account context,
+consent state, and selected API environment to the background process. Confirm
+that `status` reports `cloudConfigured: true`, then run:
+
+```powershell
+cargo run --manifest-path crates/Cargo.toml -p sourccey-sync -- upload-metadata
+cargo run --manifest-path crates/Cargo.toml -p sourccey-sync -- datasets
+```
+
+The first command reconciles the configured `vulcan-studio` folder before
+claiming up to 20 metadata jobs. Successful jobs become `uploaded`; failures
+remain durable with exponential retry timing and are retried by the background
+service. `VULCAN_DATASET_SYNC_API_BASE_URL` can temporarily override the API
+endpoint for a development run.
 
 ## Next slices
 
@@ -118,7 +140,6 @@ the selected path must end in `vulcan-studio`.
 2. Desktop recording-completion event submission.
 3. Installation enrollment, authenticated policy fetch, and secure device
    credential storage outside the webview.
-4. Metadata upload execution using the existing cloud presign contract.
-5. Installer bundling, update coordination, and macOS `SMAppService` support.
-6. Resumable full-dataset uploads.
+4. Installer bundling, update coordination, and macOS `SMAppService` support.
+5. Resumable full-dataset uploads.
 

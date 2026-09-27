@@ -10,6 +10,7 @@ chrono.workspace = true
 dirs.workspace = true
 fs2.workspace = true
 rusqlite.workspace = true
+reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 sourccey-sync-core = { path = "../sourccey-sync-core" }

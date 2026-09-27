@@ -186,12 +186,46 @@ pub fn validate_installation_id(value: &str) -> Result<(), String> {
     Ok(())
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SyncCloudContext {
+    pub installation_id: String,
+    pub account_id: Option<String>,
+    pub diagnostics_enabled: bool,
+    pub user_data_sharing_enabled: bool,
+    pub privacy_notice_version: u32,
+    pub consent_updated_at: DateTime<Utc>,
+    pub api_base_url: String,
+}
+
+impl SyncCloudContext {
+    pub fn validate(&self) -> Result<(), String> {
+        validate_installation_id(&self.installation_id)?;
+        if self
+            .account_id
+            .as_deref()
+            .is_some_and(|value| value.trim().is_empty() || value.len() > 128)
+        {
+            return Err("account ID must contain between 1 and 128 characters".to_string());
+        }
+        let api_base = self.api_base_url.trim();
+        if api_base.is_empty()
+            || api_base.len() > 2048
+            || !(api_base.starts_with("https://") || api_base.starts_with("http://"))
+        {
+            return Err("API base URL must be an HTTP or HTTPS URL".to_string());
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", content = "payload", rename_all = "snake_case")]
 pub enum SyncRequest {
     Ping,
     GetStatus,
     AdoptInstallationId { installation_id: String },
+    ConfigureCloud { context: SyncCloudContext },
     SetUserSharingEnabled { enabled: bool },
     SetDatasetRoot { path: PathBuf },
     NotifyInbox,

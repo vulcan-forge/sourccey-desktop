@@ -7,6 +7,7 @@ mod catalog;
 mod database;
 mod paths;
 mod startup;
+mod uploader;
 
 use database::SyncDatabase;
 use fs2::FileExt;
@@ -19,6 +20,7 @@ use std::time::{Duration, Instant};
 
 const SERVICE_TICK_INTERVAL: Duration = Duration::from_secs(5);
 const CATALOG_RECONCILE_INTERVAL: Duration = Duration::from_secs(10 * 60);
+const UPLOAD_ATTEMPT_INTERVAL: Duration = Duration::from_secs(30);
 
 fn main() {
     if let Err(error) = run_command() {
@@ -34,6 +36,7 @@ fn run_command() -> Result<(), String> {
         "status" => print_status(),
         "datasets" => print_datasets(),
         "reconcile" => reconcile_once(),
+        "upload-metadata" => upload_metadata_once(),
         "set-user-sharing" => {
             let value = arguments.next().ok_or_else(|| {
                 "usage: sourccey-sync set-user-sharing <enabled|disabled>".to_string()
@@ -87,12 +90,14 @@ fn run_service(once: bool) -> Result<(), String> {
     paths.ensure_directories()?;
     let _instance_lock = acquire_instance_lock(&paths.lock)?;
     let mut database = SyncDatabase::open(&paths.database, &paths.default_dataset_root)?;
+    let mut uploader = uploader::MetadataUploader::new()?;
     println!(
         "Sourccey Sync started with data at {}",
         paths.root.display()
     );
 
     let mut last_reconciliation: Option<Instant> = None;
+    let mut last_upload_attempt: Option<Instant> = None;
     loop {
         process_control(&paths, &mut database)?;
         if database.is_active()? {
@@ -100,6 +105,17 @@ fn run_service(once: bool) -> Result<(), String> {
             if last_reconciliation.is_none_or(|last| last.elapsed() >= CATALOG_RECONCILE_INTERVAL) {
                 reconcile(&mut database, once)?;
                 last_reconciliation = Some(Instant::now());
+            }
+            if last_upload_attempt.is_none_or(|last| last.elapsed() >= UPLOAD_ATTEMPT_INTERVAL) {
+                match uploader.process_ready(&mut database, 4) {
+                    Ok(report) if report.attempted > 0 => println!(
+                        "Metadata uploads: attempted={}, uploaded={}, failed={}",
+                        report.attempted, report.uploaded, report.failed
+                    ),
+                    Ok(_) => {}
+                    Err(error) => eprintln!("Metadata uploads deferred: {error}"),
+                }
+                last_upload_attempt = Some(Instant::now());
             }
         }
         if once {
@@ -117,6 +133,7 @@ fn process_control(paths: &SyncPaths, database: &mut SyncDatabase) -> Result<(),
             SyncRequest::AdoptInstallationId { installation_id } => {
                 database.adopt_installation_id(&installation_id)
             }
+            SyncRequest::ConfigureCloud { context } => database.configure_cloud(&context),
             SyncRequest::SetUserSharingEnabled { enabled } => {
                 database.set_user_sharing_enabled(enabled)
             }
@@ -247,6 +264,24 @@ fn reconcile_once() -> Result<(), String> {
     reconcile(&mut database, true)
 }
 
+fn upload_metadata_once() -> Result<(), String> {
+    let paths = SyncPaths::resolve()?;
+    paths.ensure_directories()?;
+    let mut database = SyncDatabase::open(&paths.database, &paths.default_dataset_root)?;
+    if !database.is_active()? {
+        return Err("robot-data sharing is disabled by user consent or admin policy".to_string());
+    }
+    reconcile(&mut database, false)?;
+    let mut uploader = uploader::MetadataUploader::new()?;
+    let report = uploader.process_ready(&mut database, 20)?;
+    println!(
+        "{}",
+        serde_json::to_string_pretty(&report)
+            .map_err(|error| format!("failed to serialize upload report: {error}"))?
+    );
+    Ok(())
+}
+
 fn set_user_sharing_enabled(enabled: bool) -> Result<(), String> {
     let paths = SyncPaths::resolve()?;
     paths.ensure_directories()?;
@@ -278,6 +313,7 @@ fn print_help() {
            status                Print queue status as JSON\n\
            datasets              Print tracked datasets and upload states as JSON\n\
            reconcile             Scan only the configured vulcan-studio directory\n\
+           upload-metadata       Reconcile and upload ready metadata jobs now\n\
            set-user-sharing VALUE Enable or disable user data sharing\n\
            set-dataset-root PATH Persist the approved vulcan-studio directory\n\
            install-startup       Start sourccey-sync at user sign-in\n\

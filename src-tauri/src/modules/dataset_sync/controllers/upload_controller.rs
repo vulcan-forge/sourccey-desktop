@@ -1,4 +1,5 @@
 use crate::modules::dataset_sync::services::upload_service::UploadService;
+use crate::modules::settings::services::privacy_service::PrivacyService;
 use crate::modules::dataset_sync::types::{
     DatasetSyncIdentity, DiscoveryReport, JobsReport, MetadataTransmissionReport,
     QueueDatasetMetadataRequest, QueuedDatasetMetadata, SetDatasetSyncAccountRequest,
@@ -43,6 +44,9 @@ pub async fn set_dataset_sync_account(
 ) -> Result<DatasetSyncIdentity, String> {
     let db_manager = app_handle.state::<crate::database::connection::DatabaseManager>();
     let identity = UploadService::set_account(db_manager.get_connection(), request.account_id).await?;
+    PrivacyService::publish_current_sync_state(db_manager.get_connection())
+        .await
+        .map_err(|error| format!("Account was linked, but Sourccey Sync could not be updated: {error}"))?;
     let connection = db_manager.get_connection().clone();
     tauri::async_runtime::spawn(async move {
         if let Err(error) = UploadService::register_on_startup(&connection).await {
