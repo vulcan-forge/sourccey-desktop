@@ -8,7 +8,6 @@ Handles building, cleaning, and installing the Tauri application.
 import os
 import sys
 import subprocess
-import json
 import time
 from pathlib import Path
 from typing import Callable, Optional
@@ -106,7 +105,8 @@ class BuildManager:
         # Additional optimizations for memory-constrained builds
         env['CARGO_INCREMENTAL'] = '0'  # Disable incremental compilation (saves memory)
 
-        # Disable updater for kiosk builds
+        # Keep kiosk builds unsigned and out of the official desktop release flow.
+        env['VULCAN_KIOSK_BUILD'] = '1'
         env['TAURI_UPDATER_ACTIVE'] = 'false'
         env['TAURI_UPDATER_SIGNING_KEY'] = ''  # Disable signing
         env['TAURI_SIGNING_PRIVATE_KEY'] = ''  # Disable private key
@@ -120,39 +120,18 @@ class BuildManager:
 
         return env
 
-    def disable_bundle_signing(self) -> bool:
-        """Disable bundle signing for kiosk builds"""
-        self.print_status("Disabling bundle signing for kiosk build...")
-
-        try:
-            tauri_conf_path = self.project_root / "src-tauri" / "tauri.conf.json"
-
-            if not tauri_conf_path.exists():
-                self.print_warning("tauri.conf.json not found, skipping signing configuration")
-                return True
-
-            # Read current config
-            with open(tauri_conf_path, 'r') as f:
-                config = json.load(f)
-
-            # Disable updater
-            if 'plugins' in config and 'updater' in config['plugins']:
-                config['plugins']['updater']['active'] = False
-
-            # Disable updater artifacts creation
-            if 'bundle' in config:
-                config['bundle']['createUpdaterArtifacts'] = False
-
-            # Write back the modified config
-            with open(tauri_conf_path, 'w') as f:
-                json.dump(config, f, indent=4)
-
-            self.print_success("Bundle signing disabled in tauri.conf.json")
-            return True
-
-        except Exception as e:
-            self.print_error(f"Failed to disable bundle signing: {e}")
-            return False
+    def tauri_build_arguments(self, deb_only: bool = True) -> list[str]:
+        """Build through the maintained Tauri wrapper with kiosk-only config."""
+        args = [
+            "run",
+            "tauri",
+            "build",
+            "--config",
+            "src-tauri/tauri.kiosk.conf.json",
+        ]
+        if deb_only:
+            args.extend(["--bundles", "deb"])
+        return args
 
     #################################################################
     # Cleanup Functions
@@ -266,9 +245,7 @@ class BuildManager:
                 )
         build_env = self.setup_cargo_build_env(self.project_root, jobs=cargo_jobs)
 
-        # Disable bundle signing for kiosk builds
-        self.print_status("Disabling bundle signing for kiosk builds...")
-        self.disable_bundle_signing()
+        self.print_status("Using unsigned kiosk build configuration...")
 
         # Build Tauri as the real (non-root) user so Cargo crates and toolchains
         # are owned by the normal user, not root.
@@ -283,6 +260,7 @@ class BuildManager:
             "CARGO_BUILD_JOBS",
             "CARGO_TARGET_DIR",
             "CARGO_INCREMENTAL",
+            "VULCAN_KIOSK_BUILD",
             "TAURI_UPDATER_ACTIVE",
             "TAURI_UPDATER_SIGNING_KEY",
             "TAURI_SIGNING_PRIVATE_KEY",
@@ -295,8 +273,8 @@ class BuildManager:
 
         # When running under sudo, explicitly drop to the real user and keep the
         # build environment. Otherwise run directly as the current user.
-        tauri_build_args = ["run", "tauri:build", "--", "--bundles", "deb"]
-        fallback_build_args = ["run", "tauri:build"]
+        tauri_build_args = self.tauri_build_arguments(deb_only=True)
+        fallback_build_args = self.tauri_build_arguments(deb_only=False)
 
         def _run_build(args: list[str], env_override: Optional[dict] = None):
             cmd = [bun_cmd, *args]

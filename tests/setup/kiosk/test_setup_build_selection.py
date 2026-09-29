@@ -1,6 +1,7 @@
-from pathlib import Path
+import json
 import sys
 import time
+from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
@@ -66,3 +67,57 @@ def test_recommend_cargo_jobs_for_4gb_pi(tmp_path):
 
     assert manager.recommend_cargo_jobs(total_mem_gib=4.0) == 2
     assert manager.recommend_cargo_jobs(total_mem_gib=2.0) == 1
+
+
+def test_kiosk_build_uses_existing_tauri_script_and_kiosk_config(tmp_path):
+    manager = BuildManager(
+        project_root=tmp_path,
+        app_info={},
+        print_status=_noop,
+        print_success=_noop,
+        print_warning=_noop,
+        print_error=_noop,
+    )
+
+    assert manager.tauri_build_arguments() == [
+        "run",
+        "tauri",
+        "build",
+        "--config",
+        "src-tauri/tauri.kiosk.conf.json",
+        "--bundles",
+        "deb",
+    ]
+    assert manager.tauri_build_arguments(deb_only=False) == [
+        "run",
+        "tauri",
+        "build",
+        "--config",
+        "src-tauri/tauri.kiosk.conf.json",
+    ]
+
+
+def test_kiosk_environment_bypasses_official_release_flow(tmp_path):
+    manager = BuildManager(
+        project_root=tmp_path,
+        app_info={},
+        print_status=_noop,
+        print_success=_noop,
+        print_warning=_noop,
+        print_error=_noop,
+    )
+
+    environment = manager.setup_cargo_build_env(tmp_path, jobs=2)
+
+    assert environment["VULCAN_KIOSK_BUILD"] == "1"
+    assert environment["CARGO_BUILD_JOBS"] == "2"
+
+
+def test_kiosk_config_disables_updater_without_changing_desktop_config():
+    desktop_config = json.loads((REPO_ROOT / "src-tauri" / "tauri.conf.json").read_text())
+    kiosk_config = json.loads((REPO_ROOT / "src-tauri" / "tauri.kiosk.conf.json").read_text())
+
+    assert desktop_config["bundle"]["createUpdaterArtifacts"] is True
+    assert desktop_config["plugins"]["updater"]["active"] is True
+    assert kiosk_config["bundle"]["createUpdaterArtifacts"] is False
+    assert kiosk_config["plugins"]["updater"]["active"] is False

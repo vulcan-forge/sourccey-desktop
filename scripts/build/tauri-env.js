@@ -10,6 +10,7 @@ const { chmodSync, copyFileSync, existsSync, readFileSync, rmSync } = require('f
 const { join } = require('path');
 const { spawn, spawnSync } = require('child_process');
 const { finalizeArtifactNames } = require('./artifact-names');
+const { shouldRunReleaseFlow } = require('./tauri-build-routing');
 
 const REQUIRED_KEYS = ['TAURI_SIGNING_PUBLIC_KEY', 'TAURI_SIGNING_PRIVATE_KEY', 'TAURI_SIGNING_PRIVATE_KEY_PASSWORD'];
 const MACOS_RELEASE_KEYS = [
@@ -110,7 +111,7 @@ for (const key of [...REQUIRED_KEYS, ...MACOS_RELEASE_KEYS]) {
     }
 }
 
-if (args[0] === 'build' && process.env.VULCAN_RELEASE_BUILD !== '1') {
+if (shouldRunReleaseFlow(args)) {
     console.log('[tauri-env] Routing build through the verified native release flow.');
     const release = spawnSync('bun', ['scripts/build/release.js', ...args.slice(1)], {
         cwd: process.cwd(),
