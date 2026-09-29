@@ -10,6 +10,7 @@
         "test": "bun test tests",
         "lint": "next lint",
         "tauri": "bun scripts/build/tauri-env.js",
+        "tauri:build:macos:adhoc": "bun scripts/build/build-macos-adhoc.js",
         "tauri:release:check": "bun scripts/build/release.js --check",
         "tauri:kiosk": "export DISPLAY=:0.0 && xhost +local: 2>/dev/null || true && bun tauri dev -- -- --kiosk",
         "tauri:kiosk desktop": "bun tauri dev -- -- --kiosk"

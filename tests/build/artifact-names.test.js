@@ -5,6 +5,7 @@ const { join } = require('path');
 const {
     artifactArchitecture,
     finalizeArtifactNames,
+    macosUpdaterPlatform,
     normalizedArtifactName,
     requestedArchitecture,
 } = require('../../scripts/build/artifact-names');
@@ -65,6 +66,8 @@ describe('release artifact names', () => {
         expect(requestedArchitecture(['build', '--target=x86_64-pc-windows-msvc'])).toBe(
             'x86_64-pc-windows-msvc'
         );
+        expect(macosUpdaterPlatform('arm64')).toBe('darwin-aarch64');
+        expect(macosUpdaterPlatform('x64')).toBe('darwin-x86_64');
     });
 
     test('renames generated artifacts without changing the configured product name', () => {

@@ -16,6 +16,11 @@ function artifactArchitecture(platform, architecture) {
     return arm64 ? 'arm64' : 'x64';
 }
 
+/** @param {string} architecture */
+function macosUpdaterPlatform(architecture) {
+    return artifactArchitecture('darwin', architecture) === 'aarch64' ? 'darwin-aarch64' : 'darwin-x86_64';
+}
+
 /**
  * @param {string[]} args
  * @returns {string}
@@ -100,6 +105,7 @@ function finalizeArtifactNames(options = {}) {
 module.exports = {
     artifactArchitecture,
     finalizeArtifactNames,
+    macosUpdaterPlatform,
     normalizedArtifactName,
     requestedArchitecture,
 };

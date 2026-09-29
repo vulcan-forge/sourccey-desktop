@@ -1,6 +1,6 @@
 const { spawnSync } = require('child_process');
-const { existsSync, readFileSync } = require('fs');
 const { join } = require('path');
+const { loadReleaseEnvironment } = require('./release-env');
 
 /** @type {Partial<Record<NodeJS.Platform, 'windows' | 'macos' | 'linux'>>} */
 const platformNames = { win32: 'windows', darwin: 'macos', linux: 'linux' };
@@ -9,23 +9,6 @@ const platformNames = { win32: 'windows', darwin: 'macos', linux: 'linux' };
 function fail(message) {
     console.error(`[release] ${message}`);
     process.exit(1);
-}
-
-function loadReleaseEnvironment() {
-    const envPath = join(process.cwd(), '.env');
-    if (!existsSync(envPath)) return;
-    for (const line of readFileSync(envPath, 'utf8').split(/\r?\n/)) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed.startsWith('#')) continue;
-        const separator = trimmed.indexOf('=');
-        if (separator < 0) continue;
-        const name = trimmed.slice(0, separator).trim();
-        let value = trimmed.slice(separator + 1).trim();
-        if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.slice(1, -1);
-        }
-        if (!process.env[name]) process.env[name] = value;
-    }
 }
 
 loadReleaseEnvironment();

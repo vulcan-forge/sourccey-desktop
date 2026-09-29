@@ -2,6 +2,9 @@
     "$schema": "https://schema.tauri.app/config/2",
     "bundle": {
         "targets": ["app", "dmg"],
-        "resources": ["resources/uv/uv", "resources/uv/README.txt"]
+        "resources": ["resources/uv/uv", "resources/uv/README.txt"],
+        "macOS": {
+            "signingIdentity": "-"
+        }
     }
 }
