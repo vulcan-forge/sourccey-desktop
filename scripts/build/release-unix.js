@@ -56,8 +56,16 @@ function stageUv() {
     return () => { if (existsSync(bundledUv)) rmSync(bundledUv); };
 }
 
-function runTauriBuild() {
-    run('bun', ['scripts/build/tauri-env.js', 'build']);
+/** @param {string[]} [args] */
+function runTauriBuild(args = []) {
+    const previousReleaseBuild = process.env.VULCAN_RELEASE_BUILD;
+    process.env.VULCAN_RELEASE_BUILD = '1';
+    try {
+        run('bun', ['scripts/build/tauri-env.js', 'build', ...args]);
+    } finally {
+        if (previousReleaseBuild === undefined) delete process.env.VULCAN_RELEASE_BUILD;
+        else process.env.VULCAN_RELEASE_BUILD = previousReleaseBuild;
+    }
 }
 
 module.exports = { assertUpdaterSigningEnvironment, bundleDir, existsSync, fail, requireCommand, run, runTauriBuild, stageUv };

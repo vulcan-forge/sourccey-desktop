@@ -30,8 +30,9 @@ function verify() {
 try {
     preflight();
     if (process.argv.includes('--check')) process.exit(0);
+    const buildArguments = process.argv.slice(2).filter((argument) => argument !== '--check');
     const cleanup = tools.stageUv();
-    try { tools.runTauriBuild(); verify(); } finally { cleanup(); }
+    try { tools.runTauriBuild(buildArguments); verify(); } finally { cleanup(); }
     console.log('[release] Linux release completed successfully.');
 } catch (error) {
     console.error(`[release] ${error instanceof Error ? error.message : String(error)}`);

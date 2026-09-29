@@ -1,9 +1,9 @@
 // Tauri build wrapper:
-// - Standard usage: `bun run tauri build` (or `bun run tauri:build`).
+// - Standard usage: `bun tauri build`.
 // - Previous usage: `dotenv -e .env -- tauri build`
-// - What it does: loads signing keys from `.env` into the process environment
-//   and warns if any are missing for build commands, forwards all args to the
-//   Tauri CLI, then normalizes publishable artifact filenames.
+// - What it does: loads signing keys from `.env` into the process environment,
+//   routes builds through the verified native release flow, forwards all
+//   other commands to the Tauri CLI, then normalizes artifact filenames.
 // - How it works: parses `.env` locally, merges required keys into `process.env`,
 //   then spawns the `tauri` binary with inherited stdio.
 const { chmodSync, copyFileSync, existsSync, readFileSync, rmSync } = require('fs');
@@ -12,6 +12,15 @@ const { spawn, spawnSync } = require('child_process');
 const { finalizeArtifactNames } = require('./artifact-names');
 
 const REQUIRED_KEYS = ['TAURI_SIGNING_PUBLIC_KEY', 'TAURI_SIGNING_PRIVATE_KEY', 'TAURI_SIGNING_PRIVATE_KEY_PASSWORD'];
+const MACOS_RELEASE_KEYS = [
+    'APPLE_SIGNING_IDENTITY',
+    'APPLE_API_ISSUER',
+    'APPLE_API_KEY',
+    'APPLE_API_KEY_PATH',
+    'APPLE_ID',
+    'APPLE_PASSWORD',
+    'APPLE_TEAM_ID',
+];
 const LINUX_INOTIFY_LIMITS = {
     max_user_watches: 524288,
     max_user_instances: 1024,
@@ -92,13 +101,27 @@ const tauriCandidates =
           ]
         : [join(process.cwd(), 'node_modules', '.bin', 'tauri')];
 const bin = tauriCandidates.find(existsSync) ?? 'tauri';
-for (const key of REQUIRED_KEYS) {
+for (const key of [...REQUIRED_KEYS, ...MACOS_RELEASE_KEYS]) {
     if (process.env[key]) continue;
     if (envFromFile[key]) {
         process.env[key] = envFromFile[key];
-    } else if (requiresSigningKeys) {
+    } else if (requiresSigningKeys && REQUIRED_KEYS.includes(key)) {
         console.warn(`[tauri-env] Warning: ${key} is not set.`);
     }
+}
+
+if (args[0] === 'build' && process.env.VULCAN_RELEASE_BUILD !== '1') {
+    console.log('[tauri-env] Routing build through the verified native release flow.');
+    const release = spawnSync('bun', ['scripts/build/release.js', ...args.slice(1)], {
+        cwd: process.cwd(),
+        env: process.env,
+        stdio: 'inherit',
+    });
+    if (release.error) {
+        console.error(`[tauri-env] Failed to start release flow: ${release.error.message}`);
+        process.exit(1);
+    }
+    process.exit(release.status ?? 1);
 }
 
 function stageUvResource() {
@@ -138,18 +161,6 @@ const cleanup = () => {
 };
 
 const effectiveArgs = [...args];
-const hasBundleSelection = effectiveArgs.some(
-    (argument) => argument === '--bundles' || argument.startsWith('--bundles=')
-);
-if (
-    process.platform === 'darwin' &&
-    effectiveArgs[0] === 'build' &&
-    !process.env.APPLE_SIGNING_IDENTITY &&
-    !hasBundleSelection
-) {
-    effectiveArgs.push('--bundles', 'app');
-    console.log('[tauri-env] Building an unsigned macOS .app bundle; DMG creation requires the official signed release flow.');
-}
 
 const child = spawn(bin, effectiveArgs, { stdio: 'inherit', env: process.env });
 
@@ -163,24 +174,6 @@ child.on('exit', (code) => {
                 `[tauri-env] Failed to finalize artifact names: ${error instanceof Error ? error.message : String(error)}`
             );
             finalCode = 1;
-        }
-    }
-    if (
-        finalCode === 0 &&
-        process.platform === 'darwin' &&
-        effectiveArgs[0] === 'build' &&
-        !process.env.APPLE_SIGNING_IDENTITY
-    ) {
-        const packaged = spawnSync('bun', ['scripts/build/package-unsigned-macos.js'], {
-            cwd: process.cwd(),
-            env: process.env,
-            stdio: 'inherit',
-        });
-        if (packaged.error) {
-            console.error(`[tauri-env] Failed to start unsigned macOS packager: ${packaged.error.message}`);
-            finalCode = 1;
-        } else if (packaged.status !== 0) {
-            finalCode = packaged.status ?? 1;
         }
     }
     cleanup();

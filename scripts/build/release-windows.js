@@ -62,7 +62,8 @@ function assertWindowsCertificate() {
     console.log(`[release] Valid until: ${certificate.NotAfter}`);
 }
 
-function runTauriBuild() {
+/** @param {string[]} [args] */
+function runTauriBuild(args = []) {
     console.log('[release] Starting signed Tauri release build. SafeNet may request the token PIN.');
     rmSync(nsisBundleDir, { recursive: true, force: true });
     console.log('[release] Removed stale NSIS artifacts from previous releases.');
@@ -72,9 +73,9 @@ function runTauriBuild() {
     /** @type {ReturnType<typeof spawnSync>} */
     let result;
     try {
-        result = spawnSync('bun', ['scripts/build/tauri-env.js', 'build'], {
+        result = spawnSync('bun', ['scripts/build/tauri-env.js', 'build', ...args], {
             cwd: process.cwd(),
-            env: process.env,
+            env: { ...process.env, VULCAN_RELEASE_BUILD: '1' },
             stdio: 'inherit',
             shell: process.platform === 'win32',
         });
@@ -145,6 +146,7 @@ if (process.argv.includes('--check')) {
     console.log('[release] Windows signing preflight passed.');
     process.exit(0);
 }
-runTauriBuild();
+const buildArguments = process.argv.slice(2).filter((argument) => argument !== '--check');
+runTauriBuild(buildArguments);
 verifyArtifacts();
 console.log('[release] Signed Windows release build completed successfully.');
