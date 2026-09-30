@@ -5,6 +5,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -21,6 +23,7 @@ def _create_script() -> DesktopDevSetupScript:
     return DesktopDevSetupScript()
 
 
+@pytest.mark.skipif(not hasattr(os, "chown"), reason="POSIX ownership behavior")
 def test_sudo_setup_restores_modules_and_restarts_as_user(monkeypatch, tmp_path):
     modules_dir = tmp_path / "modules"
     nested_file = modules_dir / "existing" / "file.txt"

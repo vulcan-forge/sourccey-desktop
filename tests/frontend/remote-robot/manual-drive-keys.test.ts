@@ -7,10 +7,10 @@ import {
     normalizeManualDriveKey,
     pressManualDriveKeys,
     releaseManualDriveKeys,
-} from '../../../src/components/Elements/RemoteRobot/manual-drive-keys';
+} from '../../../src/components/Elements/Robot/manual-drive-keys';
 
-describe('manual drive key normalization', () => {
-    it('accepts only supported keys', () => {
+describe('manual drive keys', () => {
+    it('normalizes supported keys and rejects unsupported input', () => {
         expect(normalizeManualDriveKey('w')).toBe('w');
         expect(normalizeManualDriveKey('W')).toBe('w');
         expect(normalizeManualDriveKey('  q  ')).toBe('q');
@@ -21,28 +21,14 @@ describe('manual drive key normalization', () => {
         expect(normalizeManualDriveKey('m')).toBe(null);
         expect(normalizeManualDriveKey('space')).toBe(null);
     });
-});
 
-describe('manual drive source map', () => {
-    it('button press/release updates expected key set', () => {
-        let state = createEmptyManualDriveSourceMap();
-        state = pressManualDriveKeys(state, 'btn:n', ['w']);
-        expect(getPressedManualDriveKeys(state)).toEqual(['w']);
-        state = releaseManualDriveKeys(state, 'btn:n', ['w']);
-        expect(getPressedManualDriveKeys(state)).toEqual([]);
-    });
-
-    it('diagonal button presses two keys together', () => {
-        let state = createEmptyManualDriveSourceMap();
-        state = pressManualDriveKeys(state, 'btn:nw', ['w', 'a']);
-        expect(getPressedManualDriveKeys(state)).toEqual(['w', 'a']);
-    });
-
-    it('keyboard and button sources combine safely', () => {
+    it('keeps a key pressed until every input source releases it', () => {
         let state = createEmptyManualDriveSourceMap();
         state = pressManualDriveKeys(state, 'btn:n', ['w']);
         state = pressManualDriveKeys(state, 'kbd:w', ['w']);
+        state = pressManualDriveKeys(state, 'kbd:w', ['w']);
         expect(getPressedManualDriveKeys(state)).toEqual(['w']);
+        expect(state.w).toEqual(['btn:n', 'kbd:w']);
 
         state = releaseManualDriveKeys(state, 'btn:n', ['w']);
         expect(getPressedManualDriveKeys(state)).toEqual(['w']);
@@ -51,27 +37,9 @@ describe('manual drive source map', () => {
         expect(getPressedManualDriveKeys(state)).toEqual([]);
     });
 
-    it('does not duplicate the same source on repeated keydown', () => {
+    it('returns combinations in stable control order', () => {
         let state = createEmptyManualDriveSourceMap();
-        state = pressManualDriveKeys(state, 'kbd:w', ['w']);
-        state = pressManualDriveKeys(state, 'kbd:w', ['w']);
-        expect(state.w).toEqual(['kbd:w']);
-        expect(getPressedManualDriveKeys(state)).toEqual(['w']);
-    });
-
-    it('keeps stable output ordering based on MANUAL_DRIVE_KEYS', () => {
-        let state = createEmptyManualDriveSourceMap();
-        state = pressManualDriveKeys(state, 'btn:combo', ['x', 'a', 'q']);
-        expect(getPressedManualDriveKeys(state)).toEqual(
-            MANUAL_DRIVE_KEYS.filter((key) => ['x', 'a', 'q'].includes(key))
-        );
-    });
-
-    it('supports speed keys in the same source map', () => {
-        let state = createEmptyManualDriveSourceMap();
-        state = pressManualDriveKeys(state, 'btn:speed', ['r', 'f']);
-        expect(getPressedManualDriveKeys(state)).toEqual(
-            MANUAL_DRIVE_KEYS.filter((key) => ['r', 'f'].includes(key))
-        );
+        state = pressManualDriveKeys(state, 'btn:combo', ['x', 'a', 'q', 'r', 'f']);
+        expect(getPressedManualDriveKeys(state)).toEqual(MANUAL_DRIVE_KEYS.filter((key) => ['x', 'a', 'q', 'r', 'f'].includes(key)));
     });
 });

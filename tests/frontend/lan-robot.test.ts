@@ -33,8 +33,8 @@ describe('LAN robot draft helpers', () => {
         expect(buildLanRobotDraftFromHost(' 192.168.1.77 ', ['sourccey-077'])).toEqual({
             nickname: 'sourccey-077-2',
             host: '192.168.1.77',
-            leftArmPort: 'COM3',
-            rightArmPort: 'COM8',
+            leftArmPort: '',
+            rightArmPort: '',
         });
     });
 });

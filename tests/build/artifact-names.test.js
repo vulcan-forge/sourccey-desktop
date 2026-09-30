@@ -17,55 +17,30 @@ const release = (architecture) => ({
 });
 
 describe('release artifact names', () => {
-    test('removes spaces from Windows NSIS artifacts and signatures', () => {
+    test('normalizes supported platform artifacts', () => {
         const windows = release('x64');
-        expect(normalizedArtifactName('Vulcan Studio_0.0.20_x64-setup.exe', windows)).toBe(
-            'VulcanStudio_0.0.20_x64-setup.exe'
-        );
-        expect(normalizedArtifactName('Vulcan Studio_0.0.20_x64-setup.exe.sig', windows)).toBe(
-            'VulcanStudio_0.0.20_x64-setup.exe.sig'
-        );
-    });
+        expect(normalizedArtifactName('Vulcan Studio_0.0.20_x64-setup.exe', windows)).toBe('VulcanStudio_0.0.20_x64-setup.exe');
+        expect(normalizedArtifactName('Vulcan Studio_0.0.20_x64-setup.exe.sig', windows)).toBe('VulcanStudio_0.0.20_x64-setup.exe.sig');
 
-    test('removes spaces from Linux artifacts', () => {
         const linux = release('amd64');
-        expect(normalizedArtifactName('Vulcan Studio_0.0.20_amd64.AppImage', linux)).toBe(
-            'VulcanStudio_0.0.20_amd64.AppImage'
-        );
-        expect(normalizedArtifactName('Vulcan Studio_0.0.20_amd64.deb', linux)).toBe(
-            'VulcanStudio_0.0.20_amd64.deb'
-        );
-    });
+        expect(normalizedArtifactName('Vulcan Studio_0.0.20_amd64.AppImage', linux)).toBe('VulcanStudio_0.0.20_amd64.AppImage');
+        expect(normalizedArtifactName('Vulcan Studio_0.0.20_amd64.deb', linux)).toBe('VulcanStudio_0.0.20_amd64.deb');
 
-    test('adds version and architecture to the macOS updater archive', () => {
         const macos = release('aarch64');
-        expect(normalizedArtifactName('Vulcan Studio.app.tar.gz', macos)).toBe(
-            'VulcanStudio_0.0.20_aarch64.app.tar.gz'
-        );
-        expect(normalizedArtifactName('Vulcan Studio.app.tar.gz.sig', macos)).toBe(
-            'VulcanStudio_0.0.20_aarch64.app.tar.gz.sig'
-        );
-        expect(normalizedArtifactName('Vulcan Studio_0.0.20_aarch64.dmg', macos)).toBe(
-            'VulcanStudio_0.0.20_aarch64.dmg'
-        );
+        expect(normalizedArtifactName('Vulcan Studio.app.tar.gz', macos)).toBe('VulcanStudio_0.0.20_aarch64.app.tar.gz');
+        expect(normalizedArtifactName('Vulcan Studio.app.tar.gz.sig', macos)).toBe('VulcanStudio_0.0.20_aarch64.app.tar.gz.sig');
+        expect(normalizedArtifactName('Vulcan Studio_0.0.20_aarch64.dmg', macos)).toBe('VulcanStudio_0.0.20_aarch64.dmg');
     });
 
-    test('does not rename application bundles or unrelated files', () => {
+    test('preserves unrelated files and maps platform architectures', () => {
         const macos = release('aarch64');
         expect(normalizedArtifactName('Vulcan Studio.app', macos)).toBe('Vulcan Studio.app');
         expect(normalizedArtifactName('README.txt', macos)).toBe('README.txt');
-    });
-
-    test('maps host and target architectures to platform artifact conventions', () => {
         expect(artifactArchitecture('win32', 'x64')).toBe('x64');
         expect(artifactArchitecture('linux', 'x86_64-unknown-linux-gnu')).toBe('amd64');
         expect(artifactArchitecture('darwin', 'arm64')).toBe('aarch64');
-        expect(requestedArchitecture(['build', '--target', 'aarch64-apple-darwin'])).toBe(
-            'aarch64-apple-darwin'
-        );
-        expect(requestedArchitecture(['build', '--target=x86_64-pc-windows-msvc'])).toBe(
-            'x86_64-pc-windows-msvc'
-        );
+        expect(requestedArchitecture(['build', '--target', 'aarch64-apple-darwin'])).toBe('aarch64-apple-darwin');
+        expect(requestedArchitecture(['build', '--target=x86_64-pc-windows-msvc'])).toBe('x86_64-pc-windows-msvc');
         expect(macosUpdaterPlatform('arm64')).toBe('darwin-aarch64');
         expect(macosUpdaterPlatform('x64')).toBe('darwin-x86_64');
     });
@@ -77,10 +52,7 @@ describe('release artifact names', () => {
         const destinationName = 'VulcanStudio_0.0.20_x64-setup.exe';
         try {
             mkdirSync(nsisDirectory, { recursive: true });
-            writeFileSync(
-                join(root, 'src-tauri', 'tauri.conf.json'),
-                JSON.stringify({ productName: 'Vulcan Studio', version: '0.0.20' })
-            );
+            writeFileSync(join(root, 'src-tauri', 'tauri.conf.json'), JSON.stringify({ productName: 'Vulcan Studio', version: '0.0.20' }));
             writeFileSync(join(nsisDirectory, sourceName), 'installer');
 
             const renamed = finalizeArtifactNames({
