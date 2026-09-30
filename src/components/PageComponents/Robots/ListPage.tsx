@@ -73,11 +73,13 @@ export const RobotListPage = () => {
 
             const draft = buildLanRobotDraftFromHost(robot.ipAddress, existingNicknames);
             await saveLanRobotDraft(draft);
-            await queryClient.invalidateQueries({ queryKey: [BASE_OWNED_ROBOT_KEY] });
             toast.success(`Added ${draft.nickname} from ${robot.ipAddress}.`, {
                 ...toastSuccessDefaults,
             });
             setIsDiscoverOpen(false);
+            void queryClient.invalidateQueries({ queryKey: [BASE_OWNED_ROBOT_KEY] }).catch((error) => {
+                console.error('Failed to refresh owned robots after adding a discovered robot:', error);
+            });
         } catch (error) {
             const message = error instanceof Error ? error.message : 'Failed to add LAN robot.';
             toast.error(message, { ...toastErrorDefaults });

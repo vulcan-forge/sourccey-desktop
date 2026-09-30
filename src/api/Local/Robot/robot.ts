@@ -6,10 +6,10 @@ export const getAllRobots = async (): Promise<Robot[]> => {
     return result;
 };
 
-export const upsertRobotTemplate = async (robotType?: string | null, robotName?: string | null): Promise<Robot> => {
+export const upsertRobotTemplate = async (robotType: string, robotName: string): Promise<Robot> => {
     const result = await invoke<Robot>('upsert_robot_template', {
-        robot_type: robotType ?? null,
-        robot_name: robotName ?? null,
+        robotType,
+        robotName,
     });
     return result;
 };
