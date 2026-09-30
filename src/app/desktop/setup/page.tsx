@@ -217,8 +217,8 @@ export default function SetupPage() {
                     )}
 
                     {!isCheckingSetupStatus && (
-                    <div className="mt-7 grid items-start gap-5 lg:grid-cols-2">
-                        <section className="order-2 rounded-2xl border border-yellow-300/20 bg-linear-to-b from-slate-950/65 to-slate-950/35 p-5 shadow-xl shadow-black/10 sm:p-6 lg:order-2">
+                    <div className="mt-7 flex flex-col gap-5">
+                        <section className="order-2 rounded-2xl border border-yellow-300/20 bg-linear-to-b from-slate-950/65 to-slate-950/35 p-5 shadow-xl shadow-black/10 sm:p-6">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <h2 className="text-xl font-semibold text-white">Vulcan Studio</h2>
@@ -262,7 +262,7 @@ export default function SetupPage() {
                             )}
                         </section>
 
-                        <section className="order-1 rounded-2xl border border-orange-300/25 bg-linear-to-b from-slate-950/70 to-slate-950/40 p-5 shadow-xl shadow-orange-950/10 sm:p-6 lg:order-1">
+                        <section className="order-1 rounded-2xl border border-orange-300/25 bg-linear-to-b from-slate-950/70 to-slate-950/40 p-5 shadow-xl shadow-orange-950/10 sm:p-6">
                             <div className="flex items-start justify-between gap-4">
                                 <div>
                                     <h2 className="text-xl font-semibold text-white">Robot runtime</h2>
@@ -298,13 +298,18 @@ export default function SetupPage() {
                                     type="button"
                                     onClick={() => void runSetup(runtimeAction)}
                                     disabled={isRunning || appInstallProgress.running}
-                                    className={`inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl text-sm font-semibold transition disabled:cursor-not-allowed disabled:bg-slate-800 disabled:text-slate-400 ${
-                                        runtimeNeedsAction
-                                            ? 'w-full bg-linear-to-r from-yellow-300 via-amber-400 to-orange-500 px-5 py-3 font-bold text-slate-950 shadow-lg shadow-orange-950/25 hover:from-yellow-200 hover:via-amber-300 hover:to-orange-400'
-                                            : 'border border-slate-600 bg-transparent px-4 py-2 text-slate-300 hover:border-slate-400 hover:bg-slate-800/70 hover:text-white'
+                                    aria-live="polite"
+                                    className={`inline-flex items-center justify-center gap-2 rounded-xl text-sm font-semibold transition ${
+                                        isRunning
+                                            ? 'w-full cursor-wait border border-amber-200/50 bg-linear-to-r from-yellow-300 via-amber-400 to-orange-500 px-5 py-3 font-bold text-slate-950 shadow-lg shadow-orange-950/30 ring-2 ring-amber-300/20'
+                                            : appInstallProgress.running
+                                              ? 'cursor-not-allowed border border-slate-700 bg-slate-800 px-4 py-2 text-slate-500'
+                                              : runtimeNeedsAction
+                                                ? 'w-full cursor-pointer bg-linear-to-r from-yellow-300 via-amber-400 to-orange-500 px-5 py-3 font-bold text-slate-950 shadow-lg shadow-orange-950/25 hover:from-yellow-200 hover:via-amber-300 hover:to-orange-400'
+                                                : 'cursor-pointer border border-slate-600 bg-transparent px-4 py-2 text-slate-300 hover:border-slate-400 hover:bg-slate-800/70 hover:text-white'
                                     }`}
                                 >
-                                    {isRunning ? <Spinner color="white" width="w-4" height="h-4" /> : <FaTools />}
+                                    {isRunning ? <Spinner color="black" width="w-4" height="h-4" /> : <FaTools />}
                                     {runtimeButtonLabel}
                                 </button>
                                 {runtimeNeedsAction && (
