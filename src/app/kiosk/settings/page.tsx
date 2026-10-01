@@ -25,6 +25,7 @@ export default function KioskSettingsPage() {
     const { data: systemInfo }: any = useGetSystemInfo();
     const [isEditingPassword, setIsEditingPassword] = useState(false);
     const [newPassword, setNewPassword] = useState('');
+    const [showNewPassword, setShowNewPassword] = useState(false);
     const [isSavingPassword, setIsSavingPassword] = useState(false);
 
     // Access Point state with defaults
@@ -54,7 +55,8 @@ export default function KioskSettingsPage() {
     };
 
     const handleStartPasswordEdit = () => {
-        setNewPassword(generateSecurePassword());
+        setNewPassword('vulcan');
+        setShowNewPassword(false);
         setIsEditingPassword(true);
     };
 
@@ -66,6 +68,7 @@ export default function KioskSettingsPage() {
             await markPasswordAsChanged();
             toast.success('SSH password updated successfully.');
             setNewPassword('');
+            setShowNewPassword(false);
             setIsEditingPassword(false);
         } catch (error) {
             console.error('Failed to update SSH password:', error);
@@ -222,15 +225,27 @@ export default function KioskSettingsPage() {
                             {isEditingPassword ? (
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2">
-                                        <input
-                                            type="password"
-                                            value={newPassword}
-                                            onChange={(event) => setNewPassword(event.target.value)}
-                                            placeholder="Enter new password (min 6 characters)"
-                                            autoComplete="new-password"
-                                            className="flex-1 rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
-                                            disabled={isSavingPassword}
-                                        />
+                                        <div className="relative flex-1">
+                                            <input
+                                                type={showNewPassword ? 'text' : 'password'}
+                                                value={newPassword}
+                                                onChange={(event) => setNewPassword(event.target.value)}
+                                                placeholder="Enter new password (min 6 characters)"
+                                                autoComplete="new-password"
+                                                className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 pr-10 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
+                                                disabled={isSavingPassword}
+                                            />
+                                            <button
+                                                type="button"
+                                                onClick={() => setShowNewPassword((visible) => !visible)}
+                                                className="absolute inset-y-0 right-0 flex cursor-pointer items-center px-3 text-slate-400 hover:text-white"
+                                                aria-label={showNewPassword ? 'Hide SSH password' : 'Show SSH password'}
+                                                title={showNewPassword ? 'Hide password' : 'Show password'}
+                                                disabled={isSavingPassword}
+                                            >
+                                                {showNewPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
+                                            </button>
+                                        </div>
                                         <button
                                             type="button"
                                             onClick={() => setNewPassword(generateSecurePassword())}
@@ -254,6 +269,7 @@ export default function KioskSettingsPage() {
                                             type="button"
                                             onClick={() => {
                                                 setNewPassword('');
+                                                setShowNewPassword(false);
                                                 setIsEditingPassword(false);
                                             }}
                                             disabled={isSavingPassword}
@@ -281,114 +297,114 @@ export default function KioskSettingsPage() {
                     <div className="mb-6">
                         <h2 className="text-xl font-semibold text-white">Robot Wi-Fi Router</h2>
                         <p className="mt-1 max-w-3xl text-sm text-slate-400">
-                            Access Point mode makes Sourccey act as its own Wi-Fi router. Nearby devices can join the network broadcast by
-                            the robot using the credentials below.
+                            Access Point mode makes Sourccey act as its own Wi-Fi router. Nearby devices can join the network broadcast by the
+                            robot using the credentials below.
                         </p>
                     </div>
 
                     <div className="space-y-4">
                         {/* Toggle for Access Point Mode */}
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                <div className="flex flex-col">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-slate-300">Broadcast Robot Wi-Fi</span>
-                                        {isTogglingAccessPoint && <FaSpinner className="h-4 w-4 animate-spin text-slate-400" />}
-                                    </div>
-                                    <span className="mt-1 text-xs text-slate-400">
-                                        {isAccessPointEnabled
-                                            ? 'On — Sourccey is acting as a Wi-Fi router'
-                                            : 'Off — Sourccey uses an existing Wi-Fi network'}
-                                    </span>
+                            <div className="flex flex-col">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-sm font-medium text-slate-300">Broadcast Robot Wi-Fi</span>
+                                    {isTogglingAccessPoint && <FaSpinner className="h-4 w-4 animate-spin text-slate-400" />}
                                 </div>
-                                <label className="relative inline-flex cursor-pointer items-center">
-                                    <input
-                                        type="checkbox"
-                                        checked={(isAccessPointEnabled as boolean) ?? false}
-                                        onChange={toggleAccessPointMode}
-                                        className="peer sr-only"
-                                        disabled={isTogglingAccessPoint}
-                                    />
-                                    <div className="peer h-6 w-11 rounded-full bg-slate-600 transition-colors peer-checked:bg-blue-600 peer-focus:ring-4 peer-focus:ring-blue-800/20 peer-focus:outline-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
-                                </label>
+                                <span className="mt-1 text-xs text-slate-400">
+                                    {isAccessPointEnabled
+                                        ? 'On — Sourccey is acting as a Wi-Fi router'
+                                        : 'Off — Sourccey uses an existing Wi-Fi network'}
+                                </span>
+                            </div>
+                            <label className="relative inline-flex cursor-pointer items-center">
+                                <input
+                                    type="checkbox"
+                                    checked={(isAccessPointEnabled as boolean) ?? false}
+                                    onChange={toggleAccessPointMode}
+                                    className="peer sr-only"
+                                    disabled={isTogglingAccessPoint}
+                                />
+                                <div className="peer h-6 w-11 rounded-full bg-slate-600 transition-colors peer-checked:bg-blue-600 peer-focus:ring-4 peer-focus:ring-blue-800/20 peer-focus:outline-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-slate-300 after:bg-white after:transition-all after:content-[''] peer-checked:after:translate-x-full peer-checked:after:border-white"></div>
+                            </label>
                         </div>
 
                         {/* SSID Input */}
-                            <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                <label htmlFor="ap-ssid" className="mb-2 block text-sm font-medium text-slate-300">
-                                    Robot Network Name (SSID)
-                                </label>
-                                <input
-                                    id="ap-ssid"
-                                    type="text"
-                                    value={(accessPointSSID as string) ?? 'sourccey'}
-                                    onChange={(e) => setAccessPointSSID(e.target.value)}
-                                    placeholder="Enter the Wi-Fi name Sourccey will broadcast"
-                                    className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
-                                    disabled={isSavingAccessPoint}
-                                />
-                                <p className="mt-2 text-xs text-slate-400">This is the network name shown to devices near the robot.</p>
-                            </div>
+                        <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                            <label htmlFor="ap-ssid" className="mb-2 block text-sm font-medium text-slate-300">
+                                Robot Network Name (SSID)
+                            </label>
+                            <input
+                                id="ap-ssid"
+                                type="text"
+                                value={(accessPointSSID as string) ?? 'sourccey'}
+                                onChange={(e) => setAccessPointSSID(e.target.value)}
+                                placeholder="Enter the Wi-Fi name Sourccey will broadcast"
+                                className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
+                                disabled={isSavingAccessPoint}
+                            />
+                            <p className="mt-2 text-xs text-slate-400">This is the network name shown to devices near the robot.</p>
+                        </div>
 
                         {/* Password Input */}
-                            <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                <label htmlFor="ap-password" className="mb-2 block text-sm font-medium text-slate-300">
-                                    Robot Network Password
-                                </label>
-                                <div className="relative">
-                                    <input
-                                        id="ap-password"
-                                        type={showAccessPointPassword ? 'text' : 'password'}
-                                        value={(accessPointPassword as string | undefined) ?? ''}
-                                        onChange={(e) => setAccessPointPassword(e.target.value)}
-                                        placeholder="Enter the password for the robot's Wi-Fi network"
-                                        className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 pr-10 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
-                                        disabled={isSavingAccessPoint}
-                                    />
-                                    <button
-                                        type="button"
-                                        onClick={() => setShowAccessPointPassword(!showAccessPointPassword)}
-                                        className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer rounded p-1.5 text-slate-400 transition-colors hover:text-slate-200 focus:ring-2 focus:ring-yellow-500/30 focus:outline-none"
-                                        disabled={isSavingAccessPoint}
-                                        aria-label={showAccessPointPassword ? 'Hide password' : 'Show password'}
-                                    >
-                                        {showAccessPointPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
-                                    </button>
-                                </div>
-                                <p className="mt-2 text-xs text-slate-400">
-                                    Devices use this password when joining the Wi-Fi network broadcast by Sourccey.
-                                </p>
-                            </div>
-
-                        {/* Save Button */}
-                            <div className="flex items-center gap-2">
+                        <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                            <label htmlFor="ap-password" className="mb-2 block text-sm font-medium text-slate-300">
+                                Robot Network Password
+                            </label>
+                            <div className="relative">
+                                <input
+                                    id="ap-password"
+                                    type={showAccessPointPassword ? 'text' : 'password'}
+                                    value={(accessPointPassword as string | undefined) ?? ''}
+                                    onChange={(e) => setAccessPointPassword(e.target.value)}
+                                    placeholder="Enter the password for the robot's Wi-Fi network"
+                                    className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 pr-10 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
+                                    disabled={isSavingAccessPoint}
+                                />
                                 <button
-                                    onClick={handleSaveAPValues}
-                                    disabled={
-                                        !accessPointSSID ||
-                                        !accessPointPassword ||
-                                        (accessPointPassword as string).length < 8 ||
-                                        (accessPointPassword as string).length > 63 ||
-                                        isTogglingAccessPoint ||
-                                        isSavingAccessPoint
-                                    }
-                                    className={clsx(
-                                        'flex cursor-pointer items-center gap-2 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50',
-                                        isTogglingAccessPoint && 'cursor-not-allowed opacity-50'
-                                    )}
+                                    type="button"
+                                    onClick={() => setShowAccessPointPassword(!showAccessPointPassword)}
+                                    className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer rounded p-1.5 text-slate-400 transition-colors hover:text-slate-200 focus:ring-2 focus:ring-yellow-500/30 focus:outline-none"
+                                    disabled={isSavingAccessPoint}
+                                    aria-label={showAccessPointPassword ? 'Hide password' : 'Show password'}
                                 >
-                                    {isSavingAccessPoint ? (
-                                        <>
-                                            <FaSpinner className="h-4 w-4 animate-spin" />
-                                            Saving...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <FaSave className="h-4 w-4" />
-                                            Save Robot Network Credentials
-                                        </>
-                                    )}
+                                    {showAccessPointPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
                                 </button>
                             </div>
+                            <p className="mt-2 text-xs text-slate-400">
+                                Devices use this password when joining the Wi-Fi network broadcast by Sourccey.
+                            </p>
+                        </div>
+
+                        {/* Save Button */}
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={handleSaveAPValues}
+                                disabled={
+                                    !accessPointSSID ||
+                                    !accessPointPassword ||
+                                    (accessPointPassword as string).length < 8 ||
+                                    (accessPointPassword as string).length > 63 ||
+                                    isTogglingAccessPoint ||
+                                    isSavingAccessPoint
+                                }
+                                className={clsx(
+                                    'flex cursor-pointer items-center gap-2 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50',
+                                    isTogglingAccessPoint && 'cursor-not-allowed opacity-50'
+                                )}
+                            >
+                                {isSavingAccessPoint ? (
+                                    <>
+                                        <FaSpinner className="h-4 w-4 animate-spin" />
+                                        Saving...
+                                    </>
+                                ) : (
+                                    <>
+                                        <FaSave className="h-4 w-4" />
+                                        Save Robot Network Credentials
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -443,7 +459,6 @@ export default function KioskSettingsPage() {
                         </LinkButton>
                     </div>
                 </div>
-
             </div>
         </div>
     );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { FaSave } from 'react-icons/fa';
+import { FaEye, FaEyeSlash, FaSave } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { markPasswordAsChanged, usePasswordChangedStatus } from '@/hooks/Components/SSH/ssh.hook';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
@@ -11,6 +11,7 @@ export default function FirstTimePasswordModal() {
     const { data: hasPasswordBeenChanged } = usePasswordChangedStatus();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
     const [newPassword, setNewPassword] = useState('vulcan');
+    const [showPassword, setShowPassword] = useState(false);
     const [isSavingPassword, setIsSavingPassword] = useState(false);
 
     const generateSecurePassword = (length = 12): string => {
@@ -49,10 +50,10 @@ export default function FirstTimePasswordModal() {
         setIsSavingPassword(true);
         try {
             await invoke('set_pi_password', { password: newPassword });
-            
+
             // Mark password as changed in persistent storage (now async)
             await markPasswordAsChanged();
-            
+
             toast.success('Password set successfully!');
         } catch (error) {
             console.error('Failed to save password:', error);
@@ -68,19 +69,17 @@ export default function FirstTimePasswordModal() {
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm pt-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 pt-8 backdrop-blur-sm">
             <div className="w-full max-w-2xl rounded-2xl border-2 border-slate-700 bg-slate-800 p-8 shadow-2xl">
                 <div className="mb-6">
                     <h2 className="text-2xl font-bold text-white">Set Up Your Password</h2>
-                    <p className="mt-2 text-sm text-slate-300">
-                        Before you continue, please set a password for SSH and system access.
-                    </p>
+                    <p className="mt-2 text-sm text-slate-300">Before you continue, please set a password for SSH and system access.</p>
                 </div>
 
                 <div className="mb-6 rounded-lg border border-blue-600 bg-blue-900/20 p-4">
                     <p className="text-sm text-blue-300">
-                        <strong>Note:</strong> This password will be used for SSH access and sudo commands. Write it down in a
-                        safe place. You can always regenerate it from the Kiosk Settings page.
+                        <strong>Note:</strong> This password will be used for SSH access and sudo commands. Write it down in a safe place. You
+                        can always regenerate it from the Kiosk Settings page.
                     </p>
                 </div>
 
@@ -95,15 +94,27 @@ export default function FirstTimePasswordModal() {
                     <div>
                         <label className="mb-2 block text-sm font-medium text-slate-300">Password</label>
                         <div className="flex items-center gap-2">
-                            <input
-                                type="password"
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="Enter password (min 6 characters)"
-                                autoComplete="new-password"
-                                className="flex-1 rounded-lg border border-slate-600 bg-slate-700 px-4 py-3 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/30"
-                                disabled={isSavingPassword}
-                            />
+                            <div className="relative flex-1">
+                                <input
+                                    type={showPassword ? 'text' : 'password'}
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    placeholder="Enter password (min 6 characters)"
+                                    autoComplete="new-password"
+                                    className="w-full rounded-lg border border-slate-600 bg-slate-700 px-4 py-3 pr-12 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-2 focus:ring-yellow-500/30 focus:outline-none"
+                                    disabled={isSavingPassword}
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword((visible) => !visible)}
+                                    className="absolute inset-y-0 right-0 flex cursor-pointer items-center px-4 text-slate-400 hover:text-white"
+                                    aria-label={showPassword ? 'Hide SSH password' : 'Show SSH password'}
+                                    title={showPassword ? 'Hide password' : 'Show password'}
+                                    disabled={isSavingPassword}
+                                >
+                                    {showPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
+                                </button>
+                            </div>
                             <button
                                 onClick={handleRandomizePassword}
                                 disabled={isSavingPassword}
@@ -129,4 +140,3 @@ export default function FirstTimePasswordModal() {
         </div>
     );
 }
-

@@ -3,8 +3,8 @@ const { join } = require('path');
 
 /**
  * Load release variables from .env without replacing variables supplied by the
- * caller. Keeping this in one place lets signed and ad-hoc release commands use
- * the same updater signing credentials.
+ * caller. Keeping this in one place lets release commands share the same
+ * signing credentials.
  *
  * @param {string} [root]
  * @param {NodeJS.ProcessEnv} [environment]

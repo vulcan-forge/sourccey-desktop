@@ -12,12 +12,12 @@ describe('release environment', () => {
                 join(root, '.env'),
                 '# release settings\nTAURI_SIGNING_PRIVATE_KEY="from file"\nAPPLE_SIGNING_IDENTITY=file identity\n'
             );
-            const environment = { APPLE_SIGNING_IDENTITY: '-' };
+            const environment = { APPLE_SIGNING_IDENTITY: 'Developer ID Application: Existing Caller' };
 
             loadReleaseEnvironment(root, environment);
 
             expect(environment.TAURI_SIGNING_PRIVATE_KEY).toBe('from file');
-            expect(environment.APPLE_SIGNING_IDENTITY).toBe('-');
+            expect(environment.APPLE_SIGNING_IDENTITY).toBe('Developer ID Application: Existing Caller');
         } finally {
             rmSync(root, { recursive: true, force: true });
         }
