@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import { FaSave, FaTimes, FaSpinner, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
-import { markPasswordAsChanged } from '@/hooks/Components/SSH/ssh.hook';
 import { toast } from 'react-toastify';
 import {
     saveAccessPointCredentials,
@@ -17,22 +16,13 @@ import { useGetAccessPointPassword } from '@/hooks/WIFI/access-point.hook';
 import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getSavedWiFiSSIDs } from '@/hooks/WIFI/wifi.hook';
 import clsx from 'clsx';
-import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import { setSystemInfo, useGetSystemInfo, type BatteryData, type SystemInfo } from '@/hooks/System/system-info.hook';
 import Link from 'next/link';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
-
-interface PiCredentials {
-    username: string;
-}
+import { markPasswordAsChanged } from '@/hooks/Components/SSH/ssh.hook';
 
 export default function KioskSettingsPage() {
     const { data: systemInfo }: any = useGetSystemInfo();
-
-    const [piCredentials, setPiCredentials] = useState<PiCredentials>({
-        username: '...',
-    });
-
-    const [isFetchingCreds, setIsFetchingCreds] = useState(false);
     const [isEditingPassword, setIsEditingPassword] = useState(false);
     const [newPassword, setNewPassword] = useState('');
     const [isSavingPassword, setIsSavingPassword] = useState(false);
@@ -49,43 +39,56 @@ export default function KioskSettingsPage() {
 
     const generateSecurePassword = (length = 12): string => {
         const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*_-+=';
-        const charsetLength = charset.length;
         const result: string[] = [];
-        const max = 256 - (256 % charsetLength);
-        const getBytes = (size: number) => {
-            const buffer = new Uint8Array(size);
-            window.crypto.getRandomValues(buffer);
-            return buffer;
-        };
-
+        const max = 256 - (256 % charset.length);
         while (result.length < length) {
-            const bytes = getBytes(length * 2);
-            for (let i = 0; i < bytes.length && result.length < length; i++) {
-                const randomByte = bytes[i];
-                if (randomByte !== undefined && randomByte < max) {
-                    const index = randomByte % charsetLength;
-                    result.push(charset.charAt(index));
+            const bytes = new Uint8Array(length * 2);
+            window.crypto.getRandomValues(bytes);
+            for (const randomByte of bytes) {
+                if (randomByte < max && result.length < length) {
+                    result.push(charset.charAt(randomByte % charset.length));
                 }
             }
         }
-
         return result.join('');
     };
 
-    const handleRandomizePassword = () => {
-        const pwd = generateSecurePassword(12);
+    const handleStartPasswordEdit = () => {
+        setNewPassword(generateSecurePassword());
         setIsEditingPassword(true);
-        setNewPassword(pwd);
+    };
+
+    const handleSavePassword = async () => {
+        if (newPassword.length < 6) return;
+        setIsSavingPassword(true);
+        try {
+            await invoke('set_pi_password', { password: newPassword });
+            await markPasswordAsChanged();
+            toast.success('SSH password updated successfully.');
+            setNewPassword('');
+            setIsEditingPassword(false);
+        } catch (error) {
+            console.error('Failed to update SSH password:', error);
+            toast.error(`Failed to update SSH password: ${error}`);
+        } finally {
+            setIsSavingPassword(false);
+        }
     };
 
     // Fetch system info
     useEffect(() => {
         const fetchSystemInfo = async () => {
             try {
-                const info = await invoke<{ ip_address: string; temperature: string; battery_data: BatteryData }>('get_system_info');
+                const info = await invoke<{
+                    ip_address: string;
+                    temperature: string;
+                    thermal_data: SystemInfo['thermalData'];
+                    battery_data: BatteryData;
+                }>('get_system_info');
                 const systemInfo = {
                     ipAddress: info.ip_address,
                     temperature: info.temperature,
+                    thermalData: info.thermal_data,
                     batteryData: info.battery_data,
                 };
                 setSystemInfo(systemInfo);
@@ -99,55 +102,14 @@ export default function KioskSettingsPage() {
         return () => clearInterval(interval);
     }, []);
 
-    // Fetch Pi credentials
-    useEffect(() => {
-        const fetchCredentials = async () => {
-            setIsFetchingCreds(true);
-            try {
-                // Fetch the current username from the system
-                const username = await invoke<string>('get_pi_username');
-                setPiCredentials({ username });
-            } catch (error) {
-                console.warn('Could not fetch Raspberry Pi username. Using default.', error);
-                setPiCredentials({ username: 'unknown' });
-            } finally {
-                setIsFetchingCreds(false);
-            }
-        };
-
-        fetchCredentials();
-    }, []);
-
-    const handleSavePassword = async () => {
-        if (!newPassword.trim()) return;
-
-        setIsSavingPassword(true);
-        try {
-            // Attempt to set the system password via Tauri backend (Linux only)
-            await invoke('set_pi_password', { username: piCredentials.username, password: newPassword });
-
-            // Mark password as changed in persistent storage (now async)
-            await markPasswordAsChanged();
-
-            toast.success('Password updated successfully! Make sure you wrote it down.');
-            setIsEditingPassword(false);
-            setNewPassword('');
-        } catch (error) {
-            console.error('Failed to save password:', error);
-            toast.error(`Failed to save password: ${error}`);
-        } finally {
-            setIsSavingPassword(false);
-        }
-    };
-
     const handleSaveAPValues = async () => {
         if (!accessPointSSID) {
             toast.error('SSID is required');
             return;
         }
 
-        if (!accessPointPassword) {
-            toast.error('Password is required');
+        if (!accessPointPassword || (accessPointPassword as string).length < 8 || (accessPointPassword as string).length > 63) {
+            toast.error('Robot network password must be between 8 and 63 characters');
             return;
         }
 
@@ -161,11 +123,6 @@ export default function KioskSettingsPage() {
         } finally {
             setIsSavingAccessPoint(false);
         }
-    };
-
-    const handleCancelEdit = () => {
-        setIsEditingPassword(false);
-        setNewPassword('');
     };
 
     const toggleAccessPointMode = () => {
@@ -182,25 +139,20 @@ export default function KioskSettingsPage() {
             return;
         }
 
-        if (!accessPointPassword) {
-            toast.error('Password is required');
+        if (!accessPointPassword || (accessPointPassword as string).length < 8 || (accessPointPassword as string).length > 63) {
+            toast.error('Robot network password must be between 8 and 63 characters');
             return;
         }
 
         setIsTogglingAccessPoint(true);
         try {
             await saveAccessPointCredentials(accessPointSSID as string, accessPointPassword as string);
-            const result = await invoke('set_access_point', {
+            await invoke('set_access_point', {
                 ssid: accessPointSSID,
                 password: accessPointPassword,
             });
-            if (result) {
-                setAccessPointEnabled(true);
-                toast.success('Access Point mode activated successfully', { ...toastSuccessDefaults });
-            } else {
-                setAccessPointEnabled(false);
-                toast.error('Failed to set Access Point mode');
-            }
+            setAccessPointEnabled(true);
+            toast.success('Sourccey is now broadcasting its Wi-Fi network.', { ...toastSuccessDefaults });
         } catch (error) {
             console.error('Failed to set access point mode:', error);
             toast.error(`Failed to set access point mode: ${error}`);
@@ -213,14 +165,9 @@ export default function KioskSettingsPage() {
         setIsTogglingAccessPoint(true);
         try {
             const firstSavedSSID = getSavedWiFiSSIDs()?.length > 0 ? getSavedWiFiSSIDs()[0] : null;
-            const result = await invoke('set_wifi', { ssid: firstSavedSSID ?? '' });
-            if (result === 'SUCCESS') {
-                setAccessPointEnabled(false);
-                toast.success('WiFi mode activated successfully', { ...toastSuccessDefaults });
-            } else {
-                setAccessPointEnabled(true);
-                toast.error('Failed to set WiFi mode');
-            }
+            await invoke('set_wifi', { ssid: firstSavedSSID ?? '' });
+            setAccessPointEnabled(false);
+            toast.success('Robot Wi-Fi router disabled.', { ...toastSuccessDefaults });
         } catch (error) {
             console.error('Failed to set WiFi mode:', error);
             toast.error(`Failed to set WiFi mode: ${error}`);
@@ -253,23 +200,18 @@ export default function KioskSettingsPage() {
                             <span className="text-sm font-semibold text-slate-300">{systemInfo.ipAddress}</span>
                         </div>
 
-                        {/* Username */}
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                            <div className="flex items-center gap-3">
-                                <span className="text-sm font-medium text-slate-300">Username</span>
-                            </div>
-                            <span className="text-sm font-semibold text-slate-300">
-                                {isFetchingCreds ? 'Loading…' : piCredentials.username}
-                            </span>
+                            <span className="text-sm font-medium text-slate-300">Username</span>
+                            <span className="text-sm font-semibold text-slate-300">sourccey</span>
                         </div>
 
-                        {/* Password */}
                         <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                             <div className="mb-3 flex items-center justify-between">
                                 <span className="text-sm font-medium text-slate-300">Password</span>
                                 {!isEditingPassword && (
                                     <button
-                                        onClick={handleRandomizePassword}
+                                        type="button"
+                                        onClick={handleStartPasswordEdit}
                                         className="cursor-pointer rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
                                     >
                                         Set New Password
@@ -281,34 +223,39 @@ export default function KioskSettingsPage() {
                                 <div className="space-y-3">
                                     <div className="flex items-center gap-2">
                                         <input
-                                            type="text"
+                                            type="password"
                                             value={newPassword}
-                                            onChange={(e) => setNewPassword(e.target.value)}
-                                            placeholder="Enter new password (min 8 characters)"
-                                            autoComplete="off"
+                                            onChange={(event) => setNewPassword(event.target.value)}
+                                            placeholder="Enter new password (min 6 characters)"
+                                            autoComplete="new-password"
                                             className="flex-1 rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
                                             disabled={isSavingPassword}
                                         />
                                         <button
-                                            onClick={handleRandomizePassword}
-                                            className="cursor-pointer rounded bg-purple-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700"
+                                            type="button"
+                                            onClick={() => setNewPassword(generateSecurePassword())}
+                                            className="cursor-pointer rounded bg-purple-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
                                             disabled={isSavingPassword}
                                         >
                                             Randomize
                                         </button>
                                     </div>
-
                                     <div className="flex items-center gap-2">
                                         <button
-                                            onClick={handleSavePassword}
-                                            disabled={!newPassword.trim() || isSavingPassword}
+                                            type="button"
+                                            onClick={() => void handleSavePassword()}
+                                            disabled={newPassword.length < 6 || isSavingPassword}
                                             className="flex items-center gap-2 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
                                             <FaSave className="h-4 w-4" />
                                             {isSavingPassword ? 'Saving...' : 'Save Password'}
                                         </button>
                                         <button
-                                            onClick={handleCancelEdit}
+                                            type="button"
+                                            onClick={() => {
+                                                setNewPassword('');
+                                                setIsEditingPassword(false);
+                                            }}
                                             disabled={isSavingPassword}
                                             className="flex items-center gap-2 rounded bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                                         >
@@ -316,19 +263,13 @@ export default function KioskSettingsPage() {
                                             Cancel
                                         </button>
                                     </div>
-
-                                    {newPassword && (
-                                        <div className="rounded-lg border border-yellow-600 bg-yellow-900/20 p-3">
-                                            <p className="text-xs text-yellow-300">
-                                                <strong>⚠ Important:</strong> Write down this password before saving! It will not be stored
-                                                anywhere. If you lose it, you can always regenerate it from this page.
-                                            </p>
-                                        </div>
-                                    )}
+                                    <div className="rounded-lg border border-yellow-600 bg-yellow-900/20 p-3 text-xs text-yellow-300">
+                                        The password is masked and is never stored or displayed after saving.
+                                    </div>
                                 </div>
                             ) : (
                                 <p className="text-sm text-slate-400">
-                                    Click &quot;Set New Password&quot; to generate or enter a new password for SSH access.
+                                    Set a replacement password for SSH access. The current password is never revealed.
                                 </p>
                             )}
                         </div>
@@ -338,8 +279,11 @@ export default function KioskSettingsPage() {
                 {/* Access Point Section */}
                 <div className="rounded-xl border-2 border-slate-700 bg-slate-800 p-6 backdrop-blur-sm">
                     <div className="mb-6">
-                        <h2 className="text-xl font-semibold text-white">Access Point</h2>
-                        <p className="mt-1 text-sm text-slate-400">Manage your robot&apos;s access point configuration</p>
+                        <h2 className="text-xl font-semibold text-white">Robot Wi-Fi Router</h2>
+                        <p className="mt-1 max-w-3xl text-sm text-slate-400">
+                            Access Point mode makes Sourccey act as its own Wi-Fi router. Nearby devices can join the network broadcast by
+                            the robot using the credentials below.
+                        </p>
                     </div>
 
                     <div className="space-y-4">
@@ -347,13 +291,13 @@ export default function KioskSettingsPage() {
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                                 <div className="flex flex-col">
                                     <div className="flex items-center gap-2">
-                                        <span className="text-sm font-medium text-slate-300">Access Point Mode</span>
+                                        <span className="text-sm font-medium text-slate-300">Broadcast Robot Wi-Fi</span>
                                         {isTogglingAccessPoint && <FaSpinner className="h-4 w-4 animate-spin text-slate-400" />}
                                     </div>
                                     <span className="mt-1 text-xs text-slate-400">
                                         {isAccessPointEnabled
-                                            ? 'Robot will broadcast its own WiFi network'
-                                            : 'Robot will connect to an existing WiFi network'}
+                                            ? 'On — Sourccey is acting as a Wi-Fi router'
+                                            : 'Off — Sourccey uses an existing Wi-Fi network'}
                                     </span>
                                 </div>
                                 <label className="relative inline-flex cursor-pointer items-center">
@@ -371,23 +315,24 @@ export default function KioskSettingsPage() {
                         {/* SSID Input */}
                             <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                                 <label htmlFor="ap-ssid" className="mb-2 block text-sm font-medium text-slate-300">
-                                    {isAccessPointEnabled ? 'Access Point SSID' : 'WiFi Network SSID'}
+                                    Robot Network Name (SSID)
                                 </label>
                                 <input
                                     id="ap-ssid"
                                     type="text"
                                     value={(accessPointSSID as string) ?? 'sourccey'}
                                     onChange={(e) => setAccessPointSSID(e.target.value)}
-                                    placeholder={isAccessPointEnabled ? 'Enter access point name' : 'Enter WiFi network name'}
+                                    placeholder="Enter the Wi-Fi name Sourccey will broadcast"
                                     className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
                                     disabled={isSavingAccessPoint}
                                 />
+                                <p className="mt-2 text-xs text-slate-400">This is the network name shown to devices near the robot.</p>
                             </div>
 
                         {/* Password Input */}
                             <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
                                 <label htmlFor="ap-password" className="mb-2 block text-sm font-medium text-slate-300">
-                                    {isAccessPointEnabled ? 'Access Point Password' : 'WiFi Password'}
+                                    Robot Network Password
                                 </label>
                                 <div className="relative">
                                     <input
@@ -395,7 +340,7 @@ export default function KioskSettingsPage() {
                                         type={showAccessPointPassword ? 'text' : 'password'}
                                         value={(accessPointPassword as string | undefined) ?? ''}
                                         onChange={(e) => setAccessPointPassword(e.target.value)}
-                                        placeholder={isAccessPointEnabled ? 'Enter access point password' : 'Enter WiFi password'}
+                                        placeholder="Enter the password for the robot's Wi-Fi network"
                                         className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 pr-10 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
                                         disabled={isSavingAccessPoint}
                                     />
@@ -409,6 +354,9 @@ export default function KioskSettingsPage() {
                                         {showAccessPointPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
                                     </button>
                                 </div>
+                                <p className="mt-2 text-xs text-slate-400">
+                                    Devices use this password when joining the Wi-Fi network broadcast by Sourccey.
+                                </p>
                             </div>
 
                         {/* Save Button */}
@@ -418,6 +366,8 @@ export default function KioskSettingsPage() {
                                     disabled={
                                         !accessPointSSID ||
                                         !accessPointPassword ||
+                                        (accessPointPassword as string).length < 8 ||
+                                        (accessPointPassword as string).length > 63 ||
                                         isTogglingAccessPoint ||
                                         isSavingAccessPoint
                                     }
@@ -434,7 +384,7 @@ export default function KioskSettingsPage() {
                                     ) : (
                                         <>
                                             <FaSave className="h-4 w-4" />
-                                            Save Access Point
+                                            Save Robot Network Credentials
                                         </>
                                     )}
                                 </button>

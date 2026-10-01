@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { FaSave } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { markPasswordAsChanged, usePasswordChangedStatus } from '@/hooks/Components/SSH/ssh.hook';
@@ -10,25 +10,8 @@ import { toast } from 'react-toastify';
 export default function FirstTimePasswordModal() {
     const { data: hasPasswordBeenChanged } = usePasswordChangedStatus();
     const { isKioskMode, isLoading: isLoadingAppMode } = useAppMode();
-    const [newPassword, setNewPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('vulcan');
     const [isSavingPassword, setIsSavingPassword] = useState(false);
-    const [username, setUsername] = useState('...');
-
-    // Fetch username when modal opens
-    React.useEffect(() => {
-        if (!hasPasswordBeenChanged && isKioskMode) {
-            const fetchUsername = async () => {
-                try {
-                    const fetchedUsername = await invoke<string>('get_pi_username');
-                    setUsername(fetchedUsername);
-                } catch (error) {
-                    console.error('Failed to fetch username:', error);
-                    setUsername('sourccey');
-                }
-            };
-            fetchUsername();
-        }
-    }, [hasPasswordBeenChanged, isKioskMode]);
 
     const generateSecurePassword = (length = 12): string => {
         const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*_-+=';
@@ -65,7 +48,7 @@ export default function FirstTimePasswordModal() {
 
         setIsSavingPassword(true);
         try {
-            await invoke('set_pi_password', { username, password: newPassword });
+            await invoke('set_pi_password', { password: newPassword });
             
             // Mark password as changed in persistent storage (now async)
             await markPasswordAsChanged();
@@ -105,7 +88,7 @@ export default function FirstTimePasswordModal() {
                     <div>
                         <label className="mb-2 block text-sm font-medium text-slate-300">Username</label>
                         <div className="rounded-lg border border-slate-600 bg-slate-700/50 px-4 py-3">
-                            <span className="text-sm font-semibold text-slate-200">{username}</span>
+                            <span className="text-sm font-semibold text-slate-200">sourccey</span>
                         </div>
                     </div>
 
@@ -113,11 +96,11 @@ export default function FirstTimePasswordModal() {
                         <label className="mb-2 block text-sm font-medium text-slate-300">Password</label>
                         <div className="flex items-center gap-2">
                             <input
-                                type="text"
+                                type="password"
                                 value={newPassword}
                                 onChange={(e) => setNewPassword(e.target.value)}
-                                placeholder="Enter password (min 8 characters)"
-                                autoComplete="off"
+                                placeholder="Enter password (min 6 characters)"
+                                autoComplete="new-password"
                                 className="flex-1 rounded-lg border border-slate-600 bg-slate-700 px-4 py-3 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:outline-none focus:ring-2 focus:ring-yellow-500/30"
                                 disabled={isSavingPassword}
                             />
@@ -134,7 +117,7 @@ export default function FirstTimePasswordModal() {
                     <div className="flex items-center justify-end gap-3 pt-4">
                         <button
                             onClick={handleSavePassword}
-                            disabled={!newPassword.trim() || isSavingPassword}
+                            disabled={newPassword.length < 6 || isSavingPassword}
                             className="flex items-center gap-2 rounded-lg bg-green-600 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                             <FaSave className="h-4 w-4" />

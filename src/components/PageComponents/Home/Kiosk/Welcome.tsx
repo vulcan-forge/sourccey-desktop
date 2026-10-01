@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { FaExclamationTriangle } from 'react-icons/fa';
 import { toast } from 'react-toastify';
-import { hasLoadedSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import { hasLoadedSystemInfo, useGetSystemInfo, type BatteryData, type ThermalData } from '@/hooks/System/system-info.hook';
 import { toastWarningDefaults } from '@/utils/toast/toast-utils';
 import { WelcomeRegistrationSection } from './WelcomeRegistrationSection';
 import { WelcomeSystemStatus } from './WelcomeSystemStatus';
@@ -28,6 +28,15 @@ export const HomeWelcome = () => {
     const systemInfo = (data as WelcomeSystemInfo | undefined) ?? {
         ipAddress: '...',
         temperature: '...',
+        thermalData: {
+            temperature_celsius: null,
+            status: 'Unavailable',
+            fan_speed_rpm: null,
+            fan_running: null,
+            cooling_state: null,
+            cooling_max_state: null,
+            source: null,
+        } as ThermalData,
         batteryData: {} as BatteryData,
     };
     const isSystemInfoLoading = !hasLoadedSystemInfo(systemInfo);

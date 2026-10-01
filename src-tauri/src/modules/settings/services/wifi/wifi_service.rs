@@ -26,7 +26,7 @@ impl WiFiService {
 
         // Execute Python script locally with sudo (no arguments needed - just disables AP mode)
         let output = Command::new("sudo")
-            .arg("python")
+            .arg("python3")
             .arg(script_path.to_string_lossy().as_ref())
             .arg("--ssid")
             .arg(&ssid)

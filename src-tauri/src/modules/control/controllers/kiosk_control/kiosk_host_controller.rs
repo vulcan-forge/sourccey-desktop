@@ -17,7 +17,19 @@ use tauri::{AppHandle, Manager, State};
 pub struct SystemInfo {
     ip_address: String,
     temperature: String,
+    thermal_data: ThermalData,
     battery_data: BatteryData,
+}
+
+#[derive(Serialize)]
+pub struct ThermalData {
+    temperature_celsius: Option<f64>,
+    status: String,
+    fan_speed_rpm: Option<u32>,
+    fan_running: Option<bool>,
+    cooling_state: Option<u32>,
+    cooling_max_state: Option<u32>,
+    source: Option<String>,
 }
 
 // Initialize the state
@@ -80,7 +92,11 @@ pub fn is_kiosk_host_active(state: State<KioskHostProcess>, nickname: String) ->
 #[command]
 pub fn get_system_info() -> SystemInfo {
     let ip_address = get_ip_address();
-    let temperature = get_temperature();
+    let thermal_data = get_thermal_data();
+    let temperature = thermal_data
+        .temperature_celsius
+        .map(|value| format!("{value:.0}°C"))
+        .unwrap_or_else(|| "Unknown".to_string());
     let battery_data = BatteryService::get_battery_data().unwrap_or_else(|error| {
         eprintln!("Failed to read battery data: {error}");
         BatteryData {
@@ -96,6 +112,7 @@ pub fn get_system_info() -> SystemInfo {
     SystemInfo {
         ip_address,
         temperature,
+        thermal_data,
         battery_data,
     }
 }
@@ -200,37 +217,106 @@ fn is_private_ip(ip: &str) -> bool {
     false
 }
 
-fn get_temperature() -> String {
-    // Try to get CPU temperature on Linux
+fn get_thermal_data() -> ThermalData {
     #[cfg(target_os = "linux")]
     {
-        // Try different common temperature sensors
         let temp_paths = [
             "/sys/class/thermal/thermal_zone0/temp",
             "/sys/class/hwmon/hwmon0/temp1_input",
             "/sys/class/hwmon/hwmon1/temp1_input",
         ];
-
+        let mut temperature_celsius = None;
+        let mut source = None;
         for path in &temp_paths {
-            if let Ok(temp_str) = std::fs::read_to_string(path) {
-                if let Ok(temp_millic) = temp_str.trim().parse::<i32>() {
-                    let temp_celsius = temp_millic / 1000;
-                    return format!("{}°C", temp_celsius);
+            if let Some(raw) = read_sysfs_number(path) {
+                temperature_celsius = Some(if raw.abs() >= 1_000.0 {
+                    raw / 1_000.0
+                } else {
+                    raw
+                });
+                source = Some((*path).to_string());
+                break;
+            }
+        }
+
+        if temperature_celsius.is_none() {
+            if let Ok(output) = Command::new("vcgencmd").arg("measure_temp").output() {
+                if let Ok(value) = String::from_utf8(output.stdout) {
+                    temperature_celsius = value
+                        .trim()
+                        .strip_prefix("temp=")
+                        .and_then(|value| value.trim_end_matches("'C").parse::<f64>().ok());
+                    if temperature_celsius.is_some() {
+                        source = Some("vcgencmd".to_string());
+                    }
                 }
             }
         }
 
-        // Try vcgencmd for Raspberry Pi
-        if let Ok(output) = Command::new("vcgencmd").arg("measure_temp").output() {
-            if let Ok(temp_str) = String::from_utf8(output.stdout) {
-                if let Some(temp_part) = temp_str.strip_prefix("temp=") {
-                    return temp_part.trim().to_string();
-                }
+        let fan_speed_rpm = (0..10).find_map(|index| {
+            read_sysfs_number(&format!("/sys/class/hwmon/hwmon{index}/fan1_input"))
+                .map(|value| value.max(0.0) as u32)
+        });
+        let cooling_device = (0..10).find_map(|index| {
+            let base = format!("/sys/class/thermal/cooling_device{index}");
+            let device_type = std::fs::read_to_string(format!("{base}/type")).ok()?;
+            if !device_type.to_ascii_lowercase().contains("fan") {
+                return None;
             }
-        }
+            Some((
+                read_sysfs_number(&format!("{base}/cur_state"))
+                    .map(|value| value.max(0.0) as u32),
+                read_sysfs_number(&format!("{base}/max_state"))
+                    .map(|value| value.max(0.0) as u32),
+            ))
+        });
+        let (cooling_state, cooling_max_state) = cooling_device.unwrap_or((None, None));
+        let fan_running = fan_speed_rpm
+            .map(|rpm| rpm > 0)
+            .or_else(|| cooling_state.map(|state| state > 0));
+
+        return ThermalData {
+            temperature_celsius,
+            status: thermal_status(temperature_celsius),
+            fan_speed_rpm,
+            fan_running,
+            cooling_state,
+            cooling_max_state,
+            source,
+        };
     }
 
-    "Unknown".to_string()
+    #[cfg(not(target_os = "linux"))]
+    ThermalData {
+        temperature_celsius: None,
+        status: "Unavailable".to_string(),
+        fan_speed_rpm: None,
+        fan_running: None,
+        cooling_state: None,
+        cooling_max_state: None,
+        source: None,
+    }
+}
+
+#[cfg(target_os = "linux")]
+fn read_sysfs_number(path: &str) -> Option<f64> {
+    std::fs::read_to_string(path)
+        .ok()?
+        .trim()
+        .parse::<f64>()
+        .ok()
+}
+
+#[cfg(target_os = "linux")]
+fn thermal_status(temperature_celsius: Option<f64>) -> String {
+    match temperature_celsius {
+        Some(value) if value < 60.0 => "Normal",
+        Some(value) if value < 75.0 => "Warm",
+        Some(value) if value < 85.0 => "Hot",
+        Some(_) => "Critical",
+        None => "Unavailable",
+    }
+    .to_string()
 }
 
 #[command]
@@ -265,19 +351,6 @@ fn validate_single_line_field(value: &str, field_name: &str) -> Result<(), Strin
 }
 
 #[cfg(target_os = "linux")]
-fn validate_chpasswd_username(username: &str) -> Result<(), String> {
-    let user = username.trim();
-    if user.is_empty() {
-        return Err("Username cannot be empty".to_string());
-    }
-    validate_single_line_field(user, "Username")?;
-    if user.contains(':') {
-        return Err("Username cannot contain ':'".to_string());
-    }
-    Ok(())
-}
-
-#[cfg(target_os = "linux")]
 fn validate_chpasswd_password(password: &str) -> Result<(), String> {
     validate_single_line_field(password, "Password")?;
     if password.contains(':') {
@@ -286,55 +359,22 @@ fn validate_chpasswd_password(password: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
-fn get_current_linux_username() -> Result<String, String> {
-    let user = String::from_utf8(
-        Command::new("whoami")
-            .output()
-            .map_err(|e| format!("Failed to run whoami: {}", e))?
-            .stdout,
-    )
-    .map_err(|e| format!("Failed to parse whoami output: {}", e))?
-    .trim()
-    .to_string();
-
-    if user.is_empty() {
-        return Err("Unable to determine target username".to_string());
-    }
-
-    Ok(user)
-}
-
 #[command]
-#[allow(unused_variables)] // username is used on Linux but unused on other platforms
-pub fn set_pi_password(username: Option<String>, password: String) -> Result<String, String> {
+pub fn set_pi_password(password: String) -> Result<String, String> {
     if password.trim().is_empty() {
         return Err("Password cannot be empty".to_string());
     }
-    if password.len() < 8 {
-        return Err("Password must be at least 8 characters".to_string());
+    if password.len() < 6 {
+        return Err("Password must be at least 6 characters".to_string());
     }
 
     #[cfg(target_os = "linux")]
     {
-        // Determine target user
-        let user = match username {
-            Some(u) => {
-                let trimmed = u.trim();
-                if trimmed.is_empty() {
-                    get_current_linux_username()?
-                } else {
-                    trimmed.to_string()
-                }
-            }
-            None => get_current_linux_username()?,
-        };
-
-        validate_chpasswd_username(&user)?;
         validate_chpasswd_password(&password)?;
 
-        // Use chpasswd for non-interactive password update: echo "user:pass" | sudo chpasswd
-        let input = format!("{}:{}\n", user, password);
+        // The kiosk image provisions a fixed SSH account. Do not allow this
+        // command to target arbitrary system users.
+        let input = format!("sourccey:{}\n", password);
         let mut child = Command::new("sudo")
             .arg("chpasswd")
             .stdin(Stdio::piped())

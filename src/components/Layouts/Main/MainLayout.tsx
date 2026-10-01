@@ -4,6 +4,7 @@ import { VirtualKeyboard } from '@/components/Elements/VirtualKeyboard';
 import { ToastCloseButton } from '@/utils/toast/ToastComponents';
 import { usePathname } from 'next/navigation';
 import { ToastContainer } from 'react-toastify';
+import FirstTimePasswordModal from '@/components/Elements/Modals/FirstTimePasswordModal';
 
 export const MainLayout = ({ children }: { children: React.ReactNode }) => {
     const pathname = usePathname();
@@ -28,6 +29,7 @@ export const KioskLayout = ({ children }: { children: React.ReactNode }) => {
     return (
         <div>
             <div>{children}</div>
+            <FirstTimePasswordModal />
             <VirtualKeyboard />
             <ToastContainer closeButton={ToastCloseButton} />
         </div>

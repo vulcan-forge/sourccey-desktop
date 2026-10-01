@@ -41,7 +41,7 @@ impl AccessPointService {
         // Execute Python script locally
         // Execute Python script locally with sudo
         let output = Command::new("sudo")
-            .arg("python")
+            .arg("python3")
             .arg(script_path.to_string_lossy().as_ref())
             .arg("--ssid")
             .arg(&ssid)
@@ -182,6 +182,12 @@ impl AccessPointService {
         }
         if password.is_empty() {
             return Err("Password is required".to_string());
+        }
+        if password.len() < 8 || password.len() > 63 {
+            return Err("Robot network password must be between 8 and 63 characters".to_string());
+        }
+        if trimmed_ssid.len() > 32 {
+            return Err("Robot network name must be 32 characters or fewer".to_string());
         }
         if trimmed_ssid.contains('\n')
             || trimmed_ssid.contains('\r')

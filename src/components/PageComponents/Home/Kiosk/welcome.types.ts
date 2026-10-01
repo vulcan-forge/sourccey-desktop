@@ -1,4 +1,4 @@
-import type { BatteryData } from '@/hooks/System/system-info.hook';
+import type { BatteryData, ThermalData } from '@/hooks/System/system-info.hook';
 
 export interface KioskCloudPairingInfo {
     environment: string;
@@ -17,6 +17,7 @@ export interface KioskCloudPairingInfo {
 export interface WelcomeSystemInfo {
     ipAddress: string;
     temperature: string;
+    thermalData: ThermalData;
     batteryData: BatteryData;
 }
 
