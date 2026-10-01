@@ -9,6 +9,8 @@ interface TemperatureModalProps {
     isOpen: boolean;
     onClose: () => void;
     thermalData?: ThermalData;
+    title?: string;
+    subtitle?: string;
 }
 
 const unavailableThermalData: ThermalData = {
@@ -29,7 +31,13 @@ const statusClasses: Record<string, string> = {
     Unavailable: 'bg-slate-700 text-slate-300',
 };
 
-export function TemperatureModal({ isOpen, onClose, thermalData }: TemperatureModalProps) {
+export function TemperatureModal({
+    isOpen,
+    onClose,
+    thermalData,
+    title = 'Temperature & cooling',
+    subtitle = 'Live processor and fan information',
+}: TemperatureModalProps) {
     const [mounted, setMounted] = useState(false);
 
     useEffect(() => setMounted(true), []);
@@ -44,8 +52,7 @@ export function TemperatureModal({ isOpen, onClose, thermalData }: TemperatureMo
 
     const details = thermalData ?? unavailableThermalData;
     const temperature = details.temperature_celsius;
-    const fanLabel =
-        details.fan_running === true ? 'Running' : details.fan_running === false ? 'Stopped' : 'Not reported';
+    const fanLabel = details.fan_running === true ? 'Running' : details.fan_running === false ? 'Stopped' : 'Not reported';
     const coolingLevel =
         details.cooling_state !== null && details.cooling_max_state !== null
             ? `${details.cooling_state} of ${details.cooling_max_state}`
@@ -66,11 +73,17 @@ export function TemperatureModal({ isOpen, onClose, thermalData }: TemperatureMo
                             <FaThermometerHalf className="h-4 w-4" />
                         </span>
                         <div>
-                            <h2 id="temperature-modal-title" className="text-lg font-semibold text-white">Temperature & cooling</h2>
-                            <p className="text-xs text-slate-400">Live processor and fan information</p>
+                            <h2 id="temperature-modal-title" className="text-lg font-semibold text-white">
+                                {title}
+                            </h2>
+                            <p className="text-xs text-slate-400">{subtitle}</p>
                         </div>
                     </div>
-                    <button aria-label="Close temperature information" onClick={onClose} className="cursor-pointer rounded-lg p-2 text-slate-400 hover:bg-slate-700/70 hover:text-white">
+                    <button
+                        aria-label="Close temperature information"
+                        onClick={onClose}
+                        className="cursor-pointer rounded-lg p-2 text-slate-400 hover:bg-slate-700/70 hover:text-white"
+                    >
                         <FaTimes className="h-5 w-5" />
                     </button>
                 </header>
@@ -84,7 +97,9 @@ export function TemperatureModal({ isOpen, onClose, thermalData }: TemperatureMo
                                     {temperature !== null ? `${temperature.toFixed(1)}°C` : '--'}
                                 </p>
                             </div>
-                            <span className={`rounded-full px-3 py-1 text-sm font-medium ${statusClasses[details.status] ?? statusClasses.Unavailable}`}>
+                            <span
+                                className={`rounded-full px-3 py-1 text-sm font-medium ${statusClasses[details.status] ?? statusClasses.Unavailable}`}
+                            >
                                 {details.status}
                             </span>
                         </div>
@@ -92,13 +107,22 @@ export function TemperatureModal({ isOpen, onClose, thermalData }: TemperatureMo
 
                     <div className="grid grid-cols-2 gap-3">
                         <Metric icon={FaFan} label="Fan" value={fanLabel} active={details.fan_running === true} />
-                        <Metric icon={FaFan} label="Fan speed" value={details.fan_speed_rpm !== null ? `${details.fan_speed_rpm} RPM` : 'Not reported'} />
+                        <Metric
+                            icon={FaFan}
+                            label="Fan speed"
+                            value={details.fan_speed_rpm !== null ? `${details.fan_speed_rpm} RPM` : 'Not reported'}
+                        />
                         <Metric icon={FaFire} label="Cooling level" value={coolingLevel} />
-                        <Metric icon={FaInfoCircle} label="Sensor" value={details.source ? details.source.split('/').pop() || details.source : 'Unavailable'} />
+                        <Metric
+                            icon={FaInfoCircle}
+                            label="Sensor"
+                            value={details.source ? details.source.split('/').pop() || details.source : 'Unavailable'}
+                        />
                     </div>
 
                     <p className="text-xs leading-5 text-slate-400">
-                        Some kiosk fan controllers report only an active cooling level instead of RPM. “Not reported” does not necessarily mean the fan is unavailable.
+                        Some kiosk fan controllers report only an active cooling level instead of RPM. “Not reported” does not necessarily mean
+                        the fan is unavailable.
                     </p>
                 </div>
             </section>

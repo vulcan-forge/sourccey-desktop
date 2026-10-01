@@ -1,4 +1,4 @@
-import type { BatteryData } from '@/hooks/System/system-info.hook';
+import type { BatteryData, ThermalData } from '@/hooks/System/system-info.hook';
 
 export type DiscoveredLanRobot = {
     ipAddress: string;
@@ -13,6 +13,7 @@ export type DiscoveredLanRobot = {
     hostname?: string | null;
     capabilities?: string[] | null;
     batteryData?: BatteryData | null;
+    thermalData?: ThermalData | null;
 };
 
 export type LanRobotDiscoveryResult = {

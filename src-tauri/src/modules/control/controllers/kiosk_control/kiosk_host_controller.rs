@@ -6,7 +6,7 @@ use crate::modules::control::services::kiosk_control::pairing_service::{
 };
 use crate::modules::status::services::battery::battery_service::{BatteryData, BatteryService};
 use crate::utils::windows_process::configure_std_command;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::io::Write;
 use std::process::{Command, Stdio};
@@ -21,15 +21,15 @@ pub struct SystemInfo {
     battery_data: BatteryData,
 }
 
-#[derive(Serialize)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ThermalData {
-    temperature_celsius: Option<f64>,
-    status: String,
-    fan_speed_rpm: Option<u32>,
-    fan_running: Option<bool>,
-    cooling_state: Option<u32>,
-    cooling_max_state: Option<u32>,
-    source: Option<String>,
+    pub temperature_celsius: Option<f64>,
+    pub status: String,
+    pub fan_speed_rpm: Option<u32>,
+    pub fan_running: Option<bool>,
+    pub cooling_state: Option<u32>,
+    pub cooling_max_state: Option<u32>,
+    pub source: Option<String>,
 }
 
 // Initialize the state
@@ -217,7 +217,7 @@ fn is_private_ip(ip: &str) -> bool {
     false
 }
 
-fn get_thermal_data() -> ThermalData {
+pub(crate) fn get_thermal_data() -> ThermalData {
     #[cfg(target_os = "linux")]
     {
         let temp_paths = [
@@ -264,10 +264,8 @@ fn get_thermal_data() -> ThermalData {
                 return None;
             }
             Some((
-                read_sysfs_number(&format!("{base}/cur_state"))
-                    .map(|value| value.max(0.0) as u32),
-                read_sysfs_number(&format!("{base}/max_state"))
-                    .map(|value| value.max(0.0) as u32),
+                read_sysfs_number(&format!("{base}/cur_state")).map(|value| value.max(0.0) as u32),
+                read_sysfs_number(&format!("{base}/max_state")).map(|value| value.max(0.0) as u32),
             ))
         });
         let (cooling_state, cooling_max_state) = cooling_device.unwrap_or((None, None));

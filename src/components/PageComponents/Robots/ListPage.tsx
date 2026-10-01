@@ -21,6 +21,7 @@ import { AddLanRobotModal } from '@/components/PageComponents/Robots/AddLanRobot
 import { DiscoverLanRobotsModal } from '@/components/PageComponents/Robots/DiscoverLanRobotsModal';
 import { RobotSetupHelpModal } from '@/components/PageComponents/Robots/RobotSetupHelpModal';
 import { RobotBatteryStatus } from '@/components/Elements/Robots/RobotBatteryStatus';
+import { RobotTemperatureStatus } from '@/components/Elements/Robots/RobotTemperatureStatus';
 
 export const RobotListPage = () => {
     const { data: ownedRobots, isLoading: isLoadingOwnedRobots }: any = useGetOwnedRobots(true);
@@ -310,7 +311,12 @@ const RobotCard = ({ robot, onUnpair, isUnpairing }: RobotCardProps) => {
                     >
                         {statusLabel}
                     </div>
-                    {discoveredHost ? <RobotBatteryStatus batteryData={discoveredHost.batteryData} robotName={displayTitle} /> : null}
+                    {discoveredHost ? (
+                        <div className="flex items-center gap-1.5">
+                            <RobotTemperatureStatus thermalData={discoveredHost.thermalData} robotName={displayTitle} />
+                            <RobotBatteryStatus batteryData={discoveredHost.batteryData} robotName={displayTitle} />
+                        </div>
+                    ) : null}
                 </div>
             </div>
 

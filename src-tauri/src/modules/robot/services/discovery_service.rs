@@ -1,3 +1,4 @@
+use crate::modules::control::controllers::kiosk_control::kiosk_host_controller::ThermalData;
 use crate::modules::status::services::battery::battery_service::BatteryData;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -30,6 +31,7 @@ pub struct DiscoveredLanRobotHost {
     pub hostname: Option<String>,
     pub capabilities: Option<Vec<String>>,
     pub battery_data: Option<BatteryData>,
+    pub thermal_data: Option<ThermalData>,
 }
 
 #[derive(Debug, Clone, Serialize, PartialEq)]
@@ -49,6 +51,7 @@ struct SourcceyDiscoveredRobot {
     command_port: Option<u16>,
     observation_port: Option<u16>,
     battery_data: Option<BatteryData>,
+    thermal_data: Option<ThermalData>,
 }
 
 pub struct LanRobotDiscoveryService;
@@ -160,6 +163,7 @@ fn parse_discovery_response(payload: &str, source_ip: IpAddr) -> Option<Discover
         hostname: None,
         capabilities: None,
         battery_data: parsed.battery_data,
+        thermal_data: parsed.thermal_data,
     })
 }
 
@@ -299,6 +303,7 @@ mod tests {
         assert_eq!(parsed.hostname, None);
         assert_eq!(parsed.capabilities, None);
         assert_eq!(parsed.battery_data, None);
+        assert_eq!(parsed.thermal_data, None);
     }
 
     #[test]
@@ -323,6 +328,7 @@ mod tests {
         assert_eq!(parsed.nickname, None);
         assert_eq!(parsed.robot_type.as_deref(), Some("sourccey"));
         assert_eq!(parsed.battery_data, None);
+        assert_eq!(parsed.thermal_data, None);
     }
 
     #[test]
@@ -346,6 +352,17 @@ mod tests {
         let battery = parsed.battery_data.expect("expected battery telemetry");
         assert_eq!(battery.state_of_charge, 50);
         assert_eq!(battery.voltage, 12.6);
+    }
+
+    #[test]
+    fn accepts_thermal_telemetry_in_discovery_payload() {
+        let payload = r#"{"discovery_magic":"SOURCCEY_DISCOVER_V1","robot_type":"sourccey","thermal_data":{"temperature_celsius":54.2,"status":"Normal","fan_speed_rpm":1800,"fan_running":true,"cooling_state":1,"cooling_max_state":4,"source":"/sys/class/thermal/thermal_zone0/temp"}}"#;
+        let parsed = parse_discovery_response(payload, IpAddr::V4(Ipv4Addr::new(192, 168, 1, 42)))
+            .expect("expected discovery response");
+
+        let thermal = parsed.thermal_data.expect("expected thermal telemetry");
+        assert_eq!(thermal.temperature_celsius, Some(54.2));
+        assert_eq!(thermal.status, "Normal");
     }
 
     #[test]

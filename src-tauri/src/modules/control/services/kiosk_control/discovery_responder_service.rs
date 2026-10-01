@@ -1,3 +1,6 @@
+use crate::modules::control::controllers::kiosk_control::kiosk_host_controller::{
+    get_thermal_data, ThermalData,
+};
 use crate::modules::control::services::kiosk_control::kiosk_host_service::{
     KioskHostProcess, KioskHostService,
 };
@@ -14,7 +17,7 @@ const DISCOVERY_PORT: u16 = 42111;
 const SOURCCEY_COMMAND_PORT: u16 = 5555;
 const SOURCCEY_OBSERVATION_PORT: u16 = 5556;
 const DISCOVERY_READ_TIMEOUT_MS: u64 = 250;
-const BATTERY_REFRESH_INTERVAL_SECS: u64 = 10;
+const TELEMETRY_REFRESH_INTERVAL_SECS: u64 = 10;
 
 #[derive(Serialize)]
 struct DiscoveryResponsePayload {
@@ -24,6 +27,7 @@ struct DiscoveryResponsePayload {
     command_port: u16,
     observation_port: u16,
     battery_data: Option<BatteryData>,
+    thermal_data: Option<ThermalData>,
 }
 
 pub struct KioskDiscoveryResponderService;
@@ -44,14 +48,19 @@ impl KioskDiscoveryResponderService {
         // Battery reads can take several seconds during a cold gauge start. Keep
         // them off the discovery response path so LAN presence checks stay fast.
         let battery_data = Arc::new(Mutex::new(None));
+        let thermal_data = Arc::new(Mutex::new(None));
         let battery_data_for_refresh = Arc::clone(&battery_data);
+        let thermal_data_for_refresh = Arc::clone(&thermal_data);
         thread::spawn(move || loop {
             if let Ok(sample) = BatteryService::get_battery_data() {
                 if let Ok(mut current) = battery_data_for_refresh.lock() {
                     *current = Some(sample);
                 }
             }
-            thread::sleep(Duration::from_secs(BATTERY_REFRESH_INTERVAL_SECS));
+            if let Ok(mut current) = thermal_data_for_refresh.lock() {
+                *current = Some(get_thermal_data());
+            }
+            thread::sleep(Duration::from_secs(TELEMETRY_REFRESH_INTERVAL_SECS));
         });
 
         thread::spawn(move || {
@@ -67,6 +76,7 @@ impl KioskDiscoveryResponderService {
                         let payload = Self::build_discovery_response_payload(
                             KioskHostService::is_any_kiosk_host_active(&host_state),
                             battery_data.lock().ok().and_then(|sample| sample.clone()),
+                            thermal_data.lock().ok().and_then(|sample| sample.clone()),
                         );
                         let _ = socket.send_to(&payload, address);
                     }
@@ -88,6 +98,7 @@ impl KioskDiscoveryResponderService {
     fn build_discovery_response_payload(
         host_running: bool,
         battery_data: Option<BatteryData>,
+        thermal_data: Option<ThermalData>,
     ) -> Vec<u8> {
         serde_json::to_vec(&DiscoveryResponsePayload {
             discovery_magic: DISCOVERY_MAGIC,
@@ -96,6 +107,7 @@ impl KioskDiscoveryResponderService {
             command_port: SOURCCEY_COMMAND_PORT,
             observation_port: SOURCCEY_OBSERVATION_PORT,
             battery_data,
+            thermal_data,
         })
         .unwrap_or_default()
     }
@@ -107,7 +119,8 @@ mod tests {
 
     #[test]
     fn discovery_payload_reports_stopped_host_with_ports() {
-        let payload = KioskDiscoveryResponderService::build_discovery_response_payload(false, None);
+        let payload =
+            KioskDiscoveryResponderService::build_discovery_response_payload(false, None, None);
         let parsed: serde_json::Value =
             serde_json::from_slice(&payload).expect("payload should be valid JSON");
 
@@ -117,11 +130,13 @@ mod tests {
         assert_eq!(parsed["command_port"], 5555);
         assert_eq!(parsed["observation_port"], 5556);
         assert!(parsed["battery_data"].is_null());
+        assert!(parsed["thermal_data"].is_null());
     }
 
     #[test]
     fn discovery_payload_reports_running_host() {
-        let payload = KioskDiscoveryResponderService::build_discovery_response_payload(true, None);
+        let payload =
+            KioskDiscoveryResponderService::build_discovery_response_payload(true, None, None);
         let parsed: serde_json::Value =
             serde_json::from_slice(&payload).expect("payload should be valid JSON");
 

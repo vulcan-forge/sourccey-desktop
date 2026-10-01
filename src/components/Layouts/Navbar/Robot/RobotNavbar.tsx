@@ -4,6 +4,7 @@ import { setContent, useGetContent } from '@/hooks/Components/OwnedRobots/owned-
 import { FaArrowLeft, FaDatabase, FaPlayCircle, FaRobot } from 'react-icons/fa';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { RobotBatteryStatus } from '@/components/Elements/Robots/RobotBatteryStatus';
+import { RobotTemperatureStatus } from '@/components/Elements/Robots/RobotTemperatureStatus';
 import { useGetRemoteConfig } from '@/hooks/Control/remote-config.hook';
 import { useLanRobotDiscovery } from '@/hooks/Robot/lan-discovery.hook';
 
@@ -56,7 +57,10 @@ export const RobotNavbar = ({ ownedRobot }: { ownedRobot: any }) => {
                     </NavButton>
                     <div className="grow"></div>
                     {discoveredRobot ? (
-                        <RobotBatteryStatus batteryData={discoveredRobot.batteryData} robotName={robotName} variant="navbar" />
+                        <>
+                            <RobotTemperatureStatus thermalData={discoveredRobot.thermalData} robotName={robotName} variant="navbar" />
+                            <RobotBatteryStatus batteryData={discoveredRobot.batteryData} robotName={robotName} variant="navbar" />
+                        </>
                     ) : null}
                     <NavButton content={config} icon={FaSlidersH} isActive={isConfigActive}>
                         Setup
