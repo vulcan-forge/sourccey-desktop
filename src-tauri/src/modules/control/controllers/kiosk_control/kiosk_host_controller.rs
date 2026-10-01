@@ -265,19 +265,6 @@ fn validate_single_line_field(value: &str, field_name: &str) -> Result<(), Strin
 }
 
 #[cfg(target_os = "linux")]
-fn validate_chpasswd_username(username: &str) -> Result<(), String> {
-    let user = username.trim();
-    if user.is_empty() {
-        return Err("Username cannot be empty".to_string());
-    }
-    validate_single_line_field(user, "Username")?;
-    if user.contains(':') {
-        return Err("Username cannot contain ':'".to_string());
-    }
-    Ok(())
-}
-
-#[cfg(target_os = "linux")]
 fn validate_chpasswd_password(password: &str) -> Result<(), String> {
     validate_single_line_field(password, "Password")?;
     if password.contains(':') {
@@ -286,55 +273,22 @@ fn validate_chpasswd_password(password: &str) -> Result<(), String> {
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
-fn get_current_linux_username() -> Result<String, String> {
-    let user = String::from_utf8(
-        Command::new("whoami")
-            .output()
-            .map_err(|e| format!("Failed to run whoami: {}", e))?
-            .stdout,
-    )
-    .map_err(|e| format!("Failed to parse whoami output: {}", e))?
-    .trim()
-    .to_string();
-
-    if user.is_empty() {
-        return Err("Unable to determine target username".to_string());
-    }
-
-    Ok(user)
-}
-
 #[command]
-#[allow(unused_variables)] // username is used on Linux but unused on other platforms
-pub fn set_pi_password(username: Option<String>, password: String) -> Result<String, String> {
+pub fn set_pi_password(password: String) -> Result<String, String> {
     if password.trim().is_empty() {
         return Err("Password cannot be empty".to_string());
     }
-    if password.len() < 8 {
-        return Err("Password must be at least 8 characters".to_string());
+    if password.len() < 6 {
+        return Err("Password must be at least 6 characters".to_string());
     }
 
     #[cfg(target_os = "linux")]
     {
-        // Determine target user
-        let user = match username {
-            Some(u) => {
-                let trimmed = u.trim();
-                if trimmed.is_empty() {
-                    get_current_linux_username()?
-                } else {
-                    trimmed.to_string()
-                }
-            }
-            None => get_current_linux_username()?,
-        };
-
-        validate_chpasswd_username(&user)?;
         validate_chpasswd_password(&password)?;
 
-        // Use chpasswd for non-interactive password update: echo "user:pass" | sudo chpasswd
-        let input = format!("{}:{}\n", user, password);
+        // The kiosk image provisions a fixed SSH account. Do not allow this
+        // command to target arbitrary system users.
+        let input = format!("sourccey:{}\n", password);
         let mut child = Command::new("sudo")
             .arg("chpasswd")
             .stdin(Stdio::piped())

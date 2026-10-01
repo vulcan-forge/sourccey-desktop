@@ -65,7 +65,7 @@ export default function FirstTimePasswordModal() {
 
         setIsSavingPassword(true);
         try {
-            await invoke('set_pi_password', { username, password: newPassword });
+            await invoke('set_pi_password', { password: newPassword });
             
             // Mark password as changed in persistent storage (now async)
             await markPasswordAsChanged();
