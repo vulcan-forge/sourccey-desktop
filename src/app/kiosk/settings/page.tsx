@@ -16,7 +16,7 @@ import { useGetAccessPointPassword } from '@/hooks/WIFI/access-point.hook';
 import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
 import { getSavedWiFiSSIDs } from '@/hooks/WIFI/wifi.hook';
 import clsx from 'clsx';
-import { setSystemInfo, useGetSystemInfo, type BatteryData } from '@/hooks/System/system-info.hook';
+import { setSystemInfo, useGetSystemInfo, type BatteryData, type SystemInfo } from '@/hooks/System/system-info.hook';
 import Link from 'next/link';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 
@@ -37,10 +37,16 @@ export default function KioskSettingsPage() {
     useEffect(() => {
         const fetchSystemInfo = async () => {
             try {
-                const info = await invoke<{ ip_address: string; temperature: string; battery_data: BatteryData }>('get_system_info');
+                const info = await invoke<{
+                    ip_address: string;
+                    temperature: string;
+                    thermal_data: SystemInfo['thermalData'];
+                    battery_data: BatteryData;
+                }>('get_system_info');
                 const systemInfo = {
                     ipAddress: info.ip_address,
                     temperature: info.temperature,
+                    thermalData: info.thermal_data,
                     batteryData: info.battery_data,
                 };
                 setSystemInfo(systemInfo);

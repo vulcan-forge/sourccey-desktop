@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+
 import {
     FaBatteryEmpty,
     FaBatteryFull,
@@ -9,9 +11,13 @@ import {
     FaBolt,
     FaNetworkWired,
     FaThermometerHalf,
+    FaChevronRight,
 } from 'react-icons/fa';
 import { calculateBatteryPercent, getBatteryLevelStep, isBatteryCharging } from '@/hooks/System/system-info.hook';
 import type { WelcomeSystemInfo } from './welcome.types';
+import { BatteryModal } from '@/components/Elements/Modals/KioskRobotModals/BatteryModal';
+import { TemperatureModal } from '@/components/Elements/Modals/KioskRobotModals/TemperatureModal';
+import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
 
 interface WelcomeSystemStatusProps {
     nickname: string;
@@ -23,6 +29,7 @@ interface WelcomeSystemStatusProps {
 const LoadingLine = ({ className = '' }: { className?: string }) => <div className={`skeleton-shimmer rounded-full ${className}`} />;
 
 export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoadingSystemInfo = false }: WelcomeSystemStatusProps) => {
+    const [activeModal, setActiveModal] = useState<'battery' | 'temperature' | 'network' | null>(null);
     const getBatteryIcon = (percent: number) => {
         const level = getBatteryLevelStep(percent);
         if (level === 100) return FaBatteryFull;
@@ -58,7 +65,12 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
             </div>
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+                <button
+                    type="button"
+                    onClick={() => setActiveModal('battery')}
+                    className="group cursor-pointer rounded-xl border border-slate-600/80 bg-slate-800/50 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-emerald-400/50 hover:bg-slate-700/70 hover:shadow-lg focus:ring-2 focus:ring-emerald-400/50 focus:outline-none"
+                    aria-label="Open battery details"
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2 text-sm text-slate-400">
@@ -76,17 +88,23 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
                                 <div className={`mt-2 text-3xl font-bold ${batteryColor}`}>{batteryPercentString}</div>
                             )}
                         </div>
-                        <div className="text-right text-xs text-slate-500">
+                        <div className="flex items-center gap-2 text-right text-xs text-slate-500">
                             {isLoadingSystemInfo ? (
                                 <LoadingLine className="h-4 w-12" />
                             ) : (
                                 batteryPercent >= 0 && <>{batteryPercent > 50 ? 'Good' : batteryPercent > 20 ? 'Low' : 'Critical'}</>
                             )}
+                            <FaChevronRight className="text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-emerald-300" />
                         </div>
                     </div>
-                </div>
+                </button>
 
-                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+                <button
+                    type="button"
+                    onClick={() => setActiveModal('temperature')}
+                    className="group cursor-pointer rounded-xl border border-slate-600/80 bg-slate-800/50 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-orange-400/50 hover:bg-slate-700/70 hover:shadow-lg focus:ring-2 focus:ring-orange-400/50 focus:outline-none"
+                    aria-label="Open temperature and cooling details"
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2 text-sm text-slate-400">
@@ -101,10 +119,16 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
                                 </div>
                             )}
                         </div>
+                        <FaChevronRight className="text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-orange-300" />
                     </div>
-                </div>
+                </button>
 
-                <div className="rounded-lg border border-slate-700 bg-slate-800/50 p-4">
+                <button
+                    type="button"
+                    onClick={() => setActiveModal('network')}
+                    className="group cursor-pointer rounded-xl border border-slate-600/80 bg-slate-800/50 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-400/50 hover:bg-slate-700/70 hover:shadow-lg focus:ring-2 focus:ring-blue-400/50 focus:outline-none"
+                    aria-label="Open network details"
+                >
                     <div className="flex items-center justify-between">
                         <div>
                             <div className="flex items-center gap-2 text-sm text-slate-400">
@@ -124,9 +148,22 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
                                 </div>
                             )}
                         </div>
+                        <FaChevronRight className="text-slate-500 transition group-hover:translate-x-0.5 group-hover:text-blue-300" />
                     </div>
-                </div>
+                </button>
             </div>
+
+            <BatteryModal
+                isOpen={activeModal === 'battery'}
+                onClose={() => setActiveModal(null)}
+                batteryData={systemInfo.batteryData}
+            />
+            <TemperatureModal
+                isOpen={activeModal === 'temperature'}
+                onClose={() => setActiveModal(null)}
+                thermalData={systemInfo.thermalData}
+            />
+            <WiFiModal isOpen={activeModal === 'network'} onClose={() => setActiveModal(null)} systemInfo={systemInfo} />
         </div>
     );
 };

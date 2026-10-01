@@ -8,7 +8,18 @@ export const SYSTEM_INFO_KEY = [BASE_SYSTEM_INFO_KEY, 'data'];
 export interface SystemInfo {
     ipAddress: string;
     temperature: string;
+    thermalData: ThermalData;
     batteryData: BatteryData;
+}
+
+export interface ThermalData {
+    temperature_celsius: number | null;
+    status: string;
+    fan_speed_rpm: number | null;
+    fan_running: boolean | null;
+    cooling_state: number | null;
+    cooling_max_state: number | null;
+    source: string | null;
 }
 
 export interface BatteryData {
@@ -185,6 +196,15 @@ const DEFAULT_BATTERY_DATA: BatteryData = {
 const DEFAULT_SYSTEM_INFO: SystemInfo = {
     ipAddress: '...',
     temperature: '...',
+    thermalData: {
+        temperature_celsius: null,
+        status: 'Unavailable',
+        fan_speed_rpm: null,
+        fan_running: null,
+        cooling_state: null,
+        cooling_max_state: null,
+        source: null,
+    },
     batteryData: DEFAULT_BATTERY_DATA,
 };
 
