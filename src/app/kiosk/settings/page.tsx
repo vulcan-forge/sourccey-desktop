@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { FaSave, FaSpinner, FaEye, FaEyeSlash } from 'react-icons/fa';
+import { FaSave, FaTimes, FaSpinner, FaEye, FaEyeSlash } from 'react-icons/fa';
 import { invoke } from '@tauri-apps/api/core';
 import { toast } from 'react-toastify';
 import {
@@ -19,9 +19,13 @@ import clsx from 'clsx';
 import { setSystemInfo, useGetSystemInfo, type BatteryData, type SystemInfo } from '@/hooks/System/system-info.hook';
 import Link from 'next/link';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
+import { markPasswordAsChanged } from '@/hooks/Components/SSH/ssh.hook';
 
 export default function KioskSettingsPage() {
     const { data: systemInfo }: any = useGetSystemInfo();
+    const [isEditingPassword, setIsEditingPassword] = useState(false);
+    const [newPassword, setNewPassword] = useState('');
+    const [isSavingPassword, setIsSavingPassword] = useState(false);
 
     // Access Point state with defaults
     const { data: accessPointEnabledData }: any = useGetAccessPointEnabled();
@@ -32,6 +36,44 @@ export default function KioskSettingsPage() {
     const [isTogglingAccessPoint, setIsTogglingAccessPoint] = useState(false);
     const [isSavingAccessPoint, setIsSavingAccessPoint] = useState(false);
     const [showAccessPointPassword, setShowAccessPointPassword] = useState(false);
+
+    const generateSecurePassword = (length = 12): string => {
+        const charset = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*_-+=';
+        const result: string[] = [];
+        const max = 256 - (256 % charset.length);
+        while (result.length < length) {
+            const bytes = new Uint8Array(length * 2);
+            window.crypto.getRandomValues(bytes);
+            for (const randomByte of bytes) {
+                if (randomByte < max && result.length < length) {
+                    result.push(charset.charAt(randomByte % charset.length));
+                }
+            }
+        }
+        return result.join('');
+    };
+
+    const handleStartPasswordEdit = () => {
+        setNewPassword(generateSecurePassword());
+        setIsEditingPassword(true);
+    };
+
+    const handleSavePassword = async () => {
+        if (newPassword.length < 6) return;
+        setIsSavingPassword(true);
+        try {
+            await invoke('set_pi_password', { password: newPassword });
+            await markPasswordAsChanged();
+            toast.success('SSH password updated successfully.');
+            setNewPassword('');
+            setIsEditingPassword(false);
+        } catch (error) {
+            console.error('Failed to update SSH password:', error);
+            toast.error(`Failed to update SSH password: ${error}`);
+        } finally {
+            setIsSavingPassword(false);
+        }
+    };
 
     // Fetch system info
     useEffect(() => {
@@ -159,13 +201,6 @@ export default function KioskSettingsPage() {
                         <p className="mt-1 text-sm text-slate-400">Manage your robot&apos;s connection credentials</p>
                     </div>
 
-                    <LinkButton
-                        href="/kiosk/settings/ssh"
-                        className="mb-5 inline-flex cursor-pointer items-center justify-center rounded-lg border border-amber-500/50 px-4 py-2 text-sm font-semibold text-amber-100 transition hover:border-amber-400/70"
-                    >
-                        Open SSH Settings
-                    </LinkButton>
-
                     <div className="space-y-4">
                         {/* IP Address */}
                         <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
@@ -175,6 +210,79 @@ export default function KioskSettingsPage() {
                             <span className="text-sm font-semibold text-slate-300">{systemInfo.ipAddress}</span>
                         </div>
 
+                        <div className="flex items-center justify-between rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                            <span className="text-sm font-medium text-slate-300">Username</span>
+                            <span className="text-sm font-semibold text-slate-300">sourccey</span>
+                        </div>
+
+                        <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
+                            <div className="mb-3 flex items-center justify-between">
+                                <span className="text-sm font-medium text-slate-300">Password</span>
+                                {!isEditingPassword && (
+                                    <button
+                                        type="button"
+                                        onClick={handleStartPasswordEdit}
+                                        className="cursor-pointer rounded bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-700"
+                                    >
+                                        Set New Password
+                                    </button>
+                                )}
+                            </div>
+
+                            {isEditingPassword ? (
+                                <div className="space-y-3">
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            type="password"
+                                            value={newPassword}
+                                            onChange={(event) => setNewPassword(event.target.value)}
+                                            placeholder="Enter new password (min 6 characters)"
+                                            autoComplete="new-password"
+                                            className="flex-1 rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
+                                            disabled={isSavingPassword}
+                                        />
+                                        <button
+                                            type="button"
+                                            onClick={() => setNewPassword(generateSecurePassword())}
+                                            className="cursor-pointer rounded bg-purple-600 px-3 py-2 text-sm font-semibold text-white transition-colors hover:bg-purple-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                            disabled={isSavingPassword}
+                                        >
+                                            Randomize
+                                        </button>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => void handleSavePassword()}
+                                            disabled={newPassword.length < 6 || isSavingPassword}
+                                            className="flex items-center gap-2 rounded bg-green-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-green-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            <FaSave className="h-4 w-4" />
+                                            {isSavingPassword ? 'Saving...' : 'Save Password'}
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setNewPassword('');
+                                                setIsEditingPassword(false);
+                                            }}
+                                            disabled={isSavingPassword}
+                                            className="flex items-center gap-2 rounded bg-slate-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                                        >
+                                            <FaTimes className="h-4 w-4" />
+                                            Cancel
+                                        </button>
+                                    </div>
+                                    <div className="rounded-lg border border-yellow-600 bg-yellow-900/20 p-3 text-xs text-yellow-300">
+                                        The password is masked and is never stored or displayed after saving.
+                                    </div>
+                                </div>
+                            ) : (
+                                <p className="text-sm text-slate-400">
+                                    Set a replacement password for SSH access. The current password is never revealed.
+                                </p>
+                            )}
+                        </div>
                     </div>
                 </div>
 
