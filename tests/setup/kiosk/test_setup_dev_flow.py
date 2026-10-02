@@ -55,6 +55,33 @@ def test_kiosk_python_only_refreshes_robot_environment_without_build(monkeypatch
     assert calls == ["python"]
 
 
+def test_kiosk_password_permission_only_repairs_permission_without_build(monkeypatch):
+    script = KioskSetupScript()
+    calls = []
+
+    monkeypatch.setenv("SUDO_USER", "sourccey")
+    monkeypatch.setattr(script, "check_root_access", lambda: True)
+    monkeypatch.setattr(script, "detect_project_root", lambda: True)
+    monkeypatch.setattr(
+        script,
+        "configure_password_update_permission",
+        lambda user: calls.append(("password", user)) or True,
+    )
+    monkeypatch.setattr(
+        script,
+        "setup_python_environment",
+        lambda: (_ for _ in ()).throw(AssertionError("Python setup must not run")),
+    )
+    monkeypatch.setattr(
+        script,
+        "build_tauri",
+        lambda: (_ for _ in ()).throw(AssertionError("build must not run")),
+    )
+
+    assert script.run(password_permission_only=True) is True
+    assert calls == [("password", "sourccey")]
+
+
 def test_kiosk_setup_can_preserve_updater_selected_submodule(monkeypatch):
     script = KioskSetupScript()
 

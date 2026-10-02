@@ -521,6 +521,7 @@ class KioskSetupScript:
         skip_system: bool = False,
         python_only: bool = False,
         skip_submodules: bool = False,
+        password_permission_only: bool = False,
     ) -> bool:
         """Run the complete kiosk setup process"""
         self.print_header("SOURCCEY KIOSK SETUP")
@@ -534,6 +535,10 @@ class KioskSetupScript:
 
         if not self.detect_project_root():
             return False
+
+        if password_permission_only:
+            user = os.environ.get("SUDO_USER") or os.environ.get("USER") or "sourccey"
+            return self.configure_password_update_permission(user)
 
         if python_only:
             checks = [
@@ -684,6 +689,8 @@ def main():
                        help='Only refresh the editable robot Python environment')
     parser.add_argument('--skip-submodules', action='store_true',
                        help='Preserve the lerobot-vulcan checkout selected by the updater')
+    parser.add_argument('--password-permission-only', action='store_true',
+                       help='Only install or repair the kiosk password update permission')
     args = parser.parse_args()
 
     setup = KioskSetupScript()
@@ -693,6 +700,7 @@ def main():
         skip_system=args.skip_system,
         python_only=args.python_only,
         skip_submodules=args.skip_submodules,
+        password_permission_only=args.password_permission_only,
     )
 
     if not success:

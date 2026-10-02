@@ -5,6 +5,8 @@ use crate::modules::control::services::kiosk_control::pairing_service::{
     KioskPairingService, KioskPairingState,
 };
 use crate::modules::status::services::battery::battery_service::{BatteryData, BatteryService};
+#[cfg(target_os = "linux")]
+use crate::services::directory::directory_service::DirectoryService;
 use crate::utils::windows_process::configure_std_command;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
@@ -357,6 +359,87 @@ fn validate_chpasswd_password(password: &str) -> Result<(), String> {
     Ok(())
 }
 
+#[cfg(target_os = "linux")]
+fn run_password_helper(password: &str) -> Result<std::process::Output, String> {
+    let input = format!("{}\n", password);
+    let mut child = Command::new("sudo")
+        .args(["-n", "/usr/local/sbin/sourccey-set-password"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to spawn password update command: {}", e))?;
+
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin
+            .write_all(input.as_bytes())
+            .map_err(|e| format!("Failed to write to password update command: {}", e))?;
+    }
+
+    child
+        .wait_with_output()
+        .map_err(|e| format!("Failed to wait for password update command: {}", e))
+}
+
+#[cfg(target_os = "linux")]
+fn run_legacy_password_helper(password: &str) -> Result<std::process::Output, String> {
+    let input = format!("sourccey:{}\n", password);
+    let mut child = Command::new("sudo")
+        .args(["-n", "/usr/sbin/chpasswd"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("Failed to start legacy password update command: {}", e))?;
+
+    if let Some(stdin) = child.stdin.as_mut() {
+        stdin
+            .write_all(input.as_bytes())
+            .map_err(|e| format!("Failed to write to legacy password update command: {}", e))?;
+    }
+
+    child
+        .wait_with_output()
+        .map_err(|e| format!("Failed to wait for legacy password update command: {}", e))
+}
+
+#[cfg(target_os = "linux")]
+fn password_permission_is_missing(output: &std::process::Output) -> bool {
+    let error = String::from_utf8_lossy(&output.stderr).to_ascii_lowercase();
+    error.contains("a password is required")
+        || error.contains("not allowed to execute")
+        || error.contains("may not run sudo")
+        || error.contains("command not found")
+}
+
+#[cfg(target_os = "linux")]
+fn repair_password_permission() -> Result<(), String> {
+    let repo_root = DirectoryService::get_current_dir()?;
+    let output = Command::new("sudo")
+        .args([
+            "-n",
+            "python3",
+            "setup/kiosk/setup.py",
+            "--password-permission-only",
+        ])
+        .current_dir(repo_root)
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .map_err(|e| format!("Failed to start password permission repair: {}", e))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let error = String::from_utf8_lossy(&output.stderr);
+        Err(format!(
+            "Password permission repair failed: {}",
+            error.trim()
+        ))
+    }
+}
+
 #[command]
 pub fn set_pi_password(password: String) -> Result<String, String> {
     if password.trim().is_empty() {
@@ -371,35 +454,33 @@ pub fn set_pi_password(password: String) -> Result<String, String> {
         validate_chpasswd_password(&password)?;
 
         // The kiosk image provisions a fixed SSH account. Do not allow this
-        // command to target arbitrary system users.
-        let input = format!("{}\n", password);
-        // Kiosk setup grants the logged-in kiosk account NOPASSWD access to
-        // this exact command. `-n` guarantees this never blocks waiting for a
-        // password or terminal that the fullscreen app cannot provide.
-        let mut child = Command::new("sudo")
-            .args(["-n", "/usr/local/sbin/sourccey-set-password"])
-            .stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::piped())
-            .spawn()
-            .map_err(|e| format!("Failed to spawn password update command: {}", e))?;
+        // command to target arbitrary system users. Existing installations
+        // may have received this app version before its root-owned helper was
+        // provisioned, so repair that narrow permission once and retry.
+        let mut output = run_password_helper(&password)?;
+        if !output.status.success() && password_permission_is_missing(&output) {
+            // Older kiosk images allowed only this fixed system utility. The
+            // Tauri command still supplies the fixed Sourccey account name.
+            let legacy_output = run_legacy_password_helper(&password)?;
+            if legacy_output.status.success() {
+                return Ok("Password updated".to_string());
+            }
 
-        if let Some(stdin) = child.stdin.as_mut() {
-            stdin
-                .write_all(input.as_bytes())
-                .map_err(|e| format!("Failed to write to chpasswd stdin: {}", e))?;
+            repair_password_permission().map_err(|repair_error| {
+                format!(
+                    "Password update permission is not installed and automatic repair failed. Open Kiosk Setup & Updates and reinstall the kiosk app. {}",
+                    repair_error
+                )
+            })?;
+            output = run_password_helper(&password)?;
         }
-
-        let output = child
-            .wait_with_output()
-            .map_err(|e| format!("Failed to wait for chpasswd: {}", e))?;
 
         if output.status.success() {
             Ok("Password updated".to_string())
         } else {
             let err = String::from_utf8_lossy(&output.stderr).to_string();
-            if err.contains("a password is required") {
-                Err("Password update permission is not installed. Run the kiosk update/setup once, then try again.".to_string())
+            if password_permission_is_missing(&output) {
+                Err("Password update permission is not installed. Open Kiosk Setup & Updates and reinstall the kiosk app, then try again.".to_string())
             } else {
                 Err(format!("chpasswd failed: {}", err.trim()))
             }
