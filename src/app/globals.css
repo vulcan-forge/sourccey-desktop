@@ -37,6 +37,49 @@ body {
     margin: 0;
 }
 
+/* Keep every toast consistent, including calls that do not pass a style preset. */
+.Toastify__toast {
+    border: 3px solid #4a5565;
+    border-radius: 8px;
+    background: #1a1c2d;
+    padding: 12px 14px;
+    color: #fff;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.35);
+    cursor: pointer;
+}
+
+.Toastify__toast--info {
+    border-color: oklch(70% 0.15 240);
+}
+
+.Toastify__toast--success {
+    border-color: oklch(70% 0.14 150);
+}
+
+.Toastify__toast--warning {
+    border-color: oklch(82% 0.19 86);
+}
+
+.Toastify__toast--error {
+    border-color: oklch(60% 0.2 25);
+}
+
+.Toastify__progress-bar--info {
+    background: oklch(70% 0.15 240);
+}
+
+.Toastify__progress-bar--success {
+    background: oklch(70% 0.14 150);
+}
+
+.Toastify__progress-bar--warning {
+    background: oklch(82% 0.19 86);
+}
+
+.Toastify__progress-bar--error {
+    background: oklch(60% 0.2 25);
+}
+
 @layer utilities {
     /* Default scrollbar width - 8px */
     ::-webkit-scrollbar {

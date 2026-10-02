@@ -81,6 +81,7 @@ def test_kiosk_setup_can_preserve_updater_selected_submodule(monkeypatch):
     monkeypatch.setattr(script, "setup_session_files", lambda: True)
     monkeypatch.setattr(script, "configure_lightdm", lambda _user: True)
     monkeypatch.setattr(script, "configure_openbox", lambda _user: True)
+    monkeypatch.setattr(script, "configure_password_update_permission", lambda _user: True)
     monkeypatch.setattr(script, "cleanup_old_builds", lambda clean=True: True)
     monkeypatch.setattr(script, "build_tauri", lambda: Path("app.deb"))
     monkeypatch.setattr(script, "install_deb", lambda _path: True)

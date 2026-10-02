@@ -372,14 +372,17 @@ pub fn set_pi_password(password: String) -> Result<String, String> {
 
         // The kiosk image provisions a fixed SSH account. Do not allow this
         // command to target arbitrary system users.
-        let input = format!("sourccey:{}\n", password);
+        let input = format!("{}\n", password);
+        // Kiosk setup grants the logged-in kiosk account NOPASSWD access to
+        // this exact command. `-n` guarantees this never blocks waiting for a
+        // password or terminal that the fullscreen app cannot provide.
         let mut child = Command::new("sudo")
-            .arg("chpasswd")
+            .args(["-n", "/usr/local/sbin/sourccey-set-password"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()
-            .map_err(|e| format!("Failed to spawn sudo chpasswd: {}", e))?;
+            .map_err(|e| format!("Failed to spawn password update command: {}", e))?;
 
         if let Some(stdin) = child.stdin.as_mut() {
             stdin
@@ -395,7 +398,11 @@ pub fn set_pi_password(password: String) -> Result<String, String> {
             Ok("Password updated".to_string())
         } else {
             let err = String::from_utf8_lossy(&output.stderr).to_string();
-            Err(format!("chpasswd failed: {}", err))
+            if err.contains("a password is required") {
+                Err("Password update permission is not installed. Run the kiosk update/setup once, then try again.".to_string())
+            } else {
+                Err(format!("chpasswd failed: {}", err.trim()))
+            }
         }
     }
 

@@ -466,6 +466,18 @@ class KioskSetupScript:
             self.print_error,
         )
 
+    def configure_password_update_permission(self, user: str) -> bool:
+        """Allow the kiosk app to update the fixed SSH account password."""
+        from components.setup_password import configure_password_update_permission
+
+        return configure_password_update_permission(
+            user,
+            self.print_status,
+            self.print_success,
+            self.print_error,
+            self.write_file_as_root,
+        )
+
     def restart_lightdm(self) -> bool:
         """Restart LightDM to activate kiosk mode"""
         from components.setup_lightdm import restart_lightdm
@@ -623,6 +635,10 @@ class KioskSetupScript:
 
         if not self.configure_openbox(user):
             self.print_error("Openbox configuration failed")
+            return False
+
+        if not self.configure_password_update_permission(user):
+            self.print_error("Password update permission configuration failed")
             return False
 
         self.print_success("Kiosk mode configured")
