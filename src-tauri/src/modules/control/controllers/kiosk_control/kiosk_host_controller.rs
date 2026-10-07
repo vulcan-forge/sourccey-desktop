@@ -11,6 +11,7 @@ use crate::utils::windows_process::configure_std_command;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 use std::io::Write;
+use std::path::Path;
 use std::process::{Command, Stdio};
 use tauri::command;
 use tauri::{AppHandle, Manager, State};
@@ -22,6 +23,25 @@ pub struct SystemInfo {
     thermal_data: ThermalData,
     battery_data: BatteryData,
 }
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct HardwareConnection {
+    name: &'static str,
+    category: &'static str,
+    expected_path: &'static str,
+    connected: bool,
+    resolved_path: Option<String>,
+}
+
+const KIOSK_HARDWARE_PATHS: [(&str, &str, &str); 6] = [
+    ("Left arm", "robot", "/dev/robotLeftArm"),
+    ("Right arm", "robot", "/dev/robotRightArm"),
+    ("Front-left camera", "camera", "/dev/cameraFrontLeft"),
+    ("Front-right camera", "camera", "/dev/cameraFrontRight"),
+    ("Left wrist camera", "camera", "/dev/cameraWristLeft"),
+    ("Right wrist camera", "camera", "/dev/cameraWristRight"),
+];
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
 pub struct ThermalData {
@@ -117,6 +137,28 @@ pub fn get_system_info() -> SystemInfo {
         thermal_data,
         battery_data,
     }
+}
+
+#[command]
+pub fn get_kiosk_hardware_connections() -> Vec<HardwareConnection> {
+    KIOSK_HARDWARE_PATHS
+        .iter()
+        .map(|(name, category, expected_path)| {
+            let path = Path::new(expected_path);
+            let resolved_path = path
+                .canonicalize()
+                .ok()
+                .map(|resolved| resolved.to_string_lossy().into_owned());
+
+            HardwareConnection {
+                name,
+                category,
+                expected_path,
+                connected: resolved_path.is_some(),
+                resolved_path,
+            }
+        })
+        .collect()
 }
 
 fn get_ip_address() -> String {

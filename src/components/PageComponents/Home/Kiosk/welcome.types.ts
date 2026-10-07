@@ -21,5 +21,13 @@ export interface WelcomeSystemInfo {
     batteryData: BatteryData;
 }
 
+export interface KioskHardwareConnection {
+    name: string;
+    category: 'robot' | 'camera';
+    expectedPath: string;
+    connected: boolean;
+    resolvedPath: string | null;
+}
+
 export const DEFAULT_PRODUCTION_PORTAL_BASE_URL = 'https://studio.vulcanrobotics.ai';
 export const DEFAULT_PRODUCTION_API_BASE_URL = 'https://api.studio.vulcanrobotics.ai';

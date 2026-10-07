@@ -18,6 +18,7 @@ import type { WelcomeSystemInfo } from './welcome.types';
 import { BatteryModal } from '@/components/Elements/Modals/KioskRobotModals/BatteryModal';
 import { TemperatureModal } from '@/components/Elements/Modals/KioskRobotModals/TemperatureModal';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
+import { WelcomeHardwareStatus } from './WelcomeHardwareStatus';
 
 interface WelcomeSystemStatusProps {
     nickname: string;
@@ -63,6 +64,8 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
                     <div className="text-xl font-bold text-white">{robotType}</div>
                 </div>
             </div>
+
+            <WelcomeHardwareStatus />
 
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <button

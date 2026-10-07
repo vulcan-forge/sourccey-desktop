@@ -53,9 +53,9 @@ use modules::control::controllers::configuration::configuration_controller::{
     read_config, read_remote_config, write_config, write_remote_config,
 };
 use modules::control::controllers::kiosk_control::kiosk_host_controller::{
-    get_pi_username, get_ssh_password_changed_status, get_system_info, init_kiosk_host,
-    is_kiosk_host_active, set_pi_password, set_ssh_password_changed_status, start_kiosk_host,
-    stop_kiosk_host,
+    get_kiosk_hardware_connections, get_pi_username, get_ssh_password_changed_status,
+    get_system_info, init_kiosk_host, is_kiosk_host_active, set_pi_password,
+    set_ssh_password_changed_status, start_kiosk_host, stop_kiosk_host,
 };
 use modules::control::controllers::kiosk_control::manual_drive_controller::{
     init_kiosk_manual_drive, set_kiosk_manual_drive_keys, start_kiosk_manual_drive,
@@ -760,6 +760,7 @@ fn main() {
             stop_kiosk_manual_drive,
             untorque_kiosk_robot_arms,
             get_system_info,
+            get_kiosk_hardware_connections,
             get_pi_username,
             set_pi_password,
             get_ssh_password_changed_status,
