@@ -152,7 +152,13 @@ class DevKioskSetupScript:
         return self.git_manager.setup_git_submodules(use_https=use_https)
 
     def setup_python_environment(self) -> bool:
-        if not self.python_manager.setup_python_environment():
+        if not self.python_manager.setup_python_environment(skip_udev=True):
+            return False
+        from components.setup_devices import setup_devices
+
+        if not setup_devices(
+            self.print_status, self.print_success, self.print_warning, self.print_error
+        ):
             return False
         return self.battery_manager.ensure_golden_image()
 

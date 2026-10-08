@@ -41,6 +41,11 @@ fn run_nmcli(args: &[&str]) -> NmResult {
     if error.is_empty() {
         error = format!("NetworkManager exited with {}", output.status);
     }
+    if error.to_ascii_lowercase().contains("not authorized") {
+        error.push_str(
+            ". Repair the kiosk permission with: sudo python3 setup/kiosk/setup.py --network-permission-only",
+        );
+    }
     Err(error)
 }
 

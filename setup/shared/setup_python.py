@@ -443,7 +443,7 @@ class PythonSetupManager:
     # Python Environment Setup
     #################################################################
 
-    def setup_python_environment(self, desktop: bool = False) -> bool:
+    def setup_python_environment(self, desktop: bool = False, *, skip_udev: bool = False) -> bool:
         """Synchronize the editable lerobot-vulcan environment for this machine."""
         self.print_status("Setting up lerobot-vulcan environment...")
 
@@ -504,6 +504,8 @@ class PythonSetupManager:
 
             machine_profile = "desktop" if desktop else "robot"
             post_install_command = [str(setup_executable), machine_profile]
+            if skip_udev:
+                post_install_command.append("--skip-udev")
             self.print_status(f"Running Sourccey {machine_profile} post-install setup...")
 
             should_run_as_root = (

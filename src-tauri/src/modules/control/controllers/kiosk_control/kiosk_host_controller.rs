@@ -41,8 +41,8 @@ const KIOSK_HARDWARE_PATHS: [(&str, &str, &str); 8] = [
     ("Front-right camera", "camera", "/dev/cameraFrontRight"),
     ("Left wrist camera", "camera", "/dev/cameraWristLeft"),
     ("Right wrist camera", "camera", "/dev/cameraWristRight"),
-    ("Bottom camera", "camera", "/dev/cameraBottom"),
-    ("LiDAR", "lidar", "/dev/ttyUSB0"),
+    ("Bottom camera", "camera", "/dev/cameraFrontBottom"),
+    ("LiDAR", "lidar", "/dev/lidarFront"),
 ];
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]

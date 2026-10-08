@@ -4,6 +4,8 @@ import sys
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 if str(REPO_ROOT) not in sys.path:
@@ -66,7 +68,8 @@ def test_setup_python_environment_syncs_desktop_editable_profile(monkeypatch, tm
     assert Path(captured[0][2]["SOURCCEY_UV_BIN"]) == Path("/tmp/uv")
 
 
-def test_setup_python_environment_syncs_robot_editable_profile(monkeypatch, tmp_path):
+@pytest.mark.parametrize("skip_udev", [False, True])
+def test_setup_python_environment_syncs_robot_editable_profile(monkeypatch, tmp_path, skip_udev):
     _create_fake_lerobot_project(tmp_path)
     captured = []
 
@@ -83,7 +86,7 @@ def test_setup_python_environment_syncs_robot_editable_profile(monkeypatch, tmp_
     manager = PythonSetupManager(tmp_path, _noop, _noop, _noop, _noop)
     monkeypatch.setattr(manager, "_run_command_as_real_user", fake_run)
 
-    assert manager.setup_python_environment() is True
+    assert manager.setup_python_environment(skip_udev=skip_udev) is True
 
     assert captured[0][0] == [
         str(Path("/tmp/uv")),
@@ -92,7 +95,7 @@ def test_setup_python_environment_syncs_robot_editable_profile(monkeypatch, tmp_
         "--extra",
         "sourccey-robot",
     ]
-    assert captured[1][0][-1] == "robot"
+    assert captured[1][0][1:] == (["robot", "--skip-udev"] if skip_udev else ["robot"])
     assert Path(captured[1][0][0]).name in {"sourccey-setup", "sourccey-setup.exe"}
     assert captured[0][1] == tmp_path / "modules" / "lerobot-vulcan"
     assert "UV_PYTHON" not in captured[0][2]

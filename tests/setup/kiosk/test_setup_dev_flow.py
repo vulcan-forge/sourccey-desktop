@@ -82,6 +82,71 @@ def test_kiosk_password_permission_only_repairs_permission_without_build(monkeyp
     assert calls == [("password", "sourccey")]
 
 
+def test_kiosk_network_permission_only_repairs_permission_without_build(monkeypatch):
+    script = KioskSetupScript()
+    calls = []
+
+    monkeypatch.setenv("SUDO_USER", "sourccey")
+    monkeypatch.setattr(script, "check_root_access", lambda: True)
+    monkeypatch.setattr(script, "detect_project_root", lambda: True)
+    monkeypatch.setattr(
+        script,
+        "configure_networkmanager_permission",
+        lambda user: calls.append(("network", user)) or True,
+    )
+    monkeypatch.setattr(
+        script,
+        "build_tauri",
+        lambda: (_ for _ in ()).throw(AssertionError("build must not run")),
+    )
+
+    assert script.run(network_permission_only=True) is True
+    assert calls == [("network", "sourccey")]
+
+
+def test_devices_only_installs_mappings_without_python_battery_or_build(monkeypatch):
+    script = KioskSetupScript()
+    calls = []
+    monkeypatch.setattr(script, "check_root_access", lambda: True)
+    monkeypatch.setattr(script, "detect_project_root", lambda: True)
+    monkeypatch.setattr(script, "setup_devices", lambda: calls.append("devices") or True)
+
+    def fail():
+        raise AssertionError("Device-only repair must not run Python setup or build")
+
+    monkeypatch.setattr(script, "setup_python_environment", fail)
+    monkeypatch.setattr(script, "build_tauri", fail)
+    assert script.run(devices_only=True)
+    assert calls == ["devices"]
+
+
+def test_kiosk_environment_uses_local_device_setup_before_battery(monkeypatch):
+    script = KioskSetupScript()
+    calls = []
+    monkeypatch.setattr(
+        script.python_manager, "setup_python_environment",
+        lambda **kwargs: calls.append(("python", kwargs)) or True,
+    )
+    monkeypatch.setattr(script, "setup_devices", lambda: calls.append("devices") or True)
+    monkeypatch.setattr(
+        script.battery_manager, "ensure_golden_image", lambda: calls.append("battery") or True,
+    )
+    assert script.setup_python_environment()
+    assert calls == [("python", {"skip_udev": True}), "devices", "battery"]
+
+
+def test_mapping_failure_stops_kiosk_provisioning_before_battery(monkeypatch):
+    script = KioskSetupScript()
+    monkeypatch.setattr(script.python_manager, "setup_python_environment", lambda **_: True)
+    monkeypatch.setattr(script, "setup_devices", lambda: False)
+
+    def fail():
+        raise AssertionError("Battery provisioning must not run after mapping failure")
+
+    monkeypatch.setattr(script.battery_manager, "ensure_golden_image", fail)
+    assert not script.setup_python_environment()
+
+
 def test_kiosk_setup_can_preserve_updater_selected_submodule(monkeypatch):
     script = KioskSetupScript()
 
@@ -109,6 +174,7 @@ def test_kiosk_setup_can_preserve_updater_selected_submodule(monkeypatch):
     monkeypatch.setattr(script, "configure_lightdm", lambda _user: True)
     monkeypatch.setattr(script, "configure_openbox", lambda _user: True)
     monkeypatch.setattr(script, "configure_password_update_permission", lambda _user: True)
+    monkeypatch.setattr(script, "configure_networkmanager_permission", lambda _user: True)
     monkeypatch.setattr(script, "cleanup_old_builds", lambda clean=True: True)
     monkeypatch.setattr(script, "build_tauri", lambda: Path("app.deb"))
     monkeypatch.setattr(script, "install_deb", lambda _path: True)

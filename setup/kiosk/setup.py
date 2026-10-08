@@ -334,10 +334,19 @@ class KioskSetupScript:
         return self.git_manager.setup_git_submodules(use_https=use_https)
 
     def setup_python_environment(self) -> bool:
-        """Set up the robot Python environment and provision its battery gauge."""
-        if not self.python_manager.setup_python_environment():
+        """Set up Python, production device mappings, and the battery gauge."""
+        if not self.python_manager.setup_python_environment(skip_udev=True):
+            return False
+        if not self.setup_devices():
             return False
         return self.battery_manager.ensure_golden_image()
+
+    def setup_devices(self) -> bool:
+        from components.setup_devices import setup_devices
+
+        return setup_devices(
+            self.print_status, self.print_success, self.print_warning, self.print_error
+        )
 
     def setup_bun_packages(self) -> bool:
         """Install Bun packages"""
@@ -478,6 +487,18 @@ class KioskSetupScript:
             self.write_file_as_root,
         )
 
+    def configure_networkmanager_permission(self, user: str) -> bool:
+        """Allow the kiosk app to manage Wi-Fi and its access-point profile."""
+        from components.setup_network import configure_networkmanager_permission
+
+        return configure_networkmanager_permission(
+            user,
+            self.print_status,
+            self.print_success,
+            self.print_error,
+            self.write_file_as_root,
+        )
+
     def restart_lightdm(self) -> bool:
         """Restart LightDM to activate kiosk mode"""
         from components.setup_lightdm import restart_lightdm
@@ -522,6 +543,8 @@ class KioskSetupScript:
         python_only: bool = False,
         skip_submodules: bool = False,
         password_permission_only: bool = False,
+        network_permission_only: bool = False,
+        devices_only: bool = False,
     ) -> bool:
         """Run the complete kiosk setup process"""
         self.print_header("SOURCCEY KIOSK SETUP")
@@ -536,9 +559,16 @@ class KioskSetupScript:
         if not self.detect_project_root():
             return False
 
+        if devices_only:
+            return self.setup_devices()
+
         if password_permission_only:
             user = os.environ.get("SUDO_USER") or os.environ.get("USER") or "sourccey"
             return self.configure_password_update_permission(user)
+
+        if network_permission_only:
+            user = os.environ.get("SUDO_USER") or os.environ.get("USER") or "sourccey"
+            return self.configure_networkmanager_permission(user)
 
         if python_only:
             checks = [
@@ -646,6 +676,10 @@ class KioskSetupScript:
             self.print_error("Password update permission configuration failed")
             return False
 
+        if not self.configure_networkmanager_permission(user):
+            self.print_error("NetworkManager permission configuration failed")
+            return False
+
         self.print_success("Kiosk mode configured")
 
         # Build and install application
@@ -691,6 +725,10 @@ def main():
                        help='Preserve the lerobot-vulcan checkout selected by the updater')
     parser.add_argument('--password-permission-only', action='store_true',
                        help='Only install or repair the kiosk password update permission')
+    parser.add_argument('--network-permission-only', action='store_true',
+                       help='Only install or repair the kiosk NetworkManager permission')
+    parser.add_argument('--devices-only', action='store_true',
+                       help='Only install or repair production hardware device mappings')
     args = parser.parse_args()
 
     setup = KioskSetupScript()
@@ -701,6 +739,8 @@ def main():
         python_only=args.python_only,
         skip_submodules=args.skip_submodules,
         password_permission_only=args.password_permission_only,
+        network_permission_only=args.network_permission_only,
+        devices_only=args.devices_only,
     )
 
     if not success:
