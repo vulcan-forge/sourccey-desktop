@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { FaChevronDown, FaMicrochip, FaRedoAlt, FaRobot, FaVideo } from 'react-icons/fa';
+import { FaChevronDown, FaMicrochip, FaRedoAlt, FaRobot, FaSatelliteDish, FaVideo, FaVolumeUp } from 'react-icons/fa';
 import type { KioskHardwareConnection } from './welcome.types';
 
 export const WelcomeHardwareStatus = () => {
@@ -38,7 +38,7 @@ export const WelcomeHardwareStatus = () => {
         : error ?? `${connectedCount}/${connections.length} connected`;
 
     return (
-        <div className="overflow-hidden rounded-lg border border-slate-600/80 bg-slate-900/35">
+        <div className="overflow-hidden rounded-xl border border-slate-600/80 bg-slate-800/50 shadow-sm">
             <div className="flex items-center gap-3 px-4 py-3">
                 <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${allConnected ? 'bg-emerald-400' : error ? 'bg-slate-500' : 'bg-amber-400'}`} />
                 <FaMicrochip className="h-4 w-4 shrink-0 text-slate-300" />
@@ -69,22 +69,25 @@ export const WelcomeHardwareStatus = () => {
             {expanded ? (
                 <div className="grid grid-cols-1 gap-2 border-t border-slate-700 px-4 py-3 sm:grid-cols-2 lg:grid-cols-3">
                     {connections.map((connection) => {
-                        const DeviceIcon = connection.category === 'camera' ? FaVideo : FaRobot;
+                        const DeviceIcon = connection.category === 'camera'
+                            ? FaVideo
+                            : connection.category === 'lidar'
+                              ? FaSatelliteDish
+                              : connection.category === 'audio'
+                                ? FaVolumeUp
+                                : FaRobot;
                         return (
-                            <div key={connection.expectedPath} className="flex min-w-0 items-start gap-2 rounded-md bg-slate-800/70 px-3 py-2">
-                                <DeviceIcon className={`mt-0.5 h-3.5 w-3.5 shrink-0 ${connection.connected ? 'text-emerald-300' : 'text-amber-300'}`} />
-                                <div className="min-w-0">
-                                    <div className="flex items-center gap-2 text-xs font-medium text-white">
-                                        <span className="truncate">{connection.name}</span>
-                                        <span className={connection.connected ? 'text-emerald-300' : 'text-amber-300'}>
-                                            {connection.connected ? 'Connected' : 'Missing'}
-                                        </span>
-                                    </div>
-                                    <div className="mt-0.5 truncate font-mono text-[10px] text-slate-400" title={connection.expectedPath}>
-                                        {connection.expectedPath}
-                                        {connection.resolvedPath ? ` → ${connection.resolvedPath}` : ''}
-                                    </div>
-                                </div>
+                            <div
+                                key={connection.expectedPath}
+                                className="flex min-w-0 items-center gap-2 rounded-lg border border-slate-700/80 bg-slate-800/70 px-3 py-2.5"
+                                title={connection.resolvedPath ?? connection.expectedPath}
+                            >
+                                <DeviceIcon className={`h-3.5 w-3.5 shrink-0 ${connection.connected ? 'text-emerald-300' : 'text-amber-300'}`} />
+                                <span className="min-w-0 flex-1 truncate text-xs font-medium text-white">{connection.name}</span>
+                                <span className={`flex shrink-0 items-center gap-1.5 text-xs ${connection.connected ? 'text-emerald-300' : 'text-amber-300'}`}>
+                                    <span className={`h-1.5 w-1.5 rounded-full ${connection.connected ? 'bg-emerald-400' : 'bg-amber-400'}`} />
+                                    {connection.connected ? 'Connected' : 'Missing'}
+                                </span>
                             </div>
                         );
                     })}

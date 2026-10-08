@@ -34,13 +34,15 @@ pub struct HardwareConnection {
     resolved_path: Option<String>,
 }
 
-const KIOSK_HARDWARE_PATHS: [(&str, &str, &str); 6] = [
+const KIOSK_HARDWARE_PATHS: [(&str, &str, &str); 8] = [
     ("Left arm", "robot", "/dev/robotLeftArm"),
     ("Right arm", "robot", "/dev/robotRightArm"),
     ("Front-left camera", "camera", "/dev/cameraFrontLeft"),
     ("Front-right camera", "camera", "/dev/cameraFrontRight"),
     ("Left wrist camera", "camera", "/dev/cameraWristLeft"),
     ("Right wrist camera", "camera", "/dev/cameraWristRight"),
+    ("Bottom camera", "camera", "/dev/cameraBottom"),
+    ("LiDAR", "lidar", "/dev/ttyUSB0"),
 ];
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
@@ -141,7 +143,7 @@ pub fn get_system_info() -> SystemInfo {
 
 #[command]
 pub fn get_kiosk_hardware_connections() -> Vec<HardwareConnection> {
-    KIOSK_HARDWARE_PATHS
+    let mut connections: Vec<HardwareConnection> = KIOSK_HARDWARE_PATHS
         .iter()
         .map(|(name, category, expected_path)| {
             let path = Path::new(expected_path);
@@ -158,7 +160,27 @@ pub fn get_kiosk_hardware_connections() -> Vec<HardwareConnection> {
                 resolved_path,
             }
         })
-        .collect()
+        .collect();
+
+    let audio_path = Path::new("/proc/asound/cards");
+    let audio_connected = std::fs::read_to_string(audio_path)
+        .map(|cards| {
+            !cards.contains("no soundcards")
+                && cards.lines().any(|line| {
+                    line.trim_start()
+                        .starts_with(|character: char| character.is_ascii_digit())
+                })
+        })
+        .unwrap_or(false);
+    connections.push(HardwareConnection {
+        name: "Audio output",
+        category: "audio",
+        expected_path: "/proc/asound/cards",
+        connected: audio_connected,
+        resolved_path: audio_connected.then(|| "/proc/asound/cards".to_string()),
+    });
+
+    connections
 }
 
 fn get_ip_address() -> String {

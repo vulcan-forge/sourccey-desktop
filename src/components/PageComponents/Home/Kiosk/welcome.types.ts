@@ -23,7 +23,7 @@ export interface WelcomeSystemInfo {
 
 export interface KioskHardwareConnection {
     name: string;
-    category: 'robot' | 'camera';
+    category: 'robot' | 'camera' | 'lidar' | 'audio';
     expectedPath: string;
     connected: boolean;
     resolvedPath: string | null;

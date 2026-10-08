@@ -65,8 +65,6 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
                 </div>
             </div>
 
-            <WelcomeHardwareStatus />
-
             <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <button
                     type="button"
@@ -155,6 +153,8 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
                     </div>
                 </button>
             </div>
+
+            <WelcomeHardwareStatus />
 
             <BatteryModal
                 isOpen={activeModal === 'battery'}
