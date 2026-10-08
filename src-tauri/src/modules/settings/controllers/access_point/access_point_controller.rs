@@ -1,5 +1,5 @@
 use crate::modules::settings::services::access_point::access_point_service::{
-    AccessPointCredentials, AccessPointService,
+    AccessPointCredentials, AccessPointService, AccessPointStatus,
 };
 
 // Wifi and Access Point Controller
@@ -11,6 +11,11 @@ pub async fn set_access_point(ssid: String, password: String) -> Result<Option<S
 #[tauri::command]
 pub async fn is_access_point_active() -> Result<bool, String> {
     AccessPointService::is_access_point_active().await
+}
+
+#[tauri::command]
+pub async fn get_access_point_status() -> Result<AccessPointStatus, String> {
+    AccessPointService::get_access_point_status().await
 }
 
 #[tauri::command]

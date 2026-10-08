@@ -174,6 +174,18 @@ fn get_broadcast_targets(local_ip: Ipv4Addr) -> Vec<IpAddr> {
     if !targets.contains(&subnet_broadcast) {
         targets.push(subnet_broadcast);
     }
+    // A controller may keep Ethernet as its default internet route while joined
+    // to the robot hotspot. Probe that link directly instead of broadcasting only
+    // on the default interface's subnet.
+    let hotspot_ip: Ipv4Addr =
+        crate::modules::settings::services::access_point::linux_access_point::HOTSPOT_ADDRESS
+            .parse()
+            .expect("valid hotspot address");
+    for target in [hotspot_ip, Ipv4Addr::new(192, 168, 4, 255)] {
+        if !targets.contains(&IpAddr::V4(target)) {
+            targets.push(IpAddr::V4(target));
+        }
+    }
     targets
 }
 
@@ -283,6 +295,14 @@ mod tests {
     #[test]
     fn formats_subnet_label() {
         assert_eq!(subnet_label(Ipv4Addr::new(192, 168, 5, 19)), "192.168.5.*");
+    }
+
+    #[test]
+    fn discovery_probes_hotspot_when_default_route_uses_another_network() {
+        let targets = get_broadcast_targets(Ipv4Addr::new(192, 168, 1, 20));
+        assert!(targets.contains(&IpAddr::V4(Ipv4Addr::new(192, 168, 4, 1))));
+        assert!(targets.contains(&IpAddr::V4(Ipv4Addr::new(192, 168, 4, 255))));
+        assert!(targets.contains(&IpAddr::V4(Ipv4Addr::new(192, 168, 1, 255))));
     }
 
     #[test]

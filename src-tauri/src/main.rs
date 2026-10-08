@@ -92,8 +92,8 @@ use modules::dataset_sync::controllers::upload_controller::{
 #[cfg(feature = "desktop")]
 use modules::dataset_sync::services::upload_service::UploadService;
 use modules::settings::controllers::access_point::access_point_controller::{
-    get_access_point_credentials, is_access_point_active, save_access_point_credentials,
-    set_access_point,
+    get_access_point_credentials, get_access_point_status, is_access_point_active,
+    save_access_point_credentials, set_access_point,
 };
 use modules::settings::controllers::desktop_auth_controller::desktop_login_via_studio;
 use modules::settings::controllers::desktop_environment::desktop_environment_controller::{
@@ -778,6 +778,7 @@ fn main() {
             set_wifi,
             set_access_point,
             is_access_point_active,
+            get_access_point_status,
             get_access_point_credentials,
             save_access_point_credentials,
             desktop_login_via_studio,

@@ -8,7 +8,7 @@ import React from 'react';
 import { RobotStatusProvider } from '@/context/robot-status-context';
 import { VirtualKeyboardProvider } from '@/context/virtual-keyboard-context';
 import { primeDesktopEnvironmentSettings } from '@/environments/environment';
-import { ACCESS_POINT_ENABLED_KEY, ACCESS_POINT_PASSWORD_KEY, ACCESS_POINT_SSID_KEY } from '@/hooks/WIFI/access-point.hook';
+import { ACCESS_POINT_PASSWORD_KEY, ACCESS_POINT_SSID_KEY } from '@/hooks/WIFI/access-point.hook';
 import { SAVED_WIFI_SSIDS_KEY } from '@/hooks/WIFI/wifi.hook';
 import { SELECTED_ROBOT_KEY } from '@/hooks/Robot/selected-robot.hook';
 import { SELECTED_MODEL_KEY } from '@/hooks/AI/selected-model.hook';
@@ -19,8 +19,6 @@ import { setupProcessShutdownListeners } from '@/utils/logs/control-logs/control
 // SSH password status is now persisted via file system (not React Query)
 const persistQueries: QueryKey[] = [
     SAVED_WIFI_SSIDS_KEY,
-    ACCESS_POINT_ENABLED_KEY,
-    ACCESS_POINT_SSID_KEY,
     SELECTED_ROBOT_KEY,
     SELECTED_MODEL_KEY,
     DESKTOP_EXTRAS_KEY,
@@ -41,7 +39,7 @@ const persistOptions = {
 };
 
 const REACT_QUERY_STORAGE_KEY = 'REACT_QUERY_OFFLINE_CACHE';
-const sensitiveQueryKeys: QueryKey[] = [ACCESS_POINT_PASSWORD_KEY];
+const sensitiveQueryKeys: QueryKey[] = [ACCESS_POINT_PASSWORD_KEY, ACCESS_POINT_SSID_KEY];
 
 const scrubSensitivePersistedQueries = () => {
     if (typeof window === 'undefined') return;

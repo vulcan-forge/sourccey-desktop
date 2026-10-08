@@ -102,6 +102,10 @@ class SystemPackageInstaller:
         if not self.install_tauri_dependencies():
             return False
 
+        if not self.apt_install(["network-manager", "dnsmasq-base"]):
+            self.print_error("NetworkManager and DHCP dependencies are required for robot Wi-Fi router mode.")
+            return False
+
         return True
 
 def install_system_packages(print_status, print_success, print_error,

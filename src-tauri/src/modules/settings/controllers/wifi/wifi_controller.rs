@@ -4,6 +4,10 @@ use serde::{Deserialize, Serialize};
 use std::process::Command;
 use tauri::AppHandle;
 
+#[cfg(any(target_os = "linux", test))]
+#[path = "linux_wifi.rs"]
+mod linux_wifi;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WiFiNetwork {
     pub ssid: String,
@@ -24,7 +28,6 @@ fn normalize_networks(networks: Vec<WiFiNetwork>) -> Vec<WiFiNetwork> {
     let mut unique: Vec<WiFiNetwork> = Vec::new();
 
     for mut network in networks {
-        network.ssid = network.ssid.trim().to_string();
         if network.ssid.is_empty() {
             continue;
         }
@@ -83,7 +86,10 @@ fn split_nmcli_line(line: &str) -> Vec<String> {
 pub async fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>, String> {
     #[cfg(target_os = "linux")]
     {
-        scan_wifi_linux().map(normalize_networks)
+        let _guard = crate::modules::settings::services::access_point::access_point_service::NETWORK_MODE_LOCK.lock().await;
+        tokio::task::spawn_blocking(|| scan_wifi_linux().map(normalize_networks))
+            .await
+            .map_err(|e| format!("Wi-Fi scan task failed: {e}"))?
     }
 
     #[cfg(target_os = "windows")]
@@ -106,7 +112,10 @@ pub async fn connect_to_wifi(
 ) -> Result<String, String> {
     #[cfg(target_os = "linux")]
     {
-        connect_wifi_linux(ssid, password, security)
+        let _guard = crate::modules::settings::services::access_point::access_point_service::NETWORK_MODE_LOCK.lock().await;
+        tokio::task::spawn_blocking(move || connect_wifi_linux(ssid, password, security))
+            .await
+            .map_err(|e| format!("Wi-Fi connection task failed: {e}"))?
     }
 
     #[cfg(target_os = "windows")]
@@ -125,7 +134,9 @@ pub async fn connect_to_wifi(
 pub async fn get_current_wifi_connection() -> Result<Option<WiFiNetwork>, String> {
     #[cfg(target_os = "linux")]
     {
-        get_current_wifi_linux()
+        tokio::task::spawn_blocking(get_current_wifi_linux)
+            .await
+            .map_err(|e| format!("Wi-Fi status task failed: {e}"))?
     }
 
     #[cfg(target_os = "windows")]
@@ -144,7 +155,10 @@ pub async fn get_current_wifi_connection() -> Result<Option<WiFiNetwork>, String
 pub async fn disconnect_from_wifi() -> Result<String, String> {
     #[cfg(target_os = "linux")]
     {
-        disconnect_wifi_linux()
+        let _guard = crate::modules::settings::services::access_point::access_point_service::NETWORK_MODE_LOCK.lock().await;
+        tokio::task::spawn_blocking(disconnect_wifi_linux)
+            .await
+            .map_err(|e| format!("Wi-Fi disconnect task failed: {e}"))?
     }
 
     #[cfg(target_os = "windows")]
@@ -158,10 +172,11 @@ pub async fn disconnect_from_wifi() -> Result<String, String> {
     }
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 fn scan_wifi_linux() -> Result<Vec<WiFiNetwork>, String> {
     // Use nmcli (NetworkManager CLI) to scan for networks
     let output = Command::new("nmcli")
+        .env("LC_ALL", "C")
         .args([
             "-t",
             "-e",
@@ -208,63 +223,55 @@ fn scan_wifi_linux() -> Result<Vec<WiFiNetwork>, String> {
     Ok(networks)
 }
 
-#[cfg(target_os = "linux")]
-fn connect_open_network(ssid: &str) -> Result<String, String> {
-    let output = Command::new("nmcli")
-        .args(&["device", "wifi", "connect", ssid])
-        .output()
-        .map_err(|e| format!("Failed to connect to WiFi: {}", e))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Connection failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-
-    Ok(format!("Successfully connected to {}", ssid))
-}
-
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 fn connect_wifi_linux(
     ssid: String,
     password: String,
     security: Option<String>,
 ) -> Result<String, String> {
-    let security = normalize_security(security.as_deref().unwrap_or(""));
-
-    if security == "Open" {
-        if !password.is_empty() {
-            return Err("Open network does not require a password".to_string());
-        }
-        return connect_open_network(&ssid);
-    }
-
-    let output = Command::new("nmcli")
-        .args(["device", "wifi", "connect", &ssid, "password", &password])
-        .output()
-        .map_err(|e| format!("Failed to connect to WiFi: {}", e))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Connection failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-
-    Ok(format!("Successfully connected to {}", ssid))
+    linux_wifi::connect(
+        &ssid,
+        &password,
+        security.as_deref().unwrap_or(""),
+        &uuid::Uuid::now_v7().to_string(),
+    )
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 fn get_current_wifi_linux() -> Result<Option<WiFiNetwork>, String> {
+    let station = match linux_wifi::active_station(&mut linux_wifi::run_nmcli) {
+        Ok(station) => station,
+        Err(e) if e.contains("Robot hotspot mode is active") => return Ok(None),
+        Err(e) => return Err(e),
+    };
+    let Some((_, device)) = station else {
+        return Ok(None);
+    };
     // Use nmcli to get current connection
     let output = Command::new("nmcli")
-        .args(&["-t", "-f", "ACTIVE,SSID,SIGNAL,SECURITY", "dev", "wifi"])
+        .env("LC_ALL", "C")
+        .args(&[
+            "-t",
+            "-e",
+            "yes",
+            "-f",
+            "ACTIVE,SSID,SIGNAL,SECURITY",
+            "dev",
+            "wifi",
+            "list",
+            "ifname",
+            &device,
+            "--rescan",
+            "no",
+        ])
         .output()
         .map_err(|e| format!("Failed to get current WiFi: {}", e))?;
 
     if !output.status.success() {
-        return Ok(None);
+        return Err(format!(
+            "Could not check Wi-Fi connection: {}",
+            String::from_utf8_lossy(&output.stderr).trim()
+        ));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -288,46 +295,14 @@ fn get_current_wifi_linux() -> Result<Option<WiFiNetwork>, String> {
     Ok(None)
 }
 
-#[cfg(target_os = "linux")]
+#[cfg(any(target_os = "linux", test))]
 fn disconnect_wifi_linux() -> Result<String, String> {
-    // First, get the WiFi device name
-    let device_output = Command::new("nmcli")
-        .args(&["-t", "-f", "DEVICE,TYPE", "device"])
-        .output()
-        .map_err(|e| format!("Failed to get WiFi device: {}", e))?;
-
-    if !device_output.status.success() {
-        return Err("Failed to find WiFi device".to_string());
-    }
-
-    let stdout = String::from_utf8_lossy(&device_output.stdout);
-    let mut wifi_device = String::new();
-
-    for line in stdout.lines() {
-        let parts: Vec<&str> = line.split(':').collect();
-        if parts.len() >= 2 && parts[1] == "wifi" {
-            wifi_device = parts[0].to_string();
-            break;
-        }
-    }
-
-    if wifi_device.is_empty() {
-        return Err("No WiFi device found".to_string());
-    }
-
-    // Now disconnect the WiFi device
-    let output = Command::new("nmcli")
-        .args(&["device", "disconnect", &wifi_device])
-        .output()
-        .map_err(|e| format!("Failed to disconnect from WiFi: {}", e))?;
-
-    if !output.status.success() {
-        return Err(format!(
-            "Disconnect failed: {}",
-            String::from_utf8_lossy(&output.stderr)
-        ));
-    }
-
+    let Some((_, device)) = linux_wifi::active_station(&mut linux_wifi::run_nmcli)? else {
+        return Ok("Wi-Fi is already disconnected".into());
+    };
+    // Device disconnect prevents immediate autoconnect while retaining saved
+    // profiles. Never disconnect a hotspot via the station-only UI command.
+    linux_wifi::run_nmcli(&["device", "disconnect", &device])?;
     Ok("Successfully disconnected from WiFi".to_string())
 }
 
@@ -416,7 +391,7 @@ mod tests {
     fn normalizes_and_deduplicates_scan_results() {
         let networks = normalize_networks(vec![
             WiFiNetwork {
-                ssid: " Robot Lab ".to_string(),
+                ssid: "Robot Lab".to_string(),
                 signal_strength: 34,
                 security: "--".to_string(),
             },
@@ -430,6 +405,22 @@ mod tests {
         assert_eq!(networks.len(), 1);
         assert_eq!(networks[0].signal_strength, 81);
         assert_eq!(networks[0].security, "WPA2");
+    }
+
+    #[test]
+    fn preserves_significant_spaces_in_network_names() {
+        let networks = normalize_networks(vec![WiFiNetwork {
+            ssid: " Lab ".to_string(),
+            signal_strength: 80,
+            security: "WPA3".to_string(),
+        }]);
+        assert_eq!(networks[0].ssid, " Lab ");
+    }
+
+    #[test]
+    fn linux_connector_rejects_missing_security_before_invoking_nmcli() {
+        let error = connect_wifi_linux("Lab".into(), "password".into(), None).unwrap_err();
+        assert!(error.contains("Refresh the network list"));
     }
 }
 
@@ -720,6 +711,11 @@ fn disconnect_wifi_macos() -> Result<String, String> {
 
 // Wifi and Access Point Controller
 #[tauri::command]
-pub async fn set_wifi(ssid: String) -> Result<String, String> {
+pub async fn set_wifi(
+    ssid: String,
+) -> Result<
+    crate::modules::settings::services::access_point::access_point_service::WiFiModeResult,
+    String,
+> {
     WiFiService::set_wifi(ssid).await
 }
