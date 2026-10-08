@@ -146,9 +146,17 @@ try {
     await test('Disable with no saved network reports disconnected rather than success', 'hotspot', false, async (page) => {
         await ready(page);
         await toggle(page).uncheck();
-        await waitMessage(page, 'Hotspot disabled. Select a Wi-Fi network.');
+        await waitMessage(page, 'Robot Wi-Fi is off. Select a network from the Wi-Fi menu.');
         assert.equal(await toggle(page).isChecked(), false);
         assert.equal((await calls(page, 'set_wifi')).length, 1);
+    });
+    await test('A stalled status refresh does not leave the hotspot toggle loading', 'stalled-refresh', false, async (page) => {
+        await ready(page);
+        await toggle(page).uncheck();
+        await waitMessage(page, 'Robot Wi-Fi is off. Select a network from the Wi-Fi menu.');
+        assert.equal(await toggle(page).isChecked(), false);
+        assert.equal(await toggle(page).isDisabled(), false);
+        assert.equal(await page.locator('.animate-spin').count(), 0);
     });
     await test('Wi-Fi dialog detects hotspot and explicitly switches before scanning', 'hotspot', true, async (page) => {
         await page.getByRole('button', { name: 'Switch to Wi-Fi', exact: true }).waitFor();
@@ -156,6 +164,12 @@ try {
         assert.equal(await page.getByText('Connected to Saved Robot', { exact: true }).count(), 0);
         await page.getByRole('button', { name: 'Switch to Wi-Fi', exact: true }).click();
         await selectNetwork(page);
+        assert.equal((await calls(page, 'set_wifi')).length, 1);
+    });
+    await test('Wi-Fi dialog completes mode switching when the status refresh stalls', 'stalled-refresh', true, async (page) => {
+        await page.getByRole('button', { name: 'Switch to Wi-Fi', exact: true }).click();
+        await waitMessage(page, 'Robot Wi-Fi is off. Select a network from the Wi-Fi menu.');
+        assert.equal(await page.getByRole('button', { name: 'Switching...', exact: true }).count(), 0);
         assert.equal((await calls(page, 'set_wifi')).length, 1);
     });
     for (const scenario of ['', 'wpa', 'wpa2', 'mixed', 'open', 'connect-error']) {

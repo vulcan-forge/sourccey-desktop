@@ -15,11 +15,12 @@ const inactive = { active: false, ssid: null, ip_address: null, interface: null 
 const state = (window.__networkTest = {
     calls: [],
     credentials: { ssid: 'Saved Robot', password: 'saved-password' },
-    status: ['hotspot', 'disable-error'].includes(scenario)
+    status: ['hotspot', 'disable-error', 'stalled-refresh'].includes(scenario)
         ? { active: true, ssid: 'Saved Robot', ip_address: '192.168.4.1', interface: 'wlan0' }
         : inactive,
     current: ['connected', 'disconnect-error', 'scan-error'].includes(scenario) ? network : null,
     pending: null,
+    stallStatus: false,
     refreshStatus: () => queryClient.invalidateQueries({ queryKey: ['access-point', 'status'] }),
 });
 window.isTauri = true;
@@ -30,6 +31,7 @@ window.__TAURI_INTERNALS__ = {
         if (command === 'get_system_info') return { ip_address: '192.168.1.2', temperature: '40 C', thermal_data: {}, battery_data: {} };
         if (command === 'get_access_point_status') {
             if (scenario === 'status-error') throw 'NetworkManager unavailable';
+            if (state.stallStatus) await new Promise(() => {});
             return state.status;
         }
         if (command === 'get_access_point_credentials') {
@@ -51,12 +53,13 @@ window.__TAURI_INTERNALS__ = {
             state.credentials = args;
             state.status = { active: true, ssid: args.ssid, ip_address: '192.168.4.1', interface: 'wlan0' };
             state.current = null;
-            return '192.168.4.1';
+            return state.status;
         }
         if (command === 'set_wifi') {
             if (scenario === 'disable-error') throw 'Could not disable hotspot';
             state.status = inactive;
-            return { reconnected: false, message: 'Hotspot disabled. Select a Wi-Fi network.' };
+            if (scenario === 'stalled-refresh') state.stallStatus = true;
+            return { reconnected: false, message: 'Robot Wi-Fi is off. Select a network from the Wi-Fi menu.' };
         }
         if (command === 'scan_wifi_networks') {
             if (scenario === 'scan-error') throw 'Wi-Fi scan unavailable';

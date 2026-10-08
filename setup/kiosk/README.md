@@ -53,3 +53,27 @@ uv run python scripts/sourccey_check_bottom_camera.py --device /dev/cameraFrontB
 
 Audio output is detected by Linux sound-card enumeration and has no USB role
 alias in this rules file.
+
+## Robot Wi-Fi permission repair
+
+The full kiosk installer configures NetworkManager authorization before builds
+and dependency setup. Repair only that authorization with:
+
+```bash
+sudo python3 setup/kiosk/setup.py --network-permission-only
+```
+
+Confirm that the kiosk account can control Wi-Fi and connections:
+
+```bash
+sudo -u sourccey nmcli general permissions | grep -E 'enable-disable-wifi|network-control|settings.modify.system|wifi.share'
+```
+
+Each listed permission should report `yes`. Restart Vulcan Studio after repairing
+the rule. If an older build left the robot hotspot active, stop its profile once
+from a terminal, then use the app normally:
+
+```bash
+sudo nmcli connection modify "Sourccey Hotspot" connection.autoconnect no
+sudo nmcli connection down "Sourccey Hotspot"
+```

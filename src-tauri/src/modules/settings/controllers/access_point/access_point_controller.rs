@@ -4,7 +4,7 @@ use crate::modules::settings::services::access_point::access_point_service::{
 
 // Wifi and Access Point Controller
 #[tauri::command]
-pub async fn set_access_point(ssid: String, password: String) -> Result<Option<String>, String> {
+pub async fn set_access_point(ssid: String, password: String) -> Result<AccessPointStatus, String> {
     AccessPointService::set_access_point(ssid, password).await
 }
 

@@ -54,6 +54,8 @@ export const useGetAccessPointCredentials = () =>
 export const cacheAccessPointCredentials = (ssid: string, password: string) =>
     queryClient.setQueryData(ACCESS_POINT_CREDENTIALS_KEY, { ssid, password });
 
+export const cacheAccessPointStatus = (status: AccessPointStatus) => queryClient.setQueryData(ACCESS_POINT_STATUS_KEY, status);
+
 export const saveAccessPointCredentials = async (ssid: string, password: string) => {
     await invoke('save_access_point_credentials', { ssid, password });
     cacheAccessPointCredentials(ssid, password);

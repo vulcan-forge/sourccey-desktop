@@ -23,10 +23,10 @@ pub struct WiFiModeResult {
 
 type NmResult = Result<String, String>;
 
-fn run_nmcli(args: &[&str]) -> NmResult {
+fn run_nmcli_with_wait(args: &[&str], wait_seconds: &str) -> NmResult {
     let output = Command::new("nmcli")
         .env("LC_ALL", "C")
-        .args(["--colors", "no", "--escape", "no", "--wait", "30"])
+        .args(["--colors", "no", "--escape", "no", "--wait", wait_seconds])
         .args(args)
         .stdin(Stdio::null())
         .output()
@@ -47,6 +47,10 @@ fn run_nmcli(args: &[&str]) -> NmResult {
         );
     }
     Err(error)
+}
+
+fn run_nmcli(args: &[&str]) -> NmResult {
+    run_nmcli_with_wait(args, "30")
 }
 
 pub fn validate_credentials(ssid: &str, password: &str) -> Result<(), String> {
@@ -228,15 +232,25 @@ fn enable_with<F>(
     ssid: &str,
     password: &str,
     uuid: &str,
+    credentials_unchanged: bool,
     run: &mut F,
 ) -> Result<AccessPointStatus, String>
 where
     F: FnMut(&[&str]) -> NmResult,
 {
     validate_credentials(ssid, password)?;
+    let current = status_with(run)?;
+    if credentials_unchanged && current.active && current.ssid.as_deref() == Some(ssid) {
+        // The requested hotspot is already running, commonly after a reboot.
+        // Treat enabling it again as success without replacing its profile.
+        return Ok(current);
+    }
     let device = find_adapter(run)?;
     let previous = run(&["-g", "GENERAL.CON-UUID", "device", "show", &device])?;
-    run(&["radio", "wifi", "on"])?;
+    if run(&["radio", "wifi"])?.trim() != "enabled" {
+        run(&["radio", "wifi", "on"])
+            .map_err(|error| format!("Could not enable the Wi-Fi radio: {error}"))?;
+    }
     let profiles = run(&["-t", "-e", "no", "-f", "UUID,NAME", "connection", "show"])?;
     // Creation doesn't interrupt station mode; activation performs the switch.
     run(&profile_args(ssid, password, uuid, &device))
@@ -305,11 +319,16 @@ where
     Ok(verified)
 }
 
-pub fn enable(ssid: &str, password: &str) -> Result<AccessPointStatus, String> {
+pub fn enable(
+    ssid: &str,
+    password: &str,
+    credentials_unchanged: bool,
+) -> Result<AccessPointStatus, String> {
     enable_with(
         ssid,
         password,
         &uuid::Uuid::now_v7().to_string(),
+        credentials_unchanged,
         &mut run_nmcli,
     )
 }
@@ -354,6 +373,28 @@ where
         .trim()
             == "ap"
         {
+            if Some(uuid) != active.uuid.as_deref()
+                && run(&[
+                    "-g",
+                    "connection.stable-id",
+                    "connection",
+                    "show",
+                    "uuid",
+                    uuid,
+                ])
+                .is_ok_and(|owner| owner.trim() == PROFILE_OWNER)
+            {
+                // An inactive owned profile with autoconnect enabled would
+                // otherwise bring the hotspot back after the next reboot.
+                run(&[
+                    "connection",
+                    "modify",
+                    "uuid",
+                    uuid,
+                    "connection.autoconnect",
+                    "no",
+                ])?;
+            }
             continue;
         }
         let ssid = run(&[
@@ -370,21 +411,30 @@ where
         ));
     }
     stations.sort_by_key(|(_, ssid)| ssid != preferred_ssid);
-    for (uuid, ssid) in stations.iter().take(3) {
+    for (uuid, ssid) in stations.iter().take(1) {
         if run(&["connection", "up", "uuid", uuid]).is_ok() {
             // Use NetworkManager's successful activation result, not a substring
             // match against a profile display name or unrelated active network.
             return Ok(WiFiModeResult {
                 reconnected: true,
-                message: format!("Robot Wi-Fi router disabled. Reconnected to {ssid}."),
+                message: format!("Robot Wi-Fi is off. Reconnected to {ssid}."),
             });
         }
     }
-    Ok(WiFiModeResult { reconnected: false, message: "Robot Wi-Fi router disabled. No saved Wi-Fi network could be reached; select a network from the Wi-Fi menu.".into() })
+    Ok(WiFiModeResult {
+        reconnected: false,
+        message: "Robot Wi-Fi is off. Select a network from the Wi-Fi menu.".into(),
+    })
 }
 
 pub fn disable(preferred_ssid: &str) -> Result<WiFiModeResult, String> {
-    disable_with(preferred_ssid, &mut run_nmcli)
+    disable_with(preferred_ssid, &mut |args| {
+        if args.starts_with(&["connection", "up"]) {
+            run_nmcli_with_wait(args, "10")
+        } else {
+            run_nmcli(args)
+        }
+    })
 }
 
 #[cfg(test)]
@@ -471,13 +521,33 @@ mod tests {
     #[test]
     fn enables_and_verifies_real_address_before_removing_old_profiles() {
         let mut fake = FakeNetwork::default();
-        let result = enable_with("Robot Lab", "synthetic-password", UUID, &mut |args| {
-            fake.run(args)
-        })
+        let result = enable_with(
+            "Robot Lab",
+            "synthetic-password",
+            UUID,
+            false,
+            &mut |args| fake.run(args),
+        )
         .unwrap();
         assert!(result.active);
         assert_eq!(result.ip_address.as_deref(), Some(HOTSPOT_ADDRESS));
         assert_eq!(fake.deleted, ["old"]);
+    }
+
+    #[test]
+    fn enabling_an_unchanged_running_hotspot_is_idempotent() {
+        let mut fake = FakeNetwork {
+            activated: true,
+            ..Default::default()
+        };
+        let result = enable_with("Robot Lab", "synthetic-password", UUID, true, &mut |args| {
+            assert!(!args.starts_with(&["radio"]));
+            assert!(!args.starts_with(&["connection", "add"]));
+            fake.run(args)
+        })
+        .unwrap();
+        assert!(result.active);
+        assert_eq!(result.ssid.as_deref(), Some("Robot Lab"));
     }
     #[test]
     fn failed_activation_restores_station_and_removes_only_new_profile() {
@@ -485,11 +555,14 @@ mod tests {
             fail_up: true,
             ..Default::default()
         };
-        assert!(
-            enable_with("Robot Lab", "synthetic-password", UUID, &mut |args| fake
-                .run(args))
-            .is_err()
-        );
+        assert!(enable_with(
+            "Robot Lab",
+            "synthetic-password",
+            UUID,
+            false,
+            &mut |args| fake.run(args)
+        )
+        .is_err());
         assert!(fake.restored);
         assert_eq!(fake.deleted, [UUID]);
     }
@@ -499,23 +572,32 @@ mod tests {
             ap_supported: false,
             ..Default::default()
         };
-        assert!(
-            enable_with("Robot Lab", "synthetic-password", UUID, &mut |args| fake
-                .run(args))
-            .is_err()
-        );
+        assert!(enable_with(
+            "Robot Lab",
+            "synthetic-password",
+            UUID,
+            false,
+            &mut |args| fake.run(args)
+        )
+        .is_err());
         assert!(!fake.activated && fake.deleted.is_empty());
     }
 
     #[test]
     fn missing_assigned_address_rolls_back_instead_of_reporting_success() {
         let mut fake = FakeNetwork::default();
-        let result = enable_with("Robot Lab", "synthetic-password", UUID, &mut |args| {
-            if args.contains(&"IP4.ADDRESS") {
-                return Ok(String::new());
-            }
-            fake.run(args)
-        });
+        let result = enable_with(
+            "Robot Lab",
+            "synthetic-password",
+            UUID,
+            false,
+            &mut |args| {
+                if args.contains(&"IP4.ADDRESS") {
+                    return Ok(String::new());
+                }
+                fake.run(args)
+            },
+        );
         assert!(result.unwrap_err().contains("expected network address"));
         assert!(fake.restored);
         assert_eq!(fake.deleted, [UUID]);
@@ -524,14 +606,20 @@ mod tests {
     #[test]
     fn profile_creation_failure_does_not_disconnect_existing_wifi() {
         let mut fake = FakeNetwork::default();
-        let result = enable_with("Robot Lab", "synthetic-password", UUID, &mut |args| {
-            if args.starts_with(&["connection", "add"]) {
-                return Err("Not authorized".into());
-            }
-            assert!(!args.starts_with(&["connection", "down"]));
-            assert!(!args.starts_with(&["device", "disconnect"]));
-            fake.run(args)
-        });
+        let result = enable_with(
+            "Robot Lab",
+            "synthetic-password",
+            UUID,
+            false,
+            &mut |args| {
+                if args.starts_with(&["connection", "add"]) {
+                    return Err("Not authorized".into());
+                }
+                assert!(!args.starts_with(&["connection", "down"]));
+                assert!(!args.starts_with(&["device", "disconnect"]));
+                fake.run(args)
+            },
+        );
         assert!(result.unwrap_err().contains("Not authorized"));
         assert!(!fake.activated && fake.deleted.is_empty());
     }
@@ -567,6 +655,34 @@ mod tests {
         .unwrap();
         assert!(!fake.activated);
         assert!(fake.deleted.is_empty());
+        assert!(!result.reconnected);
+    }
+
+    #[test]
+    fn disabling_also_stops_inactive_owned_hotspots_from_returning_on_boot() {
+        let mut autoconnect_disabled = false;
+        let result = disable_with("", &mut |args| {
+            if args.contains(&"UUID,TYPE,DEVICE") {
+                return Ok(String::new());
+            }
+            if args.contains(&"UUID,TYPE") {
+                return Ok("inactive-ap:802-11-wireless\n".into());
+            }
+            if args.contains(&"802-11-wireless.mode") {
+                return Ok("ap\n".into());
+            }
+            if args.contains(&"connection.stable-id") {
+                return Ok(PROFILE_OWNER.into());
+            }
+            if args.starts_with(&["connection", "modify"]) {
+                assert_eq!(args[3], "inactive-ap");
+                autoconnect_disabled = true;
+                return Ok(String::new());
+            }
+            panic!("unexpected command: {args:?}");
+        })
+        .unwrap();
+        assert!(autoconnect_disabled);
         assert!(!result.reconnected);
     }
     #[test]
@@ -618,7 +734,7 @@ mod tests {
     fn no_saved_wifi_is_reported_honestly() {
         let result = disable_with("", &mut |_| Ok(String::new())).unwrap();
         assert!(!result.reconnected);
-        assert!(result.message.contains("No saved Wi-Fi"));
+        assert!(result.message.contains("Select a network"));
     }
     #[test]
     fn rejects_invalid_credentials_before_any_network_operation() {
@@ -628,7 +744,10 @@ mod tests {
             ("Lab", "passwörd"),
             ("Lab\n", "password"),
         ] {
-            assert!(enable_with(ssid, pass, UUID, &mut |_| panic!("must not run nmcli")).is_err());
+            assert!(enable_with(ssid, pass, UUID, false, &mut |_| panic!(
+                "must not run nmcli"
+            ))
+            .is_err());
         }
     }
     #[test]

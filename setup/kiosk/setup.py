@@ -567,7 +567,9 @@ class KioskSetupScript:
             return self.configure_password_update_permission(user)
 
         if network_permission_only:
-            user = os.environ.get("SUDO_USER") or os.environ.get("USER") or "sourccey"
+            user = os.environ.get("SUDO_USER") or os.environ.get("USER")
+            if not user or user == "root":
+                user = "sourccey"
             return self.configure_networkmanager_permission(user)
 
         if python_only:
@@ -584,6 +586,16 @@ class KioskSetupScript:
                 return False
             self.print_success("Kiosk robot Python environment refreshed")
             return True
+
+        # Install NetworkManager authorization before dependency setup or builds.
+        # This keeps the kiosk able to leave hotspot mode even if a later,
+        # unrelated setup step fails.
+        kiosk_user = os.environ.get("SUDO_USER") or os.environ.get("USER")
+        if not kiosk_user or kiosk_user == "root":
+            kiosk_user = "sourccey"
+        if not self.configure_networkmanager_permission(kiosk_user):
+            self.print_error("NetworkManager permission configuration failed")
+            return False
 
         # Ensure project dir isn't owned by root before doing any builds.
         # This prevents later `bun tauri:kiosk` from failing with permission errors.
@@ -674,10 +686,6 @@ class KioskSetupScript:
 
         if not self.configure_password_update_permission(user):
             self.print_error("Password update permission configuration failed")
-            return False
-
-        if not self.configure_networkmanager_permission(user):
-            self.print_error("NetworkManager permission configuration failed")
             return False
 
         self.print_success("Kiosk mode configured")

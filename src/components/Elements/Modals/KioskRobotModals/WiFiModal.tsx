@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
-import { refreshAccessPointStatus, type AccessPointStatus, type WiFiModeResult } from '@/hooks/WIFI/access-point.hook';
+import { cacheAccessPointStatus, refreshAccessPointStatus, type AccessPointStatus, type WiFiModeResult } from '@/hooks/WIFI/access-point.hook';
 import { FaWifi, FaTimes, FaLock, FaLockOpen, FaSpinner, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 import type { SystemInfo } from '@/hooks/System/system-info.hook';
 import {
@@ -207,10 +207,13 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
         setSuccess(null);
         try {
             const result = await invoke<WiFiModeResult>('set_wifi', { ssid: getSavedWiFiSSIDs()[0] ?? '' });
+            const inactive = { active: false, ssid: null, ip_address: null, interface: null };
+            cacheAccessPointStatus(inactive);
+            setHotspot(inactive);
             void refreshAccessPointStatus();
             if (session !== modalSession.current) return;
             setSuccess(result.message);
-            await scanNetworks();
+            void scanNetworks();
         } catch (err) {
             if (session === modalSession.current) setError(`Could not switch to Wi-Fi: ${err}`);
         } finally {

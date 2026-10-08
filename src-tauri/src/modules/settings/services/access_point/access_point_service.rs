@@ -28,18 +28,21 @@ impl AccessPointService {
     pub async fn set_access_point(
         ssid: String,
         password: String,
-    ) -> Result<Option<String>, String> {
+    ) -> Result<AccessPointStatus, String> {
         Self::require_linux()?;
         linux_access_point::validate_credentials(&ssid, &password)?;
+        let credentials_unchanged = Self::get_saved_access_point_credentials()?
+            .is_some_and(|saved| saved.ssid == ssid && saved.password == password);
         let _guard = NETWORK_MODE_LOCK.lock().await;
         let saved_ssid = ssid.clone();
         let saved_password = password.clone();
-        let status =
-            tokio::task::spawn_blocking(move || linux_access_point::enable(&ssid, &password))
-                .await
-                .map_err(|e| format!("Access point task failed: {e}"))??;
+        let status = tokio::task::spawn_blocking(move || {
+            linux_access_point::enable(&ssid, &password, credentials_unchanged)
+        })
+        .await
+        .map_err(|e| format!("Access point task failed: {e}"))??;
         Self::save_access_point_credentials(saved_ssid, saved_password)?;
-        Ok(status.ip_address)
+        Ok(status)
     }
 
     pub async fn get_access_point_status() -> Result<AccessPointStatus, String> {

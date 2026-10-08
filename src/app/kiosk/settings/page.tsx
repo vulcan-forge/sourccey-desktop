@@ -7,9 +7,11 @@ import { toast } from 'react-toastify';
 import {
     saveAccessPointCredentials,
     cacheAccessPointCredentials,
+    cacheAccessPointStatus,
     DEFAULT_ACCESS_POINT_SSID,
     useGetAccessPointCredentials,
     useGetAccessPointStatus,
+    type AccessPointStatus,
     type WiFiModeResult,
 } from '@/hooks/WIFI/access-point.hook';
 import { toastSuccessDefaults } from '@/utils/toast/toast-utils';
@@ -150,7 +152,11 @@ export default function KioskSettingsPage() {
         setIsSavingAccessPoint(true);
         try {
             if (isAccessPointEnabled) {
-                await invoke('set_access_point', { ssid: accessPointSSID, password: accessPointPassword });
+                const status = await invoke<AccessPointStatus>('set_access_point', {
+                    ssid: accessPointSSID,
+                    password: accessPointPassword,
+                });
+                cacheAccessPointStatus(status);
                 cacheAccessPointCredentials(accessPointSSID, accessPointPassword);
                 toast.success('Robot Wi-Fi updated. Reconnect your controller using the new credentials.', { ...toastSuccessDefaults });
             } else {
@@ -161,9 +167,9 @@ export default function KioskSettingsPage() {
             console.error('Failed to save access point values:', error);
             toast.error(`Failed to save access point values: ${error}`);
         } finally {
-            await accessPointStatus.refetch();
             setIsSavingAccessPoint(false);
             networkOperation.current = false;
+            void accessPointStatus.refetch();
         }
     };
 
@@ -190,19 +196,20 @@ export default function KioskSettingsPage() {
         networkOperation.current = true;
         setIsTogglingAccessPoint(true);
         try {
-            await invoke('set_access_point', {
+            const status = await invoke<AccessPointStatus>('set_access_point', {
                 ssid: accessPointSSID,
                 password: accessPointPassword,
             });
+            cacheAccessPointStatus(status);
             cacheAccessPointCredentials(accessPointSSID, accessPointPassword);
             toast.success('Sourccey is now broadcasting its Wi-Fi network.', { ...toastSuccessDefaults });
         } catch (error) {
             console.error('Failed to set access point mode:', error);
             toast.error(`Failed to set access point mode: ${error}`);
         } finally {
-            await accessPointStatus.refetch();
             setIsTogglingAccessPoint(false);
             networkOperation.current = false;
+            void accessPointStatus.refetch();
         }
     };
 
@@ -212,15 +219,16 @@ export default function KioskSettingsPage() {
         try {
             const firstSavedSSID = getSavedWiFiSSIDs()?.length > 0 ? getSavedWiFiSSIDs()[0] : null;
             const result = await invoke<WiFiModeResult>('set_wifi', { ssid: firstSavedSSID ?? '' });
+            cacheAccessPointStatus({ active: false, ssid: null, ip_address: null, interface: null });
             if (result.reconnected) toast.success(result.message, { ...toastSuccessDefaults });
             else toast.info(result.message);
         } catch (error) {
             console.error('Failed to set WiFi mode:', error);
             toast.error(`Failed to set WiFi mode: ${error}`);
         } finally {
-            await accessPointStatus.refetch();
             setIsTogglingAccessPoint(false);
             networkOperation.current = false;
+            void accessPointStatus.refetch();
         }
     };
 
@@ -342,12 +350,8 @@ export default function KioskSettingsPage() {
                     <div className="mb-6">
                         <h2 className="text-xl font-semibold text-white">Robot Wi-Fi Router</h2>
                         <p className="mt-1 max-w-3xl text-sm text-slate-400">
-                            Access Point mode makes Sourccey act as its own Wi-Fi router. Nearby devices can join the network broadcast by the
-                            robot using the credentials below.
-                        </p>
-                        <p className="mt-2 text-sm text-slate-400">
-                            This replaces the robot's Wi-Fi connection on the same adapter. Local robot control works without internet; internet
-                            is available only if the robot also has Ethernet or another internet connection.
+                            Broadcast a private Wi-Fi network for nearby controllers. This temporarily replaces the robot&apos;s current Wi-Fi
+                            connection.
                         </p>
                     </div>
 
@@ -368,11 +372,7 @@ export default function KioskSettingsPage() {
                                     Broadcasting <strong>{accessPointStatus.data?.ssid}</strong>
                                 </p>
                                 <p className="mt-1">Robot address: {accessPointStatus.data?.ip_address ?? 'No address assigned'}</p>
-                                <p className="mt-2">
-                                    Join this Wi-Fi network on your controller computer. If it reports no internet, stay connected. In Vulcan
-                                    Studio, use local robot discovery or connect to the robot address above. Make sure the robot host is
-                                    running.
-                                </p>
+                                <p className="mt-2">Join this network, then use local discovery or the robot address above.</p>
                             </div>
                         )}
                         {/* Toggle for Access Point Mode */}
@@ -388,8 +388,8 @@ export default function KioskSettingsPage() {
                                         : accessPointStatus.error
                                           ? 'Robot Wi-Fi status is unavailable'
                                           : isAccessPointEnabled
-                                            ? 'On — Sourccey is acting as a Wi-Fi router'
-                                            : 'Off — Sourccey uses an existing Wi-Fi network'}
+                                            ? 'On - broadcasting robot Wi-Fi'
+                                            : 'Off - using normal Wi-Fi'}
                                 </span>
                             </div>
                             <label className="relative inline-flex cursor-pointer items-center">
@@ -419,7 +419,7 @@ export default function KioskSettingsPage() {
                                 className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none"
                                 disabled={isSavingAccessPoint || isTogglingAccessPoint || !credentialsReady}
                             />
-                            <p className="mt-2 text-xs text-slate-400">This is the network name shown to devices near the robot.</p>
+                            <p className="mt-2 text-xs text-slate-400">The Wi-Fi name shown to nearby devices.</p>
                         </div>
 
                         {/* Password Input */}
@@ -447,9 +447,7 @@ export default function KioskSettingsPage() {
                                     {showAccessPointPassword ? <FaEyeSlash className="h-4 w-4" /> : <FaEye className="h-4 w-4" />}
                                 </button>
                             </div>
-                            <p className="mt-2 text-xs text-slate-400">
-                                Devices use this password when joining the Wi-Fi network broadcast by Sourccey.
-                            </p>
+                            <p className="mt-2 text-xs text-slate-400">Used by devices joining the robot.</p>
                         </div>
 
                         {/* Save Button */}
