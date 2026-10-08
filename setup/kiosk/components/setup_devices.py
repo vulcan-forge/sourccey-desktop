@@ -12,8 +12,8 @@ import subprocess
 from typing import Callable
 
 
-RULES_SOURCE = Path(__file__).resolve().parents[1] / "99-sourccey-hardware.rules"
-RULES_DESTINATION = Path("/etc/udev/rules.d/99-sourccey-hardware.rules")
+RULES_SOURCE = Path(__file__).resolve().parents[1] / "99-robot-hardware-ports.rules"
+RULES_DESTINATION = Path("/etc/udev/rules.d/99-robot-hardware-ports.rules")
 DEVICE_DIRECTORY = Path("/dev")
 EXPECTED_ALIASES = (
     "robotLeftArm", "robotRightArm",
@@ -44,31 +44,34 @@ def setup_devices(
     prefix = [] if os.geteuid() == 0 else ["sudo"]
     print_status("Installing Sourccey hardware device mappings...")
     try:
+        def run(args: list[str]) -> None:
+            subprocess.run(prefix + args, check=True, timeout=60)
+
         rules = RULES_SOURCE.read_text(encoding="utf-8")
         aliases = set(re.findall(r'SYMLINK\+="([^"]+)"', rules))
         if aliases != set(EXPECTED_ALIASES):
             print_error(f"The hardware rules at {RULES_SOURCE} have unexpected or missing aliases")
             return False
 
-        # Another file assigning the same role could silently swap camera/arm
-        # identities. Stop for a concrete conflict instead of rewriting that file.
+        # The destination is authoritative and is overwritten below. A different
+        # active rules file assigning the same role could still swap device roles.
         for other in RULES_DESTINATION.parent.glob("*.rules"):
             if other == RULES_DESTINATION:
                 continue
+            other_aliases = set()
             for line in other.read_text(encoding="utf-8").splitlines():
                 if line.lstrip().startswith("#"):
                     continue
                 for value in re.findall(r'SYMLINK\s*\+?=\s*"([^"]+)"', line):
-                    duplicates = aliases.intersection(value.split())
-                    if duplicates:
-                        print_error(
-                            f"Conflicting hardware aliases in {other}: {', '.join(sorted(duplicates))}. "
-                            "Resolve the existing mapping before rerunning device setup."
-                        )
-                        return False
-
-        def run(args: list[str]) -> None:
-            subprocess.run(prefix + args, check=True, timeout=60)
+                    other_aliases.update(value.split())
+            duplicates = aliases.intersection(other_aliases)
+            if not duplicates:
+                continue
+            print_error(
+                f"Conflicting hardware aliases in {other}: {', '.join(sorted(duplicates))}. "
+                "Resolve the existing mapping before rerunning device setup."
+            )
+            return False
 
         installed = RULES_DESTINATION.read_text(encoding="utf-8") if RULES_DESTINATION.exists() else None
         if installed != rules:

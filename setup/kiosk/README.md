@@ -1,7 +1,7 @@
 # Kiosk device setup
 
 The production and development kiosk installers install the mappings in
-`99-sourccey-hardware.rules` through `components/setup_devices.py` after the
+`99-robot-hardware-ports.rules` through `components/setup_devices.py` after the
 robot Python environment is installed. The Python package's udev step is skipped
 in these flows so it does not also write the same rules file. Direct use of
 `sourccey-setup robot` outside kiosk setup still uses that package's bundled rules.
@@ -15,10 +15,15 @@ sudo python3 setup/kiosk/setup.py --devices-only
 This needs no Python virtual environment, package installation, application build,
 or battery provisioning. Stop the robot host before applying hardware mappings.
 The installer backs up a changed destination, installs the rules at
-`/etc/udev/rules.d/99-sourccey-hardware.rules`, reloads udev, triggers serial and
+`/etc/udev/rules.d/99-robot-hardware-ports.rules`, reloads udev, triggers serial and
 camera devices, waits for events to settle, and reports the aliases it finds.
 Unplugged devices produce warnings; installation or conflicting mappings fail
 setup. Other rule files are preserved.
+
+This file is authoritative. Each setup run compares the installed contents with
+the repository version and overwrites it when they differ. Before overwriting,
+the installer saves the previous contents as `99-robot-hardware-ports.rules.bak`;
+the `.bak` file is ignored by udev and does not provide compatibility behavior.
 
 The mappings describe the production Raspberry Pi 5 USB wiring. Identical cameras
 are distinguished by physical port. Devices wired to different ports need a

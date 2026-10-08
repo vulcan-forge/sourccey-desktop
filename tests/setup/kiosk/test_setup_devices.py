@@ -9,7 +9,7 @@ from setup.kiosk.components import setup_devices as devices
 
 @pytest.fixture
 def device_setup(monkeypatch, tmp_path):
-    destination = tmp_path / "rules.d" / "99-sourccey-hardware.rules"
+    destination = tmp_path / "rules.d" / "99-robot-hardware-ports.rules"
     destination.parent.mkdir()
     device_directory = tmp_path / "dev"
     device_directory.mkdir()
