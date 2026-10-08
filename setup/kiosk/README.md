@@ -24,6 +24,10 @@ This file is authoritative. Each setup run compares the installed contents with
 the repository version and overwrites it when they differ. Before overwriting,
 the installer saves the previous contents as `99-robot-hardware-ports.rules.bak`;
 the `.bak` file is ignored by udev and does not provide compatibility behavior.
+Setup also removes the obsolete active file `99-sourccey-hardware.rules` when it
+contains only duplicate Sourccey aliases. This leaves one active source of device
+mappings. A file with that name containing any unrelated alias is left untouched
+and setup stops with a conflict instead.
 
 The mappings describe the production Raspberry Pi 5 USB wiring. Identical cameras
 are distinguished by physical port. Devices wired to different ports need a

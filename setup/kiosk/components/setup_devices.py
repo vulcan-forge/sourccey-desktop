@@ -21,6 +21,7 @@ EXPECTED_ALIASES = (
     "cameraWristLeft", "cameraWristRight",
     "cameraFrontBottom", "lidarFront",
 )
+OBSOLETE_RULE_FILENAMES = {"99-sourccey-hardware.rules"}
 
 
 def setup_devices(
@@ -53,8 +54,10 @@ def setup_devices(
             print_error(f"The hardware rules at {RULES_SOURCE} have unexpected or missing aliases")
             return False
 
-        # The destination is authoritative and is overwritten below. A different
-        # active rules file assigning the same role could still swap device roles.
+        obsolete_rules = []
+        # The destination is authoritative and is overwritten below. Remove the
+        # exact duplicate filename previously emitted by Sourccey's package setup.
+        # Any file containing additional aliases remains protected.
         for other in RULES_DESTINATION.parent.glob("*.rules"):
             if other == RULES_DESTINATION:
                 continue
@@ -66,6 +69,9 @@ def setup_devices(
                     other_aliases.update(value.split())
             duplicates = aliases.intersection(other_aliases)
             if not duplicates:
+                continue
+            if other.name in OBSOLETE_RULE_FILENAMES and other_aliases <= aliases:
+                obsolete_rules.append(other)
                 continue
             print_error(
                 f"Conflicting hardware aliases in {other}: {', '.join(sorted(duplicates))}. "
@@ -83,6 +89,10 @@ def setup_devices(
             run(["install", "-m", "644", str(RULES_SOURCE), str(RULES_DESTINATION)])
         else:
             print_status("Hardware rules already match; refreshing device aliases")
+
+        for obsolete in obsolete_rules:
+            run(["rm", "-f", str(obsolete)])
+            print_status(f"Removed duplicate hardware rules file {obsolete}")
 
         run(["udevadm", "control", "--reload-rules"])
         for subsystem in ("tty", "video4linux"):

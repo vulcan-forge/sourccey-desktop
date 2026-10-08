@@ -26,6 +26,8 @@ def device_setup(monkeypatch, tmp_path):
             shutil.copyfile(command[3], command[4])
         elif command[0] == "cp":
             shutil.copyfile(command[-2], command[-1])
+        elif command[:2] == ["rm", "-f"]:
+            Path(command[-1]).unlink(missing_ok=True)
         return subprocess.CompletedProcess(command, 0)
 
     monkeypatch.setattr(devices.subprocess, "run", run)
@@ -74,6 +76,33 @@ def test_conflicting_alias_stops_before_any_system_change(device_setup):
     assert calls == []
     assert not destination.exists()
     assert "cameraFrontBottom" in errors[0]
+
+
+def test_removes_obsolete_duplicate_after_installing_authoritative_rules(device_setup):
+    destination, _, calls, _, errors, invoke = device_setup
+    obsolete = destination.parent / "99-sourccey-hardware.rules"
+    obsolete.write_text(devices.RULES_SOURCE.read_text())
+
+    assert invoke()
+    assert destination.read_text() == devices.RULES_SOURCE.read_text()
+    assert not obsolete.exists()
+    assert ["rm", "-f", str(obsolete)] in calls
+    assert errors == []
+
+
+def test_does_not_remove_obsolete_named_file_with_unrelated_alias(device_setup):
+    destination, _, calls, _, errors, invoke = device_setup
+    obsolete = destination.parent / "99-sourccey-hardware.rules"
+    obsolete.write_text(
+        'SUBSYSTEM=="tty", SYMLINK+="robotRightArm"\n'
+        'SUBSYSTEM=="tty", SYMLINK+="unrelatedController"\n'
+    )
+
+    assert not invoke()
+    assert obsolete.exists()
+    assert calls == []
+    assert not destination.exists()
+    assert "robotRightArm" in errors[0]
 
 
 def test_failed_reload_does_not_report_success(monkeypatch, device_setup):
