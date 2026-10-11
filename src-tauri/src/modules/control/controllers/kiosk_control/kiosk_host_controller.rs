@@ -180,7 +180,68 @@ pub fn get_kiosk_hardware_connections() -> Vec<HardwareConnection> {
         resolved_path: audio_connected.then(|| "/proc/asound/cards".to_string()),
     });
 
+    let imu_connected = is_kiosk_imu_connected();
+    connections.push(HardwareConnection {
+        name: "IMU (LSM6DSOX + LIS3MDL)",
+        category: "imu",
+        expected_path: "/dev/i2c-1 (0x6A + 0x1C)",
+        connected: imu_connected,
+        resolved_path: imu_connected.then(|| "/dev/i2c-1 (0x6A + 0x1C)".to_string()),
+    });
+
     connections
+}
+
+fn is_kiosk_imu_connected() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        // Read WHO_AM_I on both chips. Merely finding the I2C bus does not
+        // establish that the IMU is attached. No configuration registers are
+        // changed, and I2C_SLAVE (not FORCE) respects kernel-owned devices.
+        // Use the Pi's system Python standard library; no Adafruit dependency
+        // or sensor initialization is needed for this connection check.
+        const PROBE: &str = r#"
+import fcntl
+import os
+import ctypes
+
+class Data(ctypes.Union):
+    _fields_ = [('byte', ctypes.c_uint8), ('word', ctypes.c_uint16),
+                ('block', ctypes.c_uint8 * 34)]
+
+class Request(ctypes.Structure):
+    _fields_ = [('read_write', ctypes.c_uint8), ('command', ctypes.c_uint8),
+                ('size', ctypes.c_uint32), ('data', ctypes.POINTER(Data))]
+
+libc = ctypes.CDLL(None, use_errno=True)
+
+fd = os.open('/dev/i2c-1', os.O_RDWR)
+try:
+    for address, register, expected in ((0x6A, 0x0F, 0x6C), (0x1C, 0x0F, 0x3D)):
+        fcntl.ioctl(fd, 0x0703, address)
+        data = Data()
+        request = Request(1, register, 2, ctypes.pointer(data))
+        # SMBus read-byte-data combines register selection and reading in one
+        # transaction, so polling cannot interrupt the host's sensor reads.
+        if libc.ioctl(fd, 0x0720, ctypes.byref(request)) < 0:
+            raise OSError(ctypes.get_errno(), 'IMU identity read failed')
+        if data.byte != expected:
+            raise OSError('Unexpected IMU identity')
+finally:
+    os.close(fd)
+"#;
+        return Command::new("timeout")
+            .args(["--kill-after=1s", "2s", "python3", "-c", PROBE])
+            .stdin(Stdio::null())
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|status| status.success())
+            .unwrap_or(false);
+    }
+
+    #[cfg(not(target_os = "linux"))]
+    false
 }
 
 fn get_ip_address() -> String {

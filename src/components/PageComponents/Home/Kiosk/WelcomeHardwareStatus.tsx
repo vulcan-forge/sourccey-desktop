@@ -75,6 +75,8 @@ export const WelcomeHardwareStatus = () => {
                               ? FaSatelliteDish
                               : connection.category === 'audio'
                                 ? FaVolumeUp
+                                : connection.category === 'imu'
+                                  ? FaMicrochip
                                 : FaRobot;
                         return (
                             <div
