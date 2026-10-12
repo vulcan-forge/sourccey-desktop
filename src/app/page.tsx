@@ -76,7 +76,7 @@ const HomePage = (): ReactElement => {
         }
     }, [router, isKioskMode, isLoadingAppMode]);
 
-    return <AppBootScreen message="Checking your workspace..." />;
+    return <AppBootScreen />;
 };
 
 export default HomePage;
