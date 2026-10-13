@@ -1,8 +1,80 @@
 //! NetworkManager connection profiles for the Pi kiosk. Compiled in tests on every OS.
 
 use std::process::{Command, Stdio};
+use std::{fs::OpenOptions, io::Write, path::PathBuf};
 
 const PROFILE_OWNER: &str = "sourccey-kiosk-wifi";
+
+// nmcli may request secrets again during authentication even when a profile
+// contains a PSK. A kiosk has no interactive secret agent. Supply the secret at
+// activation as well, in a private file that is removed on every return path.
+struct ActivationSecret(PathBuf);
+
+impl ActivationSecret {
+    fn create(password: &str) -> Result<Self, String> {
+        let path =
+            std::env::temp_dir().join(format!("sourccey-wifi-{}.secret", uuid::Uuid::now_v7()));
+        let mut options = OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::OpenOptionsExt;
+            options.mode(0o600);
+        }
+        let mut file = options.open(&path).map_err(|_| {
+            "Could not securely prepare the Wi-Fi password. Restart the kiosk and try again"
+                .to_string()
+        })?;
+        let secret = Self(path);
+        writeln!(file, "802-11-wireless-security.psk:{password}").map_err(|_| {
+            "Could not securely prepare the Wi-Fi password. Restart the kiosk and try again"
+                .to_string()
+        })?;
+        Ok(secret)
+    }
+}
+
+impl Drop for ActivationSecret {
+    fn drop(&mut self) {
+        let _ = std::fs::remove_file(&self.0);
+    }
+}
+
+pub(super) fn user_error(error: String) -> String {
+    let lower = error.to_ascii_lowercase();
+    if lower.contains("not authorized") || lower.contains("permission denied") {
+        "Network access was denied. Run kiosk network permission repair, then try again.".into()
+    } else if lower.contains("secrets")
+        || lower.contains("authentication")
+        || lower.contains("wrong password")
+        || lower.contains("passwd-file")
+    {
+        "Could not authenticate with this Wi-Fi network. Check the password and try again. If it still fails, ask your IT team to check the network's security settings.".into()
+    } else if lower.contains("ip configuration") || lower.contains("dhcp") {
+        "The network did not assign an IP address. Check the router or contact your IT team.".into()
+    } else if lower.contains("ssid") && lower.contains("not found") {
+        "This Wi-Fi network is no longer in range. Refresh the network list and try again.".into()
+    } else if lower.contains("timed out") || lower.contains("timeout") {
+        "The network took too long to respond. Check the connection and try again.".into()
+    } else if lower.contains("could not run networkmanager")
+        || lower.contains("networkmanager is not running")
+    {
+        "The network service is unavailable. Restart the kiosk or run kiosk setup to repair it."
+            .into()
+    } else if error.starts_with("This network")
+        || error.starts_with("This Wi-Fi")
+        || error.starts_with("Could not determine")
+        || error.starts_with("A password")
+        || error.starts_with("Open networks")
+        || error.starts_with("The Wi-Fi")
+        || error.starts_with("Robot hotspot")
+        || error.starts_with("Could not securely")
+    {
+        error
+    } else {
+        "Could not complete the network request. Check the connection and try again.".into()
+    }
+}
 
 #[derive(Debug, PartialEq, Eq)]
 struct Security {
@@ -200,7 +272,7 @@ fn connect_with<F>(
 where
     F: FnMut(&[&str]) -> Result<String, String>,
 {
-    if ssid.is_empty() || ssid.len() > 32 {
+    if ssid.is_empty() || ssid.len() > 32 || ssid.contains('\0') {
         return Err("The Wi-Fi network name must contain 1 to 32 bytes".into());
     }
     let security = classify_security(security)?;
@@ -210,6 +282,22 @@ where
     if security.key_mgmt.is_none() && !password.is_empty() {
         return Err("Open networks do not require a password".into());
     }
+    if password.contains(['\r', '\n', '\0']) {
+        return Err("The Wi-Fi password cannot contain line breaks or null characters".into());
+    }
+    if security.key_mgmt == Some("wpa-psk")
+        && !((8..=63).contains(&password.len())
+            || (password.len() == 64 && password.bytes().all(|b| b.is_ascii_hexdigit())))
+    {
+        return Err(
+            "The Wi-Fi password must contain 8 to 63 bytes, or a 64-digit hexadecimal key".into(),
+        );
+    }
+    let secret = if security.key_mgmt.is_some() {
+        Some(ActivationSecret::create(password)?)
+    } else {
+        None
+    };
     let name = format!("Sourccey Wi-Fi - {ssid}");
 
     let previous = active_station(&mut run)?;
@@ -231,7 +319,14 @@ where
         let _ = run(&["connection", "delete", "uuid", uuid]);
         return Err(format!("Could not enable Wi-Fi radio: {e}"));
     }
-    if let Err(e) = run(&["connection", "up", "uuid", uuid]) {
+    let mut activation = vec!["connection", "up", "uuid", uuid];
+    let secret_path = secret
+        .as_ref()
+        .map(|secret| secret.0.to_string_lossy().into_owned());
+    if let Some(path) = secret_path.as_deref() {
+        activation.extend(["passwd-file", path]);
+    }
+    if let Err(e) = run(&activation) {
         // Failed attempts must not become autoconnect candidates on reboot.
         let _ = run(&["connection", "delete", "uuid", uuid]);
         if let Some((old_uuid, device)) = previous {
@@ -243,16 +338,18 @@ where
         }
         return Err(format!("Connection failed: {e}"));
     }
-    if let Err(e) = run(&[
+    if run(&[
         "connection",
         "modify",
         "uuid",
         uuid,
         "connection.autoconnect",
         "yes",
-    ]) {
+    ])
+    .is_err()
+    {
         return Ok(format!(
-            "Connected to {ssid}, but automatic reconnect could not be saved: {e}"
+            "Connected to {ssid}, but automatic reconnect could not be saved. Run kiosk network permission repair."
         ));
     }
     for old_uuid in old_profiles {
@@ -317,9 +414,12 @@ mod tests {
             assert_eq!(property(&add, "connection.autoconnect"), Some("no"));
             assert_eq!(property(&add, "wifi-sec.psk-flags"), Some("0"));
             assert!(property(&add, "wifi-sec.pairwise").is_none());
-            assert!(calls
-                .iter()
-                .any(|args| args == &["connection", "up", "uuid", UUID]));
+            assert!(calls.iter().any(|args| args.starts_with(&[
+                "connection".into(),
+                "up".into(),
+                "uuid".into(),
+                UUID.into()
+            ]) && args[4] == "passwd-file"));
             assert!(calls.iter().any(|args| args
                 == &[
                     "connection",
@@ -453,7 +553,7 @@ mod tests {
             if args.contains(&"802-11-wireless.mode") {
                 return Ok("infrastructure\n".into());
             }
-            if args == ["connection", "up", "uuid", UUID] {
+            if args.starts_with(&["connection", "up", "uuid", UUID]) {
                 return Err("wrong password".into());
             }
             if args == ["connection", "up", "uuid", "previous", "ifname", "wlan0"] {
@@ -472,6 +572,10 @@ mod tests {
             ("", "password", "WPA2"),
             ("Lab", "", "WPA3"),
             ("Lab", "password", "Open"),
+            ("Lab", "short", "WPA2"),
+            ("Lab", "password\nsecond-line", "WPA3"),
+            ("Lab", "password\0", "WPA3"),
+            ("Lab\0", "password", "WPA2"),
         ] {
             assert!(connect_with(ssid, password, security, UUID, |_| panic!(
                 "must not run nmcli"
@@ -484,6 +588,55 @@ mod tests {
             ))
             .is_err()
         );
+    }
+
+    #[test]
+    fn activation_secret_is_explicit_private_and_removed_after_success_or_failure() {
+        for fail in [false, true] {
+            let mut path = None;
+            let password = " literal:$()\\'\" ";
+            let result = connect_with("Lab", password, "WPA3", UUID, |args| {
+                if args.starts_with(&["connection", "up", "uuid", UUID]) {
+                    assert_eq!(args[4], "passwd-file");
+                    let secret = std::path::Path::new(args[5]);
+                    assert_eq!(
+                        std::fs::read_to_string(secret).unwrap(),
+                        format!("802-11-wireless-security.psk:{password}\n")
+                    );
+                    #[cfg(unix)]
+                    {
+                        use std::os::unix::fs::PermissionsExt;
+                        assert_eq!(
+                            std::fs::metadata(secret).unwrap().permissions().mode() & 0o777,
+                            0o600
+                        );
+                    }
+                    path = Some(secret.to_path_buf());
+                    if fail {
+                        return Err("Secrets were required, but not provided".into());
+                    }
+                }
+                Ok(String::new())
+            });
+            assert_eq!(result.is_err(), fail);
+            assert!(!path.unwrap().exists());
+        }
+    }
+
+    #[test]
+    fn system_diagnostics_are_not_user_errors() {
+        for error in [
+            "Warning: password for '802-11-wireless-security.psk' not given in 'passwd-file'. Error: Secrets were required, but not provided. Hint: journalctl -xe NM_CONNECTION=uuid",
+            "Error: Connection activation failed: IP configuration could not be reserved (DHCP timeout)",
+            "Error: NetworkManager is not running",
+            "Error: unknown D-Bus failure",
+        ] {
+            let message = user_error(error.into());
+            assert!(!message.contains("Warning:"));
+            assert!(!message.contains("Error:"));
+            assert!(!message.contains("journalctl"));
+            assert!(!message.contains("D-Bus"));
+        }
     }
 
     #[test]

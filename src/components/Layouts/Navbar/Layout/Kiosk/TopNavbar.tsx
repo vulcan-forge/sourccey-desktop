@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import {
     FaWifi,
+    FaNetworkWired,
     FaBatteryFull,
     FaBatteryHalf,
     FaBatteryQuarter,
@@ -28,6 +29,7 @@ import {
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
 import { useKioskUpdateStatus } from '@/hooks/System/kiosk-update.hook';
 import { useDesktopAppUpdateStatus } from '@/hooks/System/desktop-app-update.hook';
+import { networkSummary, useNetworkStatus } from '@/hooks/WIFI/network.hook';
 
 export const KioskTopNavbar = () => {
     const [shouldCheckUpdates, setShouldCheckUpdates] = useState(false);
@@ -35,6 +37,8 @@ export const KioskTopNavbar = () => {
     const [isBatteryModalOpen, setIsBatteryModalOpen] = useState(false);
 
     const { data: systemInfo } = useGetSystemInfo();
+    const networkStatus = useNetworkStatus();
+    const network = networkSummary(networkStatus.isError ? undefined : networkStatus.data);
     const { data: kioskUpdateStatus } = useKioskUpdateStatus({ enabled: shouldCheckUpdates });
     const { data: desktopAppUpdateStatus } = useDesktopAppUpdateStatus({ enabled: shouldCheckUpdates });
     const hasConfirmedUpdate = Boolean(kioskUpdateStatus?.lerobotUpdateAvailable || desktopAppUpdateStatus?.updateAvailable);
@@ -102,13 +106,7 @@ export const KioskTopNavbar = () => {
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
     const batteryIsCharging = isBatteryCharging(systemInfo.batteryData);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
-    const networkLabel =
-        systemInfo.ipAddress &&
-        systemInfo.ipAddress.trim() !== '' &&
-        systemInfo.ipAddress.toLowerCase() !== 'unknown' &&
-        systemInfo.ipAddress !== '...'
-            ? systemInfo.ipAddress
-            : 'Disconnected';
+    const networkLabel = networkStatus.isError ? 'Status unavailable' : network.detail;
     return (
         <nav className="relative z-80 flex h-16 flex-col border-b border-slate-700 bg-slate-800 backdrop-blur-md">
             <div className="flex h-full items-center justify-between px-8">
@@ -170,14 +168,15 @@ export const KioskTopNavbar = () => {
                         <button
                             onClick={() => setIsWiFiModalOpen(true)}
                             className="flex h-11 cursor-pointer items-center justify-center gap-2.5 rounded-xl border border-slate-500/50 bg-slate-700/60 px-3 text-left text-sm font-semibold text-slate-200 transition-all duration-300 hover:border-blue-400/40 hover:bg-slate-600/80 hover:text-white"
-                            title="WiFi Settings"
+                            title="Network settings"
+                            aria-label="Open network settings"
                         >
                             <span className="rounded-lg bg-blue-500/15 p-1.5 text-blue-300">
-                                <FaWifi className="h-4 w-4" />
+                                {network.wired ? <FaNetworkWired className="h-4 w-4" /> : <FaWifi className="h-4 w-4" />}
                             </span>
                             <span className="hidden min-w-0 sm:flex sm:flex-col">
-                                <span className="leading-4">Wi-Fi</span>
-                                {isSystemInfoLoading ? (
+                                <span className="leading-4">{network.label}</span>
+                                {networkStatus.isPending ? (
                                     <span className="skeleton-shimmer mt-1 h-2.5 w-20 rounded-full bg-slate-500/50" />
                                 ) : (
                                     <span className="max-w-32 truncate text-xs font-normal text-slate-400">{networkLabel}</span>

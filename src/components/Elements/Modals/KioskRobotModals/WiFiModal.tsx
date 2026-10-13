@@ -5,8 +5,11 @@ import { createPortal } from 'react-dom';
 import { invoke } from '@tauri-apps/api/core';
 import { useAppMode } from '@/hooks/Components/useAppMode.hook';
 import { cacheAccessPointStatus, refreshAccessPointStatus, type AccessPointStatus, type WiFiModeResult } from '@/hooks/WIFI/access-point.hook';
-import { FaWifi, FaTimes, FaLock, FaLockOpen, FaSpinner, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
+import { FaWifi, FaNetworkWired, FaTimes, FaLock, FaLockOpen, FaSpinner, FaCheck, FaExclamationTriangle } from 'react-icons/fa';
 import type { SystemInfo } from '@/hooks/System/system-info.hook';
+import { EthernetPanel } from './EthernetPanel';
+import { networkSummary, useNetworkStatus } from '@/hooks/WIFI/network.hook';
+import { networkErrorMessage } from '@/utils/network-error';
 import {
     addSavedWiFiSSID,
     connectToWiFi,
@@ -26,8 +29,10 @@ interface WiFiModalProps {
 const NETWORKS_PAGE_SIZE = 12;
 const NETWORKS_SCROLL_THRESHOLD_PX = 120;
 
-export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInfo }) => {
+export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose }) => {
     const { isKioskMode } = useAppMode();
+    const networkStatus = useNetworkStatus(isOpen);
+    const summary = networkSummary(networkStatus.isError ? undefined : networkStatus.data);
     const [mounted, setMounted] = useState(false);
     const [networks, setNetworks] = useState<WiFiNetwork[]>([]);
     const [visibleCount, setVisibleCount] = useState(NETWORKS_PAGE_SIZE);
@@ -74,7 +79,8 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
             // failed status read must not leave an old connection displayed.
             setCurrentConnection(currentResult.status === 'fulfilled' ? currentResult.value : null);
             if (scanResult.status === 'rejected') throw scanResult.reason;
-            if (currentResult.status === 'rejected') setError(`Could not check current Wi-Fi connection: ${currentResult.reason}`);
+            if (currentResult.status === 'rejected')
+                setError(networkErrorMessage(currentResult.reason, 'Could not check current Wi-Fi connection'));
 
             const uniqueNetworks = scanResult.value.reduce((acc, network) => {
                 const existing = acc.find((n) => n.ssid === network.ssid);
@@ -91,13 +97,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
             setVisibleCount(NETWORKS_PAGE_SIZE);
         } catch (err) {
             if (requestId !== scanRequestId.current) return;
-            const errorMsg = String(err);
-            if (errorMsg.includes('Access is denied') || errorMsg.includes('os error 5')) {
-                setError('Wi-Fi access was denied by the operating system. Check location and network permissions, then try again.');
-            } else {
-                setError(`Failed to scan networks: ${err}`);
-            }
-            console.error('WiFi scan error:', err);
+            setError(networkErrorMessage(err, 'Could not scan Wi-Fi networks'));
         } finally {
             if (requestId === scanRequestId.current) setIsScanning(false);
         }
@@ -151,13 +151,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
             }, 3000);
         } catch (err) {
             if (session !== modalSession.current) return;
-            const errorMsg = String(err);
-            if (errorMsg.includes('Access is denied') || errorMsg.includes('os error 5')) {
-                setError('Wi-Fi access was denied by the operating system. Check location and network permissions, then try again.');
-            } else {
-                setError(errorMsg.startsWith('Connection failed:') ? errorMsg : `Connection failed: ${errorMsg}`);
-            }
-            console.error('WiFi connection error:', err);
+            setError(networkErrorMessage(err, 'Could not connect to Wi-Fi'));
         } finally {
             operationPending.current = false;
             setIsConnecting(false);
@@ -185,13 +179,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
             }, 3000);
         } catch (err) {
             if (session !== modalSession.current) return;
-            const errorMsg = String(err);
-            if (errorMsg.includes('Access is denied') || errorMsg.includes('os error 5')) {
-                setError('Wi-Fi access was denied by the operating system. Check location and network permissions, then try again.');
-            } else {
-                setError(`Disconnect failed: ${err}`);
-            }
-            console.error('WiFi disconnect error:', err);
+            setError(networkErrorMessage(err, 'Could not disconnect Wi-Fi'));
         } finally {
             operationPending.current = false;
             setIsDisconnecting(false);
@@ -215,7 +203,7 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
             setSuccess(result.message);
             void scanNetworks();
         } catch (err) {
-            if (session === modalSession.current) setError(`Could not switch to Wi-Fi: ${err}`);
+            if (session === modalSession.current) setError(networkErrorMessage(err, 'Could not switch to Wi-Fi'));
         } finally {
             operationPending.current = false;
             setIsSwitchingMode(false);
@@ -292,17 +280,19 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                 <div className="flex items-center justify-between border-b border-slate-700/80 px-5 py-4">
                     <div className="flex items-center gap-3">
                         <div className="rounded-lg bg-blue-500/15 p-2 text-blue-300">
-                            <FaWifi className="h-4 w-4" />
+                            {summary.wired ? <FaNetworkWired className="h-4 w-4" /> : <FaWifi className="h-4 w-4" />}
                         </div>
                         <div>
                             <h2 id="wifi-modal-title" className="text-lg font-semibold tracking-tight text-white">
-                                Wi-Fi
+                                Network
                             </h2>
-                            <span className="text-xs text-slate-400">{systemInfo.ipAddress || 'Disconnected'}</span>
+                            <span className="text-xs text-slate-400">
+                                {networkStatus.isError ? 'Network status unavailable' : `${summary.label} · ${summary.detail}`}
+                            </span>
                         </div>
                     </div>
                     <button
-                        aria-label="Close Wi-Fi settings"
+                        aria-label="Close network settings"
                         onClick={onClose}
                         className="cursor-pointer rounded-lg p-2 text-slate-400 transition-colors hover:bg-slate-700/70 hover:text-white"
                     >
@@ -310,7 +300,9 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                     </button>
                 </div>
 
-                <div className="flex min-h-0 flex-1 flex-col gap-4 p-5">
+                <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-5">
+                    <EthernetPanel enabled={isOpen} />
+                    <h3 className="shrink-0 text-sm font-semibold text-white">Wi-Fi</h3>
                     {hotspot?.active && (
                         <div className="rounded-lg border border-blue-500/30 bg-blue-500/10 p-4 text-sm text-blue-200">
                             <p>
@@ -327,7 +319,10 @@ export const WiFiModal: React.FC<WiFiModalProps> = ({ isOpen, onClose, systemInf
                         </div>
                     )}
                     {error && (
-                        <div className="mb-1 flex items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300">
+                        <div
+                            role="alert"
+                            className="mb-1 flex shrink-0 items-center gap-2 rounded-lg border border-red-500/20 bg-red-500/10 p-3 text-sm text-red-300"
+                        >
                             <FaExclamationTriangle className="h-5 w-5" />
                             <span>{error}</span>
                         </div>

@@ -8,6 +8,55 @@ use tauri::AppHandle;
 #[path = "linux_wifi.rs"]
 mod linux_wifi;
 
+#[cfg(any(target_os = "linux", test))]
+#[path = "linux_ethernet.rs"]
+mod linux_ethernet;
+
+/// Live physical links and the default route, independent of Wi-Fi scanning.
+#[tauri::command]
+pub async fn get_network_status() -> Result<serde_json::Value, String> {
+    #[cfg(any(target_os = "linux", test))]
+    {
+        tokio::task::spawn_blocking(|| {
+            let status = linux_ethernet::status().map_err(linux_wifi::user_error)?;
+            serde_json::to_value(status).map_err(|_| "Could not read network status. Try again.".into())
+        })
+        .await
+        .map_err(|_| "Could not read network status. Try again.".to_string())?
+    }
+    #[cfg(not(any(target_os = "linux", test)))]
+    {
+        Ok(serde_json::json!({"ethernet": [], "primary_interface": null, "connectivity": "unknown"}))
+    }
+}
+
+#[tauri::command]
+pub async fn connect_ethernet(interface: String) -> Result<String, String> {
+    #[cfg(any(target_os = "linux", test))]
+    {
+        let _guard = crate::modules::settings::services::access_point::access_point_service::NETWORK_MODE_LOCK.lock().await;
+        tokio::task::spawn_blocking(move || {
+            linux_ethernet::connect(&interface).map_err(|error| {
+                let lower = error.to_ascii_lowercase();
+                if error.starts_with("This Ethernet") || error.starts_with("Plug an Ethernet") {
+                    error
+                } else if lower.contains("secrets") || lower.contains("authentication") {
+                    "This Ethernet network requires authentication. Ask your IT team to configure the kiosk's wired network credentials.".into()
+                } else {
+                    linux_wifi::user_error(error)
+                }
+            })
+        })
+        .await
+        .map_err(|_| "Could not connect Ethernet. Check the cable and try again.".to_string())?
+    }
+    #[cfg(not(any(target_os = "linux", test)))]
+    {
+        let _ = interface;
+        Err("Manage Ethernet through your operating system's network settings.".into())
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct WiFiNetwork {
     pub ssid: String,
@@ -87,9 +136,9 @@ pub async fn scan_wifi_networks() -> Result<Vec<WiFiNetwork>, String> {
     #[cfg(target_os = "linux")]
     {
         let _guard = crate::modules::settings::services::access_point::access_point_service::NETWORK_MODE_LOCK.lock().await;
-        tokio::task::spawn_blocking(|| scan_wifi_linux().map(normalize_networks))
+        tokio::task::spawn_blocking(|| scan_wifi_linux().map(normalize_networks).map_err(linux_wifi::user_error))
             .await
-            .map_err(|e| format!("Wi-Fi scan task failed: {e}"))?
+            .map_err(|_| "Could not scan Wi-Fi networks. Try again.".to_string())?
     }
 
     #[cfg(target_os = "windows")]
@@ -113,9 +162,9 @@ pub async fn connect_to_wifi(
     #[cfg(target_os = "linux")]
     {
         let _guard = crate::modules::settings::services::access_point::access_point_service::NETWORK_MODE_LOCK.lock().await;
-        tokio::task::spawn_blocking(move || connect_wifi_linux(ssid, password, security))
+        tokio::task::spawn_blocking(move || connect_wifi_linux(ssid, password, security).map_err(linux_wifi::user_error))
             .await
-            .map_err(|e| format!("Wi-Fi connection task failed: {e}"))?
+            .map_err(|_| "Could not connect to Wi-Fi. Try again.".to_string())?
     }
 
     #[cfg(target_os = "windows")]
@@ -134,9 +183,9 @@ pub async fn connect_to_wifi(
 pub async fn get_current_wifi_connection() -> Result<Option<WiFiNetwork>, String> {
     #[cfg(target_os = "linux")]
     {
-        tokio::task::spawn_blocking(get_current_wifi_linux)
+        tokio::task::spawn_blocking(|| get_current_wifi_linux().map_err(linux_wifi::user_error))
             .await
-            .map_err(|e| format!("Wi-Fi status task failed: {e}"))?
+            .map_err(|_| "Could not read Wi-Fi status. Try again.".to_string())?
     }
 
     #[cfg(target_os = "windows")]
@@ -156,9 +205,9 @@ pub async fn disconnect_from_wifi() -> Result<String, String> {
     #[cfg(target_os = "linux")]
     {
         let _guard = crate::modules::settings::services::access_point::access_point_service::NETWORK_MODE_LOCK.lock().await;
-        tokio::task::spawn_blocking(disconnect_wifi_linux)
+        tokio::task::spawn_blocking(|| disconnect_wifi_linux().map_err(linux_wifi::user_error))
             .await
-            .map_err(|e| format!("Wi-Fi disconnect task failed: {e}"))?
+            .map_err(|_| "Could not disconnect Wi-Fi. Try again.".to_string())?
     }
 
     #[cfg(target_os = "windows")]

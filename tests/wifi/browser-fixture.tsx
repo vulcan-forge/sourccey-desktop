@@ -15,19 +15,66 @@ const inactive = { active: false, ssid: null, ip_address: null, interface: null 
 const state = (window.__networkTest = {
     calls: [],
     credentials: { ssid: 'Saved Robot', password: 'saved-password' },
-    status: ['hotspot', 'disable-error', 'stalled-refresh'].includes(scenario)
+    status: ['hotspot', 'disable-error', 'stalled-refresh', 'ethernet-hotspot'].includes(scenario)
         ? { active: true, ssid: 'Saved Robot', ip_address: '192.168.4.1', interface: 'wlan0' }
         : inactive,
     current: ['connected', 'disconnect-error', 'scan-error'].includes(scenario) ? network : null,
     pending: null,
     stallStatus: false,
     refreshStatus: () => queryClient.invalidateQueries({ queryKey: ['access-point', 'status'] }),
+    refreshNetwork: () => queryClient.invalidateQueries({ queryKey: ['network', 'status'] }),
+    network: {
+        ethernet: scenario.startsWith('ethernet')
+            ? [
+                  {
+                      interface: 'enx123',
+                      state:
+                          scenario === 'ethernet-unplugged'
+                              ? 'unavailable'
+                              : ['ethernet-auto', 'ethernet-pending', 'ethernet-dhcp-error'].includes(scenario)
+                                ? 'disconnected'
+                                : 'connected',
+                      cable_connected: scenario !== 'ethernet-unplugged',
+                      connection: 'Office LAN',
+                      addresses:
+                          scenario === 'ethernet-unplugged' || ['ethernet-auto', 'ethernet-pending', 'ethernet-dhcp-error'].includes(scenario)
+                              ? []
+                              : scenario === 'ethernet-ipv6'
+                                ? ['2001:db8::2/64']
+                                : ['10.0.0.2/24'],
+                      gateway: '10.0.0.1',
+                  },
+              ]
+            : [],
+        primary_interface:
+            scenario.startsWith('ethernet') &&
+            !['ethernet-unplugged', 'ethernet-auto', 'ethernet-pending', 'ethernet-dhcp-error'].includes(scenario)
+                ? 'enx123'
+                : null,
+        connectivity: scenario.startsWith('ethernet') ? 'limited' : 'unknown',
+    },
 });
 window.isTauri = true;
 window.__TAURI_INTERNALS__ = {
     invoke: async (command, args) => {
         state.calls.push({ command, args });
         if (command === 'get_app_mode') return true;
+        if (command === 'get_network_status') {
+            if (scenario === 'ethernet-status-error') throw 'Error: D-Bus failed NM_CONNECTION=secret-id';
+            return structuredClone(state.network);
+        }
+        if (command === 'connect_ethernet') {
+            if (scenario === 'ethernet-dhcp-error')
+                throw 'Error: Connection activation failed: IP configuration could not be reserved (DHCP timeout). journalctl -xe NM_CONNECTION=secret-id';
+            if (scenario === 'ethernet-pending')
+                await new Promise((resolve) => {
+                    state.pending = resolve;
+                });
+            state.network.ethernet[0].state = 'connected';
+            state.network.ethernet[0].addresses = ['10.0.0.2/24'];
+            state.network.primary_interface = 'enx123';
+            return 'Ethernet connected.';
+        }
         if (command === 'get_system_info') return { ip_address: '192.168.1.2', temperature: '40 C', thermal_data: {}, battery_data: {} };
         if (command === 'get_access_point_status') {
             if (scenario === 'status-error') throw 'NetworkManager unavailable';
@@ -62,12 +109,14 @@ window.__TAURI_INTERNALS__ = {
             return { reconnected: false, message: 'Robot Wi-Fi is off. Select a network from the Wi-Fi menu.' };
         }
         if (command === 'scan_wifi_networks') {
-            if (scenario === 'scan-error') throw 'Wi-Fi scan unavailable';
+            if (['scan-error', 'ethernet-scan-error'].includes(scenario)) throw 'Wi-Fi scan unavailable';
             return [network];
         }
         if (command === 'get_current_wifi_connection') return state.current;
         if (command === 'connect_to_wifi') {
             if (scenario === 'connect-error') throw 'Connection failed: authentication failed';
+            if (scenario === 'missing-secret')
+                throw "Connection failed: Warning: password for '802-11-wireless-security.psk' not given in 'passwd-file' and nmcli cannot ask without '--ask' option. Error: Connection activation failed: Secrets were required, but not provided. Hint: use journalctl -xe NM_CONNECTION=secret-id";
             if (scenario === 'pending-connect')
                 await new Promise((resolve) => {
                     state.pending = resolve;

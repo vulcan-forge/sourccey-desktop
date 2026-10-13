@@ -77,3 +77,46 @@ from a terminal, then use the app normally:
 sudo nmcli connection modify "Sourccey Hotspot" connection.autoconnect no
 sudo nmcli connection down "Sourccey Hotspot"
 ```
+
+## Kiosk network connections
+
+The Network dialog shows Ethernet independently of Wi-Fi. The header and home
+card update from live NetworkManager state every three seconds. Plugging in a
+cable automatically activates a managed Ethernet adapter; if no compatible
+profile exists, NetworkManager creates a default DHCP profile. Existing office
+profiles, including static addresses, are reused. The same network-control
+permission above covers Ethernet; no additional authorization rule is needed.
+
+The dialog distinguishes an unplugged cable, address negotiation, a connected
+local network, Internet access, and a network requiring sign-in. It displays
+IPv4/IPv6 addresses, the IPv4 gateway, and the default connection. A failed
+automatic attempt waits for manual retry or a new cable insertion, so office
+DHCP or authentication failures do not cause repeated reconnect attempts.
+Unmanaged adapters require IT to enable NetworkManager; enterprise wired
+authentication must already be configured in the saved office profile.
+
+Personal Wi-Fi supports WPA/WPA2, WPA2/WPA3 transition mode, and WPA3-only SAE.
+During activation, the kiosk explicitly supplies the PSK through NetworkManager's
+documented `passwd-file` option as well as saving it in the connection profile.
+The temporary file is created exclusively with mode `0600` on Linux and removed
+after success or failure. Invalid WPA2 keys and line breaks are rejected before
+network changes. Failed activation removes only the attempted profile and tries
+to restore the previous Wi-Fi connection. Enterprise Wi-Fi requires identity/EAP
+configuration and is reported as unsupported by this password-only UI.
+
+After installing the updated kiosk build, verify on the actual Pi:
+
+- Join a WPA2/WPA3 office network and a WPA3-only test network with a valid
+  password; repeat with a wrong password and confirm an actionable error.
+- Reboot after joining and confirm the saved Wi-Fi connection reconnects.
+- Plug in Ethernet with Wi-Fi connected, then unplug and reconnect it. Confirm
+  the displayed connection and addresses follow the cable and default route.
+- Repeat with the robot hotspot active; wired status should work without
+  stopping the hotspot. Check local-only, DHCP failure, and captive portal cases.
+
+Regression checks: `bun run test:wifi-ui`, `bun test tests/build tests/frontend`,
+`bunx tsc --noEmit`, and `cargo test --manifest-path src-tauri/Cargo.toml
+--bin VulcanStudio --no-default-features`. The browser suite mocks native IPC;
+Rust tests validate command construction and secret cleanup. These checks do not
+replace physical radio/cable validation. NetworkManager reference:
+[connection activation and device management](https://networkmanager.pages.freedesktop.org/NetworkManager/NetworkManager/nmcli.html).

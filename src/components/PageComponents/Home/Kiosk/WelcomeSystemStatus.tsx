@@ -19,6 +19,7 @@ import { BatteryModal } from '@/components/Elements/Modals/KioskRobotModals/Batt
 import { TemperatureModal } from '@/components/Elements/Modals/KioskRobotModals/TemperatureModal';
 import { WiFiModal } from '@/components/Elements/Modals/KioskRobotModals/WiFiModal';
 import { WelcomeHardwareStatus } from './WelcomeHardwareStatus';
+import { networkSummary, useNetworkStatus } from '@/hooks/WIFI/network.hook';
 
 interface WelcomeSystemStatusProps {
     nickname: string;
@@ -31,6 +32,8 @@ const LoadingLine = ({ className = '' }: { className?: string }) => <div classNa
 
 export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoadingSystemInfo = false }: WelcomeSystemStatusProps) => {
     const [activeModal, setActiveModal] = useState<'battery' | 'temperature' | 'network' | null>(null);
+    const networkStatus = useNetworkStatus();
+    const network = networkSummary(networkStatus.isError ? undefined : networkStatus.data);
     const getBatteryIcon = (percent: number) => {
         const level = getBatteryLevelStep(percent);
         if (level === 100) return FaBatteryFull;
@@ -134,18 +137,13 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
                         <div>
                             <div className="flex items-center gap-2 text-sm text-slate-400">
                                 <FaNetworkWired className="h-4 w-4 text-blue-400" />
-                                IP Address
+                                {network.label}
                             </div>
-                            {isLoadingSystemInfo ? (
+                            {networkStatus.isPending ? (
                                 <LoadingLine className="mt-3 h-7 w-36" />
                             ) : (
                                 <div className="mt-2 font-mono text-lg font-bold text-white">
-                                    {systemInfo.ipAddress &&
-                                    systemInfo.ipAddress.trim() !== '' &&
-                                    systemInfo.ipAddress.toLowerCase() !== 'unknown' &&
-                                    systemInfo.ipAddress !== '...'
-                                        ? systemInfo.ipAddress
-                                        : 'Disconnected'}
+                                    {networkStatus.isError ? 'Status unavailable' : network.detail}
                                 </div>
                             )}
                         </div>
@@ -156,11 +154,7 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
 
             <WelcomeHardwareStatus />
 
-            <BatteryModal
-                isOpen={activeModal === 'battery'}
-                onClose={() => setActiveModal(null)}
-                batteryData={systemInfo.batteryData}
-            />
+            <BatteryModal isOpen={activeModal === 'battery'} onClose={() => setActiveModal(null)} batteryData={systemInfo.batteryData} />
             <TemperatureModal
                 isOpen={activeModal === 'temperature'}
                 onClose={() => setActiveModal(null)}

@@ -107,6 +107,7 @@ use modules::settings::controllers::privacy_controller::{
 };
 use modules::settings::controllers::wifi::wifi_controller::{
     connect_to_wifi, disconnect_from_wifi, get_current_wifi_connection, scan_wifi_networks,
+    connect_ethernet, get_network_status,
     set_wifi,
 };
 use modules::settings::services::desktop_environment::desktop_environment_service::DesktopEnvironmentService;
@@ -772,6 +773,8 @@ fn main() {
 
             // WiFi API
             scan_wifi_networks,
+            get_network_status,
+            connect_ethernet,
             connect_to_wifi,
             get_current_wifi_connection,
             disconnect_from_wifi,
