@@ -4,18 +4,17 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-const PRODUCTION_GRAPHQL_API_URL: &str = "https://api.studio.vulcanrobotics.ai/v1/graphql";
+const PRODUCTION_REST_API_URL: &str = "https://api.studio.vulcanrobotics.ai/v1";
 const PRODUCTION_STUDIO_WEB_URL: &str = "https://studio.vulcanrobotics.ai";
 const PRODUCTION_UPDATER_MANIFEST_URL: &str =
     "https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json";
 
-const STAGING_GRAPHQL_API_URL: &str =
-    "https://api.staging.factory.studio.vulcanrobotics.ai/v1/graphql";
+const STAGING_REST_API_URL: &str = "https://api.staging.factory.studio.vulcanrobotics.ai/v1";
 const STAGING_STUDIO_WEB_URL: &str = "https://staging.factory.studio.vulcanrobotics.ai";
 const STAGING_UPDATER_MANIFEST_URL: &str =
     "https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/latest.json";
 
-pub const DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL: &str = "http://192.168.1.220:5200/v1/graphql";
+pub const DEFAULT_LOCAL_DESKTOP_REST_API_URL: &str = "http://192.168.1.220:5200/v1";
 pub const DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL: &str = "http://192.168.1.220:3000";
 pub const DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL: &str =
     "http://192.168.1.220:3000/latest.json";
@@ -71,10 +70,11 @@ pub struct DesktopEnvironmentSettings {
     pub environment: String,
     pub display_name: String,
     pub badge_label: Option<String>,
-    pub custom_graphql_api_url: String,
+    pub custom_rest_api_url: String,
     pub custom_studio_web_url: String,
     pub custom_updater_manifest_url: String,
-    pub graphql_api_url: String,
+    pub rest_api_url: String,
+    pub website_api_url: String,
     pub studio_web_url: String,
     pub updater_manifest_url: String,
     pub teleop_log_level: String,
@@ -84,7 +84,8 @@ pub struct DesktopEnvironmentSettings {
 #[serde(rename_all = "camelCase")]
 pub struct SaveDesktopEnvironmentSettingsRequest {
     pub environment: String,
-    pub custom_graphql_api_url: Option<String>,
+    #[serde(alias = "customGraphqlApiUrl")]
+    pub custom_rest_api_url: Option<String>,
     pub custom_studio_web_url: Option<String>,
     pub custom_updater_manifest_url: Option<String>,
     pub teleop_log_level: Option<String>,
@@ -93,8 +94,8 @@ pub struct SaveDesktopEnvironmentSettingsRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct PersistedDesktopEnvironmentSettings {
     environment: String,
-    #[serde(default)]
-    custom_graphql_api_url: String,
+    #[serde(default, alias = "custom_graphql_api_url")]
+    custom_rest_api_url: String,
     #[serde(default = "default_local_desktop_studio_web_url")]
     custom_studio_web_url: String,
     #[serde(default)]
@@ -115,7 +116,7 @@ impl DesktopEnvironmentService {
     pub fn default_settings() -> DesktopEnvironmentSettings {
         Self::resolve_settings(
             DesktopEnvironment::Production,
-            DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL.to_string(),
+            DEFAULT_LOCAL_DESKTOP_REST_API_URL.to_string(),
             DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL.to_string(),
             DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL.to_string(),
             DEFAULT_TELEOP_LOG_LEVEL.to_string(),
@@ -158,10 +159,10 @@ impl DesktopEnvironmentService {
             })?;
 
         let environment = DesktopEnvironment::parse(&persisted.environment)?;
-        let (custom_graphql_api_url, custom_studio_web_url, custom_updater_manifest_url) =
+        let (custom_rest_api_url, custom_studio_web_url, custom_updater_manifest_url) =
             match environment {
                 DesktopEnvironment::Local => Self::normalize_local_urls(
-                    Some(&persisted.custom_graphql_api_url),
+                    Some(&persisted.custom_rest_api_url),
                     Some(&persisted.custom_studio_web_url),
                     Some(&persisted.custom_updater_manifest_url),
                 )?,
@@ -170,7 +171,7 @@ impl DesktopEnvironmentService {
 
         Ok(Self::resolve_settings(
             environment,
-            custom_graphql_api_url,
+            custom_rest_api_url,
             custom_studio_web_url,
             custom_updater_manifest_url,
             Self::normalize_teleop_log_level(&persisted.teleop_log_level)?,
@@ -184,13 +185,13 @@ impl DesktopEnvironmentService {
         let existing_settings =
             Self::get_settings_from_path(path).unwrap_or_else(|_| Self::default_settings());
         let environment = DesktopEnvironment::parse(&request.environment)?;
-        let (custom_graphql_api_url, custom_studio_web_url, custom_updater_manifest_url) =
+        let (custom_rest_api_url, custom_studio_web_url, custom_updater_manifest_url) =
             match environment {
                 DesktopEnvironment::Local => Self::normalize_local_urls(
                     request
-                        .custom_graphql_api_url
+                        .custom_rest_api_url
                         .as_deref()
-                        .or(Some(existing_settings.custom_graphql_api_url.as_str())),
+                        .or(Some(existing_settings.custom_rest_api_url.as_str())),
                     request
                         .custom_studio_web_url
                         .as_deref()
@@ -211,7 +212,7 @@ impl DesktopEnvironmentService {
 
         let payload = PersistedDesktopEnvironmentSettings {
             environment: environment.as_str().to_string(),
-            custom_graphql_api_url: custom_graphql_api_url.clone(),
+            custom_rest_api_url: custom_rest_api_url.clone(),
             custom_studio_web_url: custom_studio_web_url.clone(),
             custom_updater_manifest_url: custom_updater_manifest_url.clone(),
             teleop_log_level: teleop_log_level.clone(),
@@ -249,7 +250,7 @@ impl DesktopEnvironmentService {
 
         Ok(Self::resolve_settings(
             environment,
-            custom_graphql_api_url,
+            custom_rest_api_url,
             custom_studio_web_url,
             custom_updater_manifest_url,
             teleop_log_level,
@@ -284,45 +285,68 @@ impl DesktopEnvironmentService {
 
     fn default_local_urls() -> (String, String, String) {
         (
-            DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL.to_string(),
+            DEFAULT_LOCAL_DESKTOP_REST_API_URL.to_string(),
             DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL.to_string(),
             DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL.to_string(),
         )
     }
 
+    pub fn normalize_rest_api_url(value: &str) -> Result<String, String> {
+        let normalized = Self::normalize_url(value)?;
+        let mut url = Url::parse(&normalized).map_err(|e| e.to_string())?;
+        let path = url.path().trim_end_matches('/');
+        let prefix = ["/v1/graphql", "/api/v1", "/v1"]
+            .iter()
+            .find_map(|suffix| path.strip_suffix(*suffix))
+            .unwrap_or(path);
+        let path = format!("{}/v1", prefix);
+        url.set_path(&path);
+        url.set_query(None);
+        Ok(url.to_string().trim_end_matches('/').to_string())
+    }
+
     fn resolve_settings(
         environment: DesktopEnvironment,
-        custom_graphql_api_url: String,
+        custom_rest_api_url: String,
         custom_studio_web_url: String,
         custom_updater_manifest_url: String,
         teleop_log_level: String,
     ) -> DesktopEnvironmentSettings {
-        let (graphql_api_url, studio_web_url, updater_manifest_url) = match environment {
+        let (rest_api_url, studio_web_url, updater_manifest_url) = match environment {
             DesktopEnvironment::Production => (
-                PRODUCTION_GRAPHQL_API_URL.to_string(),
+                PRODUCTION_REST_API_URL.to_string(),
                 PRODUCTION_STUDIO_WEB_URL.to_string(),
                 PRODUCTION_UPDATER_MANIFEST_URL.to_string(),
             ),
             DesktopEnvironment::Staging => (
-                STAGING_GRAPHQL_API_URL.to_string(),
+                STAGING_REST_API_URL.to_string(),
                 STAGING_STUDIO_WEB_URL.to_string(),
                 STAGING_UPDATER_MANIFEST_URL.to_string(),
             ),
             DesktopEnvironment::Local => (
-                custom_graphql_api_url.clone(),
+                custom_rest_api_url.clone(),
                 custom_studio_web_url.clone(),
                 custom_updater_manifest_url.clone(),
             ),
+        };
+
+        let website_api_url = match environment {
+            DesktopEnvironment::Production => "https://api.vulcanrobotics.ai/v1".to_string(),
+            DesktopEnvironment::Staging => {
+                "https://api.staging.factory.vulcanrobotics.ai/v1".to_string()
+            }
+            DesktopEnvironment::Local => custom_rest_api_url.clone(),
         };
 
         DesktopEnvironmentSettings {
             environment: environment.as_str().to_string(),
             display_name: environment.display_name().to_string(),
             badge_label: environment.badge_label().map(str::to_string),
-            custom_graphql_api_url,
+            custom_rest_api_url,
             custom_studio_web_url,
             custom_updater_manifest_url,
-            graphql_api_url,
+            rest_api_url,
+            website_api_url,
             studio_web_url,
             updater_manifest_url,
             teleop_log_level,
@@ -343,16 +367,16 @@ impl DesktopEnvironmentService {
     }
 
     fn normalize_local_urls(
-        graphql_value: Option<&str>,
+        rest_value: Option<&str>,
         studio_web_value: Option<&str>,
         updater_manifest_value: Option<&str>,
     ) -> Result<(String, String, String), String> {
         Ok((
-            Self::normalize_url(
-                graphql_value
+            Self::normalize_rest_api_url(
+                rest_value
                     .map(str::trim)
                     .filter(|value| !value.is_empty())
-                    .unwrap_or(DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL),
+                    .unwrap_or(DEFAULT_LOCAL_DESKTOP_REST_API_URL),
             )?,
             Self::normalize_url(
                 studio_web_value

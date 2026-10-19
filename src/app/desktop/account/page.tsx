@@ -10,6 +10,7 @@ import {
     DESKTOP_OAUTH_RESULT_EVENT,
     DESKTOP_OAUTH_RESULT_STORAGE_KEY,
     DESKTOP_OAUTH_WINDOW_LABEL_PREFIX,
+    buildOAuthRedirectUrl,
     type DesktopOAuthResultPayload,
     type OAuthProvider,
 } from '@/utils/auth/desktop-oauth';
@@ -26,9 +27,7 @@ const AUTH_PROVIDER_IDS = {
 } as const;
 
 const VULCAN_WEBSITE_BASE_URL = 'https://vulcanrobotics.ai';
-const VULCAN_API_BASE_URL = 'https://api.vulcanrobotics.ai';
 const STAGING_VULCAN_WEBSITE_BASE_URL = 'https://staging.factory.vulcanrobotics.ai';
-const STAGING_VULCAN_API_BASE_URL = 'https://api.staging.factory.vulcanrobotics.ai';
 
 const loginToastErrorDefaults = {
     ...toastErrorDefaults,
@@ -132,16 +131,6 @@ const resolveWebsiteBaseUrl = (environment: 'production' | 'staging' | 'local', 
     return studioWebUrl;
 };
 
-const resolveDesktopOAuthBaseUrl = (environment: 'production' | 'staging' | 'local', graphqlApiUrl: string) => {
-    if (environment === 'production') {
-        return VULCAN_API_BASE_URL;
-    }
-    if (environment === 'staging') {
-        return STAGING_VULCAN_API_BASE_URL;
-    }
-    return new URL(graphqlApiUrl).origin;
-};
-
 const buildWebsiteUrl = (baseUrl: string, path: string) => new URL(path, baseUrl).toString();
 
 const buildDesktopOAuthCallbackUrl = () => {
@@ -155,12 +144,6 @@ const buildDesktopOAuthCallbackUrl = () => {
     }
 
     return 'tauri://localhost/desktop/auth/callback/';
-};
-
-const buildOAuthRedirectUrl = (oauthBaseUrl: string, provider: OAuthProvider, callbackUrl: string) => {
-    const authorizationUrl = new URL(`/api/v1/auth/${provider}`, oauthBaseUrl);
-    authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
-    return authorizationUrl.toString();
 };
 
 const readStoredDesktopOAuthPayload = () => {
@@ -236,14 +219,11 @@ const logLoginError = (error: unknown, friendlyMessage: string, request: Record<
 const getReadableLoginError = (error: unknown) => {
     if (error instanceof StudioLoginError) {
         if (error.status === 404) {
-            return 'Studio sign-in endpoint was not found. Check the configured Studio website URL and try again.';
-        }
-        if (error.status === 401) {
-            return 'Studio rejected the desktop login request. Check the Studio auth proxy configuration and try again.';
+            return 'Sign-in endpoint was not found. Check the configured REST API URL and try again.';
         }
 
         const code = error.code?.toLowerCase();
-        if (code === 'invalid_credentials') {
+        if (code === 'invalid_credentials' || error.status === 401) {
             return 'Invalid email or password.';
         }
         if (code === 'account_not_found') {
@@ -285,10 +265,10 @@ function AccountPageContent() {
     const isAuthenticated = Boolean(authSession?.isAuthenticated && authSession?.accountId);
     const accountId = authSession?.accountId ?? null;
     const studioWebUrl = desktopEnvironmentSettings?.studioWebUrl ?? 'https://studio.vulcanrobotics.ai';
-    const graphqlApiUrl = desktopEnvironmentSettings?.graphqlApiUrl ?? 'https://api.studio.vulcanrobotics.ai/v1/graphql';
+    const websiteApiUrl = desktopEnvironmentSettings?.websiteApiUrl ?? 'https://api.vulcanrobotics.ai/v1';
     const desktopEnvironment = desktopEnvironmentSettings?.environment ?? 'production';
     const websiteBaseUrl = resolveWebsiteBaseUrl(desktopEnvironment, studioWebUrl);
-    const desktopOAuthBaseUrl = resolveDesktopOAuthBaseUrl(desktopEnvironment, graphqlApiUrl);
+    const desktopOAuthBaseUrl = websiteApiUrl;
     const activeProviderLabel = getAuthProviderLabel(authSession?.provider ?? null);
     const forgotPasswordUrl = buildWebsiteUrl(websiteBaseUrl, '/forgot-password?from=desktop');
     const createAccountUrl = buildWebsiteUrl(websiteBaseUrl, '/signup');

@@ -1,5 +1,6 @@
 pub mod access_point;
 pub mod desktop_auth_controller;
+pub mod desktop_catalog_controller;
 pub mod desktop_environment;
 pub mod kiosk_environment;
 pub mod privacy_controller;

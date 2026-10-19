@@ -5,10 +5,11 @@ export interface DesktopEnvironmentSettings {
     displayName: string;
     badgeLabel: string | null;
     teleopLogLevel: 'debug' | 'info' | 'warning' | 'error';
-    customGraphqlApiUrl: string;
+    customRestApiUrl: string;
     customStudioWebUrl: string;
     customUpdaterManifestUrl: string;
-    graphqlApiUrl: string;
+    restApiUrl: string;
+    websiteApiUrl: string;
     studioWebUrl: string;
     updaterManifestUrl: string;
 }
@@ -16,7 +17,7 @@ export interface DesktopEnvironmentSettings {
 export interface SaveDesktopEnvironmentSettingsRequest {
     environment: DesktopEnvironment;
     teleopLogLevel?: 'debug' | 'info' | 'warning' | 'error';
-    customGraphqlApiUrl?: string;
+    customRestApiUrl?: string;
     customStudioWebUrl?: string;
     customUpdaterManifestUrl?: string;
 }

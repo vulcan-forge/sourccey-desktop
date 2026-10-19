@@ -359,11 +359,11 @@ impl UploadService {
                 return Ok(normalized.to_string());
             }
         }
-        let graphql_url = DesktopEnvironmentService::get_settings()?.graphql_api_url;
-        Ok(graphql_url
+        let rest_url = DesktopEnvironmentService::get_settings()?.rest_api_url;
+        Ok(rest_url
             .trim_end_matches('/')
-            .strip_suffix("/v1/graphql")
-            .unwrap_or(&graphql_url)
+            .strip_suffix("/v1")
+            .unwrap_or(&rest_url)
             .trim_end_matches('/')
             .to_string())
     }

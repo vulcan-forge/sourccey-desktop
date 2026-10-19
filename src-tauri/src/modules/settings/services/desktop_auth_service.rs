@@ -26,7 +26,7 @@ impl DesktopStudioAuthService {
         request: DesktopStudioLoginRequest,
     ) -> Result<DesktopStudioProxyResponse, String> {
         let settings = DesktopEnvironmentService::get_settings()?;
-        let url = format!("{}/api/relay-auth/login", settings.studio_web_url);
+        let url = format!("{}/auth/login", settings.website_api_url);
 
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(20))

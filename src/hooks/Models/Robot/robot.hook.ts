@@ -1,34 +1,21 @@
-import { getNextPageParam, getPreviousPageParam, setGraphQLParameters } from '@/api/GraphQL/Parameters';
-import { queryRobot, queryRobots } from '@/api/GraphQL/Robot/Query';
-import type { GetRobotInput } from '@/api/GraphQL/Robot/Types/GetRobot/GetInput';
-import type { GraphQLPaginationParameters } from '@/types/GraphQL/GraphQLPaginationParameters';
+import { queryRobot, queryRobots, type GetRobotInput, type RobotListParameters } from '@/api/Rest/Robot';
 import { useInfiniteQuery, useQuery } from '@tanstack/react-query';
 
 export const BASE_ROBOT_KEY = 'robot';
 
-//---------------------------------------------------------------------------------------------------//
-// Robot Hooks and Functions
-//---------------------------------------------------------------------------------------------------//
-
 export const useGetRobot = (input: GetRobotInput) =>
     useQuery({
         queryKey: [BASE_ROBOT_KEY, input.id, input.name],
-        queryFn: async () => {
-            return await queryRobot(input);
-        },
+        queryFn: () => queryRobot(input),
     });
 
-export const useGetRobots = (params: GraphQLPaginationParameters = {}, enabled = true) =>
+export const useGetRobots = (params: RobotListParameters = {}, enabled = true) =>
     useInfiniteQuery({
-        queryKey: [BASE_ROBOT_KEY, 'infinite', params.where],
-        queryFn: async ({ pageParam }) => {
-            if (!enabled) return null;
-            setGraphQLParameters(params, pageParam);
-            return await queryRobots(params);
-        },
-        initialPageParam: null,
-        getNextPageParam: getNextPageParam,
-        getPreviousPageParam: getPreviousPageParam,
+        queryKey: [BASE_ROBOT_KEY, 'infinite', params],
+        queryFn: ({ pageParam }) => queryRobots({ ...params, cursor: pageParam }),
+        initialPageParam: params.cursor ?? null,
+        getNextPageParam: (page) => page.nextCursor ?? undefined,
+        getPreviousPageParam: (page) => page.previousCursor ?? undefined,
         refetchOnWindowFocus: false,
         enabled,
     });

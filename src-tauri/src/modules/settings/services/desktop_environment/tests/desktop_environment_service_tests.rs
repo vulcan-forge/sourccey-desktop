@@ -1,6 +1,6 @@
 use super::{
     DesktopEnvironmentService, DesktopEnvironmentSettings, SaveDesktopEnvironmentSettingsRequest,
-    DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL, DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL,
+    DEFAULT_LOCAL_DESKTOP_REST_API_URL, DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL,
     DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL,
 };
 use std::path::PathBuf;
@@ -22,8 +22,8 @@ fn default_settings_use_production_defaults() {
     assert_eq!(settings.display_name, "Production");
     assert_eq!(settings.teleop_log_level, "warning");
     assert_eq!(
-        settings.graphql_api_url,
-        "https://api.studio.vulcanrobotics.ai/v1/graphql"
+        settings.rest_api_url,
+        "https://api.studio.vulcanrobotics.ai/v1"
     );
     assert_eq!(settings.studio_web_url, "https://studio.vulcanrobotics.ai");
     assert_eq!(
@@ -45,7 +45,7 @@ fn save_and_load_roundtrip_preserves_local_custom_urls() {
     let path = test_file_path("desktop_environment_roundtrip");
     let request = SaveDesktopEnvironmentSettingsRequest {
         environment: "local".to_string(),
-        custom_graphql_api_url: Some("dev-box.local:5200/v1/graphql".to_string()),
+        custom_rest_api_url: Some("dev-box.local:5200/v1".to_string()),
         custom_studio_web_url: Some("dev-box.local:3000".to_string()),
         custom_updater_manifest_url: Some("dev-box.local:3000/latest.json".to_string()),
         teleop_log_level: Some("error".to_string()),
@@ -58,10 +58,7 @@ fn save_and_load_roundtrip_preserves_local_custom_urls() {
     assert_eq!(saved.display_name, "Developer");
     assert_eq!(saved.badge_label.as_deref(), Some("DEV MODE"));
     assert_eq!(saved.teleop_log_level, "error");
-    assert_eq!(
-        loaded.graphql_api_url,
-        "http://dev-box.local:5200/v1/graphql"
-    );
+    assert_eq!(loaded.rest_api_url, "http://dev-box.local:5200/v1");
     assert_eq!(loaded.studio_web_url, "http://dev-box.local:3000");
     assert_eq!(
         loaded.updater_manifest_url,
@@ -86,7 +83,7 @@ fn non_local_persistence_uses_local_defaults_for_custom_fields() {
         &path,
         SaveDesktopEnvironmentSettingsRequest {
             environment: "staging".to_string(),
-            custom_graphql_api_url: Some("http://ignored/graphql".to_string()),
+            custom_rest_api_url: Some("http://ignored/graphql".to_string()),
             custom_studio_web_url: Some("http://ignored.local:3000".to_string()),
             custom_updater_manifest_url: Some("http://ignored/latest.json".to_string()),
             teleop_log_level: None,
@@ -97,8 +94,8 @@ fn non_local_persistence_uses_local_defaults_for_custom_fields() {
     assert_eq!(saved.environment, "staging");
     assert_eq!(saved.badge_label.as_deref(), Some("STAGING"));
     assert_eq!(
-        saved.custom_graphql_api_url,
-        DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL
+        saved.custom_rest_api_url,
+        DEFAULT_LOCAL_DESKTOP_REST_API_URL
     );
     assert_eq!(
         saved.custom_studio_web_url,
@@ -120,7 +117,7 @@ fn updating_only_teleop_log_level_preserves_existing_local_urls() {
         &path,
         SaveDesktopEnvironmentSettingsRequest {
             environment: "local".to_string(),
-            custom_graphql_api_url: Some("dev-box.local:5200/v1/graphql".to_string()),
+            custom_rest_api_url: Some("dev-box.local:5200/v1".to_string()),
             custom_studio_web_url: Some("dev-box.local:3000".to_string()),
             custom_updater_manifest_url: Some("dev-box.local:3000/latest.json".to_string()),
             teleop_log_level: Some("warning".to_string()),
@@ -132,7 +129,7 @@ fn updating_only_teleop_log_level_preserves_existing_local_urls() {
         &path,
         SaveDesktopEnvironmentSettingsRequest {
             environment: "local".to_string(),
-            custom_graphql_api_url: None,
+            custom_rest_api_url: None,
             custom_studio_web_url: None,
             custom_updater_manifest_url: None,
             teleop_log_level: Some("error".to_string()),
@@ -141,11 +138,65 @@ fn updating_only_teleop_log_level_preserves_existing_local_urls() {
     .unwrap();
 
     assert_eq!(updated.teleop_log_level, "error");
-    assert_eq!(
-        updated.graphql_api_url,
-        "http://dev-box.local:5200/v1/graphql"
-    );
+    assert_eq!(updated.rest_api_url, "http://dev-box.local:5200/v1");
     assert_eq!(updated.studio_web_url, "http://dev-box.local:3000");
 
     let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn legacy_settings_migrate_without_losing_the_developer_host() {
+    let path = test_file_path("desktop_environment_legacy_rest");
+    std::fs::write(
+        &path,
+        r#"{
+        "environment": "local",
+        "custom_graphql_api_url": "dev-box.local:5200/v1/graphql/",
+        "custom_studio_web_url": "http://dev-box.local:3000",
+        "custom_updater_manifest_url": "http://dev-box.local:3000/latest.json",
+        "teleop_log_level": "info"
+    }"#,
+    )
+    .unwrap();
+    let settings = DesktopEnvironmentService::get_settings_from_path(&path).unwrap();
+    assert_eq!(settings.rest_api_url, "http://dev-box.local:5200/v1");
+    assert_eq!(settings.website_api_url, settings.rest_api_url);
+    assert_eq!(settings.teleop_log_level, "info");
+    DesktopEnvironmentService::save_settings_to_path(
+        &path,
+        SaveDesktopEnvironmentSettingsRequest {
+            environment: "local".to_string(),
+            custom_rest_api_url: None,
+            custom_studio_web_url: None,
+            custom_updater_manifest_url: None,
+            teleop_log_level: None,
+        },
+    )
+    .unwrap();
+    let persisted = std::fs::read_to_string(&path).unwrap();
+    assert!(persisted.contains("custom_rest_api_url"));
+    assert!(!persisted.contains("graphql"));
+    let _ = std::fs::remove_file(path);
+}
+
+#[test]
+fn rest_url_normalization_accepts_legacy_and_current_urls() {
+    for input in [
+        "https://host/v1/graphql/",
+        "https://host/api/v1",
+        "https://host/v1",
+        "https://host",
+    ] {
+        assert_eq!(
+            DesktopEnvironmentService::normalize_rest_api_url(input).unwrap(),
+            "https://host/v1"
+        );
+    }
+    assert_eq!(
+        DesktopEnvironmentService::normalize_rest_api_url("http://host/proxy/v1/graphql").unwrap(),
+        "http://host/proxy/v1"
+    );
+    assert!(DesktopEnvironmentService::normalize_rest_api_url("ftp://host/v1").is_err());
+    let settings = DesktopEnvironmentService::default_settings();
+    assert_eq!(settings.website_api_url, "https://api.vulcanrobotics.ai/v1");
 }

@@ -8,6 +8,12 @@ export const OAUTH_PROVIDERS = {
 } as const;
 
 export type OAuthProvider = keyof typeof OAUTH_PROVIDERS;
+
+export const buildOAuthRedirectUrl = (apiUrl: string, provider: OAuthProvider, callbackUrl: string) => {
+    const authorizationUrl = new URL(`${apiUrl.replace(/\/+$/, '')}/auth/${provider}`);
+    authorizationUrl.searchParams.set('redirect_uri', callbackUrl);
+    return authorizationUrl.toString();
+};
 export type DesktopOAuthStatus = 'success' | 'error';
 export type DesktopOAuthResultPayload = {
     status: DesktopOAuthStatus;

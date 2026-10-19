@@ -7,21 +7,22 @@ import type {
 
 export const DESKTOP_ENVIRONMENT_KEY = ['desktop', 'environment-settings'];
 
-const PRODUCTION_GRAPHQL_API_URL = 'https://api.studio.vulcanrobotics.ai/v1/graphql';
+const PRODUCTION_REST_API_URL = 'https://api.studio.vulcanrobotics.ai/v1';
 const PRODUCTION_STUDIO_WEB_URL = 'https://studio.vulcanrobotics.ai';
 const PRODUCTION_UPDATER_MANIFEST_URL = 'https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json';
 
-const STAGING_GRAPHQL_API_URL = 'https://api.staging.factory.studio.vulcanrobotics.ai/v1/graphql';
+const STAGING_REST_API_URL = 'https://api.staging.factory.studio.vulcanrobotics.ai/v1';
 const STAGING_STUDIO_WEB_URL = 'https://staging.factory.studio.vulcanrobotics.ai';
 const STAGING_UPDATER_MANIFEST_URL = 'https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/latest.json';
 
-const DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL = 'http://192.168.1.220:5200/v1/graphql';
+const DEFAULT_LOCAL_DESKTOP_REST_API_URL = 'http://192.168.1.220:5200/v1';
 const DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL = 'http://192.168.1.220:3000';
 const DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL = 'http://192.168.1.220:3000/latest.json';
 const DEFAULT_TELEOP_LOG_LEVEL = 'warning';
 
 type DesktopEnvironmentProcessEnv = {
     NEXT_PUBLIC_ENVIRONMENT?: string;
+    NEXT_PUBLIC_REST_API_URL?: string;
     NEXT_PUBLIC_GRAPHQL_API_URL?: string;
     NEXT_PUBLIC_STUDIO_WEB_URL?: string;
     NEXT_PUBLIC_UPDATER_MANIFEST_URL?: string;
@@ -45,6 +46,14 @@ const normalizeUrl = (value: string) => {
     return parsed.toString().replace(/\/$/, '');
 };
 
+// Accept URLs saved by desktop versions that configured a GraphQL endpoint.
+export const normalizeRestApiUrl = (value: string) => {
+    const url = new URL(normalizeUrl(value));
+    url.pathname = url.pathname.replace(/\/+$/, '').replace(/\/(?:v1\/graphql|api\/v1|v1)$/, '') + '/v1';
+    url.search = '';
+    return url.toString().replace(/\/$/, '');
+};
+
 const resolveDesktopEnvironment = (value?: string | null): DesktopEnvironment => {
     const normalized = value?.trim().toLowerCase();
     if (normalized === 'staging') return 'staging';
@@ -55,7 +64,7 @@ const resolveDesktopEnvironment = (value?: string | null): DesktopEnvironment =>
 const buildResolvedDesktopEnvironmentSettings = (
     environment: DesktopEnvironment,
     teleopLogLevel: DesktopEnvironmentSettings['teleopLogLevel'],
-    customGraphqlApiUrl: string,
+    customRestApiUrl: string,
     customStudioWebUrl: string,
     customUpdaterManifestUrl: string
 ): DesktopEnvironmentSettings => {
@@ -68,10 +77,11 @@ const buildResolvedDesktopEnvironmentSettings = (
             displayName,
             badgeLabel,
             teleopLogLevel,
-            customGraphqlApiUrl,
+            customRestApiUrl,
             customStudioWebUrl,
             customUpdaterManifestUrl,
-            graphqlApiUrl: PRODUCTION_GRAPHQL_API_URL,
+            restApiUrl: PRODUCTION_REST_API_URL,
+            websiteApiUrl: 'https://api.vulcanrobotics.ai/v1',
             studioWebUrl: PRODUCTION_STUDIO_WEB_URL,
             updaterManifestUrl: PRODUCTION_UPDATER_MANIFEST_URL,
         };
@@ -83,10 +93,11 @@ const buildResolvedDesktopEnvironmentSettings = (
             displayName,
             badgeLabel,
             teleopLogLevel,
-            customGraphqlApiUrl,
+            customRestApiUrl,
             customStudioWebUrl,
             customUpdaterManifestUrl,
-            graphqlApiUrl: STAGING_GRAPHQL_API_URL,
+            restApiUrl: STAGING_REST_API_URL,
+            websiteApiUrl: 'https://api.staging.factory.vulcanrobotics.ai/v1',
             studioWebUrl: STAGING_STUDIO_WEB_URL,
             updaterManifestUrl: STAGING_UPDATER_MANIFEST_URL,
         };
@@ -97,20 +108,29 @@ const buildResolvedDesktopEnvironmentSettings = (
         displayName,
         badgeLabel,
         teleopLogLevel,
-        customGraphqlApiUrl,
+        customRestApiUrl,
         customStudioWebUrl,
         customUpdaterManifestUrl,
-        graphqlApiUrl: customGraphqlApiUrl,
+        restApiUrl: customRestApiUrl,
+        websiteApiUrl: customRestApiUrl,
         studioWebUrl: customStudioWebUrl,
         updaterManifestUrl: customUpdaterManifestUrl,
     };
 };
 
 export const buildDesktopEnvironmentSettingsFromProcessEnv = (
-    env: DesktopEnvironmentProcessEnv = process.env
+    env: DesktopEnvironmentProcessEnv = {
+        NEXT_PUBLIC_ENVIRONMENT: process.env.NEXT_PUBLIC_ENVIRONMENT,
+        NEXT_PUBLIC_REST_API_URL: process.env.NEXT_PUBLIC_REST_API_URL,
+        NEXT_PUBLIC_GRAPHQL_API_URL: process.env.NEXT_PUBLIC_GRAPHQL_API_URL,
+        NEXT_PUBLIC_STUDIO_WEB_URL: process.env.NEXT_PUBLIC_STUDIO_WEB_URL,
+        NEXT_PUBLIC_UPDATER_MANIFEST_URL: process.env.NEXT_PUBLIC_UPDATER_MANIFEST_URL,
+    }
 ): DesktopEnvironmentSettings => {
     const environment = resolveDesktopEnvironment(env.NEXT_PUBLIC_ENVIRONMENT);
-    const customGraphqlApiUrl = normalizeUrl(env.NEXT_PUBLIC_GRAPHQL_API_URL ?? DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL);
+    const customRestApiUrl = normalizeRestApiUrl(
+        env.NEXT_PUBLIC_REST_API_URL ?? env.NEXT_PUBLIC_GRAPHQL_API_URL ?? DEFAULT_LOCAL_DESKTOP_REST_API_URL
+    );
     const customStudioWebUrl = normalizeUrl(env.NEXT_PUBLIC_STUDIO_WEB_URL ?? DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL);
     const customUpdaterManifestUrl = normalizeUrl(
         env.NEXT_PUBLIC_UPDATER_MANIFEST_URL ?? DEFAULT_LOCAL_DESKTOP_UPDATER_MANIFEST_URL
@@ -119,7 +139,7 @@ export const buildDesktopEnvironmentSettingsFromProcessEnv = (
     return buildResolvedDesktopEnvironmentSettings(
         environment,
         DEFAULT_TELEOP_LOG_LEVEL,
-        customGraphqlApiUrl,
+        customRestApiUrl,
         customStudioWebUrl,
         customUpdaterManifestUrl
     );
@@ -129,8 +149,8 @@ export const resolveClientDesktopEnvironmentSettings = (
     request: SaveDesktopEnvironmentSettingsRequest
 ): DesktopEnvironmentSettings => {
     const environment = resolveDesktopEnvironment(request.environment);
-    const customGraphqlApiUrl = normalizeUrl(
-        request.customGraphqlApiUrl ?? DEFAULT_LOCAL_DESKTOP_GRAPHQL_API_URL
+    const customRestApiUrl = normalizeRestApiUrl(
+        request.customRestApiUrl ?? DEFAULT_LOCAL_DESKTOP_REST_API_URL
     );
     const customStudioWebUrl = normalizeUrl(request.customStudioWebUrl ?? DEFAULT_LOCAL_DESKTOP_STUDIO_WEB_URL);
     const customUpdaterManifestUrl = normalizeUrl(
@@ -142,7 +162,7 @@ export const resolveClientDesktopEnvironmentSettings = (
     return buildResolvedDesktopEnvironmentSettings(
         environment,
         teleopLogLevel,
-        customGraphqlApiUrl,
+        customRestApiUrl,
         customStudioWebUrl,
         customUpdaterManifestUrl
     );

@@ -1,4 +1,4 @@
-import { DefaultGraphQLFilter, SearchBar } from '@/components/Elements/SearchBar';
+import { defaultSearchFilter, SearchBar } from '@/components/Elements/SearchBar';
 import { BASE_ROBOT_KEY } from '@/hooks/Models/Robot/robot.hook';
 import { SEARCH_VALUE_KEY } from '@/hooks/search.hook';
 import { useEffect, useRef, useState } from 'react';
@@ -36,7 +36,7 @@ export const ActionBar = ({ viewType, setViewType, statusFilter, setStatusFilter
                     placeholderText="Search robots..."
                     searchKey={SEARCH_VALUE_KEY}
                     refetchKey={[BASE_ROBOT_KEY]}
-                    filter={DefaultGraphQLFilter}
+                    filter={defaultSearchFilter}
                 />
 
                 {/* Controls Section */}

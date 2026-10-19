@@ -51,45 +51,4 @@ export const SearchBar = ({ classNames, placeholderText, searchKey, refetchKey, 
     );
 };
 
-// Base Filters
-export const DefaultGraphQLFilter = (input: string) => {
-    if (input) {
-        const lowerCase = input.toLowerCase();
-        const upperCase = input.toUpperCase();
-        const titleCase = input.charAt(0).toUpperCase() + input.slice(1).toLowerCase();
-
-        return `
-            name: {
-                or: [
-                    { contains: "${lowerCase}" },
-                    { contains: "${upperCase}" },
-                    { contains: "${titleCase}" },
-                    { contains: "${input}" }
-                ]
-            }
-        `;
-    }
-
-    return '';
-};
-
-export const AccountGraphQLFilter = (input: string) => {
-    if (input) {
-        const lowerCase = input.toLowerCase();
-        const upperCase = input.toUpperCase();
-        const titleCase = input.charAt(0).toUpperCase() + input.slice(1).toLowerCase();
-
-        return `
-            email: {
-                or: [
-                    { contains: "${lowerCase}" },
-                    { contains: "${upperCase}" },
-                    { contains: "${titleCase}" },
-                    { contains: "${input}" }
-                ]
-            }
-        `;
-    }
-
-    return '';
-};
+export const defaultSearchFilter = (input: string) => input?.trim() ?? '';

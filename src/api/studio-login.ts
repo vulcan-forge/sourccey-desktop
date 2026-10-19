@@ -136,22 +136,26 @@ const normalizeStudioLoginPayload = (value: unknown): StudioLoginPayload => {
 
 const ensureSuccessfulLogin = (status: number, body: unknown): StudioLoginPayload => {
     const payload = normalizeStudioLoginPayload(body);
-    if (status >= 400 || payload.error?.message) {
+    const problem = asObject(body);
+    if (status < 200 || status >= 300 || payload.error?.message) {
         throw new StudioLoginError(
-            payload.error?.message ?? `Studio login failed with status ${status}.`,
+            readString(problem?.detail) ?? payload.error?.message ?? `Login failed with status ${status}.`,
             {
                 status,
-                code: payload.error?.code ?? null,
+                code: readString(problem?.code) ?? payload.error?.code ?? null,
                 responseBody: body,
             }
         );
+    }
+    if (!payload.account?.id) {
+        throw new StudioLoginError('Login returned an invalid account.', { status });
     }
     return payload;
 };
 
 const buildStudioLoginUrl = async () => {
     const settings = await getDesktopEnvironmentSettings();
-    return `${settings.studioWebUrl}/api/relay-auth/login`;
+    return `${settings.websiteApiUrl}/auth/login`;
 };
 
 const loginViaFetch = async (request: StudioLoginRequest) => {
@@ -161,6 +165,8 @@ const loginViaFetch = async (request: StudioLoginRequest) => {
     try {
         response = await fetch(url, {
             method: 'POST',
+            credentials: 'omit',
+            cache: 'no-store',
             headers: {
                 'Content-Type': 'application/json',
                 Accept: 'application/json',

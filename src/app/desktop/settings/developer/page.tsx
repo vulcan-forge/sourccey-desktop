@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import { resolveClientDesktopEnvironmentSettings } from '@/environments/environment';
 import { FaArrowLeft, FaCheckCircle, FaGlobe, FaSpinner } from 'react-icons/fa';
 import { toast } from 'react-toastify';
 import { LinkButton } from '@/components/Elements/Link/LinkButton';
@@ -33,7 +34,7 @@ const environmentCards: Array<{
 export default function DesktopDeveloperSettingsPage() {
     const { data, isLoading, error } = useDesktopEnvironmentSettings();
     const [environment, setEnvironment] = useState<DesktopEnvironment>('production');
-    const [customGraphqlApiUrl, setCustomGraphqlApiUrl] = useState('http://192.168.1.220:5200/v1/graphql');
+    const [customRestApiUrl, setCustomRestApiUrl] = useState('http://192.168.1.220:5200/v1');
     const [customStudioWebUrl, setCustomStudioWebUrl] = useState('http://192.168.1.220:3000');
     const [customUpdaterManifestUrl, setCustomUpdaterManifestUrl] = useState('http://192.168.1.220:3000/latest.json');
     const [resolvedSettings, setResolvedSettings] = useState<DesktopEnvironmentSettings | null>(null);
@@ -46,7 +47,7 @@ export default function DesktopDeveloperSettingsPage() {
         }
 
         setEnvironment(data.environment);
-        setCustomGraphqlApiUrl(data.customGraphqlApiUrl);
+        setCustomRestApiUrl(data.customRestApiUrl);
         setCustomStudioWebUrl(data.customStudioWebUrl);
         setCustomUpdaterManifestUrl(data.customUpdaterManifestUrl);
         setResolvedSettings(data);
@@ -57,38 +58,22 @@ export default function DesktopDeveloperSettingsPage() {
             return null;
         }
 
-        return {
-            environment,
-            displayName: environment === 'production' ? 'Production' : environment === 'staging' ? 'Staging' : 'Developer',
-            badgeLabel: environment === 'production' ? null : environment === 'staging' ? 'STAGING' : 'DEV MODE',
-            teleopLogLevel: resolvedSettings.teleopLogLevel,
-            customGraphqlApiUrl,
-            customStudioWebUrl,
-            customUpdaterManifestUrl,
-            graphqlApiUrl:
-                environment === 'production'
-                    ? 'https://api.studio.vulcanrobotics.ai/v1/graphql'
-                    : environment === 'staging'
-                      ? 'https://api.staging.factory.studio.vulcanrobotics.ai/v1/graphql'
-                      : customGraphqlApiUrl,
-            studioWebUrl:
-                environment === 'production'
-                    ? 'https://studio.vulcanrobotics.ai'
-                    : environment === 'staging'
-                      ? 'https://staging.factory.studio.vulcanrobotics.ai'
-                      : customStudioWebUrl,
-            updaterManifestUrl:
-                environment === 'production'
-                    ? 'https://sourccey.nyc3.cdn.digitaloceanspaces.com/updater/latest.json'
-                    : environment === 'staging'
-                      ? 'https://sourccey-staging.nyc3.cdn.digitaloceanspaces.com/updater/latest.json'
-                      : customUpdaterManifestUrl,
-        };
-    }, [customGraphqlApiUrl, customStudioWebUrl, customUpdaterManifestUrl, environment, resolvedSettings]);
+        try {
+            return resolveClientDesktopEnvironmentSettings({
+                environment,
+                teleopLogLevel: resolvedSettings.teleopLogLevel,
+                customRestApiUrl,
+                customStudioWebUrl,
+                customUpdaterManifestUrl,
+            });
+        } catch {
+            return null;
+        }
+    }, [customRestApiUrl, customStudioWebUrl, customUpdaterManifestUrl, environment, resolvedSettings]);
 
     const persistEnvironmentSettings = async (
         nextEnvironment: DesktopEnvironment,
-        nextCustomGraphqlApiUrl = customGraphqlApiUrl,
+        nextCustomRestApiUrl = customRestApiUrl,
         nextCustomStudioWebUrl = customStudioWebUrl,
         nextCustomUpdaterManifestUrl = customUpdaterManifestUrl
     ) => {
@@ -97,13 +82,13 @@ export default function DesktopDeveloperSettingsPage() {
             const saved = await saveDesktopEnvironmentSettings({
                 environment: nextEnvironment,
                 teleopLogLevel: resolvedSettings?.teleopLogLevel,
-                customGraphqlApiUrl: nextCustomGraphqlApiUrl,
+                customRestApiUrl: nextCustomRestApiUrl,
                 customStudioWebUrl: nextCustomStudioWebUrl,
                 customUpdaterManifestUrl: nextCustomUpdaterManifestUrl,
             });
             setResolvedSettings(saved);
             setEnvironment(saved.environment);
-            setCustomGraphqlApiUrl(saved.customGraphqlApiUrl);
+            setCustomRestApiUrl(saved.customRestApiUrl);
             setCustomStudioWebUrl(saved.customStudioWebUrl);
             setCustomUpdaterManifestUrl(saved.customUpdaterManifestUrl);
             toast.success(
@@ -133,14 +118,14 @@ export default function DesktopDeveloperSettingsPage() {
 
     const handleEnvironmentSelect = async (nextEnvironment: DesktopEnvironment) => {
         setEnvironment(nextEnvironment);
-        await persistEnvironmentSettings(nextEnvironment, customGraphqlApiUrl, customStudioWebUrl, customUpdaterManifestUrl);
+        await persistEnvironmentSettings(nextEnvironment, customRestApiUrl, customStudioWebUrl, customUpdaterManifestUrl);
     };
 
     const handleDeveloperInputsBlur = async () => {
         if (!isDeveloperEnvironment) {
             return;
         }
-        await persistEnvironmentSettings('local', customGraphqlApiUrl, customStudioWebUrl, customUpdaterManifestUrl);
+        await persistEnvironmentSettings('local', customRestApiUrl, customStudioWebUrl, customUpdaterManifestUrl);
     };
 
     return (
@@ -167,7 +152,7 @@ export default function DesktopDeveloperSettingsPage() {
                     <div className="mb-6">
                         <h2 className="text-xl font-semibold text-white">Environment</h2>
                         <p className="mt-1 text-sm text-slate-400">
-                            The selected environment controls GraphQL, Studio sign-in, and desktop app update checks.
+                            The selected environment controls REST, Studio sign-in, and desktop app update checks.
                         </p>
                     </div>
 
@@ -206,21 +191,21 @@ export default function DesktopDeveloperSettingsPage() {
                             {isDeveloperEnvironment ? (
                                 <div className="grid gap-4 md:grid-cols-2">
                                     <div className="rounded-lg border border-slate-600 bg-slate-700/50 p-4">
-                                        <label htmlFor="custom-graphql-api-url" className="mb-2 block text-sm font-medium text-slate-300">
-                                            GraphQL API URL
+                                        <label htmlFor="custom-rest-api-url" className="mb-2 block text-sm font-medium text-slate-300">
+                                            REST API URL
                                         </label>
                                         <input
-                                            id="custom-graphql-api-url"
+                                            id="custom-rest-api-url"
                                             type="text"
-                                            value={customGraphqlApiUrl}
-                                            onChange={(event) => setCustomGraphqlApiUrl(event.target.value)}
+                                            value={customRestApiUrl}
+                                            onChange={(event) => setCustomRestApiUrl(event.target.value)}
                                             onBlur={() => void handleDeveloperInputsBlur()}
                                             disabled={isSaving}
                                             className="w-full rounded border border-slate-600 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-400 focus:border-yellow-500 focus:ring-1 focus:ring-yellow-500/30 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
                                         />
                                         <p className="mt-2 flex items-start gap-2 text-xs text-slate-400">
                                             <FaGlobe className="mt-0.5 h-3 w-3 shrink-0 text-slate-500" />
-                                            Used for desktop GraphQL requests after sign-in.
+                                            Used for local REST requests, including sign-in. URLs end in /v1.
                                         </p>
                                     </div>
 
@@ -262,12 +247,16 @@ export default function DesktopDeveloperSettingsPage() {
 
                             <div className="grid gap-4 rounded-xl border border-slate-700 bg-slate-900/40 p-4 md:grid-cols-2">
                                 <div>
-                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">GraphQL API</div>
-                                    <div className="mt-2 text-sm break-all text-white">{previewSettings?.graphqlApiUrl ?? '...'}</div>
+                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Studio REST API</div>
+                                    <div className="mt-2 text-sm break-all text-white">{previewSettings?.restApiUrl ?? '...'}</div>
                                 </div>
                                 <div>
                                     <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Studio Website</div>
                                     <div className="mt-2 text-sm break-all text-white">{previewSettings?.studioWebUrl ?? '...'}</div>
+                                </div>
+                                <div className="md:col-span-2">
+                                    <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Account and Catalog API</div>
+                                    <div className="mt-2 text-sm break-all text-white">{previewSettings?.websiteApiUrl ?? '...'}</div>
                                 </div>
                                 <div className="md:col-span-2">
                                     <div className="text-xs font-semibold tracking-[0.18em] text-slate-500 uppercase">Updater Manifest</div>
