@@ -230,7 +230,7 @@ impl RemoteInferenceService {
         let mut command_parts = vec![
             "run".to_string(),
             "--no-sync".to_string(),
-            "lerobot-rollout".to_string(),
+            "sourccey-rollout".to_string(),
             "--strategy.type=base".to_string(),
             format!("--policy.path={}", config.model_path.trim()),
             "--robot.type=sourccey_client".to_string(),
@@ -342,7 +342,7 @@ mod tests {
         let command_parts = RemoteInferenceService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
         assert_eq!(command_parts[1], "--no-sync");
-        assert_eq!(command_parts[2], "lerobot-rollout");
+        assert_eq!(command_parts[2], "sourccey-rollout");
         assert!(command_parts
             .iter()
             .any(|part| part == "--strategy.type=base"));

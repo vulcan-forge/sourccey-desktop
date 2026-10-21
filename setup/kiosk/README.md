@@ -48,7 +48,7 @@ camera streaming or motor health. The underside camera's production alias is
 
 ```bash
 cd modules/lerobot-vulcan
-uv run python scripts/sourccey_check_bottom_camera.py --device /dev/cameraFrontBottom --seconds 10
+uv run --no-sync sourccey-check-bottom-camera --device /dev/cameraFrontBottom --seconds 10
 ```
 
 Audio output is detected by Linux sound-card enumeration and has no USB role

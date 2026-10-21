@@ -276,22 +276,22 @@ impl RemoteTeleopService {
         let mut args = vec![
             "run".to_string(),
             "--no-sync".to_string(),
-            "lerobot-teleoperate".to_string(),
+            "sourccey-teleoperate".to_string(),
             "--robot.type=sourccey_client".to_string(),
             "--robot.id=sourccey".to_string(),
             format!("--robot.remote_ip={}", config.remote_ip.trim()),
-            "--teleop.type=bi_sourccey_leader".to_string(),
+            "--teleop.type=sourccey_teleoperator".to_string(),
             "--teleop.id=sourccey_leader".to_string(),
             format!("--teleop.left_arm_port={}", config.left_arm_port.trim()),
             format!("--teleop.right_arm_port={}", config.right_arm_port.trim()),
-            "--teleop_keyboard.type=keyboard".to_string(),
-            format!("--teleop_keyboard.id={}", config.keyboard.trim()),
+            "--teleop.allow_partial_connection=true".to_string(),
+            "--teleop.allow_keyboard_connection_failure=true".to_string(),
         ];
         // Always use the app-owned keyboard bridge. Besides working when the
         // LeRobot process is not focused, this gives teleop the same
         // deterministic middle-speed startup behavior as recording.
         args.push(format!(
-            "--teleop_keyboard.input_state_path={}",
+            "--teleop.input_state_path={}",
             Self::keyboard_state_path(&config.nickname).display()
         ));
         args.extend([
@@ -371,16 +371,16 @@ mod tests {
         let command_parts = RemoteTeleopService::build_command_args(&valid_config());
         assert_eq!(command_parts[0], "run");
         assert_eq!(command_parts[1], "--no-sync");
-        assert_eq!(command_parts[2], "lerobot-teleoperate");
+        assert_eq!(command_parts[2], "sourccey-teleoperate");
         assert!(command_parts
             .iter()
             .any(|part| part == "--robot.type=sourccey_client"));
         assert!(command_parts
             .iter()
-            .any(|part| part == "--teleop_keyboard.id=keyboard"));
+            .any(|part| part == "--teleop.type=sourccey_teleoperator"));
         assert!(command_parts
             .iter()
-            .any(|part| part.starts_with("--teleop_keyboard.input_state_path=")));
+            .any(|part| part.starts_with("--teleop.input_state_path=")));
         assert!(command_parts
             .iter()
             .any(|part| part == "--display_data=false"));
