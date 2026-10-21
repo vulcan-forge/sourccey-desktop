@@ -8,6 +8,24 @@ This template should help get you started developing with Tauri in vanilla HTML,
 
 # Commands
 
+## JavaScript runtime requirements
+
+Use Bun for package management and the commands below. Next.js CLI entry points
+target Node.js and may invoke the installed Node.js runtime through their
+shebangs even when launched with `bun run`. Keep Node.js patched on development
+and build machines; some Bun configurations run those commands with Bun instead.
+
+The minimum versions for the supported Node.js release lines are **22.23.4**,
+**24.22.1**, and **26.12.1**, following the
+[October 2026 security release](https://nodejs.org/en/blog/vulnerability/october-2026-security-releases).
+The `.nvmrc` file selects 22.23.4; with nvm, run `nvm install` and `nvm use`.
+On Windows without nvm, update Node.js using the official installer, then open
+a new terminal and verify `node --version` before building.
+
+The packaged desktop app uses Tauri/Rust and the static frontend in `out/`;
+it does not bundle Node.js or run a Next.js server. Updating `@types/node` or
+the JavaScript dependency lockfile does not patch the Node.js executable.
+
 Get the desktop app
 
 ```
