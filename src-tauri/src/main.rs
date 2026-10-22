@@ -69,7 +69,8 @@ use modules::control::controllers::remote_control::remote_inference_controller::
     init_remote_inference, start_remote_inference, stop_remote_inference,
 };
 use modules::control::controllers::remote_control::remote_record_controller::{
-    init_remote_record, start_remote_record, stop_remote_record,
+    begin_vr_record, get_recording_host_ip, init_remote_record, start_remote_record,
+    stop_remote_record, stop_vr_capture, update_vr_record_task,
 };
 use modules::control::controllers::remote_control::remote_replay_controller::{
     discover_replay_datasets, init_remote_replay, start_remote_replay, stop_remote_replay,
@@ -722,6 +723,10 @@ fn main() {
             stop_remote_teleop,
             set_remote_teleop_keys,
             start_remote_record,
+            begin_vr_record,
+            update_vr_record_task,
+            stop_vr_capture,
+            get_recording_host_ip,
             stop_remote_record,
             start_remote_replay,
             stop_remote_replay,

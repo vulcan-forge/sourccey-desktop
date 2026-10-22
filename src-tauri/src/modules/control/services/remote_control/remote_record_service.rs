@@ -6,6 +6,7 @@ use crate::modules::control::services::remote_control::remote_command_utils::{
 use crate::modules::control::services::remote_control::remote_teleop_service::RemoteTeleopService;
 #[cfg(feature = "desktop")]
 use crate::modules::dataset_sync::services::upload_service::UploadService;
+use crate::services::environment::build_service::BuildService;
 use crate::services::log::log_service::LogService;
 use crate::services::process::process_service::ProcessService;
 use sea_orm::DatabaseConnection;
@@ -13,6 +14,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use tauri::AppHandle;
 use tauri::Emitter;
+use tauri::Manager;
 use tauri_plugin_shell::process::CommandEvent;
 use tauri_plugin_shell::ShellExt;
 
@@ -25,6 +27,46 @@ pub struct RemoteRecordService;
 impl RemoteRecordService {
     pub fn init_remote_record() -> RemoteRecordProcess {
         RemoteRecordProcess(init_managed_processes())
+    }
+
+    #[cfg(feature = "desktop")]
+    fn sync_completed_dataset(
+        app_handle: AppHandle,
+        connection: DatabaseConnection,
+        nickname: String,
+        robot_id: String,
+        repo_id: String,
+    ) {
+        tauri::async_runtime::spawn(async move {
+            match UploadService::queue_completed_dataset_metadata(&connection, &robot_id, &repo_id)
+                .await
+            {
+                Ok(queued) => {
+                    Self::emit_record_info(
+                        &app_handle,
+                        &nickname,
+                        &format!(
+                            "Completed dataset metadata queued for sync: {}",
+                            queued.object_key
+                        ),
+                    );
+                    if let Err(error) =
+                        UploadService::transmit_queued_metadata(&connection, 20).await
+                    {
+                        Self::emit_record_info(
+                            &app_handle,
+                            &nickname,
+                            &format!("Dataset metadata remains queued: {error}"),
+                        );
+                    }
+                }
+                Err(error) => Self::emit_record_info(
+                    &app_handle,
+                    &nickname,
+                    &format!("Completed dataset was not queued: {error}"),
+                ),
+            }
+        });
     }
 
     pub async fn start_record(
@@ -57,7 +99,39 @@ impl RemoteRecordService {
         let working_dir = runtime.working_dir.clone();
         let envs = runtime.envs;
         RemoteTeleopService::update_keyboard_state(&config.nickname, &[])?;
-        let command_parts = Self::build_command_args(&config);
+        if config.vr_headset {
+            // Opening the connection starts teleoperation. Capture is a separate action.
+            let _ = std::fs::remove_file(Self::vr_start_signal_path(&config.nickname));
+            let _ = std::fs::remove_file(Self::vr_stop_signal_path(&config.nickname));
+            let _ = std::fs::remove_file(Self::vr_ready_signal_path(&config.nickname));
+            Self::write_vr_task(&config.nickname, &config.single_task)?;
+        }
+        let runner_name = if config.vr_headset {
+            "runner.py"
+        } else {
+            "standard_runner.py"
+        };
+        let runner_path = if BuildService::is_dev_mode() {
+            crate::services::directory::directory_service::DirectoryService::get_current_dir()?
+                .join("scripts")
+                .join("vr_recording")
+                .join(runner_name)
+        } else {
+            app_handle
+                .path()
+                .resolve(
+                    format!("scripts/vr_recording/{runner_name}"),
+                    tauri::path::BaseDirectory::Resource,
+                )
+                .map_err(|error| format!("Could not resolve the recording adapter: {error}"))?
+        };
+        if !runner_path.is_file() {
+            return Err(format!(
+                "The desktop recording adapter was not found at {}.",
+                runner_path.display()
+            ));
+        }
+        let command_parts = Self::build_command_args(&config, &runner_path);
         let command_display = format_command_for_display(&command_parts);
 
         let start_message = format!(
@@ -79,9 +153,14 @@ impl RemoteRecordService {
             .args(command_parts.iter())
             .current_dir(working_dir.clone())
             .envs(envs)
-            .env("PYTHONUNBUFFERED", "1");
+            .env("PYTHONUNBUFFERED", "1")
+            .env("SOURCCEY_RECORD_NAME_PATTERN", &config.name_pattern);
 
         let (mut rx, child) = cmd.spawn().map_err(|e| {
+            if config.vr_headset {
+                let _ = std::fs::remove_file(Self::vr_start_signal_path(&config.nickname));
+                let _ = std::fs::remove_file(Self::vr_ready_signal_path(&config.nickname));
+            }
             let message = format!(
                 "Failed to start record (shell): {}. Command: {}. Working dir: {}",
                 e, command_display, working_dir
@@ -94,7 +173,7 @@ impl RemoteRecordService {
         let command_log_id = create_command_log(
             db_connection.clone(),
             &command_display,
-            "sourccey-record",
+            "lerobot-record",
             &config.nickname,
             "record",
         )
@@ -102,6 +181,7 @@ impl RemoteRecordService {
 
         let pid = child.pid();
         let nickname_for_logs = config.nickname.clone();
+        let vr_headset_for_logs = config.vr_headset;
         #[cfg(feature = "desktop")]
         let robot_id_for_sync = config.robot_id.clone();
         #[cfg(feature = "desktop")]
@@ -121,7 +201,13 @@ impl RemoteRecordService {
                         let line = String::from_utf8_lossy(&line_bytes);
                         let line = line.trim_end();
                         if !line.is_empty() {
-                            if !capture_started && line.contains("Recording episode") {
+                            if !capture_started
+                                && (if vr_headset_for_logs {
+                                    line.starts_with("VR capture started: ")
+                                } else {
+                                    line.contains("Recording episode")
+                                })
+                            {
                                 capture_started = true;
                                 Self::emit_record_info(
                                     &app_handle_for_logs,
@@ -134,13 +220,30 @@ impl RemoteRecordService {
                             if let Some(path) = &record_log_path {
                                 LogService::write_log_line(path, Some("record"), line);
                             }
+                            #[cfg(feature = "desktop")]
+                            if let Some(repo_id) = line.strip_prefix("VR capture saved: ") {
+                                capture_started = false;
+                                Self::sync_completed_dataset(
+                                    app_handle_for_logs.clone(),
+                                    db_connection_for_sync.clone(),
+                                    nickname_for_logs.clone(),
+                                    robot_id_for_sync.clone(),
+                                    repo_id.to_string(),
+                                );
+                            }
                         }
                     }
                     CommandEvent::Stderr(line_bytes) => {
                         let line = String::from_utf8_lossy(&line_bytes);
                         let line = line.trim_end();
                         if !line.is_empty() {
-                            if !capture_started && line.contains("Recording episode") {
+                            if !capture_started
+                                && (if vr_headset_for_logs {
+                                    line.starts_with("VR capture started: ")
+                                } else {
+                                    line.contains("Recording episode")
+                                })
+                            {
                                 capture_started = true;
                                 Self::emit_record_info(
                                     &app_handle_for_logs,
@@ -167,7 +270,8 @@ impl RemoteRecordService {
                     }
                     CommandEvent::Terminated(payload) => {
                         #[cfg(feature = "desktop")]
-                        let completed_successfully = capture_started && payload.code == Some(0);
+                        let completed_successfully =
+                            !vr_headset_for_logs && capture_started && payload.code == Some(0);
                         let message = format!(
                             "Record process terminated (code={:?}, signal={:?})",
                             payload.code, payload.signal
@@ -181,50 +285,13 @@ impl RemoteRecordService {
                         }
                         #[cfg(feature = "desktop")]
                         if completed_successfully {
-                            let app_handle_for_sync = app_handle_for_logs.clone();
-                            let nickname_for_sync = nickname_for_logs.clone();
-                            let robot_id_for_sync = robot_id_for_sync.clone();
-                            let repo_id_for_sync = repo_id_for_sync.clone();
-                            let connection_for_sync = db_connection_for_sync.clone();
-                            tauri::async_runtime::spawn(async move {
-                                match UploadService::queue_completed_dataset_metadata(
-                                    &connection_for_sync,
-                                    &robot_id_for_sync,
-                                    &repo_id_for_sync,
-                                )
-                                .await
-                                {
-                                    Ok(queued) => {
-                                        Self::emit_record_info(
-                                            &app_handle_for_sync,
-                                            &nickname_for_sync,
-                                            &format!(
-                                                "Completed dataset metadata queued for sync: {}",
-                                                queued.object_key
-                                            ),
-                                        );
-                                        if let Err(error) = UploadService::transmit_queued_metadata(
-                                            &connection_for_sync,
-                                            20,
-                                        )
-                                        .await
-                                        {
-                                            Self::emit_record_info(
-                                                &app_handle_for_sync,
-                                                &nickname_for_sync,
-                                                &format!(
-                                                    "Dataset metadata remains queued: {error}"
-                                                ),
-                                            );
-                                        }
-                                    }
-                                    Err(error) => Self::emit_record_info(
-                                        &app_handle_for_sync,
-                                        &nickname_for_sync,
-                                        &format!("Completed dataset was not queued: {error}"),
-                                    ),
-                                }
-                            });
+                            Self::sync_completed_dataset(
+                                app_handle_for_logs.clone(),
+                                db_connection_for_sync.clone(),
+                                nickname_for_logs.clone(),
+                                robot_id_for_sync.clone(),
+                                repo_id_for_sync.clone(),
+                            );
                         }
                         break;
                     }
@@ -272,13 +339,17 @@ impl RemoteRecordService {
             shutdown_flag.store(true, Ordering::Relaxed);
 
             let pid = child.pid();
+            let _ = std::fs::remove_file(Self::vr_start_signal_path(&nickname));
+            let _ = std::fs::remove_file(Self::vr_stop_signal_path(&nickname));
+            let _ = std::fs::remove_file(Self::vr_ready_signal_path(&nickname));
+            let _ = std::fs::remove_file(Self::vr_task_path(&nickname));
 
             ProcessService::on_process_shutdown(app_handle, pid, db_connection, command_log_id);
 
             Self::emit_record_info(
                 app_handle,
                 &nickname,
-                "Stopping recording and finalizing captured data...",
+                "Closing recording connection and finalizing any captured data...",
             );
 
             // The recorder already treats an Escape key edge as a graceful stop.
@@ -331,7 +402,7 @@ impl RemoteRecordService {
                 Self::emit_record_info(
                     &app_handle_for_stop,
                     &nickname_for_stop,
-                    "Recording stopped and captured data is saved.",
+                    "Recording connection closed; any captured data is finalized.",
                 );
                 let _ = app_handle_for_stop.emit(
                     "record-process-finalized",
@@ -353,25 +424,148 @@ impl RemoteRecordService {
         }
     }
 
-    fn build_command_args(config: &RemoteRecordConfig) -> Vec<String> {
-        let mut args = vec![
-            "run".to_string(),
-            "--no-sync".to_string(),
-            "sourccey-record".to_string(),
-            "--robot.type=sourccey_client".to_string(),
-            "--robot.id=sourccey".to_string(),
-            format!("--robot.remote_ip={}", config.remote_ip.trim()),
-            "--teleop.type=sourccey_teleoperator".to_string(),
-            "--teleop.id=sourccey_leader".to_string(),
-            format!("--teleop.left_arm_port={}", config.left_arm_port.trim()),
-            format!("--teleop.right_arm_port={}", config.right_arm_port.trim()),
-            "--teleop.allow_partial_connection=true".to_string(),
-            "--teleop.allow_keyboard_connection_failure=true".to_string(),
-        ];
-        args.push(format!(
-            "--teleop.input_state_path={}",
-            RemoteTeleopService::keyboard_state_path(&config.nickname).display()
-        ));
+    fn vr_start_signal_path(nickname: &str) -> std::path::PathBuf {
+        RemoteTeleopService::keyboard_state_path(nickname).with_extension("vr-start")
+    }
+
+    fn vr_stop_signal_path(nickname: &str) -> std::path::PathBuf {
+        RemoteTeleopService::keyboard_state_path(nickname).with_extension("vr-stop")
+    }
+
+    fn vr_task_path(nickname: &str) -> std::path::PathBuf {
+        RemoteTeleopService::keyboard_state_path(nickname).with_extension("vr-task")
+    }
+
+    fn vr_ready_signal_path(nickname: &str) -> std::path::PathBuf {
+        RemoteTeleopService::keyboard_state_path(nickname).with_extension("vr-ready")
+    }
+
+    fn write_vr_task(nickname: &str, task: &str) -> Result<(), String> {
+        let path = Self::vr_task_path(nickname);
+        let pending = path.with_extension("vr-task.pending");
+        std::fs::write(&pending, task.trim())
+            .map_err(|error| format!("Could not write VR recording task: {error}"))?;
+        std::fs::rename(&pending, &path)
+            .map_err(|error| format!("Could not activate VR recording task: {error}"))
+    }
+
+    pub fn update_vr_record_task(
+        state: &RemoteRecordProcess,
+        nickname: &str,
+        task: &str,
+    ) -> Result<(), String> {
+        let processes = state.0.lock().unwrap();
+        if !processes.contains_key(nickname) {
+            return Err("Open the recording teleoperation connection first.".to_string());
+        }
+        Self::write_vr_task(nickname, task)
+    }
+
+    pub fn begin_vr_record(
+        state: &RemoteRecordProcess,
+        nickname: &str,
+        task: &str,
+        requested_at_ms: Option<u64>,
+    ) -> Result<(), String> {
+        if task.trim().is_empty() {
+            return Err("Task is required before starting a recording.".to_string());
+        }
+        if !Self::vr_ready_signal_path(nickname).is_file() {
+            return Err(
+                "Recording is still saving or waiting for live headset controls.".to_string(),
+            );
+        }
+        Self::update_vr_record_task(state, nickname, task)?;
+        // The signal carries the task so queued task-field updates cannot change this capture.
+        let start_path = Self::vr_start_signal_path(nickname);
+        let pending_path = start_path.with_extension("vr-start.pending");
+        std::fs::write(&pending_path, format!("task:{}", task.trim()).as_bytes())
+            .map_err(|error| format!("Could not signal VR recording start: {error}"))?;
+        std::fs::rename(&pending_path, &start_path)
+            .map_err(|error| format!("Could not activate VR recording start: {error}"))?;
+        let ui_wait_ms = requested_at_ms.and_then(|requested| {
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .ok()
+                .map(|now| now.as_millis().saturating_sub(u128::from(requested)))
+        });
+        write_process_log(
+            "record",
+            &format!(
+                "VR desktop start signal written (UI wait: {} ms)",
+                ui_wait_ms.map_or("unknown".to_string(), |wait| wait.to_string())
+            ),
+        );
+        let _ = std::fs::remove_file(Self::vr_ready_signal_path(nickname));
+        Ok(())
+    }
+
+    pub fn stop_vr_capture(state: &RemoteRecordProcess, nickname: &str) -> Result<(), String> {
+        if !state.0.lock().unwrap().contains_key(nickname) {
+            return Err("Open the recording teleoperation connection first.".to_string());
+        }
+        std::fs::write(Self::vr_stop_signal_path(nickname), b"stop")
+            .map_err(|error| format!("Could not signal VR recording stop: {error}"))
+    }
+
+    fn build_command_args(
+        config: &RemoteRecordConfig,
+        runner_path: &std::path::Path,
+    ) -> Vec<String> {
+        let mut args = if config.vr_headset {
+            vec![
+                "run".to_string(),
+                "--no-sync".to_string(),
+                "python".to_string(),
+                runner_path.to_string_lossy().to_string(),
+                "--robot.id=sourccey".to_string(),
+                format!("--robot.remote_ip={}", config.remote_ip.trim()),
+            ]
+        } else {
+            vec![
+                "run".to_string(),
+                "--no-sync".to_string(),
+                "python".to_string(),
+                runner_path.to_string_lossy().to_string(),
+                "--robot.type=sourccey_client".to_string(),
+                "--robot.id=sourccey".to_string(),
+                format!("--robot.remote_ip={}", config.remote_ip.trim()),
+                "--teleop.type=bi_sourccey_leader".to_string(),
+                "--teleop.id=sourccey_leader".to_string(),
+                format!("--teleop.left_arm_port={}", config.left_arm_port.trim()),
+                format!("--teleop.right_arm_port={}", config.right_arm_port.trim()),
+                "--teleop_keyboard.type=keyboard".to_string(),
+                format!("--teleop_keyboard.id={}", config.keyboard.trim()),
+                format!("--desktop_name_pattern={}", config.name_pattern.trim()),
+            ]
+        };
+        if config.vr_headset {
+            args.push(format!(
+                "--vr_start_signal_path={}",
+                Self::vr_start_signal_path(&config.nickname).display()
+            ));
+            args.push(format!(
+                "--vr_stop_signal_path={}",
+                Self::vr_stop_signal_path(&config.nickname).display()
+            ));
+            args.push(format!(
+                "--vr_task_path={}",
+                Self::vr_task_path(&config.nickname).display()
+            ));
+            args.push(format!(
+                "--vr_ready_signal_path={}",
+                Self::vr_ready_signal_path(&config.nickname).display()
+            ));
+            args.push(format!(
+                "--teleop_keyboard.input_state_path={}",
+                RemoteTeleopService::keyboard_state_path(&config.nickname).display()
+            ));
+        } else {
+            args.push(format!(
+                "--teleop_keyboard.input_state_path={}",
+                RemoteTeleopService::keyboard_state_path(&config.nickname).display()
+            ));
+        }
         args.extend([
             format!("--dataset.repo_id={}", config.repo_id.trim()),
             format!("--dataset.num_episodes={}", config.num_episodes),
@@ -445,10 +639,12 @@ mod tests {
             right_arm_port: "/dev/ttyACM1".to_string(),
             keyboard: "keyboard".to_string(),
             repo_id: "local/robot-1".to_string(),
+            name_pattern: "Sourccey-{Task}-{number}-{timestamp}".to_string(),
             num_episodes: 10,
             episode_time_s: 300.0,
             reset_time_s: 5.0,
             single_task: "Fold the shirt".to_string(),
+            vr_headset: false,
             display_data: false,
         }
     }
@@ -479,15 +675,21 @@ mod tests {
 
     #[test]
     fn builds_uv_remote_record_command() {
-        let command_parts = RemoteRecordService::build_command_args(&valid_config());
+        let normal_runner =
+            std::path::Path::new("C:/Vulcan Studio/scripts/vr_recording/standard_runner.py");
+        let command_parts = RemoteRecordService::build_command_args(&valid_config(), normal_runner);
         assert_eq!(command_parts[0], "run");
         assert_eq!(command_parts[1], "--no-sync");
-        assert_eq!(command_parts[2], "sourccey-record");
+        assert_eq!(command_parts[2], "python");
+        assert!(command_parts[3].ends_with("scripts/vr_recording/standard_runner.py"));
         assert!(command_parts
             .iter()
-            .any(|part| part == "--teleop.type=sourccey_teleoperator"));
+            .any(|part| { part == "--desktop_name_pattern=Sourccey-{Task}-{number}-{timestamp}" }));
+        assert!(command_parts
+            .iter()
+            .any(|part| part == "--teleop.type=bi_sourccey_leader"));
         assert!(command_parts.iter().any(|part| {
-            part.starts_with("--teleop.input_state_path=")
+            part.starts_with("--teleop_keyboard.input_state_path=")
                 && part.ends_with("sourccey-keyboard-robot_1.json")
         }));
         assert!(command_parts
@@ -499,8 +701,37 @@ mod tests {
 
         let mut display_config = valid_config();
         display_config.display_data = true;
-        assert!(RemoteRecordService::build_command_args(&display_config)
+        assert!(
+            RemoteRecordService::build_command_args(&display_config, normal_runner)
+                .iter()
+                .any(|part| part == "--display_data=true")
+        );
+
+        let mut vr_config = valid_config();
+        vr_config.vr_headset = true;
+        let vr_runner = std::path::Path::new("C:/Vulcan Studio/scripts/vr_recording/runner.py");
+        let vr_args = RemoteRecordService::build_command_args(&vr_config, vr_runner);
+        assert!(vr_args
             .iter()
-            .any(|part| part == "--display_data=true"));
+            .any(|part| part.ends_with("scripts/vr_recording/runner.py")));
+        assert!(!vr_args.iter().any(|part| part == "lerobot-record"));
+        assert!(vr_args
+            .iter()
+            .any(|part| part.starts_with("--teleop_keyboard.input_state_path=")));
+        assert!(!vr_args
+            .iter()
+            .any(|part| part.starts_with("--teleop.input_state_path=")));
+        assert!(vr_args
+            .iter()
+            .any(|part| part.starts_with("--vr_start_signal_path=")));
+        assert!(vr_args
+            .iter()
+            .any(|part| part.starts_with("--vr_task_path=")));
+        assert!(vr_args
+            .iter()
+            .any(|part| part.starts_with("--vr_ready_signal_path=")));
+        assert!(!vr_args
+            .iter()
+            .any(|part| part.starts_with("--teleop.left_arm_port=")));
     }
 }

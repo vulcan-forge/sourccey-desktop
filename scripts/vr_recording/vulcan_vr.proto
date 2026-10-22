@@ -1,0 +1,64 @@
+syntax = "proto3";
+
+package vulcan.vr.v1;
+
+// This protocol exists only between Vulcan Studio and the VR headset. It is
+// deliberately separate from the protocol used between LeRobot and the robot.
+message CameraImage {
+    string name = 1;
+    bytes image_data = 2;
+}
+
+message MotorJoint {
+    float shoulder_pan = 1;
+    float shoulder_lift = 2;
+    float elbow_flex = 3;
+    float wrist_flex = 4;
+    float wrist_roll = 5;
+    float gripper = 6;
+}
+
+message BaseVelocity {
+    float x_vel = 1;
+    float y_vel = 2;
+    float theta_vel = 3;
+}
+
+message BasePosition {
+    float z_pos = 1;
+}
+
+message DesktopObservation {
+    MotorJoint left_arm_joints = 1;
+    MotorJoint right_arm_joints = 2;
+    BasePosition base_position = 3;
+    BaseVelocity base_velocity = 4;
+    repeated CameraImage cameras = 5;
+    uint32 recording_start_counter = 6;
+    uint32 recording_stop_counter = 7;
+    uint32 recording_rerecord_counter = 8;
+    bool recording_announcements_supported = 9;
+    uint32 recording_announcement_counter = 10;
+    string recording_announcement = 11;
+}
+
+message HeadsetAction {
+    MotorJoint left_arm_target_joints = 1;
+    MotorJoint right_arm_target_joints = 2;
+    BasePosition base_target_position = 3;
+    BaseVelocity base_target_velocity = 4;
+    bool untorque_left = 5;
+    bool untorque_right = 6;
+    bool request_recording_start = 7;
+    bool request_recording_stop = 8;
+    bool request_recording_rerecord = 9;
+    RecordingSettings recording_settings = 10;
+}
+
+message RecordingSettings {
+    string repo_id = 1;
+    uint32 num_episodes = 2;
+    float episode_time_s = 3;
+    float reset_time_s = 4;
+    string single_task = 5;
+}

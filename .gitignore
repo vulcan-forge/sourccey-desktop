@@ -38,6 +38,7 @@ __pycache__/
 
 # logs
 /logs/
+/downloads/
 
 # Tools and Setup
 tools/
