@@ -411,6 +411,12 @@ export const RemoteTeleopAction = ({
                 setIsVrHeadsetStopping(true);
                 setIsVrRerecording(false);
             }
+            if (vrRecording && payload.includes('VR capture continuing; reset the environment')) {
+                vrCaptureStopPending.current = false;
+                setIsVrHeadsetStopping(false);
+                setIsVrCaptureActive(false);
+                setIsVrCaptureReady(false);
+            }
             if (vrRecording && payload.includes('VR recording idle; teleoperation ready')) {
                 vrCaptureStopPending.current = false;
                 setIsVrHeadsetStopping(false);
@@ -430,6 +436,8 @@ export const RemoteTeleopAction = ({
             }
             if (vrRecording && payload.includes('VR capture started: ')) {
                 setIsVrRerecording(false);
+                setIsVrCaptureActive(true);
+                setIsVrHeadsetStopping(false);
             }
             if (payload.includes('Recording ready: capture loop is running.')) {
                 vrCaptureStartPending.current = false;
@@ -587,7 +595,7 @@ export const RemoteTeleopAction = ({
             startupListener.current?.();
             startupListener.current = null;
             console.error('Failed to toggle control:', error);
-            toast.error(`Error: ${error instanceof Error ? error.message : 'Unknown error occurred'}`, {
+            toast.error(`Error: ${error instanceof Error ? error.message : String(error || 'Unknown error occurred')}`, {
                 ...toastErrorDefaults,
             });
             setRemoteRobotState(nickname, RemoteRobotStatus.NONE, RemoteControlType.NONE, ownedRobot);

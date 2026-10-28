@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+from collections import deque
 from dataclasses import dataclass
 from functools import cached_property
 
@@ -43,6 +44,8 @@ class VRHeadset:
         self._rerecord_counter = 0
         self._announcement_counter = 0
         self._announcement = ""
+        self._announcements = deque(maxlen=64)
+        self.recording_phase = "idle"
         self._previous_start = False
         self._previous_stop = False
         self._previous_rerecord = False
@@ -122,7 +125,7 @@ class VRHeadset:
             if action.request_recording_stop and not self._previous_stop:
                 self.stop_requested = True
                 self._stop_counter += 1
-                print("VR headset requested recording stop", flush=True)
+                print("VR headset requested episode stop", flush=True)
             if action.request_recording_rerecord and not self._previous_rerecord:
                 self.rerecord_requested = True
                 self._rerecord_counter += 1
@@ -141,9 +144,9 @@ class VRHeadset:
 
     def confirm_recording_started(self, message: str, observation: dict) -> None:
         self._start_counter += 1
-        self._announcement_counter += 1
-        self._announcement = message
-        self.publish_observation(observation)
+        self._last_observation = observation
+        self.recording_phase = "recording"
+        self.announce(message)
 
     def desktop_stop(self) -> None:
         if not self.stop_requested:
@@ -158,6 +161,7 @@ class VRHeadset:
     def announce(self, message: str) -> None:
         self._announcement_counter += 1
         self._announcement = message
+        self._announcements.append((self._announcement_counter, message))
         if self._last_observation is not None:
             self.publish_observation(self._last_observation, include_cameras=False)
 
@@ -224,4 +228,7 @@ class VRHeadset:
         state.recording_announcements_supported = True
         state.recording_announcement_counter = self._announcement_counter
         state.recording_announcement = self._announcement
+        for sequence, text in self._announcements:
+            state.recording_announcements.add(sequence=sequence, text=text)
+        state.recording_phase = self.recording_phase
         self._observations.send(state.SerializeToString())

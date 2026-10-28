@@ -40,6 +40,14 @@ message DesktopObservation {
     bool recording_announcements_supported = 9;
     uint32 recording_announcement_counter = 10;
     string recording_announcement = 11;
+    // Retained events survive observation-frame coalescing on the headset.
+    repeated RecordingAnnouncement recording_announcements = 12;
+    string recording_phase = 13;
+}
+
+message RecordingAnnouncement {
+    uint32 sequence = 1;
+    string text = 2;
 }
 
 message HeadsetAction {
