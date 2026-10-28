@@ -89,6 +89,25 @@ class VRAdapterTests(unittest.TestCase):
         self.assertTrue(first.startswith("local/demo_") and first.endswith("_fold-the-shirt"))
         self.assertTrue(second.startswith("local/demo-2_") and second.endswith("_fold-the-shirt"))
 
+    def test_rerecord_is_handled_before_blocking_camera_read(self):
+        from unittest.mock import Mock
+        headset = VRHeadset()
+        headset.poll = Mock(side_effect=lambda: setattr(headset, "rerecord_requested", True))
+        robot = SimpleNamespace(
+            get_observation=Mock(side_effect=AssertionError("Rerecord must not wait for cameras")),
+            send_action=Mock(),
+        )
+        events = {"stop_recording": False, "exit_early": False, "rerecord_episode": False}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            runner._record_loop(
+                robot=robot, headset=headset, keyboard=None, events=events, fps=30,
+                teleop_action_processor=None, robot_action_processor=None,
+                robot_observation_processor=None, control_time_s=1, task="test",
+                stop_signal_path=runner.Path(temp_dir) / "stop",
+            )
+        self.assertTrue(events["rerecord_episode"])
+        robot.get_observation.assert_not_called()
+
     def test_desktop_name_pattern_does_not_require_lerobot_modifications(self):
         pattern = "Sourccey-{Task}-{number}-{timestamp}"
         self.assertEqual(
@@ -144,6 +163,215 @@ class VRAdapterTests(unittest.TestCase):
             self_test = self
             runner._discard_current_episode(Dataset())
             self.assertFalse(frame_dir.exists())
+
+
+
+class VREpisodeFlowTests(unittest.TestCase):
+    def run_batch(self, actions, episodes=2, reset_action=None):
+        from contextlib import nullcontext
+        from unittest.mock import Mock
+
+        headset = VRHeadset()
+        robot = SimpleNamespace(send_action=Mock(), get_observation=Mock(return_value={}))
+        dataset = SimpleNamespace(
+            num_episodes=0, repo_id="local/test",
+            writer=SimpleNamespace(episode_buffer={"size": 0}),
+        )
+        saved = []
+        def save():
+            saved.append(dataset.num_episodes + 1)
+            dataset.num_episodes += 1
+            dataset.writer.episode_buffer = {"size": 0}
+        dataset.save_episode = save
+        config = SimpleNamespace(
+            dataset=SimpleNamespace(num_episodes=episodes, fps=30, episode_time_s=10,
+                                    reset_time_s=1, single_task="test"),
+            stop_signal_path=runner.Path("unused"), display_data=False, play_sounds=False,
+        )
+        events = {"stop_recording": False, "exit_early": False, "rerecord_episode": False}
+        actions = iter(actions)
+        attempts = []
+        resets = []
+        def loop(**kwargs):
+            if kwargs["dataset"] is None:
+                resets.append(True)
+                if reset_action and len(resets) == 1:
+                    events["rerecord_episode"] = True
+                    events["exit_early"] = True
+                return
+            action = next(actions)
+            attempts.append(dataset.num_episodes + 1)
+            dataset.writer.episode_buffer["size"] = 3
+            kwargs["on_first_recorded_frame"]({})
+            if action == "stop":
+                headset.stop_requested = True
+            elif action == "rerecord":
+                events["rerecord_episode"] = True
+                events["exit_early"] = True
+            elif action == "desktop_stop":
+                events["stop_capture"] = True
+                headset.stop_requested = True
+            elif action == "disconnect":
+                events["stop_recording"] = True
+                headset.disconnect_requested = True
+        def discard(_dataset):
+            dataset.writer.episode_buffer = {"size": 0}
+        spoken = []
+        with (
+            patch.object(runner, "VideoEncodingManager", side_effect=lambda _: nullcontext()),
+            patch.object(runner, "_record_loop", side_effect=loop),
+            patch.object(runner, "_discard_current_episode", side_effect=discard) as discarded,
+            patch.object(runner, "log_say", side_effect=lambda message, *_: spoken.append(message)),
+        ):
+            runner._record_episodes(config, robot, headset, None, events, dataset, (None, None, None))
+        return SimpleNamespace(saved=saved, attempts=attempts, resets=resets, spoken=spoken,
+                               messages=[text for _, text in headset._announcements],
+                               discarded=discarded.call_count)
+
+    def test_manual_stop_advances_through_every_episode(self):
+        result = self.run_batch(["stop", "stop", "stop"], episodes=3)
+        self.assertEqual(result.saved, [1, 2, 3])
+        self.assertEqual(result.attempts, [1, 2, 3])
+        self.assertEqual(len(result.resets), 2)
+        self.assertEqual(result.spoken, result.messages)
+        self.assertEqual(result.spoken, [
+            "Recording episode 1", "Stopping recording", "Reset the environment",
+            "Recording episode 2", "Stopping recording", "Reset the environment",
+            "Recording episode 3", "Stopping recording",
+        ])
+
+    def test_timed_episodes_advance_automatically(self):
+        result = self.run_batch(["timeout", "timeout"])
+        self.assertEqual(result.saved, [1, 2])
+        self.assertEqual(len(result.resets), 1)
+
+    def test_rerecord_repeats_number_and_does_not_count_discarded_attempt(self):
+        result = self.run_batch(["rerecord", "stop", "stop"])
+        self.assertEqual(result.attempts, [1, 1, 2])
+        self.assertEqual(result.saved, [1, 2])
+        self.assertEqual(result.discarded, 1)
+        self.assertIn("Re-record episode", result.spoken)
+        self.assertEqual(result.spoken, result.messages)
+
+    def test_rerecord_during_reset_repeats_the_unsaved_episode(self):
+        result = self.run_batch(["stop", "stop", "stop"], reset_action="rerecord")
+        self.assertEqual(result.attempts, [1, 1, 2])
+        self.assertEqual(result.discarded, 1)
+
+    def test_desktop_stop_saves_current_episode_and_ends_batch(self):
+        result = self.run_batch(["desktop_stop"], episodes=3)
+        self.assertEqual(result.saved, [1])
+        self.assertEqual(result.resets, [])
+
+    def test_disconnect_does_not_start_another_episode(self):
+        result = self.run_batch(["disconnect"], episodes=3)
+        self.assertEqual(result.saved, [1])
+        self.assertEqual(result.resets, [])
+
+
+class VRContinuousTeleopTests(unittest.TestCase):
+    def run_pending_save(self, *, fresh=True, desktop_stop=False):
+        import threading
+        from unittest.mock import Mock
+
+        main_thread = threading.get_ident()
+        commands = []
+        worker_threads = []
+        saved = threading.Event()
+        headset = VRHeadset()
+        headset.poll = Mock()
+        headset.has_fresh_action = Mock(return_value=fresh)
+        headset.get_action = Mock(return_value={"x.vel": 0.75})
+        headset.publish_observation = Mock()
+        def send(action):
+            self.assertEqual(threading.get_ident(), main_thread)
+            commands.append(action)
+            if len(commands) >= 3:
+                saved.set()
+        def save():
+            worker_threads.append(threading.get_ident())
+            if not saved.wait(5):
+                raise AssertionError("Teleoperation was blocked by saving")
+            return "saved"
+        robot = SimpleNamespace(get_observation=Mock(return_value={}), send_action=send)
+        events = {"stop_recording": False, "exit_early": False, "rerecord_episode": False}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            stop_path = runner.Path(temp_dir) / "stop"
+            if desktop_stop:
+                stop_path.touch()
+            config = SimpleNamespace(dataset=SimpleNamespace(fps=120), stop_signal_path=stop_path)
+            identity = lambda pair: pair[0]
+            result = runner._run_with_live_teleop(
+                save, config, robot, headset, None, events, (identity, identity, None),
+            )
+        self.assertEqual(result, "saved")
+        self.assertNotEqual(worker_threads[0], main_thread)
+        self.assertGreaterEqual(headset.publish_observation.call_count, 3)
+        return commands, events
+
+    def test_robot_keeps_receiving_live_actions_while_episode_saves(self):
+        commands, _ = self.run_pending_save()
+        self.assertTrue(all(action["x.vel"] == 0.75 for action in commands))
+
+    def test_stale_headset_still_holds_robot_while_saving(self):
+        commands, _ = self.run_pending_save(fresh=False)
+        self.assertTrue(all(action["x.vel"] == 0 for action in commands))
+
+    def test_desktop_stop_is_handled_before_the_save_finishes(self):
+        commands, events = self.run_pending_save(desktop_stop=True)
+        self.assertTrue(events["stop_capture"])
+        self.assertTrue(all(action["x.vel"] == 0 for action in commands))
+
+    def test_healthy_episode_boundary_does_not_send_a_hold(self):
+        from unittest.mock import Mock
+        headset = VRHeadset()
+        headset.has_fresh_action = Mock(return_value=True)
+        headset.stop_requested = True
+        robot = SimpleNamespace(send_action=Mock())
+        runner._hold_if_controls_unavailable(robot, headset, {"stop_recording": False}, {})
+        robot.send_action.assert_not_called()
+
+    def test_save_failure_holds_robot_and_propagates(self):
+        from unittest.mock import Mock
+        headset = VRHeadset()
+        robot = SimpleNamespace(send_action=Mock(), get_observation=Mock(return_value={}))
+        def fail():
+            raise RuntimeError("Disk full")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = SimpleNamespace(dataset=SimpleNamespace(fps=30), stop_signal_path=runner.Path(temp_dir) / "stop")
+            with self.assertRaisesRegex(RuntimeError, "Disk full"):
+                runner._run_with_live_teleop(
+                    fail, config, robot, headset, None, {"stop_recording": False}, (None, None, None),
+                )
+        self.assertEqual(robot.send_action.call_args.args[0]["x.vel"], 0)
+
+
+class VRAnnouncementTransportTests(unittest.TestCase):
+    def test_latest_observation_retains_ordered_lifecycle_events(self):
+        from unittest.mock import Mock
+        headset = VRHeadset()
+        headset._observations = Mock()
+        headset._latest = vulcan_vr_pb2.HeadsetAction()
+        headset._last_observation = {}
+        headset.confirm_recording_started("Recording episode 1", {})
+        headset.announce("Stopping recording")
+        headset.announce("Reset the environment")
+        headset.confirm_recording_started("Recording episode 2", {})
+        packet = headset._observations.send.call_args.args[0]
+        state = vulcan_vr_pb2.DesktopObservation.FromString(packet)
+        self.assertEqual(state.recording_phase, "recording")
+        self.assertEqual([event.text for event in state.recording_announcements], [
+            "Recording episode 1", "Stopping recording", "Reset the environment", "Recording episode 2",
+        ])
+        self.assertEqual([event.sequence for event in state.recording_announcements], [1, 2, 3, 4])
+        self.assertEqual(state.recording_announcement, "Recording episode 2")
+
+    def test_announcement_history_is_bounded(self):
+        headset = VRHeadset()
+        for i in range(100):
+            headset.announce(str(i))
+        self.assertEqual(len(headset._announcements), 64)
+        self.assertEqual(headset._announcements[0], (37, "36"))
 
 
 if __name__ == "__main__":
