@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { FaTools } from 'react-icons/fa';
 import { RobotCalibration } from '@/components/Elements/Robot/RobotCalibration';
 import { RobotStartSection } from '@/components/Elements/Robot/RobotStart';
@@ -17,16 +17,11 @@ export const RobotControl: React.FC<RobotControlProps> = ({ nickname, robotType 
     const hasCalibration = useMemo(() => !!calibration && Object.keys(calibration).length > 0, [calibration]);
     const [activeView, setActiveView] = useState<'control' | 'calibration'>(hasCalibration ? 'control' : 'calibration');
     const [isUntorquing, setIsUntorquing] = useState(false);
-    const previousHasCalibrationRef = useRef(hasCalibration);
-
-    useEffect(() => {
-        if (!hasCalibration) {
-            setActiveView('calibration');
-        } else if (!previousHasCalibrationRef.current) {
-            setActiveView('control');
-        }
-        previousHasCalibrationRef.current = hasCalibration;
-    }, [hasCalibration]);
+    const [previousHasCalibration, setPreviousHasCalibration] = useState(hasCalibration);
+    if (hasCalibration !== previousHasCalibration) {
+        setPreviousHasCalibration(hasCalibration);
+        setActiveView(hasCalibration ? 'control' : 'calibration');
+    }
 
     const { isRobotStarted, isStarting, isStopping, handleStartRobot, handleStopRobot } = useKioskRobotStartStop(nickname || '');
 

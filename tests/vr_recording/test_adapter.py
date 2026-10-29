@@ -1,4 +1,6 @@
 import tempfile
+import json
+import logging
 import sys
 import unittest
 from types import SimpleNamespace
@@ -166,8 +168,43 @@ class VRAdapterTests(unittest.TestCase):
 
 
 
+class VRInvalidDraftTests(unittest.TestCase):
+    def test_invalid_draft_blocks_headset_and_desktop_start_without_reusing_settings(self):
+        from unittest.mock import Mock
+        for desktop_start in (False, True):
+            with self.subTest(desktop_start=desktop_start), tempfile.TemporaryDirectory() as directory:
+                root = runner.Path(directory)
+                dataset = SimpleNamespace(num_episodes=3, reset_time_s=15, fps=1000, single_task="old task")
+                config = SimpleNamespace(dataset=dataset, task_path=root / "settings",
+                    ready_signal_path=root / "ready", start_signal_path=root / "start", stop_signal_path=root / "stop")
+                config.task_path.write_text(json.dumps({"valid": False}), encoding="utf-8")
+                headset = VRHeadset()
+                headset.has_fresh_action = Mock(return_value=True)
+                headset.get_action = Mock(return_value={})
+                headset.publish_observation = Mock()
+                ticks = 0
+                def poll(**_kwargs):
+                    nonlocal ticks
+                    ticks += 1
+                    if ticks == 2:
+                        if desktop_start:
+                            config.start_signal_path.write_text(json.dumps({"valid": False}), encoding="utf-8")
+                        else:
+                            headset.start_requested = True
+                    elif ticks >= 3:
+                        headset.disconnect_requested = True
+                headset.poll = poll
+                robot = SimpleNamespace(get_observation=Mock(return_value={}), send_action=Mock())
+                events = {"stop_recording": False}
+                with patch("builtins.print") as output:
+                    task = runner._wait_for_capture(config, robot, headset, None, events)
+                self.assertIsNone(task)
+                self.assertEqual(dataset.single_task, "old task")
+                self.assertTrue(any("Correct the recording settings" in str(call) for call in output.call_args_list))
+
+
 class VREpisodeFlowTests(unittest.TestCase):
-    def run_batch(self, actions, episodes=2, reset_action=None):
+    def run_batch(self, actions, episodes=2, reset_action=None, updated_settings=None, desktop_start=False):
         from contextlib import nullcontext
         from unittest.mock import Mock
 
@@ -179,7 +216,7 @@ class VREpisodeFlowTests(unittest.TestCase):
         )
         saved = []
         def save():
-            saved.append(dataset.num_episodes + 1)
+            saved.append(dataset.num_episodes)
             dataset.num_episodes += 1
             dataset.writer.episode_buffer = {"size": 0}
         dataset.save_episode = save
@@ -189,18 +226,41 @@ class VREpisodeFlowTests(unittest.TestCase):
             stop_signal_path=runner.Path("unused"), display_data=False, play_sounds=False,
         )
         events = {"stop_recording": False, "exit_early": False, "rerecord_episode": False}
+        if updated_settings:
+            # Open with defaults, edit desktop settings, then start without reconnecting.
+            with tempfile.TemporaryDirectory() as temp_dir:
+                config.task_path = runner.Path(temp_dir) / "settings"
+                config.start_signal_path = runner.Path(temp_dir) / "start"
+                config.ready_signal_path = runner.Path(temp_dir) / "ready"
+                config.stop_signal_path = runner.Path(temp_dir) / "stop"
+                config.task_path.write_text(json.dumps(updated_settings), encoding="utf-8")
+                headset.has_fresh_action = Mock(return_value=True)
+                headset.get_action = Mock(return_value={})
+                headset.publish_observation = Mock()
+                def poll(**kwargs):
+                    if kwargs.get("allow_start", True):
+                        if desktop_start:
+                            config.start_signal_path.write_text(json.dumps(updated_settings), encoding="utf-8")
+                            # A later settings edit cannot change this desktop Start snapshot.
+                            config.task_path.write_text("another task", encoding="utf-8")
+                        else:
+                            headset.start_requested = True
+                headset.poll = Mock(side_effect=poll)
+                self.assertEqual(runner._wait_for_capture(config, robot, headset, None, events), updated_settings["single_task"])
+                headset.poll = Mock()
         actions = iter(actions)
         attempts = []
         resets = []
         def loop(**kwargs):
             if kwargs["dataset"] is None:
-                resets.append(True)
+                resets.append(kwargs["control_time_s"])
                 if reset_action and len(resets) == 1:
                     events["rerecord_episode"] = True
                     events["exit_early"] = True
                 return
+            self.assertEqual(kwargs["control_time_s"], updated_settings["episode_time_s"] if updated_settings else 10)
             action = next(actions)
-            attempts.append(dataset.num_episodes + 1)
+            attempts.append(dataset.num_episodes)
             dataset.writer.episode_buffer["size"] = 3
             kwargs["on_first_recorded_frame"]({})
             if action == "stop":
@@ -217,55 +277,100 @@ class VREpisodeFlowTests(unittest.TestCase):
         def discard(_dataset):
             dataset.writer.episode_buffer = {"size": 0}
         spoken = []
+        lerobot_log_say = runner.log_say
+        def speak(message, *_):
+            spoken.append(message)
+            lerobot_log_say(message, play_sounds=False)
         with (
+            self.assertLogs(level="INFO"),
             patch.object(runner, "VideoEncodingManager", side_effect=lambda _: nullcontext()),
             patch.object(runner, "_record_loop", side_effect=loop),
             patch.object(runner, "_discard_current_episode", side_effect=discard) as discarded,
-            patch.object(runner, "log_say", side_effect=lambda message, *_: spoken.append(message)),
+            patch.object(runner, "log_say", side_effect=speak),
         ):
             runner._record_episodes(config, robot, headset, None, events, dataset, (None, None, None))
         return SimpleNamespace(saved=saved, attempts=attempts, resets=resets, spoken=spoken,
                                messages=[text for _, text in headset._announcements],
                                discarded=discarded.call_count)
 
+    def test_settings_edited_after_connect_apply_to_headset_and_desktop_start(self):
+        settings = dict(repo_id="local/updated", name_pattern="New-{Task}-{number}-{timestamp}",
+                        num_episodes=3, episode_time_s=42, reset_time_s=25, single_task="new task")
+        for desktop_start in (False, True):
+            with self.subTest(desktop_start=desktop_start):
+                result = self.run_batch(["stop", "stop", "stop"], episodes=1,
+                                        updated_settings=settings, desktop_start=desktop_start)
+                self.assertEqual(result.saved, [0, 1, 2])
+                self.assertEqual(result.resets, [25, 25])
+
+    def test_rerecord_uses_reset_time_edited_after_connect(self):
+        settings = dict(repo_id="local/updated", name_pattern="", num_episodes=1,
+                        episode_time_s=42, reset_time_s=25, single_task="new task")
+        result = self.run_batch(["rerecord", "stop"], updated_settings=settings)
+        self.assertEqual(result.attempts, [0, 0])
+        self.assertEqual(result.saved, [0])
+        self.assertEqual(result.resets, [25])
+        self.assertEqual(result.discarded, 1)
+
+    def test_invalid_settings_do_not_partially_change_the_batch(self):
+        config = SimpleNamespace(dataset=SimpleNamespace(num_episodes=1, reset_time_s=5, repo_id="local/original"))
+        settings = dict(repo_id="local/new", name_pattern="", num_episodes=3,
+                        episode_time_s=10, reset_time_s=-1, single_task="test")
+        with self.assertRaises(ValueError):
+            runner._apply_capture_settings(config, json.dumps(settings))
+        self.assertEqual(config.dataset.num_episodes, 1)
+        self.assertEqual(config.dataset.reset_time_s, 5)
+        self.assertEqual(config.dataset.repo_id, "local/original")
+
     def test_manual_stop_advances_through_every_episode(self):
         result = self.run_batch(["stop", "stop", "stop"], episodes=3)
-        self.assertEqual(result.saved, [1, 2, 3])
-        self.assertEqual(result.attempts, [1, 2, 3])
+        self.assertEqual(result.saved, [0, 1, 2])
+        self.assertEqual(result.attempts, [0, 1, 2])
         self.assertEqual(len(result.resets), 2)
         self.assertEqual(result.spoken, result.messages)
         self.assertEqual(result.spoken, [
+            "Recording episode 0", "Stopping recording", "Reset the environment",
             "Recording episode 1", "Stopping recording", "Reset the environment",
-            "Recording episode 2", "Stopping recording", "Reset the environment",
-            "Recording episode 3", "Stopping recording",
+            "Recording episode 2", "Stopping recording",
         ])
 
     def test_timed_episodes_advance_automatically(self):
         result = self.run_batch(["timeout", "timeout"])
-        self.assertEqual(result.saved, [1, 2])
+        self.assertEqual(result.saved, [0, 1])
         self.assertEqual(len(result.resets), 1)
 
     def test_rerecord_repeats_number_and_does_not_count_discarded_attempt(self):
         result = self.run_batch(["rerecord", "stop", "stop"])
-        self.assertEqual(result.attempts, [1, 1, 2])
-        self.assertEqual(result.saved, [1, 2])
+        self.assertEqual(result.attempts, [0, 0, 1])
+        self.assertEqual(result.saved, [0, 1])
         self.assertEqual(result.discarded, 1)
         self.assertIn("Re-record episode", result.spoken)
         self.assertEqual(result.spoken, result.messages)
 
+    def test_three_episode_announcements_match_saved_indexes_after_rerecord(self):
+        result = self.run_batch(["stop", "rerecord", "stop", "stop"], episodes=3)
+        self.assertEqual(result.saved, [0, 1, 2])
+        self.assertEqual(result.attempts, [0, 1, 1, 2])
+        self.assertEqual(result.discarded, 1)
+        self.assertEqual(
+            [message for message in result.messages if message.startswith("Recording episode ")],
+            ["Recording episode 0", "Recording episode 1", "Recording episode 1", "Recording episode 2"],
+        )
+        self.assertEqual(result.spoken, result.messages)
+
     def test_rerecord_during_reset_repeats_the_unsaved_episode(self):
         result = self.run_batch(["stop", "stop", "stop"], reset_action="rerecord")
-        self.assertEqual(result.attempts, [1, 1, 2])
+        self.assertEqual(result.attempts, [0, 0, 1])
         self.assertEqual(result.discarded, 1)
 
     def test_desktop_stop_saves_current_episode_and_ends_batch(self):
         result = self.run_batch(["desktop_stop"], episodes=3)
-        self.assertEqual(result.saved, [1])
+        self.assertEqual(result.saved, [0])
         self.assertEqual(result.resets, [])
 
     def test_disconnect_does_not_start_another_episode(self):
         result = self.run_batch(["disconnect"], episodes=3)
-        self.assertEqual(result.saved, [1])
+        self.assertEqual(result.saved, [0])
         self.assertEqual(result.resets, [])
 
 
@@ -347,24 +452,42 @@ class VRContinuousTeleopTests(unittest.TestCase):
 
 
 class VRAnnouncementTransportTests(unittest.TestCase):
+    def test_headset_forwards_actual_lerobot_log_say_output_once(self):
+        headset = VRHeadset()
+        messages = ["Recording episode 0", "Reset the environment", "Re-record episode", "Recording episode 0", "Stop recording"]
+        with self.assertLogs(level="INFO"):
+            with runner._forward_lerobot_speech(headset):
+                with runner._forward_lerobot_speech(headset):
+                    for message in messages:
+                        runner.log_say(message, play_sounds=False)
+                    logging.info("Unrelated encoder status")
+            runner.log_say("After the recording connection closes", play_sounds=False)
+        self.assertEqual([message for _, message in headset._announcements], messages)
+
+    def test_receivers_have_distinct_announcement_sessions(self):
+        self.assertNotEqual(VRHeadset()._session_id, VRHeadset()._session_id)
+
     def test_latest_observation_retains_ordered_lifecycle_events(self):
         from unittest.mock import Mock
         headset = VRHeadset()
         headset._observations = Mock()
         headset._latest = vulcan_vr_pb2.HeadsetAction()
         headset._last_observation = {}
-        headset.confirm_recording_started("Recording episode 1", {})
+        headset.mark_recording_started({})
+        headset.announce("Recording episode 0")
         headset.announce("Stopping recording")
         headset.announce("Reset the environment")
-        headset.confirm_recording_started("Recording episode 2", {})
+        headset.mark_recording_started({})
+        headset.announce("Recording episode 1")
         packet = headset._observations.send.call_args.args[0]
         state = vulcan_vr_pb2.DesktopObservation.FromString(packet)
         self.assertEqual(state.recording_phase, "recording")
+        self.assertEqual(state.recording_session_id, headset._session_id)
         self.assertEqual([event.text for event in state.recording_announcements], [
-            "Recording episode 1", "Stopping recording", "Reset the environment", "Recording episode 2",
+            "Recording episode 0", "Stopping recording", "Reset the environment", "Recording episode 1",
         ])
         self.assertEqual([event.sequence for event in state.recording_announcements], [1, 2, 3, 4])
-        self.assertEqual(state.recording_announcement, "Recording episode 2")
+        self.assertEqual(state.recording_announcement, "Recording episode 1")
 
     def test_announcement_history_is_bounded(self):
         headset = VRHeadset()

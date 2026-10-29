@@ -1,4 +1,6 @@
-use crate::modules::control::controllers::remote_control::remote_record_controller::RemoteRecordConfig;
+use crate::modules::control::controllers::remote_control::remote_record_controller::{
+    RemoteRecordConfig, VrRecordSettings,
+};
 use crate::modules::control::services::remote_control::remote_command_utils::{
     create_command_log, format_command_for_display, init_managed_processes, process_log_path,
     resolve_uv_runtime, write_process_log, ManagedRemoteProcesses,
@@ -104,7 +106,17 @@ impl RemoteRecordService {
             let _ = std::fs::remove_file(Self::vr_start_signal_path(&config.nickname));
             let _ = std::fs::remove_file(Self::vr_stop_signal_path(&config.nickname));
             let _ = std::fs::remove_file(Self::vr_ready_signal_path(&config.nickname));
-            Self::write_vr_task(&config.nickname, &config.single_task)?;
+            Self::write_vr_settings(
+                &config.nickname,
+                Some(&VrRecordSettings {
+                    repo_id: config.repo_id.clone(),
+                    name_pattern: config.name_pattern.clone(),
+                    num_episodes: config.num_episodes,
+                    episode_time_s: config.episode_time_s,
+                    reset_time_s: config.reset_time_s,
+                    single_task: config.single_task.clone(),
+                }),
+            )?;
         }
         let runner_name = if config.vr_headset {
             "runner.py"
@@ -440,47 +452,60 @@ impl RemoteRecordService {
         RemoteTeleopService::keyboard_state_path(nickname).with_extension("vr-ready")
     }
 
-    fn write_vr_task(nickname: &str, task: &str) -> Result<(), String> {
+    fn write_vr_settings(
+        nickname: &str,
+        settings: Option<&VrRecordSettings>,
+    ) -> Result<(), String> {
         let path = Self::vr_task_path(nickname);
         let pending = path.with_extension("vr-task.pending");
-        std::fs::write(&pending, task.trim())
-            .map_err(|error| format!("Could not write VR recording task: {error}"))?;
+        let validation = settings.map_or(Ok(()), VrRecordSettings::validate);
+        // An invalid draft must replace the previous valid settings, so headset
+        // Start cannot silently reuse a stale task or episode count.
+        let payload = match settings {
+            Some(settings) if validation.is_ok() => serde_json::to_vec(settings),
+            _ => serde_json::to_vec(&serde_json::json!({ "valid": false })),
+        }
+        .map_err(|error| error.to_string())?;
+        std::fs::write(&pending, payload)
+            .map_err(|error| format!("Could not write VR recording settings: {error}"))?;
         std::fs::rename(&pending, &path)
-            .map_err(|error| format!("Could not activate VR recording task: {error}"))
+            .map_err(|error| format!("Could not activate VR recording settings: {error}"))?;
+        validation
     }
 
-    pub fn update_vr_record_task(
+    pub fn update_vr_record_settings(
         state: &RemoteRecordProcess,
         nickname: &str,
-        task: &str,
+        settings: Option<&VrRecordSettings>,
     ) -> Result<(), String> {
         let processes = state.0.lock().unwrap();
         if !processes.contains_key(nickname) {
             return Err("Open the recording teleoperation connection first.".to_string());
         }
-        Self::write_vr_task(nickname, task)
+        Self::write_vr_settings(nickname, settings)
     }
 
     pub fn begin_vr_record(
         state: &RemoteRecordProcess,
         nickname: &str,
-        task: &str,
+        settings: &VrRecordSettings,
         requested_at_ms: Option<u64>,
     ) -> Result<(), String> {
-        if task.trim().is_empty() {
-            return Err("Task is required before starting a recording.".to_string());
-        }
+        settings.validate()?;
         if !Self::vr_ready_signal_path(nickname).is_file() {
             return Err(
                 "Recording is still saving or waiting for live headset controls.".to_string(),
             );
         }
-        Self::update_vr_record_task(state, nickname, task)?;
-        // The signal carries the task so queued task-field updates cannot change this capture.
+        Self::update_vr_record_settings(state, nickname, Some(settings))?;
+        // Snapshot all settings so later edits only affect the next batch.
         let start_path = Self::vr_start_signal_path(nickname);
         let pending_path = start_path.with_extension("vr-start.pending");
-        std::fs::write(&pending_path, format!("task:{}", task.trim()).as_bytes())
-            .map_err(|error| format!("Could not signal VR recording start: {error}"))?;
+        std::fs::write(
+            &pending_path,
+            serde_json::to_vec(settings).map_err(|error| error.to_string())?,
+        )
+        .map_err(|error| format!("Could not signal VR recording start: {error}"))?;
         std::fs::rename(&pending_path, &start_path)
             .map_err(|error| format!("Could not activate VR recording start: {error}"))?;
         let ui_wait_ms = requested_at_ms.and_then(|requested| {
@@ -647,6 +672,44 @@ mod tests {
             vr_headset: false,
             display_data: false,
         }
+    }
+
+    #[test]
+    fn invalid_draft_replaces_previously_valid_settings() {
+        let nickname = format!(
+            "invalid-draft-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        );
+        let path = RemoteRecordService::vr_task_path(&nickname);
+        let mut settings = VrRecordSettings {
+            repo_id: "local/test".to_string(),
+            name_pattern: "Demo-{Task}-{number}-{timestamp}".to_string(),
+            num_episodes: 3,
+            episode_time_s: 30.0,
+            reset_time_s: 15.0,
+            single_task: "Fold the shirt".to_string(),
+        };
+        RemoteRecordService::write_vr_settings(&nickname, Some(&settings)).unwrap();
+        let payload: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(payload["num_episodes"], 3);
+
+        RemoteRecordService::write_vr_settings(&nickname, None).unwrap();
+        let payload: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(payload, serde_json::json!({ "valid": false }));
+
+        RemoteRecordService::write_vr_settings(&nickname, Some(&settings)).unwrap();
+        settings.num_episodes = 0;
+        assert!(RemoteRecordService::write_vr_settings(&nickname, Some(&settings)).is_err());
+        let payload: serde_json::Value =
+            serde_json::from_slice(&std::fs::read(&path).unwrap()).unwrap();
+        assert_eq!(payload, serde_json::json!({ "valid": false }));
+        std::fs::remove_file(path).unwrap();
     }
 
     #[test]

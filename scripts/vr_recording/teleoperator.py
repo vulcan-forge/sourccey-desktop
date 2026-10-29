@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import uuid
 from collections import deque
 from dataclasses import dataclass
 from functools import cached_property
@@ -42,6 +43,7 @@ class VRHeadset:
         self._start_counter = 0
         self._stop_counter = 0
         self._rerecord_counter = 0
+        self._session_id = uuid.uuid4().hex
         self._announcement_counter = 0
         self._announcement = ""
         self._announcements = deque(maxlen=64)
@@ -142,11 +144,10 @@ class VRHeadset:
         self.start_requested = False
         self._last_packet_at = 0.0
 
-    def confirm_recording_started(self, message: str, observation: dict) -> None:
+    def mark_recording_started(self, observation: dict) -> None:
         self._start_counter += 1
         self._last_observation = observation
         self.recording_phase = "recording"
-        self.announce(message)
 
     def desktop_stop(self) -> None:
         if not self.stop_requested:
@@ -230,5 +231,6 @@ class VRHeadset:
         state.recording_announcement = self._announcement
         for sequence, text in self._announcements:
             state.recording_announcements.add(sequence=sequence, text=text)
+        state.recording_session_id = self._session_id
         state.recording_phase = self.recording_phase
         self._observations.send(state.SerializeToString())

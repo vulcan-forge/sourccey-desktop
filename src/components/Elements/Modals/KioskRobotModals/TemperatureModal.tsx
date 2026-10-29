@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useHydrated } from '@/hooks/use-hydrated';
 import { createPortal } from 'react-dom';
 import { FaFan, FaFire, FaInfoCircle, FaThermometerHalf, FaTimes } from 'react-icons/fa';
 import type { ThermalData } from '@/hooks/System/system-info.hook';
@@ -38,9 +39,8 @@ export function TemperatureModal({
     title = 'Temperature & cooling',
     subtitle = 'Live processor and fan information',
 }: TemperatureModalProps) {
-    const [mounted, setMounted] = useState(false);
+    const mounted = useHydrated();
 
-    useEffect(() => setMounted(true), []);
     useEffect(() => {
         if (!isOpen) return;
         const closeOnEscape = (event: KeyboardEvent) => event.key === 'Escape' && onClose();

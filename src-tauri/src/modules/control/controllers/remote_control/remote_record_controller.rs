@@ -26,6 +26,36 @@ pub struct RemoteRecordConfig {
     pub display_data: bool,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct VrRecordSettings {
+    pub repo_id: String,
+    pub name_pattern: String,
+    pub num_episodes: i32,
+    pub episode_time_s: f64,
+    pub reset_time_s: f64,
+    pub single_task: String,
+}
+
+impl VrRecordSettings {
+    pub fn validate(&self) -> Result<(), String> {
+        if self.repo_id.trim().is_empty() || self.single_task.trim().is_empty() {
+            return Err("Record path and task are required.".to_string());
+        }
+        if self.num_episodes <= 0
+            || !self.episode_time_s.is_finite()
+            || self.episode_time_s <= 0.0
+            || !self.reset_time_s.is_finite()
+            || self.reset_time_s < 0.0
+        {
+            return Err(
+                "Episodes and episode time must be positive; reset time must be nonnegative."
+                    .to_string(),
+            );
+        }
+        Ok(())
+    }
+}
+
 pub fn init_remote_record() -> RemoteRecordProcess {
     RemoteRecordService::init_remote_record()
 }
@@ -56,19 +86,19 @@ pub fn stop_remote_record(
 pub fn begin_vr_record(
     state: State<RemoteRecordProcess>,
     nickname: String,
-    task: String,
+    settings: VrRecordSettings,
     requested_at_ms: Option<u64>,
 ) -> Result<(), String> {
-    RemoteRecordService::begin_vr_record(&state, &nickname, &task, requested_at_ms)
+    RemoteRecordService::begin_vr_record(&state, &nickname, &settings, requested_at_ms)
 }
 
 #[command]
-pub fn update_vr_record_task(
+pub fn update_vr_record_settings(
     state: State<RemoteRecordProcess>,
     nickname: String,
-    task: String,
+    settings: Option<VrRecordSettings>,
 ) -> Result<(), String> {
-    RemoteRecordService::update_vr_record_task(&state, &nickname, &task)
+    RemoteRecordService::update_vr_record_settings(&state, &nickname, settings.as_ref())
 }
 
 #[command]

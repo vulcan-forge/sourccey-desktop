@@ -4,12 +4,12 @@ import { BatteryModal } from '@/components/Elements/Modals/KioskRobotModals/Batt
 import {
     calculateBatteryPercent,
     getBatteryChargeState,
-    getBatteryLevelStep,
     getBatteryStatusSurfaceClasses,
     type BatteryData,
 } from '@/hooks/System/system-info.hook';
 import { useState } from 'react';
-import { FaBatteryEmpty, FaBatteryFull, FaBatteryHalf, FaBatteryQuarter, FaBatteryThreeQuarters, FaBolt } from 'react-icons/fa';
+import { FaBolt } from 'react-icons/fa';
+import { BatteryLevelIcon } from './BatteryLevelIcon';
 
 type RobotBatteryStatusProps = {
     batteryData?: BatteryData | null;
@@ -27,22 +27,12 @@ const UNAVAILABLE_BATTERY: BatteryData = {
     error: null,
 };
 
-const getBatteryIcon = (percent: number) => {
-    const level = getBatteryLevelStep(percent);
-    if (level === 100) return FaBatteryFull;
-    if (level === 75) return FaBatteryThreeQuarters;
-    if (level === 50) return FaBatteryHalf;
-    if (level === 25) return FaBatteryQuarter;
-    return FaBatteryEmpty;
-};
-
 export const RobotBatteryStatus = ({ batteryData, robotName = 'Robot', variant = 'badge' }: RobotBatteryStatusProps) => {
     const [isOpen, setIsOpen] = useState(false);
     const data = batteryData ?? UNAVAILABLE_BATTERY;
     const percent = calculateBatteryPercent(data);
     const hasTelemetry = percent >= 0 || Boolean(data.error);
     const isCharging = getBatteryChargeState(data) === 'charging';
-    const BatteryIcon = getBatteryIcon(percent);
     const value = percent >= 0 ? `${percent}%` : '--';
 
     return (
@@ -64,7 +54,7 @@ export const RobotBatteryStatus = ({ batteryData, robotName = 'Robot', variant =
                 title={hasTelemetry ? 'View battery details' : 'Battery telemetry unavailable'}
             >
                 <span className="relative">
-                    <BatteryIcon className={variant === 'navbar' ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
+                    <BatteryLevelIcon percent={percent} className={variant === 'navbar' ? 'h-4 w-4' : 'h-3.5 w-3.5'} />
                     {isCharging ? <FaBolt className="absolute -top-1 -right-1 h-2 w-2 text-amber-300" /> : null}
                 </span>
                 <span>{variant === 'navbar' ? `Battery ${value}` : value}</span>

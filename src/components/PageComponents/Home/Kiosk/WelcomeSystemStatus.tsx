@@ -1,19 +1,15 @@
 'use client';
 
+import { BatteryLevelIcon } from '@/components/Elements/Robots/BatteryLevelIcon';
 import { useState } from 'react';
 
 import {
-    FaBatteryEmpty,
-    FaBatteryFull,
-    FaBatteryHalf,
-    FaBatteryQuarter,
-    FaBatteryThreeQuarters,
     FaBolt,
     FaNetworkWired,
     FaThermometerHalf,
     FaChevronRight,
 } from 'react-icons/fa';
-import { calculateBatteryPercent, getBatteryLevelStep, isBatteryCharging } from '@/hooks/System/system-info.hook';
+import { calculateBatteryPercent, isBatteryCharging } from '@/hooks/System/system-info.hook';
 import type { WelcomeSystemInfo } from './welcome.types';
 import { BatteryModal } from '@/components/Elements/Modals/KioskRobotModals/BatteryModal';
 import { TemperatureModal } from '@/components/Elements/Modals/KioskRobotModals/TemperatureModal';
@@ -34,15 +30,6 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
     const [activeModal, setActiveModal] = useState<'battery' | 'temperature' | 'network' | null>(null);
     const networkStatus = useNetworkStatus();
     const network = networkSummary(networkStatus.isError ? undefined : networkStatus.data);
-    const getBatteryIcon = (percent: number) => {
-        const level = getBatteryLevelStep(percent);
-        if (level === 100) return FaBatteryFull;
-        if (level === 75) return FaBatteryThreeQuarters;
-        if (level === 50) return FaBatteryHalf;
-        if (level === 25) return FaBatteryQuarter;
-        return FaBatteryEmpty;
-    };
-
     const getBatteryColor = (percent: number) => {
         if (percent > 75) return 'text-emerald-300';
         if (percent >= 10) return 'text-white';
@@ -51,7 +38,6 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
 
     const batteryPercent = calculateBatteryPercent(systemInfo.batteryData);
     const batteryIsCharging = isBatteryCharging(systemInfo.batteryData);
-    const BatteryIcon = isLoadingSystemInfo ? FaBatteryFull : getBatteryIcon(batteryPercent);
     const batteryColor = isLoadingSystemInfo ? 'text-white' : getBatteryColor(batteryPercent);
     const batteryPercentString = batteryPercent >= 0 ? `${batteryPercent}%` : 'Off';
 
@@ -79,7 +65,7 @@ export const WelcomeSystemStatus = ({ nickname, robotType, systemInfo, isLoading
                         <div>
                             <div className="flex items-center gap-2 text-sm text-slate-400">
                                 <span className="relative inline-flex">
-                                    <BatteryIcon className={`h-4 w-4 ${batteryColor}`} />
+                                    <BatteryLevelIcon percent={isLoadingSystemInfo ? 100 : batteryPercent} className={`h-4 w-4 ${batteryColor}`} />
                                     {!isLoadingSystemInfo && batteryIsCharging ? (
                                         <FaBolt className="absolute -top-1 -right-1 h-2.5 w-2.5 text-amber-300" />
                                     ) : null}

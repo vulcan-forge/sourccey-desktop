@@ -99,7 +99,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         setSourceMap(createEmptyManualDriveSourceMap());
     }, []);
 
-    const sendPressedKeys = async (keys: ManualDriveKey[]) => {
+    const sendPressedKeys = useCallback(async (keys: ManualDriveKey[]) => {
         try {
             await invoke('set_kiosk_manual_drive_keys', { nickname, keys });
             setToastErrorMessage(null);
@@ -119,7 +119,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
                 });
             }
         }
-    };
+    }, [nickname, toastErrorMessage]);
 
     useEffect(() => {
         pressedKeysRef.current = pressedKeys;
@@ -194,7 +194,7 @@ export const KioskManualDrivePad: React.FC<KioskManualDrivePadProps> = ({ nickna
         return () => {
             window.clearInterval(interval);
         };
-    }, [bridgeReady, pressedKeys]);
+    }, [bridgeReady, pressedKeys, sendPressedKeys]);
 
     useEffect(() => {
         const unlistenShutdown = kioskEventManager.listenManualDriveShutdown((payload) => {

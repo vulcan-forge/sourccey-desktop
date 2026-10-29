@@ -102,6 +102,11 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false, mo
     const { data: desktopEnvironmentSettings } = useDesktopEnvironmentSettings();
     const [controlLogs, setControlLogs] = useState<string[]>([]);
     const [isExpanded, setIsExpanded] = useState(isControlling);
+    const [wasControlling, setWasControlling] = useState(isControlling);
+    if (wasControlling !== isControlling) {
+        setWasControlling(isControlling);
+        if (isControlling) setIsExpanded(true);
+    }
     const logsRef = useRef<string[]>([]);
     const pendingLogsRef = useRef<string[]>([]);
     const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -152,10 +157,7 @@ export const RobotDesktopLogs = ({ isControlling, nickname, embedded = false, mo
     );
 
     useEffect(() => {
-        if (isControlling) {
-            setIsExpanded(true);
-            return;
-        }
+        if (isControlling) return;
 
         if (pendingLogsRef.current.length > 0) {
             if (flushTimerRef.current !== null) {

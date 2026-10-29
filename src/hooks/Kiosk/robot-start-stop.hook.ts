@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import { useRobotStatus } from '@/context/robot-status-context';
 import { toast } from 'react-toastify';
@@ -21,7 +21,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
     const motorErrorLogRef = useRef('');
     const motorErrorToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-    const completeStop = () => {
+    const completeStop = useCallback(() => {
         stopActionLockRef.current = false;
         setIsStopping(false);
         setIsStarting(false);
@@ -29,7 +29,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
         hasConfirmedStartRef.current = false;
         startRequestedAtRef.current = 0;
         postStopGuardUntilRef.current = Date.now() + POST_STOP_TAP_GUARD_MS;
-    };
+    }, [setIsRobotStarted]);
 
     const failStop = () => {
         stopActionLockRef.current = false;
@@ -141,7 +141,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
             unlistenStopRobot();
             unlistenStopRobotError();
         };
-    }, [nickname, setIsRobotStarted]);
+    }, [completeStop, nickname, setIsRobotStarted]);
 
     useEffect(() => {
         const unlistenHostLog = kioskEventManager.listenHostLog((line) => {
@@ -286,7 +286,7 @@ export const useKioskRobotStartStop = (nickname: string) => {
         return () => {
             interval && clearInterval(interval);
         };
-    }, [nickname, isRobotStarted, isStopping, setIsRobotStarted]);
+    }, [completeStop, nickname, isRobotStarted, isStarting, isStopping, setIsRobotStarted]);
 
     const handleStartRobot = async () => {
         if (Date.now() < postStopGuardUntilRef.current) return;

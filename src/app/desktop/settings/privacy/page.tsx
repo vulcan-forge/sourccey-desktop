@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { FaArrowRight, FaCheckCircle, FaShieldAlt } from 'react-icons/fa';
 import { PrivacyChoices } from '@/components/Elements/Settings/PrivacyChoices';
@@ -20,18 +20,14 @@ export default function PrivacySettingsPage() {
     const router = useRouter();
     const { data, isLoading, error } = usePrivacyPreferences();
     const savePreferences = useSavePrivacyPreferences();
-    const [choices, setChoices] = useState<SavePrivacyPreferencesRequest>(emptyChoices);
+    const [draftChoices, setChoices] = useState<SavePrivacyPreferencesRequest | null>(null);
+    const choices = draftChoices ?? (data ? {
+        diagnosticsEnabled: data.diagnosticsEnabled,
+        datasetMetadataEnabled: data.datasetMetadataEnabled,
+        trajectoryUploadEnabled: data.trajectoryUploadEnabled,
+        cameraUploadEnabled: data.cameraUploadEnabled,
+    } : emptyChoices);
     const [saved, setSaved] = useState(false);
-
-    useEffect(() => {
-        if (!data) return;
-        setChoices({
-            diagnosticsEnabled: data.diagnosticsEnabled,
-            datasetMetadataEnabled: data.datasetMetadataEnabled,
-            trajectoryUploadEnabled: data.trajectoryUploadEnabled,
-            cameraUploadEnabled: data.cameraUploadEnabled,
-        });
-    }, [data]);
 
     const handleSave = async () => {
         setSaved(false);

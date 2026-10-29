@@ -1,9 +1,16 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { openPath } from '@tauri-apps/plugin-opener';
 import Link from 'next/link';
+
+const getErrorMessage = (err: unknown) => {
+    if (err instanceof Error) {
+        return err.message;
+    }
+    return String(err ?? 'Unknown error');
+};
 
 export default function DesktopSettingsLogsPage() {
     const [logDir, setLogDir] = useState<string>('');
@@ -13,14 +20,7 @@ export default function DesktopSettingsLogsPage() {
     const [isLoadingLogs, setIsLoadingLogs] = useState<boolean>(false);
     const [isClearingLogs, setIsClearingLogs] = useState<boolean>(false);
 
-    const getErrorMessage = (err: unknown) => {
-        if (err instanceof Error) {
-            return err.message;
-        }
-        return String(err ?? 'Unknown error');
-    };
-
-    const loadAllLogs = async () => {
+    const loadAllLogs = useCallback(async () => {
         if (!isTauri()) {
             setAllLogError('Logs are only available in the desktop app.');
             return;
@@ -37,7 +37,7 @@ export default function DesktopSettingsLogsPage() {
         } finally {
             setIsLoadingLogs(false);
         }
-    };
+    }, []);
 
     useEffect(() => {
         const loadPath = async () => {
@@ -56,7 +56,7 @@ export default function DesktopSettingsLogsPage() {
 
         void loadPath();
         void loadAllLogs();
-    }, []);
+    }, [loadAllLogs]);
 
     const handleOpenLogs = async () => {
         if (!isTauri()) {

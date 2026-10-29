@@ -11,7 +11,7 @@ type RobotKioskLogsProps = {
     title?: string;
 };
 
-export const RobotKioskLogs = ({ isActive, nickname, title = 'Robot Logs' }: RobotKioskLogsProps) => {
+const RobotKioskLogsContent = ({ isActive, nickname, title = 'Robot Logs' }: RobotKioskLogsProps) => {
     const [controlLogs, setControlLogs] = useState<string[]>([]);
     const [isExpanded, setIsExpanded] = useState(false);
     const logsRef = useRef<string[]>([]);
@@ -20,10 +20,6 @@ export const RobotKioskLogs = ({ isActive, nickname, title = 'Robot Logs' }: Rob
         logsRef.current = [];
         setControlLogs([]);
     }, []);
-
-    useEffect(() => {
-        clearLogs();
-    }, [clearLogs, nickname]);
 
     const appendLog = useCallback(
         (log: string) => {
@@ -131,3 +127,5 @@ export const RobotKioskLogs = ({ isActive, nickname, title = 'Robot Logs' }: Rob
         </div>
     );
 };
+
+export const RobotKioskLogs = (props: RobotKioskLogsProps) => <RobotKioskLogsContent key={props.nickname} {...props} />;

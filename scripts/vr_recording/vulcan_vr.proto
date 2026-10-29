@@ -43,6 +43,8 @@ message DesktopObservation {
     // Retained events survive observation-frame coalescing on the headset.
     repeated RecordingAnnouncement recording_announcements = 12;
     string recording_phase = 13;
+    // Sequence numbers belong to this receiver process, not earlier connections.
+    string recording_session_id = 14;
 }
 
 message RecordingAnnouncement {

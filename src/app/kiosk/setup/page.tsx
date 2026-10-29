@@ -30,6 +30,11 @@ export default function KioskSetupPage() {
     const { data: kioskUpdateStatus, isLoading: isLoadingKioskUpdate, refetch: refetchKioskUpdateStatus } = useKioskUpdateStatus();
     const { data: persistedProgress, refetch: refetchProgress } = useKioskUpdateProgress();
 
+    const [now, setNow] = useState(() => Date.now());
+    useEffect(() => {
+        const timer = window.setInterval(() => setNow(Date.now()), 1000);
+        return () => window.clearInterval(timer);
+    }, []);
     const [isRunning, setIsRunning] = useState(false);
     const [runningAction, setRunningAction] = useState<ActionKey | null>(null);
     const [expandedAction, setExpandedAction] = useState<ActionKey | null>(null);
@@ -38,16 +43,21 @@ export default function KioskSetupPage() {
     const runningActionRef = useRef<ActionKey | null>(null);
     const wasRunningRef = useRef(false);
 
-    useEffect(() => {
-        const action = persistedProgress?.action;
-        if (!action) return;
+    const [previousProgress, setPreviousProgress] = useState<typeof persistedProgress | null>(null);
+    if (persistedProgress !== previousProgress) {
+        setPreviousProgress(persistedProgress);
+        if (persistedProgress?.action) {
+            setRunningAction(persistedProgress.running ? persistedProgress.action : null);
+            setExpandedAction(persistedProgress.action);
+            setIsRunning(persistedProgress.running);
+            setLog(persistedProgress.log);
+            setError(persistedProgress.error ?? null);
+        }
+    }
 
-        runningActionRef.current = persistedProgress.running ? action : null;
-        setRunningAction(persistedProgress.running ? action : null);
-        setExpandedAction(action);
-        setIsRunning(persistedProgress.running);
-        setLog(persistedProgress.log);
-        setError(persistedProgress.error ?? null);
+    useEffect(() => {
+        if (!persistedProgress?.action) return;
+        runningActionRef.current = persistedProgress.running ? persistedProgress.action : null;
         if (wasRunningRef.current && !persistedProgress.running) {
             void refetchKioskUpdateStatus();
         }
@@ -134,7 +144,7 @@ export default function KioskSetupPage() {
             persistedProgress.step === 'setup' &&
             persistedProgress.stepStartedAt
         ) {
-            const elapsed = Math.max(0, Date.now() - persistedProgress.stepStartedAt);
+            const elapsed = Math.max(0, now - persistedProgress.stepStartedAt);
             return Math.min(94, Math.max(persistedProgress.percent, 35 + Math.floor((elapsed / (40 * 60 * 1000)) * 60)));
         }
         return persistedProgress.percent;

@@ -2,7 +2,7 @@
 
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { FaArrowRight } from 'react-icons/fa';
 import { AppBootScreen } from '@/components/Elements/AppBootScreen';
 import { usePrivacyPreferences, useSavePrivacyPreferences } from '@/hooks/System/privacy-preferences.hook';
@@ -27,19 +27,15 @@ export default function OnboardingPage() {
     const { data: preferences, isLoading, error } = usePrivacyPreferences();
     const savePreferences = useSavePrivacyPreferences();
     const [step, setStep] = useState<1 | 2>(1);
-    const [choices, setChoices] = useState<SavePrivacyPreferencesRequest>(disabledChoices);
+    const [draftChoices, setChoices] = useState<SavePrivacyPreferencesRequest | null>(null);
+    const choices = draftChoices ?? (preferences ? {
+        diagnosticsEnabled: preferences.diagnosticsEnabled,
+        datasetMetadataEnabled: preferences.datasetMetadataEnabled,
+        trajectoryUploadEnabled: preferences.trajectoryUploadEnabled,
+        cameraUploadEnabled: preferences.cameraUploadEnabled,
+    } : disabledChoices);
     const productImprovementEnabled = isProductImprovementEnabled(choices);
     const aiRecordingContributionEnabled = isAiRecordingContributionEnabled(choices);
-
-    useEffect(() => {
-        if (!preferences) return;
-        setChoices({
-            diagnosticsEnabled: preferences.diagnosticsEnabled,
-            datasetMetadataEnabled: preferences.datasetMetadataEnabled,
-            trajectoryUploadEnabled: preferences.trajectoryUploadEnabled,
-            cameraUploadEnabled: preferences.cameraUploadEnabled,
-        });
-    }, [preferences]);
 
     const finishOnboarding = async () => {
         try {
@@ -104,7 +100,7 @@ export default function OnboardingPage() {
                                             aria-label="Share diagnostics and dataset metadata"
                                             onClick={() =>
                                                 setChoices((current) =>
-                                                    applyProductImprovementChoice(current, !productImprovementEnabled)
+                                                    applyProductImprovementChoice(current ?? choices, !productImprovementEnabled)
                                                 )
                                             }
                                             disabled={savePreferences.isPending}
@@ -143,7 +139,7 @@ export default function OnboardingPage() {
                                             aria-label="Contribute trajectories and vision data"
                                             onClick={() =>
                                                 setChoices((current) =>
-                                                    applyAiRecordingContributionChoice(current, !aiRecordingContributionEnabled)
+                                                    applyAiRecordingContributionChoice(current ?? choices, !aiRecordingContributionEnabled)
                                                 )
                                             }
                                             disabled={savePreferences.isPending}
@@ -162,7 +158,7 @@ export default function OnboardingPage() {
                                         </button>
                                     </span>
                                     <span className="mt-2 block text-xs leading-5 text-slate-400">
-                                        Share project trajectories, images, and video to improve Sourccey's AI.
+                                        Share project trajectories, images, and video to improve Sourccey&apos;s AI.
                                     </span>
                                 </div>
                             </div>

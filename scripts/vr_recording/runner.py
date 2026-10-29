@@ -3,14 +3,16 @@
 from __future__ import annotations
 
 import argparse
+import json
 import logging
+import math
 import os
 import re
 import shutil
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -43,6 +45,40 @@ else:
     from teleoperator import VRHeadset
 
 
+_LEROBOT_LOG_SAY_PATH = log_say.__code__.co_filename
+
+
+class _LeRobotSpeechRelay(logging.Handler):
+    """Forward the text LeRobot actually logs, without translating episode numbers."""
+
+    def __init__(self, headset):
+        super().__init__()
+        self.headset = headset
+
+    def emit(self, record):
+        if record.pathname != _LEROBOT_LOG_SAY_PATH or record.funcName != "log_say":
+            return
+        try:
+            self.headset.announce(record.getMessage())
+        except Exception:
+            self.handleError(record)
+
+
+@contextmanager
+def _forward_lerobot_speech(headset):
+    logger = logging.getLogger()
+    if any(isinstance(handler, _LeRobotSpeechRelay) and handler.headset is headset for handler in logger.handlers):
+        yield
+        return
+    handler = _LeRobotSpeechRelay(headset)
+    logger.addHandler(handler)
+    try:
+        yield
+    finally:
+        logger.removeHandler(handler)
+        handler.close()
+
+
 @dataclass
 class SessionConfig:
     remote_ip: str
@@ -55,6 +91,7 @@ class SessionConfig:
     dataset: DatasetRecordConfig
     display_data: bool = False
     play_sounds: bool = True
+    name_pattern: str | None = None
 
 
 def _parse_bool(value: str) -> bool:
@@ -110,16 +147,15 @@ def _parse_args() -> SessionConfig:
     )
 
 
-def _stamped_repo_id(base_repo_id: str, task: str, capture_number: int) -> str:
+def _stamped_repo_id(base_repo_id: str, task: str, capture_number: int, name_pattern: str | None = None) -> str:
     """Create the same timestamp/task names without changing DatasetRecordConfig."""
     from datetime import datetime
 
     base = base_repo_id if capture_number == 1 else f"{base_repo_id}-{capture_number}"
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    if os.environ.get("SOURCCEY_RECORD_NAME_PATTERN", "").strip():
-        return format_record_repo_id(
-            base_repo_id, task, capture_number, timestamp, os.environ["SOURCCEY_RECORD_NAME_PATTERN"].strip()
-        )
+    pattern = os.environ.get("SOURCCEY_RECORD_NAME_PATTERN", "").strip() if name_pattern is None else name_pattern
+    if pattern:
+        return format_record_repo_id(base_repo_id, task, capture_number, timestamp, pattern)
     ascii_task = unicodedata.normalize("NFKD", task).encode("ascii", "ignore").decode("ascii")
     task_slug = re.sub(r"[^a-z0-9]+", "-", ascii_task.lower()).strip("-")[:48].rstrip("-")
     return f"{base}_{timestamp}{f'_{task_slug}' if task_slug else ''}"
@@ -132,7 +168,7 @@ def _create_dataset(config: SessionConfig, robot, features: dict, capture_number
             "Dataset names starting with 'eval_' are reserved for policy evaluation. "
             "Use a data-collection dataset name instead."
         )
-    repo_id = _stamped_repo_id(config.dataset.repo_id, config.dataset.single_task, capture_number)
+    repo_id = _stamped_repo_id(config.dataset.repo_id, config.dataset.single_task, capture_number, config.name_pattern)
     return LeRobotDataset.create(
         repo_id,
         config.dataset.fps,
@@ -322,6 +358,43 @@ def _record_loop(
         precise_sleep(max(control_interval - elapsed, 0.0))
 
 
+def _apply_capture_settings(config: SessionConfig, payload: str) -> str:
+    """Validate and snapshot desktop settings only when an idle session starts a batch."""
+    if not payload.lstrip().startswith("{"):
+        task = payload.removeprefix("task:").strip()
+        if not task:
+            raise ValueError("Task is required")
+        return task
+    settings = json.loads(payload)
+    if settings.get("valid") is False:
+        raise ValueError("Correct the recording settings on the desktop before starting")
+    episodes = settings["num_episodes"]
+    episode_time = settings["episode_time_s"]
+    reset_time = settings["reset_time_s"]
+    task = settings["single_task"].strip()
+    repo_id = settings["repo_id"].strip()
+    pattern = settings["name_pattern"].strip()
+    if type(episodes) is not int or episodes <= 0:
+        raise ValueError("Episodes must be a positive integer")
+    if not math.isfinite(episode_time) or episode_time <= 0:
+        raise ValueError("Episode time must be positive and finite")
+    if not math.isfinite(reset_time) or reset_time < 0:
+        raise ValueError("Reset time must be nonnegative and finite")
+    if not repo_id or not task:
+        raise ValueError("Record path and task are required")
+    config.dataset.repo_id = repo_id
+    config.dataset.num_episodes = episodes
+    config.dataset.episode_time_s = episode_time
+    config.dataset.reset_time_s = reset_time
+    config.dataset.single_task = task
+    config.name_pattern = pattern
+    print(
+        f"VR batch settings: episodes={episodes}, episode_time_s={episode_time:g}, reset_time_s={reset_time:g}",
+        flush=True,
+    )
+    return task
+
+
 def _wait_for_capture(
     config: SessionConfig,
     robot,
@@ -388,17 +461,11 @@ def _wait_for_capture(
         if not ready_for_capture:
             headset.start_requested = False
         if (headset.start_requested or desktop_start_requested) and ready_for_capture:
-            if desktop_start_requested and desktop_task and desktop_task.startswith("task:"):
-                task = desktop_task.removeprefix("task:").strip()
-            else:
-                try:
-                    task = config.task_path.read_text(encoding="utf-8").strip()
-                except OSError as error:
-                    print(f"VR recording start ignored: could not read current task: {error}", flush=True)
-                    headset.start_requested = False
-                    continue
-            if not task:
-                print("VR recording start ignored: Task is required", flush=True)
+            try:
+                payload = desktop_task if desktop_start_requested else config.task_path.read_text(encoding="utf-8")
+                task = _apply_capture_settings(config, payload or "")
+            except (OSError, ValueError, KeyError, TypeError, AttributeError) as error:
+                print(f"VR recording start ignored: invalid recording settings: {error}", flush=True)
                 headset.start_requested = False
                 continue
             robot.send_action(headset.safe_stop_action(observation))
@@ -410,9 +477,8 @@ def _wait_for_capture(
     return None
 
 
-def _announce(config: SessionConfig, headset: VRHeadset, message: str) -> None:
-    """Use the same lifecycle message for desktop speech and headset speech."""
-    headset.announce(message)
+def _announce(config: SessionConfig, message: str) -> None:
+    """LeRobot logs/speaks once; the speech relay forwards that output to VR."""
     log_say(message, config.play_sounds)
 
 
@@ -445,21 +511,22 @@ def _record_episodes(config, robot, headset, keyboard, events, dataset, processo
         return _run_with_live_teleop(operation, config, robot, headset, keyboard, events, processors)
 
     with ExitStack() as cleanup:
+        cleanup.enter_context(_forward_lerobot_speech(headset))
         encoding = VideoEncodingManager(dataset)
         encoding.__enter__()
         cleanup.push(lambda *exception: dataset_operation(lambda: encoding.__exit__(*exception)))
         while recorded_episodes < config.dataset.num_episodes and not batch_stopped():
-            episode_message = f"Recording episode {dataset.num_episodes + 1}"
+            episode_message = f"Recording episode {dataset.num_episodes}"
 
             def first_recorded_frame(observation):
-                headset.confirm_recording_started(episode_message, observation)
+                headset.mark_recording_started(observation)
                 print(f"VR capture started: {dataset.repo_id}", flush=True)
                 log_say(episode_message, config.play_sounds)
 
             record_loop(capture=True, on_first_recorded_frame=first_recorded_frame)
             _hold_if_controls_unavailable(robot, headset, events, headset._last_observation or {})
             headset.recording_phase = "saving"
-            _announce(config, headset, "Stopping recording")
+            _announce(config, "Stopping recording")
             # A headset Stop finishes this episode. Desktop Stop/close and a
             # lost headset end the batch, preserving their existing safe-stop behavior.
             headset.stop_requested = False
@@ -467,17 +534,17 @@ def _record_episodes(config, robot, headset, keyboard, events, dataset, processo
             events["rerecord_episode"] = False
             events["exit_early"] = False
             if rerecord:
-                _announce(config, headset, "Re-record episode")
+                _announce(config, "Re-record episode")
 
             if not batch_stopped() and (rerecord or recorded_episodes < config.dataset.num_episodes - 1):
                 headset.recording_phase = "resetting"
-                _announce(config, headset, "Reset the environment")
+                _announce(config, "Reset the environment")
                 print("VR capture continuing; reset the environment", flush=True)
                 record_loop(capture=False)
                 _hold_if_controls_unavailable(robot, headset, events, headset._last_observation or {})
                 if events["rerecord_episode"] and not batch_stopped():
                     if not rerecord:
-                        _announce(config, headset, "Re-record episode")
+                        _announce(config, "Re-record episode")
                     rerecord = True
                 headset.stop_requested = False
                 events["rerecord_episode"] = False
@@ -535,61 +602,62 @@ def run_session(config: SessionConfig) -> LeRobotDataset | None:
     last_dataset = None
     capture_number = 0
     config.ready_signal_path.unlink(missing_ok=True)
-    try:
-        headset.connect()
-        keyboard_connected = connect_keyboard(keyboard)
-        robot.connect()
-        robot_connected = True
-        print("VR receiver ready; waiting for headset controls", flush=True)
+    with _forward_lerobot_speech(headset):
+        try:
+            headset.connect()
+            keyboard_connected = connect_keyboard(keyboard)
+            robot.connect()
+            robot_connected = True
+            print("VR receiver ready; waiting for headset controls", flush=True)
 
-        while not events["stop_recording"]:
-            task = _wait_for_capture(config, robot, headset, keyboard if keyboard_connected else None, events)
-            if task is None:
-                break
-            config.dataset.single_task = task
-            capture_number += 1
-            dataset = _create_dataset(config, robot, dataset_features, capture_number)
-            print("VR capture setup complete; waiting for first frame", flush=True)
+            while not events["stop_recording"]:
+                task = _wait_for_capture(config, robot, headset, keyboard if keyboard_connected else None, events)
+                if task is None:
+                    break
+                config.dataset.single_task = task
+                capture_number += 1
+                dataset = _create_dataset(config, robot, dataset_features, capture_number)
+                print("VR capture setup complete; waiting for first frame", flush=True)
 
-            events["stop_capture"] = False
-            try:
-                _record_episodes(
-                    config, robot, headset, keyboard if keyboard_connected else None,
-                    events, dataset,
-                    (teleop_action_processor, robot_action_processor, robot_observation_processor),
-                )
-            finally:
-                _run_with_live_teleop(
-                    dataset.finalize, config, robot, headset,
-                    keyboard if keyboard_connected else None, events,
-                    (teleop_action_processor, robot_action_processor, robot_observation_processor),
-                )
+                events["stop_capture"] = False
+                try:
+                    _record_episodes(
+                        config, robot, headset, keyboard if keyboard_connected else None,
+                        events, dataset,
+                        (teleop_action_processor, robot_action_processor, robot_observation_processor),
+                    )
+                finally:
+                    _run_with_live_teleop(
+                        dataset.finalize, config, robot, headset,
+                        keyboard if keyboard_connected else None, events,
+                        (teleop_action_processor, robot_action_processor, robot_observation_processor),
+                    )
 
-            last_dataset = dataset
-            if config.dataset.push_to_hub and dataset.num_episodes > 0:
-                dataset.push_to_hub(tags=config.dataset.tags, private=config.dataset.private)
-            print(f"VR capture saved: {dataset.repo_id}", flush=True)
-            headset.recording_phase = "idle"
-            _announce(config, headset, "Recording saved")
-            headset.stop_requested = False
-            headset.rerecord_requested = False
-            events["exit_early"] = False
-            if not events["stop_recording"]:
-                headset.publish_observation(robot.get_observation())
-    finally:
-        if headset.is_connected:
-            headset.recording_phase = "idle"
-            _announce(config, headset, "Exiting")
-        config.ready_signal_path.unlink(missing_ok=True)
-        if robot_connected and robot.is_connected:
-            try:
-                robot.send_action(headset.safe_stop_action(headset._last_observation or {}))
-            except Exception:
-                logging.exception("Could not send final safe-stop action")
-            robot.disconnect()
-        headset.disconnect()
-        if keyboard_connected and keyboard.is_connected:
-            keyboard.disconnect()
+                last_dataset = dataset
+                if config.dataset.push_to_hub and dataset.num_episodes > 0:
+                    dataset.push_to_hub(tags=config.dataset.tags, private=config.dataset.private)
+                print(f"VR capture saved: {dataset.repo_id}", flush=True)
+                headset.recording_phase = "idle"
+                _announce(config, "Recording saved")
+                headset.stop_requested = False
+                headset.rerecord_requested = False
+                events["exit_early"] = False
+                if not events["stop_recording"]:
+                    headset.publish_observation(robot.get_observation())
+        finally:
+            if headset.is_connected:
+                headset.recording_phase = "idle"
+                _announce(config, "Exiting")
+            config.ready_signal_path.unlink(missing_ok=True)
+            if robot_connected and robot.is_connected:
+                try:
+                    robot.send_action(headset.safe_stop_action(headset._last_observation or {}))
+                except Exception:
+                    logging.exception("Could not send final safe-stop action")
+                robot.disconnect()
+            headset.disconnect()
+            if keyboard_connected and keyboard.is_connected:
+                keyboard.disconnect()
     return last_dataset
 
 

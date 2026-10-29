@@ -11,6 +11,7 @@ import { Spinner } from '@/components/Elements/Spinner';
 import { DEFAULT_DESKTOP_TELEOP_TYPE, useDesktopTeleopCalibrationStatus } from '@/hooks/Control/desktop-calibration.hook';
 import { getRemoteTeleopBlockingMessage, getRemoteTeleopReadiness } from '@/utils/teleop/remote-teleop-readiness';
 import { buildDefaultRecordPath, isGeneratedRecordPath } from '@/utils/teleop/remote-record-path';
+import { validateRecordSettings, type RemoteRecordDraft, type ParsedRecordSettings } from '@/utils/teleop/remote-record-settings';
 import { setContent } from '@/hooks/Components/OwnedRobots/owned-robots.hook';
 
 export enum RobotControlStatus {
@@ -19,15 +20,6 @@ export enum RobotControlStatus {
 }
 
 type RemoteTeleopMode = 'teleoperation' | 'recording';
-
-type RemoteRecordDraft = {
-    repoId: string;
-    namePattern: string;
-    numEpisodes: string;
-    episodeTimeS: string;
-    resetTimeS: string;
-    task: string;
-};
 
 const DEFAULT_RECORD_SETTINGS = {
     namePattern: 'Sourccey-{Task}-{number}-{timestamp}',
@@ -55,7 +47,7 @@ export const RemoteTeleopAction = ({
     const [vrPreferenceLoaded, setVrPreferenceLoaded] = useState(false);
     const pressedTeleopKeys = useRef(new Set<string>());
     const startupListener = useRef<UnlistenFn | null>(null);
-    const vrTaskUpdate = useRef<Promise<void>>(Promise.resolve());
+    const vrSettingsUpdate = useRef<Promise<void>>(Promise.resolve());
     const vrCaptureStartPending = useRef(false);
     const vrCaptureStopPending = useRef(false);
     const [isControlStarting, setIsControlStarting] = useState(false);
@@ -203,15 +195,6 @@ export const RemoteTeleopAction = ({
         };
     }, [isControlling, normalizedNickname]);
     const vrRecording = isRecordingMode && vrHeadset;
-    useEffect(() => {
-        if (!vrRecording || !isControlling || !isVrReceiverReady) return;
-        const task = recordSettings.task;
-        const update = vrTaskUpdate.current.then(() => invoke<void>('update_vr_record_task', { nickname: normalizedNickname, task }));
-        vrTaskUpdate.current = update.catch(() => {});
-        void update.catch((error) => {
-            toast.error(`Could not update recording task: ${error instanceof Error ? error.message : String(error)}`, { ...toastErrorDefaults });
-        });
-    }, [vrRecording, isControlling, isVrReceiverReady, normalizedNickname, recordSettings.task]);
     const isCalibrationLoading = isLoading || (isLoadingCalibration && !vrRecording);
     const readiness = getRemoteTeleopReadiness(remoteConfig, teleopCalibrationStatus, {
         allowLeaderFallback: true,
@@ -250,45 +233,31 @@ export const RemoteTeleopAction = ({
             return { ready: true, message: '', parsed: null as ParsedRecordSettings | null };
         }
 
-        const repoId = recordSettings.repoId.trim();
-        const namePattern = recordSettings.namePattern.trim();
-        const task = recordSettings.task.trim();
-        const numEpisodes = Number(recordSettings.numEpisodes);
-        const episodeTimeS = Number(recordSettings.episodeTimeS);
-        const resetTimeS = Number(recordSettings.resetTimeS);
-
-        if (!repoId) {
-            return { ready: false, message: 'Record path is required.', parsed: null };
-        }
-        if (!namePattern || /[\\/<>:"|?*]/.test(namePattern) || /\{(?!Task\}|number\}|timestamp\})/.test(namePattern)) {
-            return { ready: false, message: 'Use a name with {Task}, {number}, or {timestamp}; avoid path characters.', parsed: null };
-        }
-        if (!Number.isFinite(numEpisodes) || numEpisodes <= 0) {
-            return { ready: false, message: 'Episodes must be greater than 0.', parsed: null };
-        }
-        if (!Number.isFinite(episodeTimeS) || episodeTimeS <= 0) {
-            return { ready: false, message: 'Episode time must be greater than 0.', parsed: null };
-        }
-        if (!Number.isFinite(resetTimeS) || resetTimeS < 0) {
-            return { ready: false, message: 'Reset time must be 0 or greater.', parsed: null };
-        }
-        if (!task) {
-            return { ready: false, message: 'Task is required.', parsed: null };
-        }
-
-        return {
-            ready: true,
-            message: '',
-            parsed: {
-                repoId,
-                namePattern,
-                numEpisodes,
-                episodeTimeS,
-                resetTimeS,
-                task,
-            },
-        };
+        return validateRecordSettings(recordSettings);
     }, [isRecordingMode, recordSettings]);
+
+    const vrBatchSettings = useMemo(() => {
+        const parsed = recordingDraftValidation.parsed;
+        return parsed ? {
+            repo_id: parsed.repoId,
+            name_pattern: parsed.namePattern,
+            num_episodes: parsed.numEpisodes,
+            episode_time_s: parsed.episodeTimeS,
+            reset_time_s: parsed.resetTimeS,
+            single_task: parsed.task,
+        } : null;
+    }, [recordingDraftValidation]);
+
+    useEffect(() => {
+        if (!vrRecording || !isControlling || !isVrReceiverReady) return;
+        const update = vrSettingsUpdate.current.then(() => invoke<void>('update_vr_record_settings', {
+            nickname: normalizedNickname, settings: vrBatchSettings,
+        }));
+        vrSettingsUpdate.current = update.catch(() => {});
+        void update.catch((error) => {
+            toast.error(`Could not update recording settings: ${error instanceof Error ? error.message : String(error)}`, { ...toastErrorDefaults });
+        });
+    }, [vrRecording, isControlling, isVrReceiverReady, normalizedNickname, vrBatchSettings]);
 
     const effectiveReadinessMessage = !(vrSession ? vrReady : readiness.ready)
         ? readinessMessage
@@ -471,8 +440,8 @@ export const RemoteTeleopAction = ({
 
     const beginVrRecording = async () => {
         if (!vrRecording || !isControlling || !isVrReceiverReady || !isVrHeadsetReady || !isVrCaptureReady || isVrCaptureStarting || isVrCaptureActive || vrCaptureStartPending.current) return;
-        if (!recordSettings.task.trim()) {
-            toast.error('Task is required before starting a recording.', { ...toastErrorDefaults });
+        if (!vrBatchSettings) {
+            toast.error(recordingDraftValidation.message || 'Recording settings are required.', { ...toastErrorDefaults });
             return;
         }
         vrCaptureStartPending.current = true;
@@ -480,7 +449,8 @@ export const RemoteTeleopAction = ({
         setIsVrCaptureReady(false);
         const requestedAtMs = Date.now();
         try {
-            await invoke('begin_vr_record', { nickname: normalizedNickname, task: recordSettings.task, requestedAtMs });
+            await vrSettingsUpdate.current;
+            await invoke('begin_vr_record', { nickname: normalizedNickname, settings: vrBatchSettings, requestedAtMs });
         } catch (error) {
             vrCaptureStartPending.current = false;
             setIsVrCaptureStarting(false);
@@ -660,7 +630,7 @@ export const RemoteTeleopAction = ({
                         <button
                             type="button"
                             onClick={beginVrRecording}
-                            disabled={isVrCaptureStarting}
+                            disabled={isVrCaptureStarting || !vrBatchSettings}
                             aria-busy={isVrCaptureStarting}
                             className={`inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-semibold text-white ${
                                 isVrCaptureStarting
@@ -767,6 +737,7 @@ export const RemoteTeleopAction = ({
                         Use VR headset for teleoperative recording
                     </label>
                     {vrHeadset && <p className="mb-4 text-xs text-slate-300">Open Recording Teleoperation Connection to control the robot before capture. On the headset, turn on Recording Mode and set its IP address to <strong className="text-white">{recordingHostIp || 'this desktop computer’s LAN IP'}</strong>, command port 5557 and observation port 5561. The robot’s IP ({remoteConfig?.remote_ip}) is for direct control. Start Recording becomes available when live headset controls arrive.</p>}
+                    {vrRecording && isControlling && <p className="mb-4 text-xs text-slate-300">Settings changes apply to the next recording batch. The current batch keeps its original settings.</p>}
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                         <label className="flex flex-col gap-1 text-xs text-slate-300">
                             Record Path
@@ -832,15 +803,6 @@ export const RemoteTeleopAction = ({
             />
         </div>
     );
-};
-
-type ParsedRecordSettings = {
-    repoId: string;
-    namePattern: string;
-    numEpisodes: number;
-    episodeTimeS: number;
-    resetTimeS: number;
-    task: string;
 };
 
 export interface RemoteTeleopConfig {

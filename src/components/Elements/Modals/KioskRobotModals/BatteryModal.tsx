@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect } from 'react';
+import { useHydrated } from '@/hooks/use-hydrated';
 import { createPortal } from 'react-dom';
 import { FaBatteryFull, FaBolt, FaClock, FaExclamationTriangle, FaTachometerAlt, FaTimes } from 'react-icons/fa';
 import { calculateBatteryPercent, getBatteryChargeState, getBatteryTimeEstimate, type BatteryData } from '@/hooks/System/system-info.hook';
@@ -33,9 +34,8 @@ export const BatteryModal = ({
     title = 'Battery',
     subtitle = 'Live power and capacity information',
 }: BatteryModalProps) => {
-    const [mounted, setMounted] = useState(false);
+    const mounted = useHydrated();
 
-    useEffect(() => setMounted(true), []);
 
     useEffect(() => {
         if (!isOpen) return;
