@@ -136,7 +136,7 @@ fn desktop_serial_port_discovery_uses_the_lerobot_runtime() {
     assert_eq!(&args[..4], ["run", "--no-sync", "python", "-c"]);
     assert!(args[4].contains("list_ports.comports()"));
     assert!(args[4].contains("FeetechMotorsBus"));
-    assert!(args[4].contains("broadcast_ping"));
+    assert!(args[4].contains("bus.ping(motor_id, num_retry=1)"));
     assert!(args[4].contains("set(range(1, 7))"));
     assert!(args[4].contains("set(range(7, 13))"));
     assert!(args[4].contains("/dev/robotLeftArm"));

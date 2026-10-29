@@ -58,6 +58,10 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
     const portsAreDistinct = leftArmPort !== rightArmPort;
     const leftPortDetection = availablePorts?.find((port) => port.port === leftArmPort);
     const rightPortDetection = availablePorts?.find((port) => port.port === rightArmPort);
+    const scanFoundBothCompleteArms = availablePorts !== null && ['left', 'right'].every((arm) => {
+        const matches = availablePorts.filter((port) => port.suggestedArm === arm);
+        return matches.length === 1 && matches[0]?.isComplete === true;
+    });
     const detectedPortsAreSwapped = leftPortDetection?.suggestedArm === 'right' || rightPortDetection?.suggestedArm === 'left';
     const canRunCalibration = normalizedNickname.length > 0 && hasBothArmPorts && portsAreDistinct && !detectedPortsAreSwapped;
 
@@ -123,15 +127,15 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
             if (detectedRightPort) {
                 setRightArmPortDraft(detectedRightPort.port);
             }
-            if (detectedLeftPort && detectedRightPort) {
+            if (detectedLeftPort?.isComplete && detectedRightPort?.isComplete) {
                 toast.success('Detected and assigned both leader arms from their motor IDs.', {
                     ...toastSuccessDefaults,
                 });
             } else {
-                toast.info('Port scan finished. Review the detection details in each arm port box.');
+                toast.info('Port scan finished. Review the scan results below.');
             }
         } catch (error: unknown) {
-            const message = error instanceof Error ? error.message : 'Failed to find serial ports.';
+            const message = error instanceof Error ? error.message : typeof error === 'string' ? error : 'Failed to find serial ports.';
             toast.error(message, {
                 ...toastErrorDefaults,
             });
@@ -260,6 +264,23 @@ export const DesktopTeleopCalibration = ({ ownedRobot, embedded = false }: { own
                     {isFindingPorts ? 'Scanning Motors...' : 'Find Ports & Motors'}
                 </button>
             </div>
+
+            {availablePorts !== null && availablePorts.length > 0 && !scanFoundBothCompleteArms && (
+                <div className="rounded-xl border border-slate-700 bg-slate-900/60 p-4 text-xs text-slate-300">
+                    <p className="mb-2 font-semibold text-white">Scan results</p>
+                    <ul className="max-h-40 space-y-1 overflow-y-auto break-words pr-2">
+                        {availablePorts.map((port) => (
+                            <li key={port.port}>
+                                <span className="font-mono">{port.port}</span>: {port.probeError
+                                    ? `Could not inspect motors: ${port.probeError}`
+                                    : port.motorIds.length === 0
+                                      ? 'No motors detected'
+                                      : `Motor IDs ${port.motorIds.join(', ')}${port.suggestedArm ? ` · ${port.suggestedArm} arm${port.isComplete ? '' : ' (incomplete)'}` : ' · unrecognized or mixed IDs'}`}
+                            </li>
+                        ))}
+                    </ul>
+                </div>
+            )}
 
             <div className="grid gap-3 sm:grid-cols-2">
                 <label className="flex flex-col gap-1 rounded-xl border border-slate-700 bg-slate-900/60 p-4 text-xs text-slate-300">

@@ -17,6 +17,7 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::process::Stdio;
+use std::time::Duration;
 use tauri::AppHandle;
 use tokio::process::Command;
 
@@ -26,56 +27,71 @@ const DESKTOP_TELEOP_ARM_TYPE: &str = "sourccey_leader";
 const DESKTOP_TELEOP_LEFT_ID: &str = "sourccey_left";
 const DESKTOP_TELEOP_RIGHT_ID: &str = "sourccey_right";
 const DESKTOP_LIST_SERIAL_PORTS_SCRIPT: &str = r#"
+import concurrent.futures
 import json
 from pathlib import Path
+import subprocess
+import sys
 from serial.tools import list_ports
+
+PROBE_SCRIPT = """
+import json
+import sys
 from lerobot.motors.feetech import FeetechMotorsBus
 
-ports = {port.device for port in list_ports.comports()}
+bus = None
+try:
+    bus = FeetechMotorsBus(port=sys.argv[1], motors={})
+    bus.connect(handshake=False)
+    bus.set_baudrate(1_000_000)
+    ids = [motor_id for motor_id in range(1, 13) if bus.ping(motor_id, num_retry=1) is not None]
+    print(json.dumps({"motorIds": ids, "probeError": None}))
+except Exception as error:
+    print(json.dumps({"motorIds": [], "probeError": str(error).strip() or error.__class__.__name__}))
+finally:
+    if bus is not None and bus.is_connected:
+        try:
+            bus.disconnect(disable_torque=False)
+        except Exception:
+            pass
+"""
+
+def device_key(port):
+    resolved = str(Path(port).resolve())
+    if sys.platform == "darwin" and resolved.startswith("/dev/tty."):
+        return "/dev/cu." + resolved[len("/dev/tty."):]
+    return resolved
+
+ports_by_device = {}
+for port in sorted(port.device for port in list_ports.comports()):
+    ports_by_device.setdefault(device_key(port), port)
 for stable_port in ("/dev/robotLeftArm", "/dev/robotRightArm"):
     if Path(stable_port).exists():
-        ports.add(stable_port)
+        ports_by_device[device_key(stable_port)] = stable_port
 
 expected_left = set(range(1, 7))
 expected_right = set(range(7, 13))
-results = []
-for port in sorted(ports):
-    motor_ids = []
-    probe_error = None
-    bus = None
+
+def probe(port):
     try:
-        bus = FeetechMotorsBus(port=port, motors={})
-        bus.connect(handshake=False)
-        bus.set_baudrate(1_000_000)
-        motor_ids = sorted(int(motor_id) for motor_id in (bus.broadcast_ping(num_retry=1) or {}))
+        result = subprocess.run([sys.executable, "-c", PROBE_SCRIPT, port], capture_output=True, text=True, timeout=15, check=True, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        data = json.loads(result.stdout.strip().splitlines()[-1])
+    except subprocess.TimeoutExpired:
+        data = {"motorIds": [], "probeError": "Motor probe timed out"}
     except Exception as error:
-        probe_error = str(error).strip() or error.__class__.__name__
-    finally:
-        if bus is not None and bus.is_connected:
-            try:
-                bus.disconnect(disable_torque=False)
-            except Exception:
-                pass
-
-    found = set(motor_ids)
-    if found and found.issubset(expected_left):
-        suggested_arm = "left"
-        is_complete = found == expected_left
-    elif found and found.issubset(expected_right):
-        suggested_arm = "right"
-        is_complete = found == expected_right
-    else:
-        suggested_arm = None
-        is_complete = False
-
-    results.append({
+        data = {"motorIds": [], "probeError": str(error).strip() or error.__class__.__name__}
+    found = set(data["motorIds"])
+    suggested_arm = "left" if found and found.issubset(expected_left) else "right" if found and found.issubset(expected_right) else None
+    return {
         "port": port,
-        "motorIds": motor_ids,
+        "motorIds": sorted(found),
         "suggestedArm": suggested_arm,
-        "isComplete": is_complete,
-        "probeError": probe_error,
-    })
+        "isComplete": found == expected_left or found == expected_right,
+        "probeError": data["probeError"],
+    }
 
+with concurrent.futures.ThreadPoolExecutor(max_workers=16) as executor:
+    results = list(executor.map(probe, sorted(ports_by_device.values())))
 print(json.dumps(results))
 "#;
 
@@ -379,12 +395,13 @@ impl CalibrationService {
         cmd.args(&command_parts).envs(&runtime.envs);
         Self::configure_calibration_command(&mut cmd);
 
-        let output = cmd
-            .current_dir(&runtime.working_dir)
+        cmd.current_dir(&runtime.working_dir)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
-            .output()
+            .kill_on_drop(true);
+        let output = tokio::time::timeout(Duration::from_secs(90), cmd.output())
             .await
+            .map_err(|_| "Serial port scan timed out. Check connected devices and try again.".to_string())?
             .map_err(|e| format!("Failed to list serial ports: {}", e))?;
         let (stdout, stderr) = Self::decode_output_text(&output);
 
